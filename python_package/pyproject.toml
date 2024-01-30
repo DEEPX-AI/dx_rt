@@ -1,0 +1,20 @@
+[tool.pydocstyle]
+ignore = "D100,D104,D213,D413,D406,D407,D203,D107,D415,D400"
+
+[tool.mypy]
+ignore_missing_imports = true
+install_types = true
+non_interactive = true
+python_version = "3.8"
+
+[tool.black]
+line-length = 120
+target-version = ["py38"]
+
+[tool.isort]
+profile = "black"
+filter_files = true
+line_length = 120
+
+[tool.pytest.ini_options]
+addopts = ["-vv", "-s"]

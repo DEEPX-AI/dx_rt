@@ -1,0 +1,5 @@
+option(USE_ORT "Use ONNX Runtime" ON)
+option(USE_DXRT_TEST "Use DXRT Unit Test" ON)
+option(USE_SHARED_DXRT_LIB "Build for DXRT Shared Library" ON)
+option(USE_PYTHON "Use Python" ON)
+option(ENABLE_DEBUG_INFO "Include debugging informations in build output" ON)
