@@ -1,0 +1,168 @@
+\hypertarget{namespacedxrt}{}\doxysection{dxrt Namespace Reference}
+\label{namespacedxrt}\index{dxrt@{dxrt}}
+
+
+D\+X\+RT C++ A\+P\+Is are provided in this namespace.  
+
+
+\doxysubsection*{Classes}
+\begin{DoxyCompactItemize}
+\item 
+struct \mbox{\hyperlink{structdxrt_1_1DeviceFace__t}{Device\+Face\+\_\+t}}
+\begin{DoxyCompactList}\small\item\em face detection data format from device \end{DoxyCompactList}\item 
+struct \mbox{\hyperlink{structdxrt_1_1DevicePose__t}{Device\+Pose\+\_\+t}}
+\begin{DoxyCompactList}\small\item\em pose estimation data format from device \end{DoxyCompactList}\item 
+struct \mbox{\hyperlink{structdxrt_1_1InferenceOption}{Inference\+Option}}
+\begin{DoxyCompactList}\small\item\em This struct specifies inference options applied to dxrt\+::\+Inference\+Engine. \end{DoxyCompactList}\item 
+class \mbox{\hyperlink{classdxrt_1_1Profiler}{Profiler}}
+\begin{DoxyCompactList}\small\item\em This class provides time measurement A\+PI based on timestamp. \end{DoxyCompactList}\item 
+class \mbox{\hyperlink{classdxrt_1_1Tensor}{Tensor}}
+\begin{DoxyCompactList}\small\item\em This class abstracts D\+X\+RT tensor object, which defines data array composed of uniform elements. \end{DoxyCompactList}\item 
+struct \mbox{\hyperlink{structdxrt_1_1TestData}{Test\+Data}}
+\begin{DoxyCompactList}\small\item\em model test data information \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Enumerations}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\Hypertarget{namespacedxrt_a51e8f05c5acab04a70c3d458d5d3e6b9}\label{namespacedxrt_a51e8f05c5acab04a70c3d458d5d3e6b9}} 
+enum \mbox{\hyperlink{namespacedxrt_a51e8f05c5acab04a70c3d458d5d3e6b9}{Processor}} 
+\begin{DoxyCompactList}\small\item\em Processors. \end{DoxyCompactList}\item 
+enum \mbox{\hyperlink{namespacedxrt_a8d0359dce0b8fe86dcbe914e6437d485}{Inference\+Mode}} \{ \mbox{\hyperlink{namespacedxrt_a8d0359dce0b8fe86dcbe914e6437d485a608fe2c6f93955f755eb6ce2be1121c5}{S\+Y\+NC}}, 
+\mbox{\hyperlink{namespacedxrt_a8d0359dce0b8fe86dcbe914e6437d485afea254a24e1d4c605acc7b102ae05126}{A\+S\+Y\+NC}}
+ \}
+\begin{DoxyCompactList}\small\item\em Inference modes. \end{DoxyCompactList}\item 
+enum \mbox{\hyperlink{namespacedxrt_ab77b34051412213844efe193b50e53e3}{Data\+Type}} \{ , \newline
+\mbox{\hyperlink{namespacedxrt_ab77b34051412213844efe193b50e53e3ade4c5a3ca715133231f8bd84202e19ed}{U\+I\+N\+T8}}, 
+\mbox{\hyperlink{namespacedxrt_ab77b34051412213844efe193b50e53e3a3d69d5a6f1d5d61e0d4888e6893547cc}{U\+I\+N\+T16}}, 
+\mbox{\hyperlink{namespacedxrt_ab77b34051412213844efe193b50e53e3a8b67cfb9962eea4e64616eea29a9fc3c}{U\+I\+N\+T32}}, 
+\mbox{\hyperlink{namespacedxrt_ab77b34051412213844efe193b50e53e3a3957172704f2a6ae51a37bac3f0345ce}{I\+N\+T8}}, 
+\newline
+\mbox{\hyperlink{namespacedxrt_ab77b34051412213844efe193b50e53e3ab396fd9999ac8cbcea3babf3631ec741}{I\+N\+T16}}, 
+\mbox{\hyperlink{namespacedxrt_ab77b34051412213844efe193b50e53e3a4204a547f0bafbf132aeb7baf4063803}{I\+N\+T32}}, 
+\mbox{\hyperlink{namespacedxrt_ab77b34051412213844efe193b50e53e3adc3bc24e12afff0f5eb850524838d942}{F\+L\+O\+AT}}, 
+\mbox{\hyperlink{namespacedxrt_ab77b34051412213844efe193b50e53e3a2db25cb6692b4f3de82d436163c16179}{B\+B\+OX}}, 
+\newline
+\mbox{\hyperlink{namespacedxrt_ab77b34051412213844efe193b50e53e3ac406df6d0d4fa29463fb8f52641bf8ad}{F\+A\+CE}}, 
+\mbox{\hyperlink{namespacedxrt_ab77b34051412213844efe193b50e53e3ac285a20ae7081cd3b5dcf8820eda7cdf}{P\+O\+SE}}
+ \}
+\end{DoxyCompactItemize}
+\doxysubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+int \mbox{\hyperlink{namespacedxrt_a16d0d1d1dc18182cf24aa74f12d9a515}{Command\+Line\+Interface}} (Command cmd, std\+::vector$<$ uint32\+\_\+t $>$ vec)
+\begin{DoxyCompactList}\small\item\em get hardware status (this function is valid only for accelerator devices) \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{namespacedxrt_a12d257e23a9e5d9e99c2420d197f9879}\label{namespacedxrt_a12d257e23a9e5d9e99c2420d197f9879}} 
+int \mbox{\hyperlink{namespacedxrt_a12d257e23a9e5d9e99c2420d197f9879}{Clean\+Mem\+If}} ()
+\begin{DoxyCompactList}\small\item\em C\+PU cache flush A\+PI (Platform-\/dependent) \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{namespacedxrt_a3be83887ca550fa903876b6599dc56ed}{Parse\+Model}} (std\+::string file)
+\begin{DoxyCompactList}\small\item\em parse a model, and show information \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Variables}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\Hypertarget{namespacedxrt_a3b6120a21b52bb3313adeaef8ce33270}\label{namespacedxrt_a3b6120a21b52bb3313adeaef8ce33270}} 
+\mbox{\hyperlink{structdxrt_1_1InferenceOption}{Inference\+Option}} \mbox{\hyperlink{namespacedxrt_a3b6120a21b52bb3313adeaef8ce33270}{Default\+Inference\+Option}}
+\begin{DoxyCompactList}\small\item\em Default inference option. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+D\+X\+RT C++ A\+P\+Is are provided in this namespace. 
+
+
+
+\doxysubsection{Enumeration Type Documentation}
+\mbox{\Hypertarget{namespacedxrt_ab77b34051412213844efe193b50e53e3}\label{namespacedxrt_ab77b34051412213844efe193b50e53e3}} 
+\index{dxrt@{dxrt}!DataType@{DataType}}
+\index{DataType@{DataType}!dxrt@{dxrt}}
+\doxysubsubsection{\texorpdfstring{DataType}{DataType}}
+{\footnotesize\ttfamily enum \mbox{\hyperlink{namespacedxrt_ab77b34051412213844efe193b50e53e3}{dxrt\+::\+Data\+Type}}}
+
+\begin{DoxyEnumFields}{Enumerator}
+\raisebox{\heightof{T}}[0pt][0pt]{\index{UINT8@{UINT8}!dxrt@{dxrt}}\index{dxrt@{dxrt}!UINT8@{UINT8}}}\mbox{\Hypertarget{namespacedxrt_ab77b34051412213844efe193b50e53e3ade4c5a3ca715133231f8bd84202e19ed}\label{namespacedxrt_ab77b34051412213844efe193b50e53e3ade4c5a3ca715133231f8bd84202e19ed}} 
+U\+I\+N\+T8&8bit unsigned integer \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{UINT16@{UINT16}!dxrt@{dxrt}}\index{dxrt@{dxrt}!UINT16@{UINT16}}}\mbox{\Hypertarget{namespacedxrt_ab77b34051412213844efe193b50e53e3a3d69d5a6f1d5d61e0d4888e6893547cc}\label{namespacedxrt_ab77b34051412213844efe193b50e53e3a3d69d5a6f1d5d61e0d4888e6893547cc}} 
+U\+I\+N\+T16&16it unsigned integer \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{UINT32@{UINT32}!dxrt@{dxrt}}\index{dxrt@{dxrt}!UINT32@{UINT32}}}\mbox{\Hypertarget{namespacedxrt_ab77b34051412213844efe193b50e53e3a8b67cfb9962eea4e64616eea29a9fc3c}\label{namespacedxrt_ab77b34051412213844efe193b50e53e3a8b67cfb9962eea4e64616eea29a9fc3c}} 
+U\+I\+N\+T32&32bit unsigned integer \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{INT8@{INT8}!dxrt@{dxrt}}\index{dxrt@{dxrt}!INT8@{INT8}}}\mbox{\Hypertarget{namespacedxrt_ab77b34051412213844efe193b50e53e3a3957172704f2a6ae51a37bac3f0345ce}\label{namespacedxrt_ab77b34051412213844efe193b50e53e3a3957172704f2a6ae51a37bac3f0345ce}} 
+I\+N\+T8&8bit signed integer \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{INT16@{INT16}!dxrt@{dxrt}}\index{dxrt@{dxrt}!INT16@{INT16}}}\mbox{\Hypertarget{namespacedxrt_ab77b34051412213844efe193b50e53e3ab396fd9999ac8cbcea3babf3631ec741}\label{namespacedxrt_ab77b34051412213844efe193b50e53e3ab396fd9999ac8cbcea3babf3631ec741}} 
+I\+N\+T16&16bit signed integer \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{INT32@{INT32}!dxrt@{dxrt}}\index{dxrt@{dxrt}!INT32@{INT32}}}\mbox{\Hypertarget{namespacedxrt_ab77b34051412213844efe193b50e53e3a4204a547f0bafbf132aeb7baf4063803}\label{namespacedxrt_ab77b34051412213844efe193b50e53e3a4204a547f0bafbf132aeb7baf4063803}} 
+I\+N\+T32&32bit signed integer \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{FLOAT@{FLOAT}!dxrt@{dxrt}}\index{dxrt@{dxrt}!FLOAT@{FLOAT}}}\mbox{\Hypertarget{namespacedxrt_ab77b34051412213844efe193b50e53e3adc3bc24e12afff0f5eb850524838d942}\label{namespacedxrt_ab77b34051412213844efe193b50e53e3adc3bc24e12afff0f5eb850524838d942}} 
+F\+L\+O\+AT&32bit float \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{BBOX@{BBOX}!dxrt@{dxrt}}\index{dxrt@{dxrt}!BBOX@{BBOX}}}\mbox{\Hypertarget{namespacedxrt_ab77b34051412213844efe193b50e53e3a2db25cb6692b4f3de82d436163c16179}\label{namespacedxrt_ab77b34051412213844efe193b50e53e3a2db25cb6692b4f3de82d436163c16179}} 
+B\+B\+OX&custom structure for bounding boxes from device \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{FACE@{FACE}!dxrt@{dxrt}}\index{dxrt@{dxrt}!FACE@{FACE}}}\mbox{\Hypertarget{namespacedxrt_ab77b34051412213844efe193b50e53e3ac406df6d0d4fa29463fb8f52641bf8ad}\label{namespacedxrt_ab77b34051412213844efe193b50e53e3ac406df6d0d4fa29463fb8f52641bf8ad}} 
+F\+A\+CE&custom structure for faces from device \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{POSE@{POSE}!dxrt@{dxrt}}\index{dxrt@{dxrt}!POSE@{POSE}}}\mbox{\Hypertarget{namespacedxrt_ab77b34051412213844efe193b50e53e3ac285a20ae7081cd3b5dcf8820eda7cdf}\label{namespacedxrt_ab77b34051412213844efe193b50e53e3ac285a20ae7081cd3b5dcf8820eda7cdf}} 
+P\+O\+SE&custom structure for poses boxes from device \\
+\hline
+
+\end{DoxyEnumFields}
+\mbox{\Hypertarget{namespacedxrt_a8d0359dce0b8fe86dcbe914e6437d485}\label{namespacedxrt_a8d0359dce0b8fe86dcbe914e6437d485}} 
+\index{dxrt@{dxrt}!InferenceMode@{InferenceMode}}
+\index{InferenceMode@{InferenceMode}!dxrt@{dxrt}}
+\doxysubsubsection{\texorpdfstring{InferenceMode}{InferenceMode}}
+{\footnotesize\ttfamily enum \mbox{\hyperlink{namespacedxrt_a8d0359dce0b8fe86dcbe914e6437d485}{dxrt\+::\+Inference\+Mode}}}
+
+
+
+Inference modes. 
+
+\begin{DoxyEnumFields}{Enumerator}
+\raisebox{\heightof{T}}[0pt][0pt]{\index{SYNC@{SYNC}!dxrt@{dxrt}}\index{dxrt@{dxrt}!SYNC@{SYNC}}}\mbox{\Hypertarget{namespacedxrt_a8d0359dce0b8fe86dcbe914e6437d485a608fe2c6f93955f755eb6ce2be1121c5}\label{namespacedxrt_a8d0359dce0b8fe86dcbe914e6437d485a608fe2c6f93955f755eb6ce2be1121c5}} 
+S\+Y\+NC&Synchronous inference (wait for device response after inference request) \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{ASYNC@{ASYNC}!dxrt@{dxrt}}\index{dxrt@{dxrt}!ASYNC@{ASYNC}}}\mbox{\Hypertarget{namespacedxrt_a8d0359dce0b8fe86dcbe914e6437d485afea254a24e1d4c605acc7b102ae05126}\label{namespacedxrt_a8d0359dce0b8fe86dcbe914e6437d485afea254a24e1d4c605acc7b102ae05126}} 
+A\+S\+Y\+NC&Asynchronous inference (don\textquotesingle{}t wait for device response after inference request) \\
+\hline
+
+\end{DoxyEnumFields}
+
+
+\doxysubsection{Function Documentation}
+\mbox{\Hypertarget{namespacedxrt_a16d0d1d1dc18182cf24aa74f12d9a515}\label{namespacedxrt_a16d0d1d1dc18182cf24aa74f12d9a515}} 
+\index{dxrt@{dxrt}!CommandLineInterface@{CommandLineInterface}}
+\index{CommandLineInterface@{CommandLineInterface}!dxrt@{dxrt}}
+\doxysubsubsection{\texorpdfstring{CommandLineInterface()}{CommandLineInterface()}}
+{\footnotesize\ttfamily int dxrt\+::\+Command\+Line\+Interface (\begin{DoxyParamCaption}\item[{Command}]{cmd,  }\item[{std\+::vector$<$ uint32\+\_\+t $>$}]{vec }\end{DoxyParamCaption})}
+
+
+
+get hardware status (this function is valid only for accelerator devices) 
+
+\begin{DoxyReturn}{Returns}
+return 0 if hardware status is read successfully 
+\end{DoxyReturn}
+\mbox{\Hypertarget{namespacedxrt_a3be83887ca550fa903876b6599dc56ed}\label{namespacedxrt_a3be83887ca550fa903876b6599dc56ed}} 
+\index{dxrt@{dxrt}!ParseModel@{ParseModel}}
+\index{ParseModel@{ParseModel}!dxrt@{dxrt}}
+\doxysubsubsection{\texorpdfstring{ParseModel()}{ParseModel()}}
+{\footnotesize\ttfamily int dxrt\+::\+Parse\+Model (\begin{DoxyParamCaption}\item[{std\+::string}]{file }\end{DoxyParamCaption})}
+
+
+
+parse a model, and show information 
+
+\begin{DoxyReturn}{Returns}
+return 0 if model parsing is done successfully, return -\/1 if failed to parse model 
+\end{DoxyReturn}

@@ -1,0 +1,1451 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="Inference-Guide.html">
+      
+      
+        <link rel="next" href="High-Level-Design.html">
+      
+      
+      <link rel="icon" href="img/favicon.png">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.18">
+    
+    
+      
+        <title>Examples - DXRT SDK Documents</title>
+      
+    
+    
+      <link rel="stylesheet" href="assets/stylesheets/main.66ac8b77.min.css">
+      
+        
+        <link rel="stylesheet" href="assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Noto+Serif+Korean:300,300i,400,400i,700,700i%7CNoto+Sans+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Noto Serif Korean";--md-code-font:"Noto Sans Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="stylesheets/extra.css">
+    
+    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#parse>_model" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="index.html" title="DXRT SDK Documents" class="md-header__button md-logo" aria-label="DXRT SDK Documents" data-md-component="logo">
+      
+  <img src="img/deepx.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            DXRT SDK Documents
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Examples
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69Z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12c0-2.42-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69Z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var media,input,key,value,palette=__md_get("__palette");if(palette&&palette.color){"(prefers-color-scheme)"===palette.color.media&&(media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']"),palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent"));for([key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="index.html" class="md-tabs__link">
+        
+  
+    
+  
+  Introduction
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="Introduction.html" class="md-tabs__link">
+          
+  
+  About DX-RT
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="index.html" title="DXRT SDK Documents" class="md-nav__button md-logo" aria-label="DXRT SDK Documents" data-md-component="logo">
+      
+  <img src="img/deepx.png" alt="logo">
+
+    </a>
+    DXRT SDK Documents
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="index.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Introduction
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+      
+        
+        
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    About DX-RT
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            About DX-RT
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="Introduction.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Introduction
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="Installation.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Installation
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="Build.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Build
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="How-To-Create-CMake-Project.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    How To Create CMake Project
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="Getting-Started.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Getting Started
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="Inference-Guide.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Inference Guide
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Examples
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="Examples.html" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    Examples
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#parse>_model" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parse Model
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#run>_model" class="md-nav__link">
+    <span class="md-ellipsis">
+      Run Model
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#firmware>_interface>_dxrt-cli>_tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      Firmware Interface DXRT-CLI tool
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#image>_classification" class="md-nav__link">
+    <span class="md-ellipsis">
+      Image Classification
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#object>_detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      Object Detection
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Object Detection">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prepost-processing>_parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pre/post-processing parameters
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pose>_estimation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pose estimation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pose estimation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prepost-processing>_parameters_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pre/post-processing parameters
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#image>_segmentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Image Segmentation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#face>_detectionrecognition" class="md-nav__link">
+    <span class="md-ellipsis">
+      Face Detection/Recognition
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      Multi-Model
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#imagenet>_classification" class="md-nav__link">
+    <span class="md-ellipsis">
+      ImageNet Classification
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#packet>_classification" class="md-nav__link">
+    <span class="md-ellipsis">
+      Packet Classification
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="High-Level-Design.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    High Level Design
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="API-Reference.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    API Reference
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="Test.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Test
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  <h1>Examples</h1>
+
+<div><p>Please find our demo applications implemented based on the Inference Guide.</p>
+<h2 id="parse&gt;_model">Parse Model<a class="headerlink" href="#parse&gt;_model" title="Permanent link">¶</a></h2>
+<p>Parse model, and show detailed model information<br>
+(from <code>app/basic/parse_model.cpp</code>)  </p>
+<blockquote>
+<p>-m, --model     model path<br>
+ -h, --help      show help<br>
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>parse_model -m &lt;model_dir&gt;
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>$./parse_model -m yolov5s
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>modelPath: yolov5s
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>parse non-encryption format.
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>compiler version info : v0.5_transpose, 1.0, 0.0
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>model name : yolov5s_512
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>number of macs : 4096
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>number of layers : 71
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>total memory usage : 34628608 Bytes
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>  - weight param. : 7342592 Bytes
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>  - npu param. : 219648 Bytes
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>  - input : 786432 Bytes
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>  - output : 26279936 Bytes
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>input tensors
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>  type : IM2COL
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>  [0] "INPUT", UINT32, [1, 3, 512, 512, ], 786432 Bytes
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>output tensors
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>  [0] "378", FLOAT, [64, 64, 255, ], 4194304 Bytes
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>  [1] "439", FLOAT, [32, 32, 255, ], 1048576 Bytes
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>  [2] "500", FLOAT, [16, 16, 255, ], 262144 Bytes
+</code></pre></div>
+</blockquote>
+<h2 id="run&gt;_model">Run Model<a class="headerlink" href="#run&gt;_model" title="Permanent link">¶</a></h2>
+<p>Simple model run demo, which measure inference time, and check output data integrity<br>
+(from <code>app/basic/run_model.cpp</code>)  </p>
+<blockquote>
+<p>-c, --config    config json file<br>
+ -m, --model     model path<br>
+ -i, --input     input data file<br>
+ -o, --output    file to save output data<br>
+ -r, --ref       reference output data file to compare<br>
+ -l, --loop      loop test<br>
+ -h, --help      show help<br>
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>run_model -m &lt;model_dir&gt; -i &lt;input bin.&gt; -o &lt;output bin.&gt; -r &lt;reference output bin.&gt; -l &lt;number of loops&gt;
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>-----------------------------------
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>loops : 100
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>-----------------------------------
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>...
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>...
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>-----------------------------------
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>  Inference time : 13.872ms
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>  FPS : 72.0879
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>  Bit match test : SKIP
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>-----------------------------------
+</code></pre></div>
+Multiple model run can be configured by using config json file.<br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>run_model -c &lt;json file&gt;
+</code></pre></div>
+Refer to following json example.<br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>{
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>  "models": [
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    {
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>      "model": {
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>        "path": "/dxrt/m1a/1705/yolov7_640_ppu",
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>        "data": [
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>          {
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>            "input": "/dxrt/m1a/1705/yolov7_640_ppu/npu_input_0.bin",
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>            "output": "/dxrt/m1a/1705/yolov7_640_ppu/npu_output_0.ppu.bin.rt",
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>            "refoutput": "/dxrt/m1a/1705/yolov7_640_ppu/npu_output_0.ppu.bin"
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>          },
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>          {
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>            "input": "/dxrt/m1a/1705/yolov7_640_ppu/npu_input_1.bin",
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>            "output": "/dxrt/m1a/1705/yolov7_640_ppu/npu_output_1.ppu.bin.rt",
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>            "refoutput": "/dxrt/m1a/1705/yolov7_640_ppu/npu_output_1.ppu.bin"
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>          }
+<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a>        ]
+<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a>      }
+<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a>    },
+<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a>    {
+<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a>      "model": {
+<a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a>        "path": "/dxrt/m1a/1705/yolov4",
+<a id="__codelineno-4-23" name="__codelineno-4-23" href="#__codelineno-4-23"></a>        "data": [
+<a id="__codelineno-4-24" name="__codelineno-4-24" href="#__codelineno-4-24"></a>          {
+<a id="__codelineno-4-25" name="__codelineno-4-25" href="#__codelineno-4-25"></a>            "input": "/dxrt/m1a/1705/yolov4/npu_input_0.bin",
+<a id="__codelineno-4-26" name="__codelineno-4-26" href="#__codelineno-4-26"></a>            "output": "/dxrt/m1a/1705/yolov4/npu_output_0.bin.rt",
+<a id="__codelineno-4-27" name="__codelineno-4-27" href="#__codelineno-4-27"></a>            "refoutput": "/dxrt/m1a/1705/yolov4/npu_output_0.bin"
+<a id="__codelineno-4-28" name="__codelineno-4-28" href="#__codelineno-4-28"></a>          }
+<a id="__codelineno-4-29" name="__codelineno-4-29" href="#__codelineno-4-29"></a>        ]
+<a id="__codelineno-4-30" name="__codelineno-4-30" href="#__codelineno-4-30"></a>      }
+<a id="__codelineno-4-31" name="__codelineno-4-31" href="#__codelineno-4-31"></a>    },
+<a id="__codelineno-4-32" name="__codelineno-4-32" href="#__codelineno-4-32"></a>    {
+<a id="__codelineno-4-33" name="__codelineno-4-33" href="#__codelineno-4-33"></a>      "model": {
+<a id="__codelineno-4-34" name="__codelineno-4-34" href="#__codelineno-4-34"></a>        "path": "/dxrt/m1a/1705/eyenix_ssdlite320"
+<a id="__codelineno-4-35" name="__codelineno-4-35" href="#__codelineno-4-35"></a>      }
+<a id="__codelineno-4-36" name="__codelineno-4-36" href="#__codelineno-4-36"></a>    }
+<a id="__codelineno-4-37" name="__codelineno-4-37" href="#__codelineno-4-37"></a>  ],
+<a id="__codelineno-4-38" name="__codelineno-4-38" href="#__codelineno-4-38"></a>  "loops_benchmark": 30,
+<a id="__codelineno-4-39" name="__codelineno-4-39" href="#__codelineno-4-39"></a>  "loops_datacheck": 20,
+<a id="__codelineno-4-40" name="__codelineno-4-40" href="#__codelineno-4-40"></a>  "loops_aging": 50
+<a id="__codelineno-4-41" name="__codelineno-4-41" href="#__codelineno-4-41"></a>}
+</code></pre></div>
+</blockquote>
+<h2 id="firmware&gt;_interface&gt;_dxrt-cli&gt;_tool">Firmware Interface DXRT-CLI tool<a class="headerlink" href="#firmware&gt;_interface&gt;_dxrt-cli&gt;_tool" title="Permanent link">¶</a></h2>
+<p>Read device status, and handle them by commandline interface<br>
+(only for accelerator device)  </p>
+<blockquote>
+<p>-s, --status    get chip status<br>
+ -i, --info      get device information<br>
+ -r, --reset     reset chip<br>
+ -d, --dump      dump device memory<br>
+ -h, --help      show help<br>
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>dxrt-cli --status
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>...
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>...
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>NPU0, DX_M1_4K @ 1000MHz, 850mV, 43'C
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>NPU1, DX_M1_8K @ 666MHz, 750mV, 44'C
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>dxrt-cli --reset
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>...
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>...
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>Reset NPU0
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>Reset NPU1
+</code></pre></div>
+</blockquote>
+<h2 id="image&gt;_classification">Image Classification<a class="headerlink" href="#image&gt;_classification" title="Permanent link">¶</a></h2>
+<p>Classification Demo<br>
+for details, see <code>app/classification/classification.cpp</code>    </p>
+<blockquote>
+<p>-m, --model     define model path<br>
+  -i, --image     use image file input<br>
+  -a, --async     asynchronous inference<br>
+  -l, --loop      number of loops to repeat<br>
+  -h, --help      show help<br>
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>classification -m &lt;model_dir&gt; -i &lt;image_dir&gt; 
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>$ sudo ./classification -m /dxrt/models/efficientnet-b0_argmax/ -b efficientnet.input.0.bin  
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>modelPath: /dxrt/models/efficientnet-b0_argmax/
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>binFile: efficientnet.input.0.bin
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>asyncInference: 0
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>mode: 0
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>Found device : /dev/dx_dma0_npu_0
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>Detected device id : b1000705
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>Found device : /dev/dx_dma0_npu_1
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>Detected device id : b1000705
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>==== Accelerator mode ====
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>  Task[0] /dxrt/models/efficientnet-b0_argmax/ NPUs, 8976640bytes
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>            Device : NPU 0, /dev/dx_dma0_npu_0(IDLE), DX_M1_4K @ 1000MHz, PCIE type
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>              - MemIf : /dev/dx_dma0_h2c_0, /dev/dx_dma0_c2h_0, c01000000(0) + 5f800000
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>    [0]
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a>      inputs
+<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>        Tensor: name INPUT, type UINT8 [1, 224, 224, 3,  ], data 0x556d114826a0, dest 0
+<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a>      outputs
+<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a>        Tensor: name argmax_output, type UINT16 [ ], data 0x556d11482460, dest 0
+<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a>Top1 Result : class 809
+</code></pre></div>
+</blockquote>
+<h2 id="object&gt;_detection">Object Detection<a class="headerlink" href="#object&gt;_detection" title="Permanent link">¶</a></h2>
+<p>YOLO Demo (from <code>app/object_detection/yolo_demo.cpp</code>)<br>
+SSD Demo (from <code>app/object_detection/ssd_demo.cpp</code>)  </p>
+<blockquote>
+<p>-m, --model     define model path<br>
+  -i, --image     use image file input<br>
+  -v, --video     use video file input<br>
+  -w, --write     write result frames to a video file<br>
+  -c, --camera    use camera input<br>
+  -x, --isp       use ISP input<br>
+  -b, --bin       use binary file input<br>
+  -s, --sim       use pre-defined npu output binary file input( perform post-proc. only )<br>
+  -a, --async     asynchronous inference<br>
+  -e, --ethernet  use ethernet input<br>
+  -p, --param      pre/post-processing parameter selection<br>
+  -l, --loop      loop test<br>
+  -n, --numbuf    number of memory buffers for inference<br>
+  -h, --help      show help  </p>
+<p>If the inference time is longer than the input frame rate, the incorrect result can be displayed. <br>
+   In this case, increase the size of the buffer using <code>-n</code> option.(<em>e.g.</em> <code>-n 2</code>) </p>
+</blockquote>
+<h3 id="prepost-processing&gt;_parameters">Pre/post-processing parameters<a class="headerlink" href="#prepost-processing&gt;_parameters" title="Permanent link">¶</a></h3>
+<p>Pre/post-processing parameters not included in compiled model are required to execute the object detection application.<br>
+Example parameters are described in <code>*_cfg.cpp</code>, and they all are listed as followings in <code>*_demo.cpp</code>.
+From the list, you can select what parameter to use in runtime by using <code>-p</code> argument.<br>
+To configure your own parameters, you can modify examples, or append a new one to the list.<br>
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>// pre/post parameter table
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>YoloParam yoloParams[] = {
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    [0] = yolov5s_320,
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    [1] = yolov5s_512,
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    [2] = yolox_s_512,
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>    [3] = yolov5s_512_concat,
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>    [4] = yolov7_640,
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>    [5] = yolov7_512
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>};
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>// pre/post parameter table
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>SsdParam ssdParams[] = {
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    [0] = mv1_ssd_300,
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    [1] = mv2_ssd_320,
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    [2] = mv1_ssd_512,
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>};
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>YoloParam yolov5s_512 = {
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>    .imgSize = 512,
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>    .confThreshold = 0.25,
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>    .scoreThreshold = 0.3,
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>    .iouThreshold = 0.4,
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>    .numClasses = 80,
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>    .layers = {
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>        {
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>            .numGridX = 64,
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>            .numGridY = 64,
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>            .numBoxes = 3,
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>            .anchorWidth = { 10.0, 16.0, 33.0 },
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>            .anchorHeight = { 13.0, 30.0, 23.0 },
+<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>            .tensorIdx = { 0 },
+<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a>        },
+<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a>    ...
+<a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a>    ...
+<a id="__codelineno-11-18" name="__codelineno-11-18" href="#__codelineno-11-18"></a>};
+</code></pre></div>
+<ul>
+<li>
+<p>object detection for single image<br>
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>./yolo -m &lt;model_dir&gt; -i &lt;image file&gt; -p &lt;param. index&gt;
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>./ssd -m &lt;model_dir&gt; -i &lt;image file&gt; -p &lt;param. index&gt;
+</code></pre></div>
+For example, if you want to execute compiled YOLO model <code>A</code> with parameter <code>yolov5s_512</code>,
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>./yolo -m A -i sample/1.jpg -p 1
+</code></pre></div>
+For example, if you want to execute compiled SSD model <code>B</code> with parameter <code>mv1_ssd_300</code>,
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>./ssd -m B -i sample/1.jpg -p 0
+</code></pre></div>
+</li>
+<li>
+<p>object detection for single video file<br>
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>./yolo -m &lt;model_dir&gt; -v &lt;video file&gt; -a -p &lt;param. index&gt;
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>./ssd -m &lt;model_dir&gt; -v &lt;video file&gt; -a -p &lt;param. index&gt;
+</code></pre></div>
+</li>
+<li>object detection for camera input (by OpenCV VideoCapture)<br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>./yolo -m &lt;model_dir&gt; -c -a -p &lt;param. index&gt;
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>./ssd -m &lt;model_dir&gt; -c -a -p &lt;param. index&gt;
+</code></pre></div></li>
+<li>
+<p>multi channel object detection for camera and video file input (must supported OpenCV Library) <br>
+  support up to 4 video sources<br>
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>./yolo_multi -c &lt;config_json_file&gt;
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>$ ./yolo_multi_camera -h
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>  yolo demo  
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>  -c, --config    use config json file for run application
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>                  e.g. sudo yolo_multi -c _multi_od_.json
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>  -n, --numbuf    number of memory buffers for inference
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>  -h, --help      show help
+</code></pre></div>
+Refer to following configuration json file. <code>test_od_demo.json</code> <br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>{
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>    "usage": "multi",
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>    "model_path": "/model_path/yolov5s_512",
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>    "model_name": "yolov5s_512",
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>    "video_sources": [
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>                    ["/video_path/video_sample0.mp4", "realtime"],
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>                    ["/dev/video0", "camera"],
+<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>                    ["/dev/video2", "camera"],
+<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a>                    ["/video_path/video_sample1.mp4", "offline", 400]
+<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a>    ], 
+<a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a>
+<a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a>    "display_config": {
+<a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a>                    "display_label": "output",
+<a id="__codelineno-19-15" name="__codelineno-19-15" href="#__codelineno-19-15"></a>                    "output_width": 1920,
+<a id="__codelineno-19-16" name="__codelineno-19-16" href="#__codelineno-19-16"></a>                    "output_height": 1080,
+<a id="__codelineno-19-17" name="__codelineno-19-17" href="#__codelineno-19-17"></a>                    "show_fps": true
+<a id="__codelineno-19-18" name="__codelineno-19-18" href="#__codelineno-19-18"></a>    }
+<a id="__codelineno-19-19" name="__codelineno-19-19" href="#__codelineno-19-19"></a>}
+</code></pre></div>
+Set "model_name" for mapping pre/post-processing parameters. :<br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>// pre/post parameter table
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>YoloParam yoloParams[] = {
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>    [0] = yolov5s_320,
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>    [1] = yolov5s_512, 
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>    [2] = yolox_s_512,
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a>    [3] = yolov5s_512_concat,
+<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a>    [4] = yolov7_640,
+<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a>    [5] = yolov7_512
+<a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a>};
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>...
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>    "model_path": "/model_path/yolov5s_512",
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>    "model_name": "yolov5s_512",
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>...   
+</code></pre></div>
+"realtime" for real-time capture video frames. "offline" for pre-saved frames to reducing latency of capture.  <br>
+Optional for "offline" next value, indicating number of frames to pre-saved. If you want to all frames of video, you can skip the value. :  <br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>...
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>                    ["/video_path/video_sample0.mp4", "realtime"],
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>                    ["/video_path/video_sample1.mp4", "offline", 400],
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>                    ["/video_path/video_sample2.mp4", "offline"]
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>...   
+</code></pre></div>
+Camera devices should have the source type set to "camera". :  <br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>...
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>                    ["/dev/video0", "camera"],
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>                    ["/dev/video2", "camera"],
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>...
+</code></pre></div>
+Set display windows label and display resolution. :      <br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>...
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>    "display_config": {
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>                    "display_label": "output",
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>                    "output_width": 1920,
+<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>                    "output_height": 1080,
+<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a>                    "show_fps": true
+<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a>    }
+<a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a>...
+</code></pre></div>
+</li>
+<li>
+<p>object detection for ISP input (by standalone device ISP)<br>
+This is only available for standalone devices (e.g. DX-L1, DX_L2)
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>./yolo -m &lt;model_dir&gt; -x -l 10000000 -p &lt;param. index&gt;
+</code></pre></div>
+</li>
+<li>object detection for ethernet input<br>
+In this mode, device will work as a inference server by TCP/IP interface.<br>
+So, "od_client" application should be executed from client side. Please refer to following.<br>
+Server IP address is configured by '-p' option, and port number is set to 8080 currently.<br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>Server side
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>./yolo -m &lt;model_dir&gt; -e -a -p &lt;param. index&gt;
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>Client side
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>./od_client -m &lt;model_dir&gt; -c -p &lt;IP address of server&gt;
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>./od_client -m &lt;model_dir&gt; -v &lt;video file&gt; -p &lt;IP address of server&gt;
+</code></pre></div></li>
+<li>object detection for single binary file<br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>./yolo -m &lt;model_dir&gt; -b &lt;binary file&gt; -p &lt;param. index&gt;
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>./ssd -m &lt;model_dir&gt; -b &lt;binary file&gt; -p &lt;param. index&gt;
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>./yolo -m /dxrt/models/DX_M1/v2p0/yolov5s -i sample/1.jpg -p 1
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>modelPath: /dxrt/models/DX_M1/v2p0/yolov5s
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>videoFile:
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>imgFile: sample/1.jpg
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>binFile:
+<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a>simFile:
+<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a>cameraInput: 0
+<a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a>asyncInference: 0
+<a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a>mode: 0
+<a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a>parse non-encryption format.
+<a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a>            Device : NPU 0(0x55ae03311cc0), 1
+<a id="__codelineno-29-12" name="__codelineno-29-12" href="#__codelineno-29-12"></a>----------------------------------------------
+<a id="__codelineno-29-13" name="__codelineno-29-13" href="#__codelineno-29-13"></a>PCIE device 0 : /dev/xdma0_user, /dev/xdma0_c2h_0, /dev/xdma0_h2c_0
+<a id="__codelineno-29-14" name="__codelineno-29-14" href="#__codelineno-29-14"></a>character device /dev/xdma0_user opened.
+<a id="__codelineno-29-15" name="__codelineno-29-15" href="#__codelineno-29-15"></a>Memory mapped at address 0x7f88a8dd7000.
+<a id="__codelineno-29-16" name="__codelineno-29-16" href="#__codelineno-29-16"></a>        Task[0] @ 2106400 (/dxrt/models/DX_M1/v2p0/yolov5s) : 1 NPUs, 34628608bytes
+<a id="__codelineno-29-17" name="__codelineno-29-17" href="#__codelineno-29-17"></a>          datainfo : rmap, filename /dxrt/models/DX_M1/v2p0/yolov5s/rmap.bin, type NONE [ ]
+<a id="__codelineno-29-18" name="__codelineno-29-18" href="#__codelineno-29-18"></a>          datainfo : weight, filename /dxrt/models/DX_M1/v2p0/yolov5s/weight.bin, type NONE [ ]
+<a id="__codelineno-29-19" name="__codelineno-29-19" href="#__codelineno-29-19"></a>            Device : NPU 0(0x55ae03311cc0), 1
+<a id="__codelineno-29-20" name="__codelineno-29-20" href="#__codelineno-29-20"></a>            input tensors
+<a id="__codelineno-29-21" name="__codelineno-29-21" href="#__codelineno-29-21"></a>              Tensor: name INPUT, type UINT32 [1, 3, 512, 512,  ], data 0x55ae03e6bec0, dest 0
+<a id="__codelineno-29-22" name="__codelineno-29-22" href="#__codelineno-29-22"></a>              Tensor: name INPUT, type UINT32 [1, 3, 512, 512,  ], data 0x55ae049ac480, dest 0
+<a id="__codelineno-29-23" name="__codelineno-29-23" href="#__codelineno-29-23"></a>            output tensors
+<a id="__codelineno-29-24" name="__codelineno-29-24" href="#__codelineno-29-24"></a>              Tensor: name 378, type FLOAT [64, 64, 255,  ], data 0x55ae0392bc10, dest 0
+<a id="__codelineno-29-25" name="__codelineno-29-25" href="#__codelineno-29-25"></a>              Tensor: name 439, type FLOAT [32, 32, 255,  ], data 0x55ae03d2bc20, dest 0
+<a id="__codelineno-29-26" name="__codelineno-29-26" href="#__codelineno-29-26"></a>              Tensor: name 500, type FLOAT [16, 16, 255,  ], data 0x55ae03e2bd70, dest 0
+<a id="__codelineno-29-27" name="__codelineno-29-27" href="#__codelineno-29-27"></a>              Tensor: name 378, type FLOAT [64, 64, 255,  ], data 0x55ae0446c090, dest 0
+<a id="__codelineno-29-28" name="__codelineno-29-28" href="#__codelineno-29-28"></a>              Tensor: name 439, type FLOAT [32, 32, 255,  ], data 0x55ae0486c1e0, dest 0
+<a id="__codelineno-29-29" name="__codelineno-29-29" href="#__codelineno-29-29"></a>              Tensor: name 500, type FLOAT [16, 16, 255,  ], data 0x55ae0496c330, dest 0
+<a id="__codelineno-29-30" name="__codelineno-29-30" href="#__codelineno-29-30"></a>YOLO created : 16128 boxes, 80 classes, 3 layers.
+<a id="__codelineno-29-31" name="__codelineno-29-31" href="#__codelineno-29-31"></a>  YoloParam:
+<a id="__codelineno-29-32" name="__codelineno-29-32" href="#__codelineno-29-32"></a>    - conf_threshold: 0.25, score_threshold: 0.3, iou_threshold: 0.4, num_classes: 80, num_layers: 3
+<a id="__codelineno-29-33" name="__codelineno-29-33" href="#__codelineno-29-33"></a>    - AnchorBoxParam: [ 16 x 16 x 3], width [116, 156, 373, ], height [90, 198, 326, ]
+<a id="__codelineno-29-34" name="__codelineno-29-34" href="#__codelineno-29-34"></a>    - AnchorBoxParam: [ 64 x 64 x 3], width [10, 16, 33, ], height [13, 30, 23, ]
+<a id="__codelineno-29-35" name="__codelineno-29-35" href="#__codelineno-29-35"></a>    - AnchorBoxParam: [ 32 x 32 x 3], width [30, 62, 59, ], height [61, 45, 119, ]
+<a id="__codelineno-29-36" name="__codelineno-29-36" href="#__codelineno-29-36"></a>    - classes: [person, bicycle, car, motorcycle, airplane, bus, train, truck, boat, trafficlight, firehydrant, stopsign, parkingmeter, bench, bird, cat, dog, horse, sheep, cow, elephant, bear, zebra, giraffe, backpack, umbrella, handbag, tie, suitcase, frisbee, skis, snowboard, sportsball, kite, baseballbat, baseballglove, skateboard, surfboard, tennisracket, bottle, wineglass, cup, fork, knife, spoon, bowl, banana, apple, sandwich, orange, broccoli, carrot, hotdog, pizza, donut, cake, chair, couch, pottedplant, bed, diningtable, toilet, tv, laptop, mouse, remote, keyboard, cellphone, microwave, oven, toaster, sink, refrigerator, book, clock, vase, scissors, teddybear, hairdrier, toothbrush, ]
+<a id="__codelineno-29-37" name="__codelineno-29-37" href="#__codelineno-29-37"></a>  OutputLayer: 64x64, 3 boxes, data align 0, data offset 0x0
+<a id="__codelineno-29-38" name="__codelineno-29-38" href="#__codelineno-29-38"></a>  OutputLayer: 32x32, 3 boxes, data align 0, data offset 0x0
+<a id="__codelineno-29-39" name="__codelineno-29-39" href="#__codelineno-29-39"></a>  OutputLayer: 16x16, 3 boxes, data align 0, data offset 0x0
+<a id="__codelineno-29-40" name="__codelineno-29-40" href="#__codelineno-29-40"></a>  OutputLayer: 64x64, 3 boxes, data align 0, data offset 0x0
+<a id="__codelineno-29-41" name="__codelineno-29-41" href="#__codelineno-29-41"></a>  OutputLayer: 32x32, 3 boxes, data align 0, data offset 0x0
+<a id="__codelineno-29-42" name="__codelineno-29-42" href="#__codelineno-29-42"></a>  OutputLayer: 16x16, 3 boxes, data align 0, data offset 0x0
+<a id="__codelineno-29-43" name="__codelineno-29-43" href="#__codelineno-29-43"></a>  Detected 10 boxes.
+<a id="__codelineno-29-44" name="__codelineno-29-44" href="#__codelineno-29-44"></a>    BBOX:person(0) 0.871739, (307.538, 139.761, 401.063, 363.528)
+<a id="__codelineno-29-45" name="__codelineno-29-45" href="#__codelineno-29-45"></a>    BBOX:bowl(45) 0.753045, (25.5786, 359.366, 78.6683, 392.692)
+<a id="__codelineno-29-46" name="__codelineno-29-46" href="#__codelineno-29-46"></a>    BBOX:bowl(45) 0.736314, (46.0351, 315.148, 107.061, 346.346)
+<a id="__codelineno-29-47" name="__codelineno-29-47" href="#__codelineno-29-47"></a>    BBOX:oven(69) 0.6947, (-0.0565262, 223.763, 153.919, 325.907)
+<a id="__codelineno-29-48" name="__codelineno-29-48" href="#__codelineno-29-48"></a>    BBOX:person(0) 0.635725, (-0.137587, 294.905, 48.2289, 331.544)
+<a id="__codelineno-29-49" name="__codelineno-29-49" href="#__codelineno-29-49"></a>    BBOX:bowl(45) 0.622758, (-0.811382, 328.491, 69.9861, 380.01)
+<a id="__codelineno-29-50" name="__codelineno-29-50" href="#__codelineno-29-50"></a>    BBOX:oven(69) 0.583807, (391.249, 245.999, 494.725, 359.424)
+<a id="__codelineno-29-51" name="__codelineno-29-51" href="#__codelineno-29-51"></a>    BBOX:bottle(39) 0.454198, (173.13, 269.961, 198.605, 321.687)
+<a id="__codelineno-29-52" name="__codelineno-29-52" href="#__codelineno-29-52"></a>    BBOX:pottedplant(58) 0.440339, (-0.421099, 86.0271, 51.0569, 206.691)
+<a id="__codelineno-29-53" name="__codelineno-29-53" href="#__codelineno-29-53"></a>    BBOX:bowl(45) 0.375233, (123.547, 219.058, 146.488, 233.043)
+<a id="__codelineno-29-54" name="__codelineno-29-54" href="#__codelineno-29-54"></a>[*** Name :                           main| min :        36222us| max :        36222us| avg :        36222us ***]
+<a id="__codelineno-29-55" name="__codelineno-29-55" href="#__codelineno-29-55"></a>*Max List* [36222,]
+<a id="__codelineno-29-56" name="__codelineno-29-56" href="#__codelineno-29-56"></a>[*** Name :                           post| min :          259us| max :          259us| avg :          259us ***]
+<a id="__codelineno-29-57" name="__codelineno-29-57" href="#__codelineno-29-57"></a>*Max List* [259,]
+<a id="__codelineno-29-58" name="__codelineno-29-58" href="#__codelineno-29-58"></a>[*** Name :                            pre| min :         1431us| max :         1431us| avg :         1431us ***]
+<a id="__codelineno-29-59" name="__codelineno-29-59" href="#__codelineno-29-59"></a>*Max List* [1431,]
+</code></pre></div>
+<img alt="image" src="https://user-images.githubusercontent.com/79885630/204202825-074f6391-5fd2-41b6-9cee-5591b83f29eb.png"></li>
+</ul>
+<h2 id="pose&gt;_estimation">Pose estimation<a class="headerlink" href="#pose&gt;_estimation" title="Permanent link">¶</a></h2>
+<p>Pose estimation Demo with YOLO (from <code>app/pose_estimation/pose_demo.cpp</code>)  </p>
+<blockquote>
+<p>-m, --model     define model path<br>
+  -i, --image     use image file input<br>
+  -v, --video     use video file input<br>
+  -w, --write     write result frames to a video file<br>
+  -c, --camera    use camera input<br>
+  -x, --isp       use ISP input<br>
+  -b, --bin       use binary file input<br>
+  -s, --sim       use pre-defined npu output binary file input( perform post-proc. only )<br>
+  -a, --async     asynchronous inference<br>
+  -e, --ethernet  use ethernet input<br>
+  -p, --param      pre/post-processing parameter selection<br>
+  -l, --loop      loop test<br>
+  -n, --numbuf    number of memory buffers for inference<br>
+  -h, --help      show help  </p>
+</blockquote>
+<h3 id="prepost-processing&gt;_parameters_1">Pre/post-processing parameters<a class="headerlink" href="#prepost-processing&gt;_parameters_1" title="Permanent link">¶</a></h3>
+<p>Pre/post-processing parameters follows same convention as in object detection.  </p>
+<ul>
+<li>pose estimation for single image<br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>./pose -m &lt;model_dir&gt; -i &lt;image file&gt; -p &lt;param. index&gt;
+</code></pre></div>
+For example, if you want to execute compiled YOLO model <code>A</code> with parameter <code>yolov5s_512</code>,
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>./pose -m A -i sample/8.jpg -p 1
+</code></pre></div></li>
+<li>pose estimation for single video file<br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>./pose -m &lt;model_dir&gt; -v &lt;video file&gt; -a -p &lt;param. index&gt;
+</code></pre></div></li>
+<li>pose estimation for camera input (by OpenCV VideoCapture)<br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>./pose -m &lt;model_dir&gt; -c -a -p &lt;param. index&gt;
+</code></pre></div></li>
+<li>pose estimation for ISP input (by standalone device ISP)<br>
+This is only available for standalone devices (e.g. DX-L1, DX_L2)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>./pose -m &lt;model_dir&gt; -x -l 10000000 -p &lt;param. index&gt;
+</code></pre></div>
+<img alt="image" src="https://user-images.githubusercontent.com/79885630/233523884-02790d54-ada5-4c5b-afae-89026818c684.png"></li>
+</ul>
+<h2 id="image&gt;_segmentation">Image Segmentation<a class="headerlink" href="#image&gt;_segmentation" title="Permanent link">¶</a></h2>
+<p>DDRNet demo (from <code>app/segmentation/ddrnet.cpp</code>)<br>
+PIDNet demo (from <code>app/segmentation/pidnet.cpp</code>)  </p>
+<blockquote>
+<p>-m, --model     define model path<br>
+  -i, --image     use image file input<br>
+  -v, --video     use video file input<br>
+  -c, --camera    use camera input<br>
+  -b, --bin       use binary file input<br>
+  -s, --sim       use pre-defined npu output binary file input( perform post-proc. only )<br>
+  -a, --async     asynchronous inference<br>
+  -o, --iomode    I/O only mode (not perform inference directly)<br>
+  -p, --pcie      Standalone mode: use pcie input<br>
+  -l, --loop      number of loops to repeat<br>
+  -h, --help      show help  </p>
+</blockquote>
+<ul>
+<li>segmentation for single image<br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>./ddrnet -m &lt;model_dir&gt; -i &lt;image file&gt;
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>./pidnet -m &lt;model_dir&gt; -i &lt;image file&gt;
+</code></pre></div></li>
+<li>segmentation for single video file<br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>./ddrnet -m &lt;model_dir&gt; -v &lt;video file&gt; -a
+<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a>./pidnet -m &lt;model_dir&gt; -v &lt;video file&gt; -a
+</code></pre></div></li>
+<li>segmentation for camera input<br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>./ddrnet -m &lt;model_dir&gt; -c -a
+<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a>./pidnet -m &lt;model_dir&gt; -c -a
+</code></pre></div></li>
+<li>segmentation for single binary file<br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>./ddrnet -m &lt;model_dir&gt; -b &lt;binary file&gt;
+<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a>./pidnet -m &lt;model_dir&gt; -b &lt;binary file&gt;
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>./pidnet -m /dxrt/models/DX_M1/v2p0/pidnet -i sample/7.png
+<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>inputWidth: 1024
+<a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a>inputHeight: 512
+<a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a>modelPath: /dxrt/models/DX_M1/v2p0/pidnet
+<a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a>videoFile:
+<a id="__codelineno-39-6" name="__codelineno-39-6" href="#__codelineno-39-6"></a>binFile:
+<a id="__codelineno-39-7" name="__codelineno-39-7" href="#__codelineno-39-7"></a>simFile:
+<a id="__codelineno-39-8" name="__codelineno-39-8" href="#__codelineno-39-8"></a>cameraInput: 0
+<a id="__codelineno-39-9" name="__codelineno-39-9" href="#__codelineno-39-9"></a>asyncInference: 0
+<a id="__codelineno-39-10" name="__codelineno-39-10" href="#__codelineno-39-10"></a>mode: 0
+<a id="__codelineno-39-11" name="__codelineno-39-11" href="#__codelineno-39-11"></a>            Device : NPU 0(0x55955bf416f0), 1
+<a id="__codelineno-39-12" name="__codelineno-39-12" href="#__codelineno-39-12"></a>----------------------------------------------
+<a id="__codelineno-39-13" name="__codelineno-39-13" href="#__codelineno-39-13"></a>PCIE device 0 : /dev/xdma0_user, /dev/xdma0_c2h_0, /dev/xdma0_h2c_0
+<a id="__codelineno-39-14" name="__codelineno-39-14" href="#__codelineno-39-14"></a>character device /dev/xdma0_user opened.
+<a id="__codelineno-39-15" name="__codelineno-39-15" href="#__codelineno-39-15"></a>Memory mapped at address 0x7f1a6a535000.
+<a id="__codelineno-39-16" name="__codelineno-39-16" href="#__codelineno-39-16"></a>            Device : NPU 1(0x55955bf281e0), 1
+<a id="__codelineno-39-17" name="__codelineno-39-17" href="#__codelineno-39-17"></a>----------------------------------------------
+<a id="__codelineno-39-18" name="__codelineno-39-18" href="#__codelineno-39-18"></a>PCIE device 1 : /dev/xdma1_user, /dev/xdma1_c2h_0, /dev/xdma1_h2c_0
+<a id="__codelineno-39-19" name="__codelineno-39-19" href="#__codelineno-39-19"></a>character device /dev/xdma1_user opened.
+<a id="__codelineno-39-20" name="__codelineno-39-20" href="#__codelineno-39-20"></a>Memory mapped at address 0x7f1a4de01000.
+<a id="__codelineno-39-21" name="__codelineno-39-21" href="#__codelineno-39-21"></a>        Task[0] @ 19eb0840 (/dxrt/models/DX_M1/v2p0/pidnet) : 2 NPUs, 69975552bytes
+<a id="__codelineno-39-22" name="__codelineno-39-22" href="#__codelineno-39-22"></a>          datainfo : rmap, filename /dxrt/models/DX_M1/v2p0/pidnet/rmap.bin, type NONE [ ]
+<a id="__codelineno-39-23" name="__codelineno-39-23" href="#__codelineno-39-23"></a>          datainfo : weight, filename /dxrt/models/DX_M1/v2p0/pidnet/weight.bin, type NONE [ ]
+<a id="__codelineno-39-24" name="__codelineno-39-24" href="#__codelineno-39-24"></a>            Device : NPU 0(0x55955bf416f0), 1
+<a id="__codelineno-39-25" name="__codelineno-39-25" href="#__codelineno-39-25"></a>            Device : NPU 1(0x55955bf281e0), 1
+<a id="__codelineno-39-26" name="__codelineno-39-26" href="#__codelineno-39-26"></a>            input tensors
+<a id="__codelineno-39-27" name="__codelineno-39-27" href="#__codelineno-39-27"></a>              Tensor: name INPUT, type UINT32 [1, 3, 512, 1024,  ], data 0x55955c26bfc0, dest 0
+<a id="__codelineno-39-28" name="__codelineno-39-28" href="#__codelineno-39-28"></a>              Tensor: name INPUT, type UINT32 [1, 3, 512, 1024,  ], data 0x55955c5ec2e0, dest 0
+<a id="__codelineno-39-29" name="__codelineno-39-29" href="#__codelineno-39-29"></a>              Tensor: name INPUT, type UINT32 [1, 3, 512, 1024,  ], data 0x55955c96c600, dest 0
+<a id="__codelineno-39-30" name="__codelineno-39-30" href="#__codelineno-39-30"></a>              Tensor: name INPUT, type UINT32 [1, 3, 512, 1024,  ], data 0x55955ccec920, dest 0
+<a id="__codelineno-39-31" name="__codelineno-39-31" href="#__codelineno-39-31"></a>              Tensor: name INPUT, type UINT32 [1, 3, 512, 1024,  ], data 0x55955d06cc40, dest 0
+<a id="__codelineno-39-32" name="__codelineno-39-32" href="#__codelineno-39-32"></a>              Tensor: name INPUT, type UINT32 [1, 3, 512, 1024,  ], data 0x55955d3ecfe0, dest 0
+<a id="__codelineno-39-33" name="__codelineno-39-33" href="#__codelineno-39-33"></a>              Tensor: name INPUT, type UINT32 [1, 3, 512, 1024,  ], data 0x55955d76d300, dest 0
+<a id="__codelineno-39-34" name="__codelineno-39-34" href="#__codelineno-39-34"></a>              Tensor: name INPUT, type UINT32 [1, 3, 512, 1024,  ], data 0x55955daed620, dest 0
+<a id="__codelineno-39-35" name="__codelineno-39-35" href="#__codelineno-39-35"></a>            output tensors
+<a id="__codelineno-39-36" name="__codelineno-39-36" href="#__codelineno-39-36"></a>              Tensor: name argmax_output, type UINT16 [1, 512, 1024,  ], data 0x55955c16be70, dest 0
+<a id="__codelineno-39-37" name="__codelineno-39-37" href="#__codelineno-39-37"></a>              Tensor: name argmax_output, type UINT16 [1, 512, 1024,  ], data 0x55955c4ec190, dest 0
+<a id="__codelineno-39-38" name="__codelineno-39-38" href="#__codelineno-39-38"></a>              Tensor: name argmax_output, type UINT16 [1, 512, 1024,  ], data 0x55955c86c4b0, dest 0
+<a id="__codelineno-39-39" name="__codelineno-39-39" href="#__codelineno-39-39"></a>              Tensor: name argmax_output, type UINT16 [1, 512, 1024,  ], data 0x55955cbec7d0, dest 0
+<a id="__codelineno-39-40" name="__codelineno-39-40" href="#__codelineno-39-40"></a>              Tensor: name argmax_output, type UINT16 [1, 512, 1024,  ], data 0x55955cf6caf0, dest 0
+<a id="__codelineno-39-41" name="__codelineno-39-41" href="#__codelineno-39-41"></a>              Tensor: name argmax_output, type UINT16 [1, 512, 1024,  ], data 0x55955d2ece90, dest 0
+<a id="__codelineno-39-42" name="__codelineno-39-42" href="#__codelineno-39-42"></a>              Tensor: name argmax_output, type UINT16 [1, 512, 1024,  ], data 0x55955d66d1b0, dest 0
+<a id="__codelineno-39-43" name="__codelineno-39-43" href="#__codelineno-39-43"></a>              Tensor: name argmax_output, type UINT16 [1, 512, 1024,  ], data 0x55955d9ed4d0, dest 0
+<a id="__codelineno-39-44" name="__codelineno-39-44" href="#__codelineno-39-44"></a>outputs.size(): 1
+<a id="__codelineno-39-45" name="__codelineno-39-45" href="#__codelineno-39-45"></a>              Tensor: name argmax_output, type UINT16 [1, 512, 1024,  ], data 0x55955c16be70, dest 0
+<a id="__codelineno-39-46" name="__codelineno-39-46" href="#__codelineno-39-46"></a>1024x512 &lt;- 676x338
+<a id="__codelineno-39-47" name="__codelineno-39-47" href="#__codelineno-39-47"></a>[*** Name :                           main| min :        71527us| max :        71527us| avg :        71527us ***]
+<a id="__codelineno-39-48" name="__codelineno-39-48" href="#__codelineno-39-48"></a>*Max List* [71527,]
+<a id="__codelineno-39-49" name="__codelineno-39-49" href="#__codelineno-39-49"></a>[*** Name :                     post-blend| min :          490us| max :          490us| avg :          490us ***]
+<a id="__codelineno-39-50" name="__codelineno-39-50" href="#__codelineno-39-50"></a>*Max List* [490,]
+<a id="__codelineno-39-51" name="__codelineno-39-51" href="#__codelineno-39-51"></a>[*** Name :                   post-segment| min :          413us| max :          413us| avg :          413us ***]
+<a id="__codelineno-39-52" name="__codelineno-39-52" href="#__codelineno-39-52"></a>*Max List* [413,]
+<a id="__codelineno-39-53" name="__codelineno-39-53" href="#__codelineno-39-53"></a>[*** Name :                            pre| min :         1548us| max :         1548us| avg :         1548us ***]
+<a id="__codelineno-39-54" name="__codelineno-39-54" href="#__codelineno-39-54"></a>*Max List* [1548,]
+</code></pre></div>
+<img alt="image" src="https://user-images.githubusercontent.com/79885630/204205950-74d98cdf-ba6a-4b7e-817b-d0482ec8cf39.png"></li>
+</ul>
+<h2 id="face&gt;_detectionrecognition">Face Detection/Recognition<a class="headerlink" href="#face&gt;_detectionrecognition" title="Permanent link">¶</a></h2>
+<p>Face Recognition Demo Including Face Detection (<code>app/face_recognition/face_recognition_demo.cpp</code>)   </p>
+<blockquote>
+<p>-t, --threshold        Similarity Threshold<br>
+ -m0, --fd_modelpath    face detection model include path<br>
+ -m1, --lm_modelpath    face align model include path<br>
+ -m2, --fr_modelpath    face recognition model include path<br>
+ -p, --dbpath           face database directory<br>
+ -l, --left             first image file to compare<br>
+ -r, --right            second image file to compare<br>
+ -i, --image            use image file input<br>
+ -v, --video            use video file input<br>
+ -c, --camera           use camera input<br>
+ -a, --async            asynchronous inference<br>
+ -d, --detect           include face detection (for dual image test)<br>
+ -h, --help             show help  </p>
+</blockquote>
+<ul>
+<li>face recognition for single image<br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>./face_recognition -m0 &lt;fd_model_dir&gt; -m1 &lt;lm_model_dir&gt; -m2 &lt;fr_model_dir&gt; -p &lt;Face DB dir&gt; -i sample.jpg
+</code></pre></div></li>
+<li>face recognition for single video file<br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>./face_recognition -m0 &lt;fd_model_dir&gt; -m1 &lt;lm_model_dir&gt; -m2 &lt;fr_model_dir&gt; -p &lt;Face DB dir&gt; -v sample.mp4 -a
+</code></pre></div></li>
+<li>face recognition for camera input<br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a>./face_recognition -m0 &lt;fd_model_dir&gt; -m1 &lt;lm_model_dir&gt; -m2 &lt;fr_model_dir&gt; -p &lt;Face DB dir&gt; -c -a
+</code></pre></div></li>
+<li>face recognition to compare right image to left image. you can use option -d for face detection<br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a>./face_recognition -m0 &lt;fd_model_dir&gt; -m1 &lt;lm_model_dir&gt; -m2 &lt;fr_model_dir&gt; -r &lt;image_path&gt; -l &lt;image_path&gt;
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a>./face_recognition -m0 /fd_model -m1 /lm_model -m2 /fr_model -p /dxrt/face_db_2person -v /dxrt/videos/test.mp4
+</code></pre></div>
+<img alt="image" src="https://user-images.githubusercontent.com/79885630/204216552-c2126f51-3a7a-49fc-a5d9-e210f42dc9c0.png">
+<img alt="image" src="https://user-images.githubusercontent.com/79885630/204216579-b45af123-6f34-4b17-99ae-36d2be30de70.png"></li>
+</ul>
+<h2 id="multi-model">Multi-Model<a class="headerlink" href="#multi-model" title="Permanent link">¶</a></h2>
+<p>Object Detection With Image Segmentation Demo (from <code>app/hybrid/</code>)<br>
+Currently, model path is configured as in <code>OD_MODEL_PATH</code>, <code>SEG_MODEL_PATH</code> in source code.  </p>
+<blockquote>
+<p>-i, --image     use image file input<br>
+  -v, --video     use video file input<br>
+  -c, --camera    use camera input<br>
+  -a, --async     asynchronous inference<br>
+  -h, --help      show help  </p>
+</blockquote>
+<ul>
+<li>YOLO + Segmentation for single image<br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a>./yolo_ddrnet -m &lt;model_dir&gt; -i &lt;image file&gt;
+<a id="__codelineno-45-2" name="__codelineno-45-2" href="#__codelineno-45-2"></a>./yolo_pidnet -m &lt;model_dir&gt; -i &lt;image file&gt;
+</code></pre></div></li>
+<li>YOLO + Segmentation for single video file<br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-46-1" name="__codelineno-46-1" href="#__codelineno-46-1"></a>./yolo_ddrnet -m &lt;model_dir&gt; -v &lt;video file&gt; -a
+<a id="__codelineno-46-2" name="__codelineno-46-2" href="#__codelineno-46-2"></a>./yolo_pidnet -m &lt;model_dir&gt; -v &lt;video file&gt; -a
+</code></pre></div></li>
+<li>YOLO + Segmentation for camera input<br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a>./yolo_ddrnet -m &lt;model_dir&gt; -c -a
+<a id="__codelineno-47-2" name="__codelineno-47-2" href="#__codelineno-47-2"></a>./yolo_pidnet -m &lt;model_dir&gt; -c -a
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a>./yolo_pidnet -a -v /dxrt/videos/stuttgart-00.avi
+</code></pre></div>
+<img alt="image" src="https://user-images.githubusercontent.com/79885630/204217136-3c1d7175-b454-49b4-b8d9-2adc15b70676.png"></li>
+</ul>
+<h2 id="imagenet&gt;_classification">ImageNet Classification<a class="headerlink" href="#imagenet&gt;_classification" title="Permanent link">¶</a></h2>
+<p>Image Classification Demo for ImageNet Dataset (from <code>app/imagenet_classification/imagenet_classification_demo.cpp</code>)  <br>
+Currently, default model/image/label/grid paths are configured in source code.<br>
+(<code>DEFAULT_MODEL_PATH</code>, <code>DEFAULT_IMAGE_PATH</code>, <code>DEFAULT_LABEL_PATH</code>, <code>DEFAULT_GRID_PATH</code>)  </p>
+<blockquote>
+<p>-m, --model        define model path<br>
+ -i, --image        ImageNet image path<br>
+ -l, --label        ImageNet label path<br>
+ -g, --grid         ImageNet grid path<br>
+ -h, --help         show help<br>
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a>./imagenet_classification<span class="w"> </span>-m<span class="w"> </span>/dxrt/models/DX_M1/v2p0/efficientnet-b0_argmax/
+</code></pre></div>
+The label file is a JSON file that contains image names and their corresponding labels, as shown below.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a><span class="p">{</span>
+<a id="__codelineno-50-2" name="__codelineno-50-2" href="#__codelineno-50-2"></a><span class="w">  </span><span class="nt">"ILSVRC2012_val_00000001"</span><span class="p">:</span><span class="w"> </span><span class="mi">65</span><span class="p">,</span>
+<a id="__codelineno-50-3" name="__codelineno-50-3" href="#__codelineno-50-3"></a><span class="w">  </span><span class="nt">"ILSVRC2012_val_00000002"</span><span class="p">:</span><span class="w"> </span><span class="mi">970</span><span class="p">,</span>
+<a id="__codelineno-50-4" name="__codelineno-50-4" href="#__codelineno-50-4"></a><span class="w">  </span><span class="nt">"ILSVRC2012_val_00000003"</span><span class="p">:</span><span class="w"> </span><span class="mi">230</span><span class="p">,</span>
+<a id="__codelineno-50-5" name="__codelineno-50-5" href="#__codelineno-50-5"></a><span class="w">  </span><span class="err">...</span>
+<a id="__codelineno-50-6" name="__codelineno-50-6" href="#__codelineno-50-6"></a><span class="p">}</span>
+</code></pre></div>
+</blockquote>
+<h2 id="packet&gt;_classification">Packet Classification<a class="headerlink" href="#packet&gt;_classification" title="Permanent link">¶</a></h2>
+<p>Packet Classification Demo (from <code>app/packet_classification/packet_classification.cpp</code>)</p>
+<blockquote>
+<p>-m, --model        define model path
+ -a, --async        asynchronous inference
+ -b, --bin          use binary file input with preprocessed data
+ -h, --hazard       enable hazard mode</p>
+</blockquote>
+<ul>
+<li>packet classification for test packet
+<div class="highlight"><pre><span></span><code><a id="__codelineno-51-1" name="__codelineno-51-1" href="#__codelineno-51-1"></a>./packet_classification<span class="w"> </span>-m<span class="w"> </span>&lt;model_dir&gt;<span class="w"> </span>-a<span class="w"> </span>-h
+</code></pre></div></li>
+<li>packet classification for single binary file
+<div class="highlight"><pre><span></span><code><a id="__codelineno-52-1" name="__codelineno-52-1" href="#__codelineno-52-1"></a>./packet_classification -m &lt;model_dir&gt; -b sample/packet/attack_packet_hazard.bin
+</code></pre></div>
+Result
+<div class="highlight"><pre><span></span><code><a id="__codelineno-53-1" name="__codelineno-53-1" href="#__codelineno-53-1"></a>Initialize device /dev/dx_dma0_npu_0
+<a id="__codelineno-53-2" name="__codelineno-53-2" href="#__codelineno-53-2"></a>Memory mapped at address 0x7f25f9bac000(100000)
+<a id="__codelineno-53-3" name="__codelineno-53-3" href="#__codelineno-53-3"></a>parse non-encryption format.
+<a id="__codelineno-53-4" name="__codelineno-53-4" href="#__codelineno-53-4"></a>  Task[0] /dxrt/m1_4k/khu-dasan-packet-224/1 NPUs, 9200000bytes
+<a id="__codelineno-53-5" name="__codelineno-53-5" href="#__codelineno-53-5"></a>            Device : NPU 0, /dev/dx_dma0_npu_0(IDLE), DX_M1_4K, PCIE type
+<a id="__codelineno-53-6" name="__codelineno-53-6" href="#__codelineno-53-6"></a>              - MemIf : /dev/dx_dma0_h2c_0, /dev/dx_dma0_c2h_0, 100000(0) + e0000000
+<a id="__codelineno-53-7" name="__codelineno-53-7" href="#__codelineno-53-7"></a>    [0]
+<a id="__codelineno-53-8" name="__codelineno-53-8" href="#__codelineno-53-8"></a>      inputs
+<a id="__codelineno-53-9" name="__codelineno-53-9" href="#__codelineno-53-9"></a>        Tensor: name INPUT, type UINT8 [1, 224, 224, 1,  ], data 0x557a3cded080, dest 0
+<a id="__codelineno-53-10" name="__codelineno-53-10" href="#__codelineno-53-10"></a>      outputs
+<a id="__codelineno-53-11" name="__codelineno-53-11" href="#__codelineno-53-11"></a>        Tensor: name 250, type INT32 [1, 1, 1, 2,  ], data 0x557a3ccb6250, dest 0
+<a id="__codelineno-53-12" name="__codelineno-53-12" href="#__codelineno-53-12"></a>[Packet Classification] result :: 0 [0:normal packet, 1:attack packet]
+</code></pre></div></li>
+</ul></div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      ⓒ Copyright 2022 <a href="http://deepx.ai">DEEPX</a>. All Rights Reserved.
+    </div>
+  
+  
+</div>
+      
+        <div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://www.linkedin.com/company/deepx-corporation/" target="_blank" rel="noopener" title="www.linkedin.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": ".", "features": ["toc.integrate", "content.code.annotate", "navigation.tabs", "navigation.tabs.sticky"], "search": "assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": "v0.2"}</script>
+    
+    
+      <script src="assets/javascripts/bundle.3220b9d7.min.js"></script>
+      
+        <script src="javascripts/mathjax.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
