@@ -108,19 +108,11 @@ Examples:
 ./build.sh --arch x86_64
 ```
 Build directories and related output files will be generated according to the target CPU (e.g., `build_arm64`, `build_riscv64`, ...).  
-Demo application binary files can be found in `<build directory>`/release/bin/, and `bin`.  
+Demo application binary files can be found in `<build directory>`/bin/, and `bin`.  
 ```
-<build directory>/release/bin/
-├── cls_demo_bin
-├── ddrnet
+<build directory>/bin/
+├── dxrt-cli
 ├── dxrt_test
-├── face_recognition
-├── helloworld
-├── parse_model
-├── pidnet
 ├── run_model
-├── ssd
-├── yolo
-├── yolo_ddrnet
-└── yolo_pidnet
+├── parse_model
 ```

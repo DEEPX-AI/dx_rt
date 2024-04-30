@@ -44,50 +44,33 @@ sudo make install
 Refer to [onnxruntime Build Guide](https://onnxruntime.ai/docs/build/inferencing.html)
 ## Get software repository
 Three types are provided.  
-1. Fetch [git repository](https://github.com/KOMOSYS/dxrt)  
-  
+* Fetch [git repository](https://github.com/DEEPX-AI/dx_rt)
 ```
-git clone git@github.com:KOMOSYS/dxrt.git
+git clone git@github.com:DEEPX-AI/dx_rt.git
 ```
-2. Download release file package from [release page](https://github.com/KOMOSYS/dxrt/releases)  
-3. Download release file package from seperate corporate chain.  
 ## File structure
 ```
-├── app
-│   ├── basic
-│   ├── classification
-│   ├── face_recognition
-│   ├── hybrid
-│   ├── object_detection
-│   └── segmentation
+├── cli
 ├── build.cfg
 ├── build.sh
 ├── cmake
 ├── docs
-├── driver
 ├── extern
 ├── lib
+├── python_package
 ├── sample
 └── test
 ```
 
-* app : demo applications  
+* cli : applications
 * build.cfg : C/C++ preprocessor macros to use in application  
 * build.sh : build shell script  
 * cmake : required cmake scripts  
 * docs : markdown files, and doxygen generator for API reference  
-* driver : device driver files  
 * extern : 3rd party library files  
 * lib : prebuilt dxrt libarary files  
 * sample : sample images for demo applications  
 * test : dxrt unit test files  
+
 ## Install Linux Device Driver
-1. For DX-M1  
-Execute install script in host device - sudo permission is mandatory.  
-Linux kernel module file `dx_dma.ko`, `dxrt_driver.ko` will be built and installed.  
-```
-cd driver
-sudo ./install_m1.sh
-```
-2. For other devices  
-Will be updated.  
+   Please refer to [deepx driver git](https://github.com/DEEPX-AI/dx_rt_npu_linux_driver)

@@ -21,6 +21,22 @@ string dxrt::getCurrentPath()
     return string(buffer);
 }
 
+string dxrt::getPath(const string& path)
+{
+    if(path.length() < 1) return "";
+    if (path[0] == '/')
+        return path;
+    else if (path.substr(0, 2) == "./" || path.substr(0, 3) == "../")
+    {
+        char cwd[1024];
+        if (getcwd(cwd, sizeof(cwd)) != nullptr)
+            return string(cwd) + '/' + path;
+        else
+            return path;
+    }
+    return path;
+}
+
 string dxrt::getAbsolutePath(const string& path)
 {
     if(path.length() < 1)return "";

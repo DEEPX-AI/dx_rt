@@ -1,17 +1,17 @@
-![dxrt_r2](https://user-images.githubusercontent.com/79885630/198581277-3abc611a-a759-455f-9a81-5b4739727162.png)
+![dxrt_r2](/assets/images/introuduction.jpg)
 
-**DXRT** is DEEPX Runtime SDK for AI inference based on DEEPX devices.  
+**DX-RT** is DEEPX Runtime SDK for AI inference based on DEEPX devices.  
 It supports pre-built models from DEEPX model zoo, and compiled models by DXCOM(DEEPX Compiler SDK).  
 ## Supported devices
-DXRT provides common inference framework based on 2 kinds of inference mode.  
+DX-RT provides common inference framework based on 2 kinds of inference mode.  
 
 * Accelerator mode : inference by PCIe interface  
 * Standalone mode : inference by direct AXI/APB interface  
 
 |Device|Mode|  
 |---|---|  
-|DX_L1|Standalone|  
-|DX_L2|Standalone|  
+|DX_V1|Standalone|  
+|DX_V3|Standalone|  
 |DX_M1|Accelerator|  
 |DX_H1|Accelerator|  
 
