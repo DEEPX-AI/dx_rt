@@ -2,18 +2,13 @@
 Original ONNX model file is converted as following by DXCOM SDK.
 ```
 Model dir.
-    ├── rmap.bin
-    ├── rmap.info
-    └── weight.bin
+    └── graph.dxnn
 ```
-
-* rmap.bin : NPU Command data  
-* rmap.info : NPU Command metadata  
-* weight.bin : Model weight/bias/bn parameters  
+* graph.dxnn : Deepx Single Artifact with NPU Command Data & metadata / Model Parameters
 ## Basic Flow
-![inference_basic_r1](https://user-images.githubusercontent.com/79885630/198937242-12221315-22d8-4210-926a-1e506daa0b63.png)
+![inference_basic_r1](/assets/images/basic_flow.jpg)
 ### 0. Prepare a model
-You can choose one by 2 ways.  
+You can choose one by 2 way
 1) Pick one prebuilt model from ModelZoo  
 2) Compile a model to DXRT model format (Details are in DXCOM SDK manual)  
 ### 1. Set inference option
@@ -123,7 +118,7 @@ You can visualize events from `profiler.json` using as following.
 python3 tool/profiler/plot.py --input profiler.json
 ```
 Then, generated image file `profiler.png` will show detailed profiling data. 
-![image](https://github.com/KOMOSYS/dx_rt/assets/79885630/0fd64aea-cad9-4088-bd3e-94fb4656f428)
+![image](/assets/images/profiler.jpg)
 Please refer to usage of `tool/profiler/plot.py`.  
 ```
 usage: plot.py [-h] [-i INPUT] [-o OUTPUT] [-s START] [-e END] [-g]

@@ -16,7 +16,7 @@ namespace dxrt {
 static uint32_t fwUpdateSubCmd;
 static string ParseFwUpdateSubCmd(string cmd)
 {
-    string path = getCurrentPath() + "/" + cmd;
+    string path = getPath(cmd);
     if ( !fileExists(path) ) {
         path = "";
         if (cmd == "reset") {
@@ -24,7 +24,7 @@ static string ParseFwUpdateSubCmd(string cmd)
         } else if (cmd == "force") {
             fwUpdateSubCmd |= FWUPDATE_FORCE;
         } else {
-            cout << "[ERR] Unknown SUBCMD: " << cmd << endl;
+            cout << "[ERR] Unknown sub-command or not found file path: " << cmd << endl;
             exit(-1);
         }
     }

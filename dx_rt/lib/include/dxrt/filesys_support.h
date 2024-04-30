@@ -1,6 +1,7 @@
 #include<string>
 
 namespace dxrt{
+    std::string getPath(const std::string& path);
     std::string getCurrentPath();
     std::string getAbsolutePath(const std::string& path);
     std::string getParentPath(const std::string& path);

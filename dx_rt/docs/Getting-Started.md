@@ -19,9 +19,7 @@ Since ModelZoo is still not open, prebuilt model files will be provided separate
 ```
 (You will see the file structure as below )  
 yolov5s_640
-├── rmap.bin
-├── rmap.info
-└── weight.bin
+└── graph.dxnn
 ```
 ## 2. Run simple CLI to device
 Check basic device interface as following.
@@ -50,20 +48,4 @@ model
   Data Integrity Check : SKIP (0 pass, 0 fail )
 -----------------------------------
 ...
-```
-## 4. Run object detection demo with the model
-```
-sudo ./bin/yolo -m <model directory> -p 2 -i sample/1.jpg
-```
-If the demo application completes successfully, you can see detection result as following.(each result values will be different from this)  
-```
-  Detected 7 boxes.
-    BBOX:person(0) 0.838961, (382.578, 171.134, 498.847, 460.018)
-    BBOX:bowl(45) 0.761698, (31.2044, 450.033, 99.4646, 491.072)
-    BBOX:oven(69) 0.626437, (486.406, 309.157, 619.971, 450.749)
-    BBOX:bowl(45) 0.618453, (59.1502, 393.524, 135.132, 434.191)
-    BBOX:bowl(45) 0.456878, (155.886, 274.543, 184.228, 291.046)
-    BBOX:person(0) 0.441233, (0.316133, 369.499, 60.3764, 415.845)
-    BBOX:banana(46) 0.340904, (-0.602713, 106.704, 61.4954, 256.591)
-yolov5s_640 : latency 11548us, 5472us
 ```
