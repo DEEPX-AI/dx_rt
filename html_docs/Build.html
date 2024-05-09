@@ -455,15 +455,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#3rd>_party>_libraries" class="md-nav__link">
-    <span class="md-ellipsis">
-      3rd Party Libraries
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#build>_guide" class="md-nav__link">
     <span class="md-ellipsis">
       Build guide
@@ -707,74 +698,38 @@ Example : riscv64 cross-compile<br>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>set(CMAKE_C_COMPILER /usr/bin/riscv64-linux-gnu-gcc)
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>set(CMAKE_CXX_COMPILER /usr/bin/riscv64-linux-gnu-g++)
 </code></pre></div>
-<h2 id="3rd&gt;_party&gt;_libraries">3rd Party Libraries<a class="headerlink" href="#3rd&gt;_party&gt;_libraries" title="Permanent link">¶</a></h2>
-<ol>
-<li>googleprotobuf, googletest<br>
-    Prebuilt files are provided in <code>extern/include</code>, <code>extern/lib</code> directory. If you want to use your custom files, overwrite them.  </li>
-<li>OpenCV<br>
-    Prebuilt files are not provided. CMake <code>find_package()</code> will find OpenCV packages automatically from your system. If you want to set specific OpenCV package path, configure following at <code>cmake/toolchain.&lt;CMAKE_SYSTEM_PROCESSOR&gt;.cmake</code> - just set the path which includes <code>OpenCVConfig.cmake</code> file. 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>set(OpenCV_DIR &lt;opencv build dir.&gt; )
-</code></pre></div>
-Example : OpenCV 4.5.5 Cross-compile for arm64<br>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>wget -O opencv.4.5.5.zip https://github.com/opencv/opencv/archive/4.5.5.zip 
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>wget -O opencv_contrib.4.5.5.zip https://github.com/opencv/opencv_contrib/archive/4.5.5.zip
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>unzip opencv.4.5.5.zip
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>unzip opencv_contrib.4.5.5.zip
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>cd opencv-4.5.5
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>mkdir build_arm64 ; cd build_arm64
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>cmake -D CMAKE_TOOLCHAIN_FILE=../platforms/linux/aarch64-gnu.toolchain.cmake -D OPENCV_EXTRA_MODULES_PATH=../../opencv_contrib-4.5.5/modules -D CMAKE_INSTALL_PREFIX=../install_arm64 -DCMAKE_CXX_COMPILER=/usr/bin/aarch64-linux-gnu-g++ -DCMAKE_C_COMPILER=/usr/bin/aarch64-linux-gnu-gcc ../
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>make -j8
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>sudo make install
-</code></pre></div>
-Example : OpenCV 4.5.5 Cross-compile for riscv64<br>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>wget -O opencv.4.5.5.zip https://github.com/opencv/opencv/archive/4.5.5.zip 
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>wget -O opencv_contrib.4.5.5.zip https://github.com/opencv/opencv_contrib/archive/4.5.5.zip
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>unzip opencv.4.5.5.zip
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>unzip opencv_contrib.4.5.5.zip
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>cd opencv-4.5.5
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>mkdir build_riscv64 ; cd build_riscv64
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>cmake -D CMAKE_TOOLCHAIN_FILE=../platforms/linux/riscv64-gnu.toolchain.cmake -D OPENCV_EXTRA_MODULES_PATH=../../opencv_contrib-4.5.5/modules -D CMAKE_INSTALL_PREFIX=../install_riscv64 -DCMAKE_CXX_COMPILER=riscv64-linux-gnu-g++ -DCMAKE_C_COMPILER=riscv64-linux-gnu-gcc ../
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>make -j8
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>sudo make install
-</code></pre></div>
-You can install opencv using <code>install.sh</code>, as followings. OpenCV 4.5.5 version will be installed in <code>extern/${cpu_arch}</code>.   <br>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>./install.sh --arch riscv64 --opencv
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>./install.sh --arch arm64 --opencv
-</code></pre></div></li>
-</ol>
 <h2 id="build&gt;_guide">Build guide<a class="headerlink" href="#build&gt;_guide" title="Permanent link">¶</a></h2>
 <h3 id="non-cross-compile&gt;_case">non-cross-compile case<a class="headerlink" href="#non-cross-compile&gt;_case" title="Permanent link">¶</a></h3>
 <p>To build DXRT for the host system, execute the build script with the appropriate installation path.<br>
 It is recommended to set the installation path to a location commonly referenced in the OS, such as <code>/usr/local</code>.<br>
-</p><div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>./build.sh --install /usr/local
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>./build.sh --install /usr/local
 </code></pre></div>
 <h3 id="cross-compile&gt;_case">cross-compile case<a class="headerlink" href="#cross-compile&gt;_case" title="Permanent link">¶</a></h3>
 <p>To cross-compile DXRT for a target system, target CPU architecture should be configured.<br>
 (If not specified, target CPU will be set to the host system's CPU)<br>
-</p><div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>./build.sh --arch &lt;target_cpu&gt;
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>./build.sh --arch &lt;target_cpu&gt;
 </code></pre></div>
 <p>Please refer to following options.<br>
-</p><div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>./build.sh [ options ]
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    --help     show this help
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    --clean    clean build
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    --verbose  show build commands
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    --type     cmake build type : [ Release, Debug, RelWithDebInfo ]
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>    --arch     target CPU architecture : [ x86_64, arm64, riscv64 ]
-<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>    --install  install path
-<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>    --uninstall  uninstall dx-rt files
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>./build.sh [ options ]
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    --help     show this help
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    --clean    clean build
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    --verbose  show build commands
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    --type     cmake build type : [ Release, Debug, RelWithDebInfo ]
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    --arch     target CPU architecture : [ x86_64, arm64, riscv64 ]
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    --install  install path
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>    --uninstall  uninstall dx-rt files
 </code></pre></div>
 Examples:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>./build.sh --arch arm64
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>./build.sh --arch riscv64
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>./build.sh --arch x86_64
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>./build.sh --arch arm64
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>./build.sh --arch riscv64
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>./build.sh --arch x86_64
 </code></pre></div>
 Build directories and related output files will be generated according to the target CPU (e.g., <code>build_arm64</code>, <code>build_riscv64</code>, ...).<br>
 Demo application binary files can be found in <code>&lt;build directory&gt;</code>/bin/, and <code>bin</code>.<br>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>&lt;build directory&gt;/bin/
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>├── dxrt-cli
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>├── dxrt_test
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>├── run_model
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>├── parse_model
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>&lt;build directory&gt;/bin/
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>├── dxrt-cli
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>├── run_model
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>├── parse_model
 </code></pre></div></div>
 
 

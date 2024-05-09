@@ -36,45 +36,6 @@ Example : riscv64 cross-compile
 set(CMAKE_C_COMPILER /usr/bin/riscv64-linux-gnu-gcc)
 set(CMAKE_CXX_COMPILER /usr/bin/riscv64-linux-gnu-g++)
 ```
-
-## 3rd Party Libraries
-1. googleprotobuf, googletest  
-    Prebuilt files are provided in ```extern/include```, ```extern/lib``` directory. If you want to use your custom files, overwrite them.  
-2. OpenCV  
-    Prebuilt files are not provided. CMake ```find_package()``` will find OpenCV packages automatically from your system. If you want to set specific OpenCV package path, configure following at ```cmake/toolchain.<CMAKE_SYSTEM_PROCESSOR>.cmake``` - just set the path which includes ```OpenCVConfig.cmake``` file. 
-```
-set(OpenCV_DIR <opencv build dir.> )
-```
-Example : OpenCV 4.5.5 Cross-compile for arm64  
-```
-wget -O opencv.4.5.5.zip https://github.com/opencv/opencv/archive/4.5.5.zip 
-wget -O opencv_contrib.4.5.5.zip https://github.com/opencv/opencv_contrib/archive/4.5.5.zip
-unzip opencv.4.5.5.zip
-unzip opencv_contrib.4.5.5.zip
-cd opencv-4.5.5
-mkdir build_arm64 ; cd build_arm64
-cmake -D CMAKE_TOOLCHAIN_FILE=../platforms/linux/aarch64-gnu.toolchain.cmake -D OPENCV_EXTRA_MODULES_PATH=../../opencv_contrib-4.5.5/modules -D CMAKE_INSTALL_PREFIX=../install_arm64 -DCMAKE_CXX_COMPILER=/usr/bin/aarch64-linux-gnu-g++ -DCMAKE_C_COMPILER=/usr/bin/aarch64-linux-gnu-gcc ../
-make -j8
-sudo make install
-```
-Example : OpenCV 4.5.5 Cross-compile for riscv64  
-```
-wget -O opencv.4.5.5.zip https://github.com/opencv/opencv/archive/4.5.5.zip 
-wget -O opencv_contrib.4.5.5.zip https://github.com/opencv/opencv_contrib/archive/4.5.5.zip
-unzip opencv.4.5.5.zip
-unzip opencv_contrib.4.5.5.zip
-cd opencv-4.5.5
-mkdir build_riscv64 ; cd build_riscv64
-cmake -D CMAKE_TOOLCHAIN_FILE=../platforms/linux/riscv64-gnu.toolchain.cmake -D OPENCV_EXTRA_MODULES_PATH=../../opencv_contrib-4.5.5/modules -D CMAKE_INSTALL_PREFIX=../install_riscv64 -DCMAKE_CXX_COMPILER=riscv64-linux-gnu-g++ -DCMAKE_C_COMPILER=riscv64-linux-gnu-gcc ../
-make -j8
-sudo make install
-```
-You can install opencv using ```install.sh```, as followings. OpenCV 4.5.5 version will be installed in ```extern/${cpu_arch}```.     
-```
-./install.sh --arch riscv64 --opencv
-./install.sh --arch arm64 --opencv
-```
-
 ## Build guide
 
 ### non-cross-compile case
@@ -112,7 +73,6 @@ Demo application binary files can be found in `<build directory>`/bin/, and `bin
 ```
 <build directory>/bin/
 ├── dxrt-cli
-├── dxrt_test
 ├── run_model
 ├── parse_model
 ```
