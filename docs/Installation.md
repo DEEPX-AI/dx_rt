@@ -74,3 +74,12 @@ git clone git@github.com:DEEPX-AI/dx_rt.git
 
 ## Install Linux Device Driver
    Please refer to [deepx driver git](https://github.com/DEEPX-AI/dx_rt_npu_linux_driver)
+
+## Install python package
+```
+$ cd python_package
+$ pip install .
+* You can check dx-engine in the list of Python packages using the command below.
+$ pip list | grep dx
+dx-engine          0.0.1
+```
