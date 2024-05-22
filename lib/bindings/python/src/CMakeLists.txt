@@ -21,7 +21,7 @@ target_include_directories(${target} PRIVATE
   ${CMAKE_SOURCE_DIR}/lib/include
   ${CMAKE_SOURCE_DIR}/extern/include
 )
-target_link_libraries(${target} PRIVATE dxrt pthread)
+target_link_libraries(${target} PRIVATE dxrt pthread ${link_libs})
 # add_dxrt(_pydxrt)
 
 # target_include_directories(_pydxrt

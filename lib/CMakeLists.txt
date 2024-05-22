@@ -51,7 +51,7 @@ include(CMakePackageConfigHelpers)
 configure_package_config_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/config.cmake.in
     ${CMAKE_CURRENT_BINARY_DIR}/dxrtConfig.cmake
-    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/dxrt
+    INSTALL_DESTINATION lib/cmake/dxrt
 )
 write_basic_package_version_file(
     ${CMAKE_CURRENT_BINARY_DIR}/dxrtConfigVersion.cmake
@@ -72,5 +72,5 @@ install(FILES ${CMAKE_SOURCE_DIR}/extern/include/cxxopts.hpp DESTINATION include
 install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/dxrtConfig.cmake
     ${CMAKE_CURRENT_BINARY_DIR}/dxrtConfigVersion.cmake
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/dxrt
+    DESTINATION lib/cmake/dxrt
 )
