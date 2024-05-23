@@ -1,5 +1,5 @@
 ## Setup build environments
-* OS : Ubuntu 18.04, Ubuntu 20.04  
+* OS : Ubuntu 18.04, Ubuntu 20.04, Ubuntu 22.04 
 * CMake : 3.14.0 or higher required. Refer to followings.  
 ```
 sudo apt-get install zlib1g-dev libcurl4-openssl-dev
@@ -33,15 +33,21 @@ source /etc/profile
 ```
 * (optional) onnxruntime  
 Required if you need CPU offloading for NN ops that NPU does not support.  
-Refer to following installation example for onnxruntime v1.16.3.  
+Refer to following installation example for onnxruntime linux x64 v1.12.0.  
 ```
-git clone --recursive https://github.com/Microsoft/onnxruntime.git
-cd onnxruntime
-git checkout -b _v1.16.3 v1.16.3
-./build.sh --config RelWithDebInfo --build_shared_lib --parallel --compile_no_warning_as_error --skip_submodule_sync
-sudo make install
+wget https://github.com/microsoft/onnxruntime/releases/download/v1.12.0/onnxruntime-linux-x64-1.12.0.tgz 
+sudo tar -xvzf onnxruntime-linux-x64-1.12.0.tgz -C /usr/local --strip-components=1
+sudo ldconfig 
 ```
-Refer to [onnxruntime Build Guide](https://onnxruntime.ai/docs/build/inferencing.html)
+Refer to [onnxruntime releases list](https://github.com/microsoft/onnxruntime/tags)    
+You can use ./install.sh for onnxruntime library installation      
+  ```shell
+  ./install.sh --onnxruntime  
+  ```        
+  To specify the compilation environment as arm64, use the **--arch** option.     
+  ```shell
+  ./install.sh --arch arm64 --onnxruntime
+  ```           
 ## Get software repository
 Three types are provided.  
 * Fetch [git repository](https://github.com/DEEPX-AI/dx_rt)
