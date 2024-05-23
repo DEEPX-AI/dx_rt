@@ -7,7 +7,7 @@
 #include "dxrt/datatype.h"
 #include "dxrt/request.h"
 #ifdef USE_ORT
-#include <onnxruntime/onnxruntime_cxx_api.h>
+#include <onnxruntime_cxx_api.h>
 #endif
 
 namespace dxrt {

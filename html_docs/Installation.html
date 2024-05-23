@@ -654,7 +654,7 @@
 
 <div><h2 id="setup&gt;_build&gt;_environments">Setup build environments<a class="headerlink" href="#setup&gt;_build&gt;_environments" title="Permanent link">¶</a></h2>
 <ul>
-<li>OS : Ubuntu 18.04, Ubuntu 20.04  </li>
+<li>OS : Ubuntu 18.04, Ubuntu 20.04, Ubuntu 22.04 </li>
 <li>CMake : 3.14.0 or higher required. Refer to followings.<br>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>sudo apt-get install zlib1g-dev libcurl4-openssl-dev
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>wget https://cmake.org/files/v3.14/cmake-3.14.0.tar.gz --no-check-certificate
@@ -683,30 +683,34 @@ riscv64-eyenix gcc (for DX_L1)<br>
 </code></pre></div>
 * (optional) onnxruntime<br>
 Required if you need CPU offloading for NN ops that NPU does not support.<br>
-Refer to following installation example for onnxruntime v1.16.3.<br>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>git clone --recursive https://github.com/Microsoft/onnxruntime.git
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>cd onnxruntime
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>git checkout -b _v1.16.3 v1.16.3
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>./build.sh --config RelWithDebInfo --build_shared_lib --parallel --compile_no_warning_as_error --skip_submodule_sync
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>sudo make install
+Refer to following installation example for onnxruntime linux x64 v1.12.0.<br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>wget https://github.com/microsoft/onnxruntime/releases/download/v1.12.0/onnxruntime-linux-x64-1.12.0.tgz 
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>sudo tar -xvzf onnxruntime-linux-x64-1.12.0.tgz -C /usr/local --strip-components=1
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>sudo ldconfig 
 </code></pre></div>
-Refer to <a href="https://onnxruntime.ai/docs/build/inferencing.html">onnxruntime Build Guide</a>
+Refer to <a href="https://github.com/microsoft/onnxruntime/tags">onnxruntime releases list</a>  <br>
+You can use ./install.sh for onnxruntime library installation    <br>
+  <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>./install.sh<span class="w"> </span>--onnxruntime<span class="w">  </span>
+</code></pre></div>
+  To specify the compilation environment as arm64, use the <strong>--arch</strong> option.   <br>
+  <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>./install.sh<span class="w"> </span>--arch<span class="w"> </span>arm64<span class="w"> </span>--onnxruntime
+</code></pre></div>
 <h2 id="get&gt;_software&gt;_repository">Get software repository<a class="headerlink" href="#get&gt;_software&gt;_repository" title="Permanent link">¶</a></h2>
 <p>Three types are provided.<br>
 * Fetch <a href="https://github.com/DEEPX-AI/dx_rt">git repository</a>
-</p><div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>git clone git@github.com:DEEPX-AI/dx_rt.git
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>git clone git@github.com:DEEPX-AI/dx_rt.git
 </code></pre></div>
 <h2 id="file&gt;_structure">File structure<a class="headerlink" href="#file&gt;_structure" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>├── cli
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>├── build.cfg
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>├── build.sh
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>├── cmake
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>├── docs
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>├── extern
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>├── lib
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>├── python_package
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>├── sample
-<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>└── test
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>├── cli
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>├── build.cfg
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>├── build.sh
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>├── cmake
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>├── docs
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>├── extern
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>├── lib
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>├── python_package
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>├── sample
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>└── test
 </code></pre></div>
 <ul>
 <li>cli : applications</li>
@@ -722,11 +726,11 @@ Refer to <a href="https://onnxruntime.ai/docs/build/inferencing.html">onnxruntim
 <h2 id="install&gt;_linux&gt;_device&gt;_driver">Install Linux Device Driver<a class="headerlink" href="#install&gt;_linux&gt;_device&gt;_driver" title="Permanent link">¶</a></h2>
 <p>Please refer to <a href="https://github.com/DEEPX-AI/dx_rt_npu_linux_driver">deepx driver git</a></p>
 <h2 id="install&gt;_python&gt;_package">Install python package<a class="headerlink" href="#install&gt;_python&gt;_package" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>$ cd python_package
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>$ pip install .
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>* You can check dx-engine in the list of Python packages using the command below.
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>$ pip list | grep dx
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>dx-engine          0.0.1
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>$ cd python_package
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>$ pip install .
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>* You can check dx-engine in the list of Python packages using the command below.
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>$ pip list | grep dx
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>dx-engine          0.0.1
 </code></pre></div></div>
 
 
