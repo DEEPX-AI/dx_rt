@@ -52,7 +52,7 @@ function install_dep()
             fi
             cd cmake-$cmake_version.0
             ./bootstrap --system-curl
-            make -j8
+            make -j$(nproc)
             sudo make install 
         fi
         sudo apt install ninja-build
