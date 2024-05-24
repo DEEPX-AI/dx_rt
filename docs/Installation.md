@@ -7,7 +7,7 @@ wget https://cmake.org/files/v3.14/cmake-3.14.0.tar.gz --no-check-certificate
 tar xvf cmake-3.14.0.tar.gz
 cd cmake-3.14.0
 ./bootstrap --system-curl
-make -j8
+make -j$(nproc)
 sudo make install
 ```
 * Ninja-build  
