@@ -107,9 +107,7 @@ void CLI::Run(void)
         {
             if(_printDeviceStatus)
             {
-                cout <<"======================================" << endl;
                 cout << DxrtDeviceInfoWithStatus::getStatusInfo(device);
-                cout <<"======================================" << endl;
             }
             if(!_dumpFile.empty())
             {

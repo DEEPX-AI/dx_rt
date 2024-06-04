@@ -62,8 +62,8 @@ Device::~Device(void)
     {
         _thread.join();
     }
-    LOG_DXRT_DBG << "Device " << _id << " thread released." << endl;
-    cout << "Device " << _id << " : " << _inferenceCnt << endl;
+    LOG_DXRT_DBG << "Device " << _id << " thread released. total inference count:" << _inferenceCnt  << endl;
+
     // Request::ShowAll();
 }
 void *Device::input_buf(int taskId, int bufId)
@@ -362,7 +362,7 @@ void Device::Identify(int id_, bool skip)
 
     if(!skip)
     {
-        DxDeviceVersion dxVer(this, _info.fw_ver, _info.type, _info.interface);
+        DxDeviceVersion dxVer(this, _info.fw_ver, _info.type, _info.interface, _info.variant);
         dxVer.CheckVersion();
     }
 
@@ -393,8 +393,9 @@ void Device::Identify(int id_, bool skip)
         // cout << *_featureMem << endl;
         // cout << *_modelMem << endl;
     }
-    cout << "    Device " << _id << ": " << _info << endl;
-#if 1
+
+    LOG_DXRT_DBG << "    Device " << _id << ": " << _info << endl;
+
     if(_type==0)
     {
         _inputWorker = Worker::Create(_name + "_input", Worker::Type::DEVICE_INPUT, _info.num_dma_ch, this);
@@ -405,15 +406,7 @@ void Device::Identify(int id_, bool skip)
     else
     {
         _thread = thread(&Device::ThreadImpl, this);
-    }    
-#else
-    _inputWorker = Worker::Create(_name + "_input", Worker::Type::DEVICE_INPUT, _info.num_dma_ch, this);
-    _outputWorker = Worker::Create(_name + "_output", Worker::Type::DEVICE_OUTPUT, _info.num_dma_ch, this);
-    if(_type==0)
-    {
-        _buffer = make_shared<Buffer>(ACC_DEVICE_BUFFER_SIZE);
-    }
-#endif    
+    }      
 }
 void Device::Terminate()
 {
@@ -536,7 +529,17 @@ int Device::RegisterTask(Task* task)
         model.cmd.offset = _type==1?Allocate(model.cmd.size):(_modelMem->start() - _featureMem->start() + _modelMem->GetBufferAsOffset(model.cmd.size));
         model.weight.base = _memory->start();
         model.weight.offset = _type==1?Allocate(model.weight.size):(_modelMem->start() - _featureMem->start() + _modelMem->GetBufferAsOffset(model.weight.size));
+        if (model.cmd.offset > model.weight.offset)
+            model.cmd.offset = _type==1?Allocate(model.cmd.size):(_modelMem->start() - _featureMem->start() + _modelMem->GetBufferAsOffset(model.cmd.size));
         _npuModel[id].emplace_back(model);
+        if (_type == 0)
+        {
+            uint32_t modelS = model.cmd.size+model.weight.size;
+            string msg = "Model Memory size is not enough(" +
+                int_to_hex(modelS) + "/" +
+                int_to_hex(_modelMem->size()) + ")";
+            DXRT_ASSERT(_modelMem->size() > modelS, msg);
+        }
         for(int j=0; j<DEVICE_NUM_BUF; j++)
         {
             uint32_t inference_offset = 0;

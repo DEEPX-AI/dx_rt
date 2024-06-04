@@ -11,7 +11,7 @@ function help()
 {
     echo "./install.sh"
     echo "    --help            show this help"
-    echo "    --arch            target CPU architecture : [ x86_64, arm64, riscv64 ]"
+    echo "    --arch            target CPU architecture : [ x86_64, aarch64, riscv64 ]"
     echo "    --dep             install dependencies : cmake, gcc, ninja, etc.."
     echo "    --onnxruntime     (optional) install onnxruntime library"
     echo "    --all             install dependencies & onnxruntime library"
@@ -70,7 +70,7 @@ function install_onnx()
     onnxruntime_arch="x64"
     if [ "$target_arch" == "x86_64" ]; then
         onnxruntime_arch="x64"
-    elif [ "$target_arch" == "arm64" ]; then
+    elif [ "$target_arch" == "aarch64" ]; then
         onnxruntime_arch="aarch64"
     fi
     if [ "$install_onnx" == true ]; then
@@ -82,7 +82,7 @@ function install_onnx()
         mkdir onnxruntime_$target_arch
         tar -zxvf onnxruntime-linux-$onnxruntime_arch-1.12.0.tgz -C onnxruntime_$target_arch --strip-components=1 
         if [ $(uname -p) != "$target_arch" ]; then
-            if [ $(uname -p) == "aarch64" ] && [ $target_arch == "arm64" ]; then  
+            if [ $(uname -p) == "aarch64" ] && [ $target_arch == "aarch64" ]; then  
                 sudo cp -a onnxruntime_$target_arch/* /usr/local/
             else
                 echo " onnxruntime install library for Cross Compilation (host : $(uname -p), target : $target_arch)"
@@ -113,8 +113,8 @@ while (( $# )); do
     esac
 done
 
-if [ $target_arch == "aarch64" ]; then
-    target_arch=arm64
+if [ $target_arch == "arm64" ]; then
+    target_arch=aarch64
 fi
 
 install_dep

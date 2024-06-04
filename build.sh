@@ -8,7 +8,7 @@ function help()
     echo "    --clean    clean build"
     echo "    --verbose  show build commands"
     echo "    --type     cmake build type : [ Release, Debug, RelWithDebInfo ]"
-    echo "    --arch     target CPU architecture : [ x86_64, arm64, riscv64 ]"
+    echo "    --arch     target CPU architecture : [ x86_64, aarch64, riscv64 ]"
     echo "    --install  install path"
     echo "    --uninstall  uninstall dx-rt files"
 }
@@ -46,8 +46,8 @@ while (( $# )); do
     esac
 done
 
-if [ $target_arch == "aarch64" ]; then
-    target_arch=arm64
+if [ $target_arch == "arm64" ]; then
+    target_arch=aarch64
 fi
 
 if [ $target_arch == $host_arch ]; then

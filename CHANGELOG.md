@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.1.1 / 2024-06-03
+### 1. Changed
+- simplify dxrt-cli status message
+- remove unnesessary outputs by dx_rt library
+- change arch option: arm64->aarch64
+### 2. Fixed
+- fix cross-compile issue: cross compile occurs on aarch64 issue
+- fix model memory check logic
+### 3. Added
+- None
+
 ## v1.0.1 / 2024-05-23
 ### 1. Changed
 - make option : -j8 -> -j$(nproc)

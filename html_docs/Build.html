@@ -683,9 +683,9 @@ Following means, <code>#define EXAMPLE_FLAG 1</code> in compile time.<br>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>option(USE_PYTHON "Use Python" OFF)
 </code></pre></div>
 <h2 id="cross-compile&gt;_setup">Cross-compile Setup<a class="headerlink" href="#cross-compile&gt;_setup" title="Permanent link">¶</a></h2>
-<p>DXRT supports 3 kinds of CPU Architecture - arm64, riscv64, x86_64.<br>
+<p>DXRT supports 3 kinds of CPU Architecture - aarch64, riscv64, x86_64.<br>
 Set compiler toolchain path in <code>cmake/toolchain.&lt;CMAKE_SYSTEM_PROCESSOR&gt;.cmake</code><br>
-Example : arm64 cross-compile<br>
+Example :  cross-compile<br>
 </p><div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>SET(CMAKE_C_COMPILER      /usr/bin/aarch64-linux-gnu-gcc )
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>SET(CMAKE_CXX_COMPILER    /usr/bin/aarch64-linux-gnu-g++ )
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>SET(CMAKE_LINKER          /usr/bin/aarch64-linux-gnu-ld  )
@@ -715,16 +715,16 @@ It is recommended to set the installation path to a location commonly referenced
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    --clean    clean build
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    --verbose  show build commands
 <a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    --type     cmake build type : [ Release, Debug, RelWithDebInfo ]
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    --arch     target CPU architecture : [ x86_64, arm64, riscv64 ]
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    --arch     target CPU architecture : [ x86_64, aarch64, riscv64 ]
 <a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    --install  install path
 <a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>    --uninstall  uninstall dx-rt files
 </code></pre></div>
 Examples:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>./build.sh --arch arm64
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>./build.sh --arch aarch64
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>./build.sh --arch riscv64
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>./build.sh --arch x86_64
 </code></pre></div>
-Build directories and related output files will be generated according to the target CPU (e.g., <code>build_arm64</code>, <code>build_riscv64</code>, ...).<br>
+Build directories and related output files will be generated according to the target CPU (e.g., <code>build_aarch64</code>, <code>build_riscv64</code>, ...).<br>
 Demo application binary files can be found in <code>&lt;build directory&gt;</code>/bin/, and <code>bin</code>.<br>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>&lt;build directory&gt;/bin/
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>├── dxrt-cli

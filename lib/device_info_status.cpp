@@ -9,6 +9,7 @@ using std::endl;
 using std::map;
 
 map<int, string> device_types {{0,"ACC"},{1,"STD"}};
+map<int, string> device_type_words {{0,"Accelator"},{1,"Standalone"}};
 map<int, string> device_variants{{100,"L1"},{101,"L2"},{102,"L3"},{103,"L4"},
     {200,"M1"},{201,"M1A"}};
 map<int, string> board_types{{1,"SOM"},{2,"M.2"},{3,"H1"}};
@@ -121,6 +122,10 @@ string DxrtDeviceInfoWithStatus::deviceTypeStr() const
 {
     return map_lookup(device_types,_info.type);
 }
+string DxrtDeviceInfoWithStatus::deviceTypeWord() const
+{
+    return map_lookup(device_type_words,_info.type);
+}
 string DxrtDeviceInfoWithStatus::deviceVariantStr() const
 {
     return map_lookup(device_variants,_info.variant);
@@ -173,15 +178,12 @@ std::ostream& DxrtDeviceInfoWithStatus::infoToStream(std::ostream& os) const
 {
 
     os << std::showbase << std::dec << "Device " << getId()
-    << ": type "<< deviceTypeStr()<<",variant "<<deviceVariantStr()
-    << ",DMA_CH:"<<info().num_dma_ch<<"ch,"
-    <<"fw_ver:"<<fwVersionStr()
-    <<endl;
-
-    os << "Memory:["<<allMemoryInfoStr()<<"]"<<endl;
-
-    os <<"Board:[Type "<<boardTypeStr()<<",Revision:"<< static_cast<double>(info().bd_rev)/10.0<<"]"<<","
-        <<"Interface:"<<interfaceTypeStr()<<", fw_info:"<<string(info().fw_info)<<endl;
+      << ": " << deviceVariantStr()<< ", "<< deviceTypeWord()<<" type" << endl;
+    os << "Memory: " << memoryTypeStr() << " " << _info.ddr_freq <<" MHz, " 
+      << memorySizeStrBinaryPrefix() << endl;
+    os << "Board: "<< boardTypeStr() << " " << interfaceTypeStr() 
+      << ", Rev " << static_cast<double>(info().bd_rev)/10.0 << endl;
+    os << fwVersionStr() << endl;
     return os;
 }
 
@@ -199,8 +201,7 @@ std::ostream&DxrtDeviceInfoWithStatus::statusToStream(std::ostream& os) const
     {
         os << npuStatusStr(i)<< endl;
     }
-    os << dvfsStateInfoStr() << ", boot_state:" << status().boot_state;
-    os << ", cnt [" << status().count[0] << ", " << status().count[1] << ", " << status().count[2] << ", " << status().count[3] << "], " << endl;
+    os << dvfsStateInfoStr() << endl;
     return os;
 }
 
@@ -214,6 +215,7 @@ string DxrtDeviceInfoWithStatus::getStatusString() const
 std::ostream& operator<<(std::ostream& os, const DxrtDeviceInfoWithStatus& d)
 {
     d.infoToStream(os);
+    os << endl;
     d.statusToStream(os);
     return os;
 }

@@ -15,6 +15,7 @@
 #include <iomanip>
 #include <random>
 #include <algorithm>
+#include <sstream>
 
 #define data_align(x, a) ( a*( x/a) + (int)(((x%a)>0) ? a : 0) )
 
@@ -37,7 +38,15 @@ std::vector<std::string> GetFileList(std::string dir);
 uint64_t GetAlign64(uint64_t size);
 void* MemAlloc(size_t size, size_t align=8, int value=0);
 void MemFree(void **p);
-
+template< typename T >
+std::string int_to_hex( T i )
+{
+    std::stringstream stream;
+    stream << "0x"
+         << std::setfill ('0') << std::setw(sizeof(T)*2)
+         << std::hex << i;
+    return stream.str();
+}
 template <typename T>
 void DataDumpTxt(std::string filename, T *data, size_t ch, size_t row, size_t col, bool showHex=false)
 {	
