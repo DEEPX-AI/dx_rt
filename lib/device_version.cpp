@@ -9,11 +9,12 @@ using namespace std;
 
 namespace dxrt {
 
-DxDeviceVersion::DxDeviceVersion(Device *device, uint16_t fw_ver, int type, int interface)
+DxDeviceVersion::DxDeviceVersion(Device *device, uint16_t fw_ver, int type, int interface, uint32_t variant)
 {
     LOG_DXRT_DBG << "DeepX version Create " << endl;
     _dev       = device;
     _fw_ver    = fw_ver;
+    _variant   = variant;
     _type      = static_cast<dxrt_device_type_t>(type);
     _interface = static_cast<dxrt_device_interface_t>(interface);
 }
@@ -52,10 +53,13 @@ void DxDeviceVersion::CheckVersion(void)
         }
         if((_interface == DEVICE_INTERFACE_ASIC) && (_type == DEVICE_TYPE_ACCELERATOR))
         {
+            uint16_t fw_ver = 0;
             DXRT_ASSERT(!(devInfo.pcie.driver_version < PCIE_VERSION_CHECK),
                 "The current PCIE driver version " +  to_string(devInfo.pcie.driver_version) + " must be higher than recommended ( > " + to_string(PCIE_VERSION_CHECK) + " ).");
-            DXRT_ASSERT(!(_fw_ver < FW_VERSION_CHECK),
-                "The current firmware version " +  to_string(_fw_ver) + " must be higher than recommended ( > " + to_string(FW_VERSION_CHECK) + " )");
+            if (_variant == 200)
+                fw_ver = FW_VERSION_CHECK;
+            DXRT_ASSERT(!(_fw_ver < fw_ver),
+                "The current firmware version " +  to_string(_fw_ver) + " must be higher than recommended ( > " + to_string(fw_ver) + " )");
         }
     }
 }

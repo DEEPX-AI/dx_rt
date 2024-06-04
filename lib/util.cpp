@@ -5,7 +5,6 @@
 #include "dxrt/datatype.h"
 #include "dxrt/inference_engine.h"
 #include <algorithm>
-#include <sstream>
 
 using namespace std;
 namespace dxrt
@@ -214,16 +213,6 @@ int GetBaseStride(deepx_rmapinfo::DataType dType, deepx_rmapinfo::DataFormat dFo
             exit(0);
     }
     return stride;
-}
-
-template< typename T >
-std::string int_to_hex( T i )
-{
-  std::stringstream stream;
-  stream << "0x" 
-         << std::setfill ('0') << std::setw(sizeof(T)*2) 
-         << std::hex << i;
-  return stream.str();
 }
 
 int CompareBuf(char *DataCompareBuf1, char *DataCompareBuf2, deepx_rmapinfo::RegisterInfoDatabase Cfg, string *logBuf, int log_en, int type)

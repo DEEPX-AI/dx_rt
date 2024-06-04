@@ -106,7 +106,7 @@ $(function() {
 <div class="line"><a name="l00034"></a><span class="lineno">   34</span>&#160;<span class="keyword">class </span>DxDeviceVersion</div>
 <div class="line"><a name="l00035"></a><span class="lineno">   35</span>&#160;{</div>
 <div class="line"><a name="l00036"></a><span class="lineno">   36</span>&#160;<span class="keyword">public</span>:</div>
-<div class="line"><a name="l00037"></a><span class="lineno">   37</span>&#160;    DxDeviceVersion(Device *device, uint16_t fw_ver, <span class="keywordtype">int</span> type, <span class="keywordtype">int</span> interface);</div>
+<div class="line"><a name="l00037"></a><span class="lineno">   37</span>&#160;    DxDeviceVersion(Device *device, uint16_t fw_ver, <span class="keywordtype">int</span> type, <span class="keywordtype">int</span> interface, uint32_t variant);</div>
 <div class="line"><a name="l00038"></a><span class="lineno">   38</span>&#160;    <span class="keywordtype">void</span> GetVersion(<span class="keywordtype">void</span>);</div>
 <div class="line"><a name="l00039"></a><span class="lineno">   39</span>&#160;    <span class="keywordtype">void</span> CheckVersion(<span class="keywordtype">void</span>);</div>
 <div class="line"><a name="l00040"></a><span class="lineno">   40</span>&#160; </div>
@@ -116,9 +116,11 @@ $(function() {
 <div class="line"><a name="l00044"></a><span class="lineno">   44</span>&#160;    uint16_t                _fw_ver;</div>
 <div class="line"><a name="l00045"></a><span class="lineno">   45</span>&#160;    dxrt_device_type_t      _type;</div>
 <div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160;    dxrt_device_interface_t _interface;</div>
-<div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160;};</div>
-<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160; </div>
-<div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160;} <span class="comment">/* namespace dxrt */</span></div>
+<div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160;    uint32_t                _variant; <span class="comment">/* 100: L1, 101: L2, 102: L3, 103: L4,</span></div>
+<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;<span class="comment">                                         200: M1, 202: M1A */</span></div>
+<div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160;};</div>
+<div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160; </div>
+<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;} <span class="comment">/* namespace dxrt */</span></div>
 </div><!-- fragment --></div><!-- contents -->
 <div class="ttc" id="anamespacedxrt_html"><div class="ttname"><a href="namespacedxrt.html">dxrt</a></div><div class="ttdoc">DXRT C++ APIs are provided in this namespace.</div><div class="ttdef"><b>Definition:</b> buffer.h:8</div></div>
 <!-- start footer part -->

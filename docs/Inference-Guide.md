@@ -90,7 +90,7 @@ yolo: error while loading shared libraries: libprotobuf.so.23:
       cannot open shared object file: No such file or directory
 or
 
-yolo: error while loading shared libraries: libdxrt_x86_64 <or riscv64/arm64>.so: 
+yolo: error while loading shared libraries: libdxrt_x86_64 <or riscv64/aarch64>.so: 
       cannot open shared object file: No such file or directory
 ```
 If you get any library(DXRT lib., openCV, googleprotobuf) linking error while executing applications, please set library path as following.  

@@ -16,7 +16,7 @@ sudo apt install ninja-build
 ```
 * GCC : 8.0.0 or higher required.  
 
-arm64 gcc (for DX_M1)  
+aarch64 gcc (for DX_M1)  
 ```
 sudo apt-get install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 ```
@@ -44,9 +44,9 @@ You can use ./install.sh for onnxruntime library installation
   ```shell
   ./install.sh --onnxruntime  
   ```        
-  To specify the compilation environment as arm64, use the **--arch** option.     
+  To specify the compilation environment as aarch64, use the **--arch** option.     
   ```shell
-  ./install.sh --arch arm64 --onnxruntime
+  ./install.sh --arch aarch64 --onnxruntime
   ```           
 ## Get software repository
 Three types are provided.  

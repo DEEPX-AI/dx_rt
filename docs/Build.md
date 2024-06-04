@@ -19,9 +19,9 @@ option(USE_PYTHON "Use Python" OFF)
 ```
 
 ## Cross-compile Setup
-DXRT supports 3 kinds of CPU Architecture - arm64, riscv64, x86_64.  
+DXRT supports 3 kinds of CPU Architecture - aarch64, riscv64, x86_64.  
 Set compiler toolchain path in ```cmake/toolchain.<CMAKE_SYSTEM_PROCESSOR>.cmake```  
-Example : arm64 cross-compile  
+Example :  cross-compile  
 ```
 SET(CMAKE_C_COMPILER      /usr/bin/aarch64-linux-gnu-gcc )
 SET(CMAKE_CXX_COMPILER    /usr/bin/aarch64-linux-gnu-g++ )
@@ -58,17 +58,17 @@ Please refer to following options.
     --clean    clean build
     --verbose  show build commands
     --type     cmake build type : [ Release, Debug, RelWithDebInfo ]
-    --arch     target CPU architecture : [ x86_64, arm64, riscv64 ]
+    --arch     target CPU architecture : [ x86_64, aarch64, riscv64 ]
     --install  install path
     --uninstall  uninstall dx-rt files
 ```
 Examples:
 ```
-./build.sh --arch arm64
+./build.sh --arch aarch64
 ./build.sh --arch riscv64
 ./build.sh --arch x86_64
 ```
-Build directories and related output files will be generated according to the target CPU (e.g., `build_arm64`, `build_riscv64`, ...).  
+Build directories and related output files will be generated according to the target CPU (e.g., `build_aarch64`, `build_riscv64`, ...).  
 Demo application binary files can be found in `<build directory>`/bin/, and `bin`.  
 ```
 <build directory>/bin/

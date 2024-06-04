@@ -34,7 +34,7 @@ typedef struct
 class DxDeviceVersion
 {
 public:
-    DxDeviceVersion(Device *device, uint16_t fw_ver, int type, int interface);
+    DxDeviceVersion(Device *device, uint16_t fw_ver, int type, int interface, uint32_t variant);
     void GetVersion(void);
     void CheckVersion(void);
 
@@ -44,6 +44,8 @@ protected:
     uint16_t                _fw_ver;
     dxrt_device_type_t      _type;
     dxrt_device_interface_t _interface;
+    uint32_t                _variant; /* 100: L1, 101: L2, 102: L3, 103: L4,
+                                         200: M1, 202: M1A */
 };
 
 } /* namespace dxrt */
