@@ -8,3 +8,5 @@ SET(CMAKE_NM              riscv64-enx122-linux-gnu-nm )
 SET(CMAKE_OBJCOPY         riscv64-enx122-linux-gnu-objcopy )
 SET(CMAKE_OBJDUMP         riscv64-enx122-linux-gnu-objdump )
 SET(CMAKE_RANLIB          riscv64-enx122-linux-gnu-ranlib )
+
+set(onnxruntime_LIB_DIRS /usr/local/lib)

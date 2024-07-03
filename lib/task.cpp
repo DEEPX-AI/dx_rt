@@ -329,6 +329,7 @@ int Task::ProcessResponse(RequestPtr req, dxrt_response_t *response)
             {
                 // LOG_VALUE(response->argmax);
                 *((uint16_t*)(req->outputs().front().data())) = response->argmax;
+                DataDumpBin(req->task()->name() + "_output.bin", req->outputs());
 
             }
             else if(req->model_type()==2)

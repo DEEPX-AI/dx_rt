@@ -128,16 +128,19 @@ $(function() {
 <div class="line"><a name="l00056"></a><span class="lineno">   56</span>&#160;<span class="keyword">namespace </span><a class="code" href="namespacedxrt.html">dxrt</a> {</div>
 <div class="line"><a name="l00060"></a><span class="lineno"><a class="line" href="namespacedxrt.html#a51e8f05c5acab04a70c3d458d5d3e6b9">   60</a></span>&#160;<span class="keyword">enum</span> <a class="code" href="namespacedxrt.html#a51e8f05c5acab04a70c3d458d5d3e6b9">Processor</a></div>
 <div class="line"><a name="l00061"></a><span class="lineno">   61</span>&#160;{</div>
-<div class="line"><a name="l00062"></a><span class="lineno">   62</span>&#160;    NPU,</div>
-<div class="line"><a name="l00063"></a><span class="lineno">   63</span>&#160;    CPU,</div>
+<div class="line"><a name="l00062"></a><span class="lineno"><a class="line" href="namespacedxrt.html#a51e8f05c5acab04a70c3d458d5d3e6b9a6ad6842bfb542672f5a41af651b78160">   62</a></span>&#160;    <a class="code" href="namespacedxrt.html#a51e8f05c5acab04a70c3d458d5d3e6b9a6ad6842bfb542672f5a41af651b78160">NPU</a>, </div>
+<div class="line"><a name="l00063"></a><span class="lineno"><a class="line" href="namespacedxrt.html#a51e8f05c5acab04a70c3d458d5d3e6b9a32302e3542c4e47fa2924a2c89e0aac9">   63</a></span>&#160;    <a class="code" href="namespacedxrt.html#a51e8f05c5acab04a70c3d458d5d3e6b9a32302e3542c4e47fa2924a2c89e0aac9">CPU</a>, </div>
 <div class="line"><a name="l00064"></a><span class="lineno">   64</span>&#160;    NONE_PROCESSOR,</div>
 <div class="line"><a name="l00065"></a><span class="lineno">   65</span>&#160;};</div>
 <div class="line"><a name="l00066"></a><span class="lineno">   66</span>&#160;std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> <a class="code" href="namespacedxrt.html#a51e8f05c5acab04a70c3d458d5d3e6b9">Processor</a>&amp;);</div>
 <div class="line"><a name="l00067"></a><span class="lineno">   67</span>&#160; </div>
-<div class="line"><a name="l00071"></a><span class="lineno"><a class="line" href="namespacedxrt.html#a8d0359dce0b8fe86dcbe914e6437d485">   71</a></span>&#160;<span class="keyword">enum</span> <a class="code" href="namespacedxrt.html#a8d0359dce0b8fe86dcbe914e6437d485">InferenceMode</a></div>
+<div class="line"><a name="l00068"></a><span class="lineno">   68</span>&#160;<span class="comment">/* \brief Inference modes </span></div>
+<div class="line"><a name="l00069"></a><span class="lineno">   69</span>&#160;<span class="comment"> * \headerfile &quot;dxrt/dxrt_api.h&quot;</span></div>
+<div class="line"><a name="l00070"></a><span class="lineno">   70</span>&#160;<span class="comment">*/</span></div>
+<div class="line"><a name="l00071"></a><span class="lineno">   71</span>&#160;<span class="keyword">enum</span> InferenceMode</div>
 <div class="line"><a name="l00072"></a><span class="lineno">   72</span>&#160;{</div>
-<div class="line"><a name="l00073"></a><span class="lineno"><a class="line" href="namespacedxrt.html#a8d0359dce0b8fe86dcbe914e6437d485a608fe2c6f93955f755eb6ce2be1121c5">   73</a></span>&#160;    <a class="code" href="namespacedxrt.html#a8d0359dce0b8fe86dcbe914e6437d485a608fe2c6f93955f755eb6ce2be1121c5">SYNC</a>, </div>
-<div class="line"><a name="l00074"></a><span class="lineno"><a class="line" href="namespacedxrt.html#a8d0359dce0b8fe86dcbe914e6437d485afea254a24e1d4c605acc7b102ae05126">   74</a></span>&#160;    <a class="code" href="namespacedxrt.html#a8d0359dce0b8fe86dcbe914e6437d485afea254a24e1d4c605acc7b102ae05126">ASYNC</a>,</div>
+<div class="line"><a name="l00073"></a><span class="lineno">   73</span>&#160;    SYNC, <span class="comment">// Synchronous inference (wait for device response after inference request)</span></div>
+<div class="line"><a name="l00074"></a><span class="lineno">   74</span>&#160;    ASYNC,<span class="comment">// Asynchronous inference (don&#39;t wait for device response after inference request)</span></div>
 <div class="line"><a name="l00075"></a><span class="lineno">   75</span>&#160;};</div>
 <div class="line"><a name="l00079"></a><span class="lineno">   79</span>&#160;<span class="keywordtype">int</span> <a class="code" href="namespacedxrt.html#a12d257e23a9e5d9e99c2420d197f9879">CleanMemIf</a>();</div>
 <div class="line"><a name="l00080"></a><span class="lineno">   80</span>&#160; </div>
@@ -150,12 +153,11 @@ $(function() {
 <div class="line"><a name="l00087"></a><span class="lineno">   87</span>&#160;}</div>
 <div class="line"><a name="l00088"></a><span class="lineno">   88</span>&#160;} <span class="comment">// namespace dxrt</span></div>
 </div><!-- fragment --></div><!-- contents -->
-<div class="ttc" id="anamespacedxrt_html_a8d0359dce0b8fe86dcbe914e6437d485a608fe2c6f93955f755eb6ce2be1121c5"><div class="ttname"><a href="namespacedxrt.html#a8d0359dce0b8fe86dcbe914e6437d485a608fe2c6f93955f755eb6ce2be1121c5">dxrt::SYNC</a></div><div class="ttdeci">@ SYNC</div><div class="ttdoc">Synchronous inference (wait for device response after inference request)</div><div class="ttdef"><b>Definition:</b> common.h:73</div></div>
+<div class="ttc" id="anamespacedxrt_html_a51e8f05c5acab04a70c3d458d5d3e6b9a32302e3542c4e47fa2924a2c89e0aac9"><div class="ttname"><a href="namespacedxrt.html#a51e8f05c5acab04a70c3d458d5d3e6b9a32302e3542c4e47fa2924a2c89e0aac9">dxrt::CPU</a></div><div class="ttdeci">@ CPU</div><div class="ttdoc">Central Processing Unit(ONNX)</div><div class="ttdef"><b>Definition:</b> common.h:63</div></div>
 <div class="ttc" id="anamespacedxrt_html_a12d257e23a9e5d9e99c2420d197f9879"><div class="ttname"><a href="namespacedxrt.html#a12d257e23a9e5d9e99c2420d197f9879">dxrt::CleanMemIf</a></div><div class="ttdeci">int CleanMemIf()</div><div class="ttdoc">CPU cache flush API (Platform-dependent)</div></div>
-<div class="ttc" id="anamespacedxrt_html_a8d0359dce0b8fe86dcbe914e6437d485"><div class="ttname"><a href="namespacedxrt.html#a8d0359dce0b8fe86dcbe914e6437d485">dxrt::InferenceMode</a></div><div class="ttdeci">InferenceMode</div><div class="ttdoc">Inference modes.</div><div class="ttdef"><b>Definition:</b> common.h:71</div></div>
 <div class="ttc" id="anamespacedxrt_html_a51e8f05c5acab04a70c3d458d5d3e6b9"><div class="ttname"><a href="namespacedxrt.html#a51e8f05c5acab04a70c3d458d5d3e6b9">dxrt::Processor</a></div><div class="ttdeci">Processor</div><div class="ttdoc">Processors.</div><div class="ttdef"><b>Definition:</b> common.h:60</div></div>
-<div class="ttc" id="anamespacedxrt_html_a8d0359dce0b8fe86dcbe914e6437d485afea254a24e1d4c605acc7b102ae05126"><div class="ttname"><a href="namespacedxrt.html#a8d0359dce0b8fe86dcbe914e6437d485afea254a24e1d4c605acc7b102ae05126">dxrt::ASYNC</a></div><div class="ttdeci">@ ASYNC</div><div class="ttdoc">Asynchronous inference (don't wait for device response after inference request)</div><div class="ttdef"><b>Definition:</b> common.h:74</div></div>
 <div class="ttc" id="anamespacedxrt_html"><div class="ttname"><a href="namespacedxrt.html">dxrt</a></div><div class="ttdoc">DXRT C++ APIs are provided in this namespace.</div><div class="ttdef"><b>Definition:</b> buffer.h:8</div></div>
+<div class="ttc" id="anamespacedxrt_html_a51e8f05c5acab04a70c3d458d5d3e6b9a6ad6842bfb542672f5a41af651b78160"><div class="ttname"><a href="namespacedxrt.html#a51e8f05c5acab04a70c3d458d5d3e6b9a6ad6842bfb542672f5a41af651b78160">dxrt::NPU</a></div><div class="ttdeci">@ NPU</div><div class="ttdoc">Neural Processing Unit(dxnn)</div><div class="ttdef"><b>Definition:</b> common.h:62</div></div>
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
 Generated by &#160;<a href="http://www.doxygen.org/index.html">
