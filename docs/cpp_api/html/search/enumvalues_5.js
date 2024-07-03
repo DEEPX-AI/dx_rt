@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['sync_74',['SYNC',['../namespacedxrt.html#a8d0359dce0b8fe86dcbe914e6437d485a608fe2c6f93955f755eb6ce2be1121c5',1,'dxrt']]]
+  ['pose_134',['POSE',['../namespacedxrt.html#ab77b34051412213844efe193b50e53e3ac285a20ae7081cd3b5dcf8820eda7cdf',1,'dxrt']]]
 ];

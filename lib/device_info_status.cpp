@@ -183,7 +183,7 @@ std::ostream& DxrtDeviceInfoWithStatus::infoToStream(std::ostream& os) const
       << memorySizeStrBinaryPrefix() << endl;
     os << "Board: "<< boardTypeStr() << " " << interfaceTypeStr() 
       << ", Rev " << static_cast<double>(info().bd_rev)/10.0 << endl;
-    os << fwVersionStr() << endl;
+    os << "FW v"<<fwVersionStr() << endl;
     return os;
 }
 

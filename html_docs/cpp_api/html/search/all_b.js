@@ -1,6 +1,5 @@
 var searchData=
 [
-  ['uint16_36',['UINT16',['../namespacedxrt.html#ab77b34051412213844efe193b50e53e3a3d69d5a6f1d5d61e0d4888e6893547cc',1,'dxrt']]],
-  ['uint32_37',['UINT32',['../namespacedxrt.html#ab77b34051412213844efe193b50e53e3a8b67cfb9962eea4e64616eea29a9fc3c',1,'dxrt']]],
-  ['uint8_38',['UINT8',['../namespacedxrt.html#ab77b34051412213844efe193b50e53e3ade4c5a3ca715133231f8bd84202e19ed',1,'dxrt']]]
+  ['output_5fsize_50',['output_size',['../classdxrt_1_1InferenceEngine.html#a93e1d7b460b7f8656e725ed708de507b',1,'dxrt::InferenceEngine']]],
+  ['outputs_51',['outputs',['../classdxrt_1_1InferenceEngine.html#a0893b724d6eed939556f1315ce05829d',1,'dxrt::InferenceEngine']]]
 ];

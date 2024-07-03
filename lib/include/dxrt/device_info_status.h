@@ -13,7 +13,7 @@ namespace dxrt {
 class Device;
 using DevicePtr = std::shared_ptr<Device>;
 
-using DevicePtr = std::shared_ptr<Device>;
+
 typedef struct device_status
 {
     uint32_t voltage[4];
@@ -25,30 +25,109 @@ typedef struct device_status
     uint32_t boot_state;
 } dxrt_device_status_t;
 
+/** @brief This class provides DX Device information and status.
+ * @headerfile "dxrt/device_info_status.h"
+ * @code
+ * //load device info
+ * DxrtDeviceInfoWithStatus info = DxrtDeviceInfoWithStatus::getStatusInfo(devicePointer);
+ * //get information as format
+ * cout << info.getInfoString() << endl;
+ * cout << info.getStatusString() << endl;
+ * @endcode
+ */
+
 class DxrtDeviceInfoWithStatus
 {
 public:
     static DxrtDeviceInfoWithStatus getStatusInfo(DevicePtr device);
 
-    int getId() const{return _id;}
+    /** @brief return device id
+     *  @return devicd ID as int
+     */    int getId() const{return _id;}
 
+    /** @brief return device type as three leater
+     *  @return string "ACC" or "STD"
+     */
     std::string deviceTypeStr() const; //ACC, STD
+    /** @brief return device type as plain word
+     *  @return string "Accelator" or "Standalone"
+     */
     std::string deviceTypeWord() const; //Accelator, Standalone
+    /** @brief return device chip variant type.
+     *  @return string "L1", "L2", "L3", "M1", "M1A"...
+     */
     std::string deviceVariantStr() const; //L1, L2, L3, M1, M1A...
+    /** @brief return device board type.
+     *  @return string "SOM", "M.2" or "H1"
+     */
     std::string boardTypeStr() const; //SOM, M.2, H1...
+    /** @brief return device memory type.
+     *  @return string "LPDDR4", "LPDDR5"
+     */
     std::string memoryTypeStr() const; //LPDDR4, LPDDR5...
+    /** @brief return device interface type.
+     *  @return string "ASIC" or "FPGA"
+     */
     std::string interfaceTypeStr() const; //ASIC, FPGA
+    /** @brief return device memory size as integer
+     *  @return memory size as 64-bit integer
+     */
     int64_t memorySize() const{return _info.mem_size;}
+    /** @brief return device memory Frequency (MHz)
+     *  @return memory frequency as MegaHertz
+     */
+    int memoryFrequency() const{return _info.ddr_freq;}
+    /** @brief return device memory size as string using binary units
+     *  @return memory size as string
+     *  @return ex: "1.98GiB", "512Mib"
+     */
     std::string memorySizeStrBinaryPrefix() const; // 1.98GiB
+    /** @brief return device memory size as string, full integer 
+     *  @return memory size as string
+     *  @return ex: "2,130,706,432Byte", "536,870,912 Byte"
+     */
     std::string memorySizeStrWithComma() const; //2,130,706,432Byte
-    std::string allMemoryInfoStr() const; //Type:LPDDR4, Addr:0xc01000000, size: 1.98GiB(2,130,706,432Byte), clock: 4200dMHz
-    std::string dvfsStateInfoStr() const; //dvfs Enabled(Max Frequency:900)
+    /** @brief return device memory information as a line 
+     *  @return memory size as string
+     *  @return ex: "Memory: LPDDR4 4200 MHz, 1.98GiB"
+     */
+    std::string allMemoryInfoStr() const; 
+    /** @brief get device Dynamic Voltage Frequency State   
+     *  @return dvfs Enabled(Max Frequency:900)
+     *  @return dvfs Disabled
+     *  
+     */
+    std::string dvfsStateInfoStr() const; 
+    /** @brief a NPU state information as a line 
+     *  @return string contains voltage, clock, temp of device (ex: "NPU 0: voltage 825 mV, clock 800 MHz, temperature 46'C")
+     *  
+     */
     std::string npuStatusStr(int no) const; //NPU 0: voltage 825 mV, clock 800 MHz, temperature 46'C
-    std::string fwVersionStr() const; //1.1.3
+    /** @brief a NPU FW version
+     *  @return version number as string(ex: 1.2.3)
+     */
+    std::string fwVersionStr() const;
 
     std::ostream& infoToStream(std::ostream& os) const;
     std::ostream& statusToStream(std::ostream& os) const;
+    /** @brief get device info (dxrt-cli -i)
+     * @return device info string in following format:
+     * @verbatim
+     Device 0: M1, Accelator type
+     Memory: LPDDR4 4200 MHz, 1.98GiB
+     Board: SOM ASIC, Rev 0.2
+     2.0.3
+     @endverbatim
+     */
     std::string getInfoString() const;
+    /** @brief get device status (dxrt-cli -s)
+     * @return device info string in following format:
+     * @verbatim
+     NPU 0: voltage 825 mV, clock 1000 MHz, temperature 50'C
+     NPU 1: voltage 800 mV, clock 600 MHz, temperature 52'C
+     dvfs Disabled
+     @endverbatim
+     */
     std::string getStatusString() const;
     
     const dxrt_device_status_t& status() const{return _status;}

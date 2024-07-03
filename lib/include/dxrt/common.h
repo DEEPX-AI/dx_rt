@@ -54,27 +54,27 @@
 // #define RMAPINFO_ALIAS (using rmapinfo = deepx_rmapinfo::RegisterInfoDatabase)
 
 namespace dxrt {
-/** \brief Processors 
- * \headerfile "dxrt/dxrt_api.h"
+/** @brief Processors 
+ * @headerfile "dxrt/dxrt_api.h"
 */
 enum Processor
 {
-    NPU,
-    CPU,
+    NPU, ///< Neural Processing Unit(dxnn)
+    CPU, ///< Central Processing Unit(ONNX)
     NONE_PROCESSOR,
 };
 std::ostream& operator<<(std::ostream&, const Processor&);
 
-/** \brief Inference modes 
+/* \brief Inference modes 
  * \headerfile "dxrt/dxrt_api.h"
 */
 enum InferenceMode
 {
-    SYNC, ///< Synchronous inference (wait for device response after inference request)
-    ASYNC,///< Asynchronous inference (don't wait for device response after inference request)
+    SYNC, // Synchronous inference (wait for device response after inference request)
+    ASYNC,// Asynchronous inference (don't wait for device response after inference request)
 };
-/** \brief CPU cache flush API (Platform-dependent)
- * \headerfile "dxrt/dxrt_api.h"
+/** @brief CPU cache flush API (Platform-dependent)
+ * @headerfile "dxrt/dxrt_api.h"
 */
 int CleanMemIf();
 

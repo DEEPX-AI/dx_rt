@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['pose_73',['POSE',['../namespacedxrt.html#ab77b34051412213844efe193b50e53e3ac285a20ae7081cd3b5dcf8820eda7cdf',1,'dxrt']]]
+  ['npu_133',['NPU',['../namespacedxrt.html#a51e8f05c5acab04a70c3d458d5d3e6b9a6ad6842bfb542672f5a41af651b78160',1,'dxrt']]]
 ];

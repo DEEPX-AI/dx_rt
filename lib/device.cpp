@@ -813,7 +813,7 @@ vector<shared_ptr<Device>> CheckDevices(bool skip)
             }
             cnt++;
         }
-        
+        DXRT_ASSERT(cnt>0, "Device not found.");
     }
     return devices;
     // vector<shared_ptr<Device>> ret = vector<shared_ptr<Device>>(devices);

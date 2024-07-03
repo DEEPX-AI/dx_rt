@@ -12,8 +12,12 @@ struct \mbox{\hyperlink{structdxrt_1_1DeviceFace__t}{Device\+Face\+\_\+t}}
 \begin{DoxyCompactList}\small\item\em face detection data format from device \end{DoxyCompactList}\item 
 struct \mbox{\hyperlink{structdxrt_1_1DevicePose__t}{Device\+Pose\+\_\+t}}
 \begin{DoxyCompactList}\small\item\em pose estimation data format from device \end{DoxyCompactList}\item 
+class \mbox{\hyperlink{classdxrt_1_1DxrtDeviceInfoWithStatus}{Dxrt\+Device\+Info\+With\+Status}}
+\begin{DoxyCompactList}\small\item\em This class provides DX Device information and status. \end{DoxyCompactList}\item 
+class \mbox{\hyperlink{classdxrt_1_1InferenceEngine}{Inference\+Engine}}
+\begin{DoxyCompactList}\small\item\em This class abstracts runtime inference executor for user\textquotesingle{}s compiled model. \end{DoxyCompactList}\item 
 struct \mbox{\hyperlink{structdxrt_1_1InferenceOption}{Inference\+Option}}
-\begin{DoxyCompactList}\small\item\em This struct specifies inference options applied to dxrt\+::\+Inference\+Engine. \end{DoxyCompactList}\item 
+\begin{DoxyCompactList}\small\item\em This struct specifies inference options applied to \mbox{\hyperlink{classdxrt_1_1InferenceEngine}{dxrt\+::\+Inference\+Engine}}. \end{DoxyCompactList}\item 
 class \mbox{\hyperlink{classdxrt_1_1Profiler}{Profiler}}
 \begin{DoxyCompactList}\small\item\em This class provides time measurement A\+PI based on timestamp. \end{DoxyCompactList}\item 
 class \mbox{\hyperlink{classdxrt_1_1Tensor}{Tensor}}
@@ -23,13 +27,10 @@ struct \mbox{\hyperlink{structdxrt_1_1TestData}{Test\+Data}}
 \doxysubsection*{Enumerations}
 \begin{DoxyCompactItemize}
 \item 
-\mbox{\Hypertarget{namespacedxrt_a51e8f05c5acab04a70c3d458d5d3e6b9}\label{namespacedxrt_a51e8f05c5acab04a70c3d458d5d3e6b9}} 
-enum \mbox{\hyperlink{namespacedxrt_a51e8f05c5acab04a70c3d458d5d3e6b9}{Processor}} 
-\begin{DoxyCompactList}\small\item\em Processors. \end{DoxyCompactList}\item 
-enum \mbox{\hyperlink{namespacedxrt_a8d0359dce0b8fe86dcbe914e6437d485}{Inference\+Mode}} \{ \mbox{\hyperlink{namespacedxrt_a8d0359dce0b8fe86dcbe914e6437d485a608fe2c6f93955f755eb6ce2be1121c5}{S\+Y\+NC}}, 
-\mbox{\hyperlink{namespacedxrt_a8d0359dce0b8fe86dcbe914e6437d485afea254a24e1d4c605acc7b102ae05126}{A\+S\+Y\+NC}}
+enum \mbox{\hyperlink{namespacedxrt_a51e8f05c5acab04a70c3d458d5d3e6b9}{Processor}} \{ \mbox{\hyperlink{namespacedxrt_a51e8f05c5acab04a70c3d458d5d3e6b9a6ad6842bfb542672f5a41af651b78160}{N\+PU}}, 
+\mbox{\hyperlink{namespacedxrt_a51e8f05c5acab04a70c3d458d5d3e6b9a32302e3542c4e47fa2924a2c89e0aac9}{C\+PU}}
  \}
-\begin{DoxyCompactList}\small\item\em Inference modes. \end{DoxyCompactList}\item 
+\begin{DoxyCompactList}\small\item\em Processors. \end{DoxyCompactList}\item 
 enum \mbox{\hyperlink{namespacedxrt_ab77b34051412213844efe193b50e53e3}{Data\+Type}} \{ , \newline
 \mbox{\hyperlink{namespacedxrt_ab77b34051412213844efe193b50e53e3ade4c5a3ca715133231f8bd84202e19ed}{U\+I\+N\+T8}}, 
 \mbox{\hyperlink{namespacedxrt_ab77b34051412213844efe193b50e53e3a3d69d5a6f1d5d61e0d4888e6893547cc}{U\+I\+N\+T16}}, 
@@ -117,23 +118,23 @@ P\+O\+SE&custom structure for poses boxes from device \\
 \hline
 
 \end{DoxyEnumFields}
-\mbox{\Hypertarget{namespacedxrt_a8d0359dce0b8fe86dcbe914e6437d485}\label{namespacedxrt_a8d0359dce0b8fe86dcbe914e6437d485}} 
-\index{dxrt@{dxrt}!InferenceMode@{InferenceMode}}
-\index{InferenceMode@{InferenceMode}!dxrt@{dxrt}}
-\doxysubsubsection{\texorpdfstring{InferenceMode}{InferenceMode}}
-{\footnotesize\ttfamily enum \mbox{\hyperlink{namespacedxrt_a8d0359dce0b8fe86dcbe914e6437d485}{dxrt\+::\+Inference\+Mode}}}
+\mbox{\Hypertarget{namespacedxrt_a51e8f05c5acab04a70c3d458d5d3e6b9}\label{namespacedxrt_a51e8f05c5acab04a70c3d458d5d3e6b9}} 
+\index{dxrt@{dxrt}!Processor@{Processor}}
+\index{Processor@{Processor}!dxrt@{dxrt}}
+\doxysubsubsection{\texorpdfstring{Processor}{Processor}}
+{\footnotesize\ttfamily enum \mbox{\hyperlink{namespacedxrt_a51e8f05c5acab04a70c3d458d5d3e6b9}{dxrt\+::\+Processor}}}
 
 
 
-Inference modes. 
+Processors. 
 
 \begin{DoxyEnumFields}{Enumerator}
-\raisebox{\heightof{T}}[0pt][0pt]{\index{SYNC@{SYNC}!dxrt@{dxrt}}\index{dxrt@{dxrt}!SYNC@{SYNC}}}\mbox{\Hypertarget{namespacedxrt_a8d0359dce0b8fe86dcbe914e6437d485a608fe2c6f93955f755eb6ce2be1121c5}\label{namespacedxrt_a8d0359dce0b8fe86dcbe914e6437d485a608fe2c6f93955f755eb6ce2be1121c5}} 
-S\+Y\+NC&Synchronous inference (wait for device response after inference request) \\
+\raisebox{\heightof{T}}[0pt][0pt]{\index{NPU@{NPU}!dxrt@{dxrt}}\index{dxrt@{dxrt}!NPU@{NPU}}}\mbox{\Hypertarget{namespacedxrt_a51e8f05c5acab04a70c3d458d5d3e6b9a6ad6842bfb542672f5a41af651b78160}\label{namespacedxrt_a51e8f05c5acab04a70c3d458d5d3e6b9a6ad6842bfb542672f5a41af651b78160}} 
+N\+PU&Neural Processing Unit(dxnn) \\
 \hline
 
-\raisebox{\heightof{T}}[0pt][0pt]{\index{ASYNC@{ASYNC}!dxrt@{dxrt}}\index{dxrt@{dxrt}!ASYNC@{ASYNC}}}\mbox{\Hypertarget{namespacedxrt_a8d0359dce0b8fe86dcbe914e6437d485afea254a24e1d4c605acc7b102ae05126}\label{namespacedxrt_a8d0359dce0b8fe86dcbe914e6437d485afea254a24e1d4c605acc7b102ae05126}} 
-A\+S\+Y\+NC&Asynchronous inference (don\textquotesingle{}t wait for device response after inference request) \\
+\raisebox{\heightof{T}}[0pt][0pt]{\index{CPU@{CPU}!dxrt@{dxrt}}\index{dxrt@{dxrt}!CPU@{CPU}}}\mbox{\Hypertarget{namespacedxrt_a51e8f05c5acab04a70c3d458d5d3e6b9a32302e3542c4e47fa2924a2c89e0aac9}\label{namespacedxrt_a51e8f05c5acab04a70c3d458d5d3e6b9a32302e3542c4e47fa2924a2c89e0aac9}} 
+C\+PU&Central Processing Unit(\+O\+N\+N\+X) \\
 \hline
 
 \end{DoxyEnumFields}
