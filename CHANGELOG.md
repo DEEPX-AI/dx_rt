@@ -1,4 +1,11 @@
 # Changelog
+## v1.1.2 / 2024-07-03
+### Changed
+- update documents
+### Fixed
+- None
+### Added
+- None
 
 ## v1.1.1 / 2024-06-03
 ### 1. Changed
