@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['parsemodel_57',['ParseModel',['../namespacedxrt.html#a3be83887ca550fa903876b6599dc56ed',1,'dxrt']]]
+  ['fwversionstr_92',['fwVersionStr',['../classdxrt_1_1DxrtDeviceInfoWithStatus.html#a09bce15360e82dd2a897abe5bc833878',1,'dxrt::DxrtDeviceInfoWithStatus']]]
 ];

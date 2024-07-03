@@ -83,8 +83,14 @@ Classes</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structdxrt_1_1DevicePose__t.html">DevicePose_t</a></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">pose estimation data format from device  <a href="structdxrt_1_1DevicePose__t.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1DxrtDeviceInfoWithStatus.html">DxrtDeviceInfoWithStatus</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">This class provides DX Device information and status.  <a href="classdxrt_1_1DxrtDeviceInfoWithStatus.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html">InferenceEngine</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">This class abstracts runtime inference executor for user's compiled model.  <a href="classdxrt_1_1InferenceEngine.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structdxrt_1_1InferenceOption.html">InferenceOption</a></td></tr>
-<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">This struct specifies inference options applied to dxrt::InferenceEngine.  <a href="structdxrt_1_1InferenceOption.html#details">More...</a><br /></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">This struct specifies inference options applied to <a class="el" href="classdxrt_1_1InferenceEngine.html" title="This class abstracts runtime inference executor for user&#39;s compiled model.">dxrt::InferenceEngine</a>.  <a href="structdxrt_1_1InferenceOption.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1Profiler.html">Profiler</a></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">This class provides time measurement API based on timestamp.  <a href="classdxrt_1_1Profiler.html#details">More...</a><br /></td></tr>
@@ -98,14 +104,11 @@ Classes</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="enum-members"></a>
 Enumerations</h2></td></tr>
-<tr class="memitem:a51e8f05c5acab04a70c3d458d5d3e6b9"><td class="memItemLeft" align="right" valign="top"><a id="a51e8f05c5acab04a70c3d458d5d3e6b9"></a>enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedxrt.html#a51e8f05c5acab04a70c3d458d5d3e6b9">Processor</a> </td></tr>
-<tr class="memdesc:a51e8f05c5acab04a70c3d458d5d3e6b9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Processors. <br /></td></tr>
-<tr class="separator:a51e8f05c5acab04a70c3d458d5d3e6b9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8d0359dce0b8fe86dcbe914e6437d485"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedxrt.html#a8d0359dce0b8fe86dcbe914e6437d485">InferenceMode</a> { <a class="el" href="namespacedxrt.html#a8d0359dce0b8fe86dcbe914e6437d485a608fe2c6f93955f755eb6ce2be1121c5">SYNC</a>, 
-<a class="el" href="namespacedxrt.html#a8d0359dce0b8fe86dcbe914e6437d485afea254a24e1d4c605acc7b102ae05126">ASYNC</a>
+<tr class="memitem:a51e8f05c5acab04a70c3d458d5d3e6b9"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedxrt.html#a51e8f05c5acab04a70c3d458d5d3e6b9">Processor</a> { <a class="el" href="namespacedxrt.html#a51e8f05c5acab04a70c3d458d5d3e6b9a6ad6842bfb542672f5a41af651b78160">NPU</a>, 
+<a class="el" href="namespacedxrt.html#a51e8f05c5acab04a70c3d458d5d3e6b9a32302e3542c4e47fa2924a2c89e0aac9">CPU</a>
  }</td></tr>
-<tr class="memdesc:a8d0359dce0b8fe86dcbe914e6437d485"><td class="mdescLeft">&#160;</td><td class="mdescRight">Inference modes.  <a href="namespacedxrt.html#a8d0359dce0b8fe86dcbe914e6437d485">More...</a><br /></td></tr>
-<tr class="separator:a8d0359dce0b8fe86dcbe914e6437d485"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memdesc:a51e8f05c5acab04a70c3d458d5d3e6b9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Processors.  <a href="namespacedxrt.html#a51e8f05c5acab04a70c3d458d5d3e6b9">More...</a><br /></td></tr>
+<tr class="separator:a51e8f05c5acab04a70c3d458d5d3e6b9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab77b34051412213844efe193b50e53e3"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3">DataType</a> { , <br />
 &#160;&#160;<a class="el" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3ade4c5a3ca715133231f8bd84202e19ed">UINT8</a>, 
 <a class="el" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3a3d69d5a6f1d5d61e0d4888e6893547cc">UINT16</a>, 
@@ -182,23 +185,23 @@ Variables</h2></td></tr>
 
 </div>
 </div>
-<a id="a8d0359dce0b8fe86dcbe914e6437d485"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a8d0359dce0b8fe86dcbe914e6437d485">&#9670;&nbsp;</a></span>InferenceMode</h2>
+<a id="a51e8f05c5acab04a70c3d458d5d3e6b9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a51e8f05c5acab04a70c3d458d5d3e6b9">&#9670;&nbsp;</a></span>Processor</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">enum <a class="el" href="namespacedxrt.html#a8d0359dce0b8fe86dcbe914e6437d485">dxrt::InferenceMode</a></td>
+          <td class="memname">enum <a class="el" href="namespacedxrt.html#a51e8f05c5acab04a70c3d458d5d3e6b9">dxrt::Processor</a></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>Inference modes. </p>
+<p>Processors. </p>
 <table class="fieldtable">
-<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="a8d0359dce0b8fe86dcbe914e6437d485a608fe2c6f93955f755eb6ce2be1121c5"></a>SYNC&#160;</td><td class="fielddoc"><p>Synchronous inference (wait for device response after inference request) </p>
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="a51e8f05c5acab04a70c3d458d5d3e6b9a6ad6842bfb542672f5a41af651b78160"></a>NPU&#160;</td><td class="fielddoc"><p>Neural Processing Unit(dxnn) </p>
 </td></tr>
-<tr><td class="fieldname"><a id="a8d0359dce0b8fe86dcbe914e6437d485afea254a24e1d4c605acc7b102ae05126"></a>ASYNC&#160;</td><td class="fielddoc"><p>Asynchronous inference (don't wait for device response after inference request) </p>
+<tr><td class="fieldname"><a id="a51e8f05c5acab04a70c3d458d5d3e6b9a32302e3542c4e47fa2924a2c89e0aac9"></a>CPU&#160;</td><td class="fielddoc"><p>Central Processing Unit(ONNX) </p>
 </td></tr>
 </table>
 

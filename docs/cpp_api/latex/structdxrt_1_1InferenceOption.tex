@@ -2,7 +2,7 @@
 \label{structdxrt_1_1InferenceOption}\index{dxrt::InferenceOption@{dxrt::InferenceOption}}
 
 
-This struct specifies inference options applied to dxrt\+::\+Inference\+Engine.  
+This struct specifies inference options applied to \mbox{\hyperlink{classdxrt_1_1InferenceEngine}{dxrt\+::\+Inference\+Engine}}.  
 
 
 
@@ -12,12 +12,24 @@ This struct specifies inference options applied to dxrt\+::\+Inference\+Engine.
 \doxysubsection*{Public Attributes}
 \begin{DoxyCompactItemize}
 \item 
-\mbox{\Hypertarget{structdxrt_1_1InferenceOption_ae98837ff566fe2b089a5b1bf07feb48c}\label{structdxrt_1_1InferenceOption_ae98837ff566fe2b089a5b1bf07feb48c}} 
 std\+::vector$<$ int $>$ \mbox{\hyperlink{structdxrt_1_1InferenceOption_ae98837ff566fe2b089a5b1bf07feb48c}{devices}} = \{\}
-\begin{DoxyCompactList}\small\item\em list of device ID to use (it is empty by default, then all devices are used.) \end{DoxyCompactList}\end{DoxyCompactItemize}
+\begin{DoxyCompactList}\small\item\em device ID list to use \end{DoxyCompactList}\end{DoxyCompactItemize}
 
 
 \doxysubsection{Detailed Description}
-This struct specifies inference options applied to dxrt\+::\+Inference\+Engine. 
+This struct specifies inference options applied to \mbox{\hyperlink{classdxrt_1_1InferenceEngine}{dxrt\+::\+Inference\+Engine}}. 
 
-User can configure inference mode, resource usage options using this struct. 
+User can configure which npu device is used to inference. 
+
+\doxysubsection{Member Data Documentation}
+\mbox{\Hypertarget{structdxrt_1_1InferenceOption_ae98837ff566fe2b089a5b1bf07feb48c}\label{structdxrt_1_1InferenceOption_ae98837ff566fe2b089a5b1bf07feb48c}} 
+\index{dxrt::InferenceOption@{dxrt::InferenceOption}!devices@{devices}}
+\index{devices@{devices}!dxrt::InferenceOption@{dxrt::InferenceOption}}
+\doxysubsubsection{\texorpdfstring{devices}{devices}}
+{\footnotesize\ttfamily std\+::vector$<$int$>$ dxrt\+::\+Inference\+Option\+::devices = \{\}}
+
+
+
+device ID list to use 
+
+make a list which contains list of device ID to use. if it is empty(or use default value), then all devices are used. list of device ID to use (it is empty by default, then all devices are used.) 

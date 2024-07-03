@@ -1,0 +1,304 @@
+\hypertarget{classdxrt_1_1DxrtDeviceInfoWithStatus}{}\doxysection{dxrt\+::Dxrt\+Device\+Info\+With\+Status Class Reference}
+\label{classdxrt_1_1DxrtDeviceInfoWithStatus}\index{dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}}
+
+
+This class provides DX Device information and status.  
+
+
+
+
+{\ttfamily \#include \char`\"{}dxrt/device\+\_\+info\+\_\+status.\+h\char`\"{}}
+
+\doxysubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+int \mbox{\hyperlink{classdxrt_1_1DxrtDeviceInfoWithStatus_abc97a6dea119fd6fdb15989126667238}{get\+Id}} () const
+\begin{DoxyCompactList}\small\item\em return device id \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{classdxrt_1_1DxrtDeviceInfoWithStatus_a927134f523ba9869c001b70c415667ca}{device\+Type\+Str}} () const
+\begin{DoxyCompactList}\small\item\em return device type as three leater \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{classdxrt_1_1DxrtDeviceInfoWithStatus_aa7769b5a66b677f683fa088f485119e2}{device\+Type\+Word}} () const
+\begin{DoxyCompactList}\small\item\em return device type as plain word \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{classdxrt_1_1DxrtDeviceInfoWithStatus_a8d5b9ddc05426d79d61a04ddf5d54038}{device\+Variant\+Str}} () const
+\begin{DoxyCompactList}\small\item\em return device chip variant type. \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{classdxrt_1_1DxrtDeviceInfoWithStatus_a1c8eecda1a9296e40683ff882b12fb6c}{board\+Type\+Str}} () const
+\begin{DoxyCompactList}\small\item\em return device board type. \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{classdxrt_1_1DxrtDeviceInfoWithStatus_aecfa570dcf5b478c7e6e6d873ad34450}{memory\+Type\+Str}} () const
+\begin{DoxyCompactList}\small\item\em return device memory type. \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{classdxrt_1_1DxrtDeviceInfoWithStatus_abeedb627273234d987cf439dd0d27128}{interface\+Type\+Str}} () const
+\begin{DoxyCompactList}\small\item\em return device interface type. \end{DoxyCompactList}\item 
+int64\+\_\+t \mbox{\hyperlink{classdxrt_1_1DxrtDeviceInfoWithStatus_aa4939e96d765b366599753d4ff70cae2}{memory\+Size}} () const
+\begin{DoxyCompactList}\small\item\em return device memory size as integer \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{classdxrt_1_1DxrtDeviceInfoWithStatus_aad0d11421bf2e2b010411e5a11301b0f}{memory\+Frequency}} () const
+\begin{DoxyCompactList}\small\item\em return device memory Frequency (M\+Hz) \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{classdxrt_1_1DxrtDeviceInfoWithStatus_aa03acf268af390a16b2d2dd3c67331f5}{memory\+Size\+Str\+Binary\+Prefix}} () const
+\begin{DoxyCompactList}\small\item\em return device memory size as string using binary units \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{classdxrt_1_1DxrtDeviceInfoWithStatus_a342a54e91a3e8d049ab899f0c6944cdf}{memory\+Size\+Str\+With\+Comma}} () const
+\begin{DoxyCompactList}\small\item\em return device memory size as string, full integer \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{classdxrt_1_1DxrtDeviceInfoWithStatus_acc9a0565104eeb0b18de37865fdf0824}{all\+Memory\+Info\+Str}} () const
+\begin{DoxyCompactList}\small\item\em return device memory information as a line \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{classdxrt_1_1DxrtDeviceInfoWithStatus_af63703ccaa155ac1eb98d55d0eaf58f6}{dvfs\+State\+Info\+Str}} () const
+\begin{DoxyCompactList}\small\item\em get device Dynamic Voltage Frequency State ~\newline
+ \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{classdxrt_1_1DxrtDeviceInfoWithStatus_a0a5dd15ee91d8a97351a97e677a8d066}{npu\+Status\+Str}} (int no) const
+\begin{DoxyCompactList}\small\item\em a N\+PU state information as a line \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{classdxrt_1_1DxrtDeviceInfoWithStatus_a09bce15360e82dd2a897abe5bc833878}{fw\+Version\+Str}} () const
+\begin{DoxyCompactList}\small\item\em a N\+PU FW version \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{classdxrt_1_1DxrtDeviceInfoWithStatus_a55ee453939dad2dafd91e7d73ed7a788}{get\+Info\+String}} () const
+\begin{DoxyCompactList}\small\item\em get device info (dxrt-\/cli -\/i) \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{classdxrt_1_1DxrtDeviceInfoWithStatus_a67bbcbf8c0555147c6dda3aca9c6da74}{get\+Status\+String}} () const
+\begin{DoxyCompactList}\small\item\em get device status (dxrt-\/cli -\/s) \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+This class provides DX Device information and status. 
+
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{comment}{//load device info}}
+\DoxyCodeLine{DxrtDeviceInfoWithStatus info = DxrtDeviceInfoWithStatus::getStatusInfo(devicePointer);}
+\DoxyCodeLine{\textcolor{comment}{//get information as format}}
+\DoxyCodeLine{cout << info.getInfoString() << endl;}
+\DoxyCodeLine{cout << info.getStatusString() << endl;}
+\end{DoxyCode}
+ 
+
+\doxysubsection{Member Function Documentation}
+\mbox{\Hypertarget{classdxrt_1_1DxrtDeviceInfoWithStatus_acc9a0565104eeb0b18de37865fdf0824}\label{classdxrt_1_1DxrtDeviceInfoWithStatus_acc9a0565104eeb0b18de37865fdf0824}} 
+\index{dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}!allMemoryInfoStr@{allMemoryInfoStr}}
+\index{allMemoryInfoStr@{allMemoryInfoStr}!dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}}
+\doxysubsubsection{\texorpdfstring{allMemoryInfoStr()}{allMemoryInfoStr()}}
+{\footnotesize\ttfamily std\+::string dxrt\+::\+Dxrt\+Device\+Info\+With\+Status\+::all\+Memory\+Info\+Str (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+return device memory information as a line 
+
+\begin{DoxyReturn}{Returns}
+memory size as string 
+
+ex\+: \char`\"{}\+Memory\+: L\+P\+D\+D\+R4 4200 M\+Hz, 1.\+98\+Gi\+B\char`\"{} 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1DxrtDeviceInfoWithStatus_a1c8eecda1a9296e40683ff882b12fb6c}\label{classdxrt_1_1DxrtDeviceInfoWithStatus_a1c8eecda1a9296e40683ff882b12fb6c}} 
+\index{dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}!boardTypeStr@{boardTypeStr}}
+\index{boardTypeStr@{boardTypeStr}!dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}}
+\doxysubsubsection{\texorpdfstring{boardTypeStr()}{boardTypeStr()}}
+{\footnotesize\ttfamily std\+::string dxrt\+::\+Dxrt\+Device\+Info\+With\+Status\+::board\+Type\+Str (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+return device board type. 
+
+\begin{DoxyReturn}{Returns}
+string \char`\"{}\+S\+O\+M\char`\"{}, \char`\"{}\+M.\+2\char`\"{} or \char`\"{}\+H1\char`\"{} 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1DxrtDeviceInfoWithStatus_a927134f523ba9869c001b70c415667ca}\label{classdxrt_1_1DxrtDeviceInfoWithStatus_a927134f523ba9869c001b70c415667ca}} 
+\index{dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}!deviceTypeStr@{deviceTypeStr}}
+\index{deviceTypeStr@{deviceTypeStr}!dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}}
+\doxysubsubsection{\texorpdfstring{deviceTypeStr()}{deviceTypeStr()}}
+{\footnotesize\ttfamily std\+::string dxrt\+::\+Dxrt\+Device\+Info\+With\+Status\+::device\+Type\+Str (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+return device type as three leater 
+
+\begin{DoxyReturn}{Returns}
+string \char`\"{}\+A\+C\+C\char`\"{} or \char`\"{}\+S\+T\+D\char`\"{} 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1DxrtDeviceInfoWithStatus_aa7769b5a66b677f683fa088f485119e2}\label{classdxrt_1_1DxrtDeviceInfoWithStatus_aa7769b5a66b677f683fa088f485119e2}} 
+\index{dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}!deviceTypeWord@{deviceTypeWord}}
+\index{deviceTypeWord@{deviceTypeWord}!dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}}
+\doxysubsubsection{\texorpdfstring{deviceTypeWord()}{deviceTypeWord()}}
+{\footnotesize\ttfamily std\+::string dxrt\+::\+Dxrt\+Device\+Info\+With\+Status\+::device\+Type\+Word (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+return device type as plain word 
+
+\begin{DoxyReturn}{Returns}
+string \char`\"{}\+Accelator\char`\"{} or \char`\"{}\+Standalone\char`\"{} 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1DxrtDeviceInfoWithStatus_a8d5b9ddc05426d79d61a04ddf5d54038}\label{classdxrt_1_1DxrtDeviceInfoWithStatus_a8d5b9ddc05426d79d61a04ddf5d54038}} 
+\index{dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}!deviceVariantStr@{deviceVariantStr}}
+\index{deviceVariantStr@{deviceVariantStr}!dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}}
+\doxysubsubsection{\texorpdfstring{deviceVariantStr()}{deviceVariantStr()}}
+{\footnotesize\ttfamily std\+::string dxrt\+::\+Dxrt\+Device\+Info\+With\+Status\+::device\+Variant\+Str (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+return device chip variant type. 
+
+\begin{DoxyReturn}{Returns}
+string \char`\"{}\+L1\char`\"{}, \char`\"{}\+L2\char`\"{}, \char`\"{}\+L3\char`\"{}, \char`\"{}\+M1\char`\"{}, \char`\"{}\+M1\+A\char`\"{}... 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1DxrtDeviceInfoWithStatus_af63703ccaa155ac1eb98d55d0eaf58f6}\label{classdxrt_1_1DxrtDeviceInfoWithStatus_af63703ccaa155ac1eb98d55d0eaf58f6}} 
+\index{dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}!dvfsStateInfoStr@{dvfsStateInfoStr}}
+\index{dvfsStateInfoStr@{dvfsStateInfoStr}!dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}}
+\doxysubsubsection{\texorpdfstring{dvfsStateInfoStr()}{dvfsStateInfoStr()}}
+{\footnotesize\ttfamily std\+::string dxrt\+::\+Dxrt\+Device\+Info\+With\+Status\+::dvfs\+State\+Info\+Str (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+get device Dynamic Voltage Frequency State ~\newline
+ 
+
+\begin{DoxyReturn}{Returns}
+dvfs Enabled(\+Max Frequency\+:900) 
+
+dvfs Disabled 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1DxrtDeviceInfoWithStatus_a09bce15360e82dd2a897abe5bc833878}\label{classdxrt_1_1DxrtDeviceInfoWithStatus_a09bce15360e82dd2a897abe5bc833878}} 
+\index{dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}!fwVersionStr@{fwVersionStr}}
+\index{fwVersionStr@{fwVersionStr}!dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}}
+\doxysubsubsection{\texorpdfstring{fwVersionStr()}{fwVersionStr()}}
+{\footnotesize\ttfamily std\+::string dxrt\+::\+Dxrt\+Device\+Info\+With\+Status\+::fw\+Version\+Str (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+a N\+PU FW version 
+
+\begin{DoxyReturn}{Returns}
+version number as string(ex\+: 1.\+2.\+3) 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1DxrtDeviceInfoWithStatus_abc97a6dea119fd6fdb15989126667238}\label{classdxrt_1_1DxrtDeviceInfoWithStatus_abc97a6dea119fd6fdb15989126667238}} 
+\index{dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}!getId@{getId}}
+\index{getId@{getId}!dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}}
+\doxysubsubsection{\texorpdfstring{getId()}{getId()}}
+{\footnotesize\ttfamily int dxrt\+::\+Dxrt\+Device\+Info\+With\+Status\+::get\+Id (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+return device id 
+
+\begin{DoxyReturn}{Returns}
+devicd ID as int 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1DxrtDeviceInfoWithStatus_a55ee453939dad2dafd91e7d73ed7a788}\label{classdxrt_1_1DxrtDeviceInfoWithStatus_a55ee453939dad2dafd91e7d73ed7a788}} 
+\index{dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}!getInfoString@{getInfoString}}
+\index{getInfoString@{getInfoString}!dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}}
+\doxysubsubsection{\texorpdfstring{getInfoString()}{getInfoString()}}
+{\footnotesize\ttfamily std\+::string dxrt\+::\+Dxrt\+Device\+Info\+With\+Status\+::get\+Info\+String (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+get device info (dxrt-\/cli -\/i) 
+
+\begin{DoxyReturn}{Returns}
+device info string in following format\+: \begin{DoxyVerb}Device 0: M1, Accelator type
+Memory: LPDDR4 4200 MHz, 1.98GiB
+Board: SOM ASIC, Rev 0.2
+2.0.3
+\end{DoxyVerb}
+ 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1DxrtDeviceInfoWithStatus_a67bbcbf8c0555147c6dda3aca9c6da74}\label{classdxrt_1_1DxrtDeviceInfoWithStatus_a67bbcbf8c0555147c6dda3aca9c6da74}} 
+\index{dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}!getStatusString@{getStatusString}}
+\index{getStatusString@{getStatusString}!dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}}
+\doxysubsubsection{\texorpdfstring{getStatusString()}{getStatusString()}}
+{\footnotesize\ttfamily std\+::string dxrt\+::\+Dxrt\+Device\+Info\+With\+Status\+::get\+Status\+String (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+get device status (dxrt-\/cli -\/s) 
+
+\begin{DoxyReturn}{Returns}
+device info string in following format\+: \begin{DoxyVerb}NPU 0: voltage 825 mV, clock 1000 MHz, temperature 50'C
+NPU 1: voltage 800 mV, clock 600 MHz, temperature 52'C
+dvfs Disabled
+\end{DoxyVerb}
+ 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1DxrtDeviceInfoWithStatus_abeedb627273234d987cf439dd0d27128}\label{classdxrt_1_1DxrtDeviceInfoWithStatus_abeedb627273234d987cf439dd0d27128}} 
+\index{dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}!interfaceTypeStr@{interfaceTypeStr}}
+\index{interfaceTypeStr@{interfaceTypeStr}!dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}}
+\doxysubsubsection{\texorpdfstring{interfaceTypeStr()}{interfaceTypeStr()}}
+{\footnotesize\ttfamily std\+::string dxrt\+::\+Dxrt\+Device\+Info\+With\+Status\+::interface\+Type\+Str (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+return device interface type. 
+
+\begin{DoxyReturn}{Returns}
+string \char`\"{}\+A\+S\+I\+C\char`\"{} or \char`\"{}\+F\+P\+G\+A\char`\"{} 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1DxrtDeviceInfoWithStatus_aad0d11421bf2e2b010411e5a11301b0f}\label{classdxrt_1_1DxrtDeviceInfoWithStatus_aad0d11421bf2e2b010411e5a11301b0f}} 
+\index{dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}!memoryFrequency@{memoryFrequency}}
+\index{memoryFrequency@{memoryFrequency}!dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}}
+\doxysubsubsection{\texorpdfstring{memoryFrequency()}{memoryFrequency()}}
+{\footnotesize\ttfamily int dxrt\+::\+Dxrt\+Device\+Info\+With\+Status\+::memory\+Frequency (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+return device memory Frequency (M\+Hz) 
+
+\begin{DoxyReturn}{Returns}
+memory frequency as Mega\+Hertz 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1DxrtDeviceInfoWithStatus_aa4939e96d765b366599753d4ff70cae2}\label{classdxrt_1_1DxrtDeviceInfoWithStatus_aa4939e96d765b366599753d4ff70cae2}} 
+\index{dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}!memorySize@{memorySize}}
+\index{memorySize@{memorySize}!dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}}
+\doxysubsubsection{\texorpdfstring{memorySize()}{memorySize()}}
+{\footnotesize\ttfamily int64\+\_\+t dxrt\+::\+Dxrt\+Device\+Info\+With\+Status\+::memory\+Size (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+return device memory size as integer 
+
+\begin{DoxyReturn}{Returns}
+memory size as 64-\/bit integer 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1DxrtDeviceInfoWithStatus_aa03acf268af390a16b2d2dd3c67331f5}\label{classdxrt_1_1DxrtDeviceInfoWithStatus_aa03acf268af390a16b2d2dd3c67331f5}} 
+\index{dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}!memorySizeStrBinaryPrefix@{memorySizeStrBinaryPrefix}}
+\index{memorySizeStrBinaryPrefix@{memorySizeStrBinaryPrefix}!dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}}
+\doxysubsubsection{\texorpdfstring{memorySizeStrBinaryPrefix()}{memorySizeStrBinaryPrefix()}}
+{\footnotesize\ttfamily std\+::string dxrt\+::\+Dxrt\+Device\+Info\+With\+Status\+::memory\+Size\+Str\+Binary\+Prefix (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+return device memory size as string using binary units 
+
+\begin{DoxyReturn}{Returns}
+memory size as string 
+
+ex\+: \char`\"{}1.\+98\+Gi\+B\char`\"{}, \char`\"{}512\+Mib\char`\"{} 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1DxrtDeviceInfoWithStatus_a342a54e91a3e8d049ab899f0c6944cdf}\label{classdxrt_1_1DxrtDeviceInfoWithStatus_a342a54e91a3e8d049ab899f0c6944cdf}} 
+\index{dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}!memorySizeStrWithComma@{memorySizeStrWithComma}}
+\index{memorySizeStrWithComma@{memorySizeStrWithComma}!dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}}
+\doxysubsubsection{\texorpdfstring{memorySizeStrWithComma()}{memorySizeStrWithComma()}}
+{\footnotesize\ttfamily std\+::string dxrt\+::\+Dxrt\+Device\+Info\+With\+Status\+::memory\+Size\+Str\+With\+Comma (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+return device memory size as string, full integer 
+
+\begin{DoxyReturn}{Returns}
+memory size as string 
+
+ex\+: \char`\"{}2,130,706,432\+Byte\char`\"{}, \char`\"{}536,870,912 Byte\char`\"{} 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1DxrtDeviceInfoWithStatus_aecfa570dcf5b478c7e6e6d873ad34450}\label{classdxrt_1_1DxrtDeviceInfoWithStatus_aecfa570dcf5b478c7e6e6d873ad34450}} 
+\index{dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}!memoryTypeStr@{memoryTypeStr}}
+\index{memoryTypeStr@{memoryTypeStr}!dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}}
+\doxysubsubsection{\texorpdfstring{memoryTypeStr()}{memoryTypeStr()}}
+{\footnotesize\ttfamily std\+::string dxrt\+::\+Dxrt\+Device\+Info\+With\+Status\+::memory\+Type\+Str (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+return device memory type. 
+
+\begin{DoxyReturn}{Returns}
+string \char`\"{}\+L\+P\+D\+D\+R4\char`\"{}, \char`\"{}\+L\+P\+D\+D\+R5\char`\"{} 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1DxrtDeviceInfoWithStatus_a0a5dd15ee91d8a97351a97e677a8d066}\label{classdxrt_1_1DxrtDeviceInfoWithStatus_a0a5dd15ee91d8a97351a97e677a8d066}} 
+\index{dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}!npuStatusStr@{npuStatusStr}}
+\index{npuStatusStr@{npuStatusStr}!dxrt::DxrtDeviceInfoWithStatus@{dxrt::DxrtDeviceInfoWithStatus}}
+\doxysubsubsection{\texorpdfstring{npuStatusStr()}{npuStatusStr()}}
+{\footnotesize\ttfamily std\+::string dxrt\+::\+Dxrt\+Device\+Info\+With\+Status\+::npu\+Status\+Str (\begin{DoxyParamCaption}\item[{int}]{no }\end{DoxyParamCaption}) const}
+
+
+
+a N\+PU state information as a line 
+
+\begin{DoxyReturn}{Returns}
+string contains voltage, clock, temp of device (ex\+: \char`\"{}\+N\+P\+U 0\+: voltage 825 m\+V, clock 800 M\+Hz, temperature 46\textquotesingle{}\+C\char`\"{}) 
+\end{DoxyReturn}

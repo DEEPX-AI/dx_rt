@@ -27,8 +27,10 @@ Compiled model consists of NPU task, and CPU task parameters as followings.
 ## Device Allocation
 ```Worker``` will allocate real-time available device for each requested task.  
 ## Memory Allocation for DEEPX devices
-MemoryManager allocates required memory when InferenceEngine is created.  
-In accelerator mode, non-contiguous userspace heap is used as NPU data interface.  
+Memory class allocates required memory when both InferenceEngine is created and inference is requested.
+In accelerator mode, NPU memory and host system memory is managed seperately. Memory class manage NPU Memory.
+NPU Memory area is divided to feature Memory and model Memory. Feature Memory has input and output data. Model memory has model rmap and weight data.
+Host system memory is provided by caller for inputs, and managed by Buffer class for outputs.
 In standalone mode, contiguous reserved memory by linux CMA(Contiguous Memory Allocator) is used as NPU data interface.  
 ![image](/assets/images/memory_allocation.jpg)
 

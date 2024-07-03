@@ -1,0 +1,281 @@
+\hypertarget{classdxrt_1_1InferenceEngine}{}\doxysection{dxrt\+::Inference\+Engine Class Reference}
+\label{classdxrt_1_1InferenceEngine}\index{dxrt::InferenceEngine@{dxrt::InferenceEngine}}
+
+
+This class abstracts runtime inference executor for user\textquotesingle{}s compiled model.  
+
+
+
+
+{\ttfamily \#include \char`\"{}dxrt/dxrt\+\_\+api.\+h\char`\"{}}
+
+\doxysubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+Tensor\+Ptrs \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a88cea5324cbeb436034adb60cf31050f}{Run}} (void $\ast$input\+Ptr, void $\ast$user\+Arg=nullptr, void $\ast$output\+Ptr=nullptr)
+\begin{DoxyCompactList}\small\item\em Run inference engine using specific input pointer Synchronously. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{classdxrt_1_1InferenceEngine_af3006c9a7183f7e42d1528aa8a6fea24}{Run\+Async}} (void $\ast$input\+Ptr, void $\ast$user\+Arg=nullptr, void $\ast$output\+Ptr=nullptr)
+\begin{DoxyCompactList}\small\item\em Non-\/blocking call to request asynchronous inference by input pointer, and get request ID from inference engine. \end{DoxyCompactList}\item 
+float \mbox{\hyperlink{classdxrt_1_1InferenceEngine_ab91c2e1adde9259fe2823416f80edb54}{Run\+Bench\+Mark}} (int num)
+\begin{DoxyCompactList}\small\item\em run benchmark with loop n times \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a3d3fc75faa79470d9a3bdbdc61561a3a}{Register\+Call\+Back}} (std\+::function$<$ int(Tensor\+Ptrs \&\mbox{\hyperlink{classdxrt_1_1InferenceEngine_a0893b724d6eed939556f1315ce05829d}{outputs}}, void $\ast$user\+Arg)$>$ callback\+Func)
+\begin{DoxyCompactList}\small\item\em Register user callback function to be called by inference completion. \end{DoxyCompactList}\item 
+Tensor\+Ptrs \mbox{\hyperlink{classdxrt_1_1InferenceEngine_ac9375d94db868748a7c3d072c846897b}{Wait}} (int req\+Id)
+\begin{DoxyCompactList}\small\item\em Wait until an request is complete and returns output. \end{DoxyCompactList}\item 
+Tensors \mbox{\hyperlink{classdxrt_1_1InferenceEngine_afbee8b031fdd6c0a3916ed00d08c9cd8}{inputs}} (void $\ast$ptr=nullptr, uint64\+\_\+t phy\+Addr=0)
+\begin{DoxyCompactList}\small\item\em Get input tensor. \end{DoxyCompactList}\item 
+Tensors \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a0893b724d6eed939556f1315ce05829d}{outputs}} (void $\ast$ptr=nullptr, uint64\+\_\+t phy\+Addr=0)
+\begin{DoxyCompactList}\small\item\em Get output tensor. \end{DoxyCompactList}\item 
+uint64\+\_\+t \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a96c4e5953a0daf4a1c886002c052a6ba}{input\+\_\+size}} ()
+\begin{DoxyCompactList}\small\item\em Get total size of input tensors. \end{DoxyCompactList}\item 
+uint64\+\_\+t \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a93e1d7b460b7f8656e725ed708de507b}{output\+\_\+size}} ()
+\begin{DoxyCompactList}\small\item\em Get total size of output tensors. \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a3fb16094508bd367cc4971238f002765}{name}} ()
+\begin{DoxyCompactList}\small\item\em Get model name. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a990ca720e7f8a28ac5394206eb6f9491}{latency}} ()
+\begin{DoxyCompactList}\small\item\em Get recent latency. \end{DoxyCompactList}\item 
+uint32\+\_\+t \mbox{\hyperlink{classdxrt_1_1InferenceEngine_aad2f3b616e0e996b66ef7df37dc16a85}{inference\+\_\+time}} ()
+\begin{DoxyCompactList}\small\item\em Get recent inference time. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+This class abstracts runtime inference executor for user\textquotesingle{}s compiled model. 
+
+After user loads compiled model to \mbox{\hyperlink{classdxrt_1_1InferenceEngine}{Inference\+Engine}}, real-\/time device tasks will be scheduled by internal runtime libraries. It supports both inference mode (synchronous/asynchronous) according to user\textquotesingle{}s request. 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{comment}{// Use default inference option}}
+\DoxyCodeLine{\textcolor{keyword}{auto} modelPath = \textcolor{stringliteral}{"model.dxnn"}; \textcolor{comment}{// assume compiled model path name is "model.dxnn"}}
+\DoxyCodeLine{\textcolor{keyword}{auto} ie = \mbox{\hyperlink{classdxrt_1_1InferenceEngine}{dxrt::InferenceEngine}}(modelPath, \textcolor{keyword}{nullptr});}
+\end{DoxyCode}
+ 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{comment}{// Use a new inference option}}
+\DoxyCodeLine{\textcolor{keyword}{auto} modelPath = \textcolor{stringliteral}{"model.dxnn"}; \textcolor{comment}{// assume compiled model path name is "model.dxnn"}}
+\DoxyCodeLine{\mbox{\hyperlink{structdxrt_1_1InferenceOption}{dxrt::InferenceOption}} option(1, 1, 2, dxrt::InferenceMode::MODE\_ASYNC);}
+\DoxyCodeLine{\textcolor{keyword}{auto} ie = \mbox{\hyperlink{classdxrt_1_1InferenceEngine}{dxrt::InferenceEngine}}(modelPath, option);}
+\end{DoxyCode}
+ 
+
+\doxysubsection{Member Function Documentation}
+\mbox{\Hypertarget{classdxrt_1_1InferenceEngine_aad2f3b616e0e996b66ef7df37dc16a85}\label{classdxrt_1_1InferenceEngine_aad2f3b616e0e996b66ef7df37dc16a85}} 
+\index{dxrt::InferenceEngine@{dxrt::InferenceEngine}!inference\_time@{inference\_time}}
+\index{inference\_time@{inference\_time}!dxrt::InferenceEngine@{dxrt::InferenceEngine}}
+\doxysubsubsection{\texorpdfstring{inference\_time()}{inference\_time()}}
+{\footnotesize\ttfamily uint32\+\_\+t dxrt\+::\+Inference\+Engine\+::inference\+\_\+time (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Get recent inference time. 
+
+\begin{DoxyReturn}{Returns}
+inference time (microseconds) 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1InferenceEngine_a96c4e5953a0daf4a1c886002c052a6ba}\label{classdxrt_1_1InferenceEngine_a96c4e5953a0daf4a1c886002c052a6ba}} 
+\index{dxrt::InferenceEngine@{dxrt::InferenceEngine}!input\_size@{input\_size}}
+\index{input\_size@{input\_size}!dxrt::InferenceEngine@{dxrt::InferenceEngine}}
+\doxysubsubsection{\texorpdfstring{input\_size()}{input\_size()}}
+{\footnotesize\ttfamily uint64\+\_\+t dxrt\+::\+Inference\+Engine\+::input\+\_\+size (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Get total size of input tensors. 
+
+\begin{DoxyReturn}{Returns}
+input size of one inference in bytes 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1InferenceEngine_afbee8b031fdd6c0a3916ed00d08c9cd8}\label{classdxrt_1_1InferenceEngine_afbee8b031fdd6c0a3916ed00d08c9cd8}} 
+\index{dxrt::InferenceEngine@{dxrt::InferenceEngine}!inputs@{inputs}}
+\index{inputs@{inputs}!dxrt::InferenceEngine@{dxrt::InferenceEngine}}
+\doxysubsubsection{\texorpdfstring{inputs()}{inputs()}}
+{\footnotesize\ttfamily Tensors dxrt\+::\+Inference\+Engine\+::inputs (\begin{DoxyParamCaption}\item[{void $\ast$}]{ptr = {\ttfamily nullptr},  }\item[{uint64\+\_\+t}]{phy\+Addr = {\ttfamily 0} }\end{DoxyParamCaption})}
+
+
+
+Get input tensor. 
+
+
+\begin{DoxyParams}[1]{Parameters}
+\mbox{\texttt{ in}}  & {\em ptr} & pointer to virtual address \\
+\hline
+\mbox{\texttt{ in}}  & {\em phy\+Addr} & pointer to physical address \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+if ptr is null, input memory area in engine is returned 
+
+if ptr and phy\+Addr is given, inputs tensors that contains output addresses 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1InferenceEngine_a990ca720e7f8a28ac5394206eb6f9491}\label{classdxrt_1_1InferenceEngine_a990ca720e7f8a28ac5394206eb6f9491}} 
+\index{dxrt::InferenceEngine@{dxrt::InferenceEngine}!latency@{latency}}
+\index{latency@{latency}!dxrt::InferenceEngine@{dxrt::InferenceEngine}}
+\doxysubsubsection{\texorpdfstring{latency()}{latency()}}
+{\footnotesize\ttfamily int dxrt\+::\+Inference\+Engine\+::latency (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Get recent latency. 
+
+\begin{DoxyReturn}{Returns}
+latency (microseconds) 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1InferenceEngine_a3fb16094508bd367cc4971238f002765}\label{classdxrt_1_1InferenceEngine_a3fb16094508bd367cc4971238f002765}} 
+\index{dxrt::InferenceEngine@{dxrt::InferenceEngine}!name@{name}}
+\index{name@{name}!dxrt::InferenceEngine@{dxrt::InferenceEngine}}
+\doxysubsubsection{\texorpdfstring{name()}{name()}}
+{\footnotesize\ttfamily std\+::string dxrt\+::\+Inference\+Engine\+::name (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Get model name. 
+
+\begin{DoxyReturn}{Returns}
+model name 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1InferenceEngine_a93e1d7b460b7f8656e725ed708de507b}\label{classdxrt_1_1InferenceEngine_a93e1d7b460b7f8656e725ed708de507b}} 
+\index{dxrt::InferenceEngine@{dxrt::InferenceEngine}!output\_size@{output\_size}}
+\index{output\_size@{output\_size}!dxrt::InferenceEngine@{dxrt::InferenceEngine}}
+\doxysubsubsection{\texorpdfstring{output\_size()}{output\_size()}}
+{\footnotesize\ttfamily uint64\+\_\+t dxrt\+::\+Inference\+Engine\+::output\+\_\+size (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Get total size of output tensors. 
+
+\begin{DoxyReturn}{Returns}
+output size of one inference in bytes 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1InferenceEngine_a0893b724d6eed939556f1315ce05829d}\label{classdxrt_1_1InferenceEngine_a0893b724d6eed939556f1315ce05829d}} 
+\index{dxrt::InferenceEngine@{dxrt::InferenceEngine}!outputs@{outputs}}
+\index{outputs@{outputs}!dxrt::InferenceEngine@{dxrt::InferenceEngine}}
+\doxysubsubsection{\texorpdfstring{outputs()}{outputs()}}
+{\footnotesize\ttfamily Tensors dxrt\+::\+Inference\+Engine\+::outputs (\begin{DoxyParamCaption}\item[{void $\ast$}]{ptr = {\ttfamily nullptr},  }\item[{uint64\+\_\+t}]{phy\+Addr = {\ttfamily 0} }\end{DoxyParamCaption})}
+
+
+
+Get output tensor. 
+
+
+\begin{DoxyParams}[1]{Parameters}
+\mbox{\texttt{ in}}  & {\em ptr} & pointer to virtual address \\
+\hline
+\mbox{\texttt{ in}}  & {\em phy\+Addr} & pointer to physical address \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+if ptr is null, output memory area in engine is returned 
+
+if ptr and phy\+Addr is given, outputs tensors that contains output addresses 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1InferenceEngine_a3d3fc75faa79470d9a3bdbdc61561a3a}\label{classdxrt_1_1InferenceEngine_a3d3fc75faa79470d9a3bdbdc61561a3a}} 
+\index{dxrt::InferenceEngine@{dxrt::InferenceEngine}!RegisterCallBack@{RegisterCallBack}}
+\index{RegisterCallBack@{RegisterCallBack}!dxrt::InferenceEngine@{dxrt::InferenceEngine}}
+\doxysubsubsection{\texorpdfstring{RegisterCallBack()}{RegisterCallBack()}}
+{\footnotesize\ttfamily void dxrt\+::\+Inference\+Engine\+::\+Register\+Call\+Back (\begin{DoxyParamCaption}\item[{std\+::function$<$ int(Tensor\+Ptrs \&\mbox{\hyperlink{classdxrt_1_1InferenceEngine_a0893b724d6eed939556f1315ce05829d}{outputs}}, void $\ast$user\+Arg)$>$}]{callback\+Func }\end{DoxyParamCaption})}
+
+
+
+Register user callback function to be called by inference completion. 
+
+
+\begin{DoxyParams}[1]{Parameters}
+\mbox{\texttt{ in}}  & {\em callback\+Func} & Function which is called when inference is complete, it gets outputs and user\+\_\+arg ptr \\
+\hline
+ & {\em outputs} & output tensors data \\
+\hline
+ & {\em user\+Arg} & user\+Arg given by \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a88cea5324cbeb436034adb60cf31050f}{Run()}}; \\
+\hline
+\end{DoxyParams}
+\mbox{\Hypertarget{classdxrt_1_1InferenceEngine_a88cea5324cbeb436034adb60cf31050f}\label{classdxrt_1_1InferenceEngine_a88cea5324cbeb436034adb60cf31050f}} 
+\index{dxrt::InferenceEngine@{dxrt::InferenceEngine}!Run@{Run}}
+\index{Run@{Run}!dxrt::InferenceEngine@{dxrt::InferenceEngine}}
+\doxysubsubsection{\texorpdfstring{Run()}{Run()}}
+{\footnotesize\ttfamily Tensor\+Ptrs dxrt\+::\+Inference\+Engine\+::\+Run (\begin{DoxyParamCaption}\item[{void $\ast$}]{input\+Ptr,  }\item[{void $\ast$}]{user\+Arg = {\ttfamily nullptr},  }\item[{void $\ast$}]{output\+Ptr = {\ttfamily nullptr} }\end{DoxyParamCaption})}
+
+
+
+Run inference engine using specific input pointer Synchronously. 
+
+
+\begin{DoxyParams}[1]{Parameters}
+\mbox{\texttt{ in}}  & {\em input\+Ptr} & input data pointer to run inference \\
+\hline
+\mbox{\texttt{ in}}  & {\em user\+Arg} & user-\/defined arguments as a void pointer(e.\+g. original frame data, metadata about input, ... ) \\
+\hline
+\mbox{\texttt{ out}}  & {\em output\+Ptr} & pointer to output data, if it is nullptr, output data is stored in buffer inside D\+X\+RT. 
+\begin{DoxyCode}{1}
+\DoxyCodeLine{\textcolor{keyword}{auto} modelPath = \textcolor{stringliteral}{"model"}; \textcolor{comment}{// assume compiled model path name is "model"}}
+\DoxyCodeLine{\mbox{\hyperlink{structdxrt_1_1InferenceOption}{dxrt::InferenceOption}} option(1, 1, 2, dxrt::InferenceMode::MODE\_ASYNC);}
+\DoxyCodeLine{\textcolor{keyword}{auto} ie = \mbox{\hyperlink{classdxrt_1_1InferenceEngine}{dxrt::InferenceEngine}}(modelPath, option);}
+\DoxyCodeLine{\textcolor{keyword}{auto} \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a0893b724d6eed939556f1315ce05829d}{outputs}} = ie.Run();}
+\end{DoxyCode}
+ \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+output tensors as vector of smart pointer instances 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1InferenceEngine_af3006c9a7183f7e42d1528aa8a6fea24}\label{classdxrt_1_1InferenceEngine_af3006c9a7183f7e42d1528aa8a6fea24}} 
+\index{dxrt::InferenceEngine@{dxrt::InferenceEngine}!RunAsync@{RunAsync}}
+\index{RunAsync@{RunAsync}!dxrt::InferenceEngine@{dxrt::InferenceEngine}}
+\doxysubsubsection{\texorpdfstring{RunAsync()}{RunAsync()}}
+{\footnotesize\ttfamily int dxrt\+::\+Inference\+Engine\+::\+Run\+Async (\begin{DoxyParamCaption}\item[{void $\ast$}]{input\+Ptr,  }\item[{void $\ast$}]{user\+Arg = {\ttfamily nullptr},  }\item[{void $\ast$}]{output\+Ptr = {\ttfamily nullptr} }\end{DoxyParamCaption})}
+
+
+
+Non-\/blocking call to request asynchronous inference by input pointer, and get request ID from inference engine. 
+
+
+\begin{DoxyParams}[1]{Parameters}
+\mbox{\texttt{ in}}  & {\em input\+Ptr} & input data pointer to run inference \\
+\hline
+\mbox{\texttt{ in}}  & {\em user\+Arg} & user-\/defined arguments as a void pointer(e.\+g. original frame data, metadata about input, ... ) \\
+\hline
+\mbox{\texttt{ out}}  & {\em output\+Ptr} & pointer to output data, if it is nullptr, output data area is allocated by D\+X\+RT. 
+\begin{DoxyCode}{1}
+\DoxyCodeLine{\textcolor{keyword}{auto} modelPath = \textcolor{stringliteral}{"model"}; \textcolor{comment}{// assume compiled model path name is "model"}}
+\DoxyCodeLine{\mbox{\hyperlink{structdxrt_1_1InferenceOption}{dxrt::InferenceOption}} option(1, 1, 2, dxrt::InferenceMode::MODE\_ASYNC);}
+\DoxyCodeLine{\textcolor{keyword}{auto} ie = \mbox{\hyperlink{classdxrt_1_1InferenceEngine}{dxrt::InferenceEngine}}(modelPath, option);}
+\DoxyCodeLine{\textcolor{keyword}{auto} \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a0893b724d6eed939556f1315ce05829d}{outputs}} = ie.Run();}
+\end{DoxyCode}
+ \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+request id that can be used to wait() function 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1InferenceEngine_ab91c2e1adde9259fe2823416f80edb54}\label{classdxrt_1_1InferenceEngine_ab91c2e1adde9259fe2823416f80edb54}} 
+\index{dxrt::InferenceEngine@{dxrt::InferenceEngine}!RunBenchMark@{RunBenchMark}}
+\index{RunBenchMark@{RunBenchMark}!dxrt::InferenceEngine@{dxrt::InferenceEngine}}
+\doxysubsubsection{\texorpdfstring{RunBenchMark()}{RunBenchMark()}}
+{\footnotesize\ttfamily float dxrt\+::\+Inference\+Engine\+::\+Run\+Bench\+Mark (\begin{DoxyParamCaption}\item[{int}]{num }\end{DoxyParamCaption})}
+
+
+
+run benchmark with loop n times 
+
+
+\begin{DoxyParams}[1]{Parameters}
+\mbox{\texttt{ in}}  & {\em num} & number of inferences \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+average fps 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1InferenceEngine_ac9375d94db868748a7c3d072c846897b}\label{classdxrt_1_1InferenceEngine_ac9375d94db868748a7c3d072c846897b}} 
+\index{dxrt::InferenceEngine@{dxrt::InferenceEngine}!Wait@{Wait}}
+\index{Wait@{Wait}!dxrt::InferenceEngine@{dxrt::InferenceEngine}}
+\doxysubsubsection{\texorpdfstring{Wait()}{Wait()}}
+{\footnotesize\ttfamily Tensor\+Ptrs dxrt\+::\+Inference\+Engine\+::\+Wait (\begin{DoxyParamCaption}\item[{int}]{req\+Id }\end{DoxyParamCaption})}
+
+
+
+Wait until an request is complete and returns output. 
+
+
+\begin{DoxyParams}[1]{Parameters}
+\mbox{\texttt{ in}}  & {\em req\+Id} & request Id returned by \mbox{\hyperlink{classdxrt_1_1InferenceEngine_af3006c9a7183f7e42d1528aa8a6fea24}{Run\+Async()}} \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+output tensors as vector of smart pointer instances 
+\end{DoxyReturn}
