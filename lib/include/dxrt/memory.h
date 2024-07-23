@@ -13,15 +13,15 @@
 namespace dxrt {
 struct device_info;
 
-struct MemoryNode
+struct DXRT_API MemoryNode
 {
     uint64_t addr;
     uint64_t size;
     int status = 0; /* 0: available, 1: busy, 2: permanent */
-    friend std::ostream& operator<<(std::ostream& os, const MemoryNode& node);
+    friend DXRT_API std::ostream& operator<<(std::ostream& os, const MemoryNode& node);
 };
 
-class Memory
+class DXRT_API Memory
 {
 public:
     Memory(struct device_info &, void *);
@@ -39,7 +39,7 @@ public:
     uint64_t end();
     uint64_t size();
     uint64_t data();
-    friend std::ostream& operator<<(std::ostream& os, const Memory& memory);
+    friend DXRT_API std::ostream& operator<<(std::ostream& os, const Memory& memory);
 private:
     std::map<uint64_t, MemoryNode> _pool;
     uint64_t _start = 0;

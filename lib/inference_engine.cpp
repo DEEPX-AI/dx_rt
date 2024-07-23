@@ -17,7 +17,10 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <errno.h>
-#include <cxxabi.h>
+#ifdef __linux__
+    #include <cxxabi.h>
+#elif _WIN32
+#endif
 #include <regex>
 
 
@@ -40,12 +43,11 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
         _modelFile = string(getAbsolutePath(_modelFile));
         _name = _modelFile;        
         _modelData = LoadModelParam(_modelFile);
-        vector<string> topoSort_order; 
-        topoSort_order = _modelData.deepx_graph.topoSort_order();
+        _taskOrder = _modelData.deepx_graph.topoSort_order();
         // topoSort_order = {"npu_1"};// for debug
-        if(topoSort_order.empty())
+        if(_taskOrder.empty())
         {
-            topoSort_order.push_back(
+            _taskOrder.push_back(
                 _modelData.deepx_binary.rmap_info(0).name()
             );
             // cout << modelData.deepx_binary.rmap_info(0).name() << endl;
@@ -61,7 +63,7 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
         //     }
         // }
         // exit(1);
-        for(auto &order : topoSort_order )
+        for(auto &order : _taskOrder )
         {
             vector<dxrt::rmapinfo> rmapInfos;
             vector<vector<uint8_t>> data;
@@ -155,7 +157,7 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
         else
             elem->next() = nullptr;
     }
-    //////// new impl. for complex graph
+
     for(auto &task : _tasks)
     {
         auto &graph = _graphMap[task->name()];
@@ -166,59 +168,109 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
         // cout << graph.name() << endl;
         std::ignore = inputs;// for(auto &v:inputs) cout << v.key() << ", " << v.val() << endl;
         std::ignore = outputs;// for(auto &v:outputs) cout << v.key() << ", " << v.val() << endl;
-        if(task!=_tail)
+        if(task != _tail) 
         {
-            int idx = 0;
             auto &nexts = task->nexts();
-            for(auto &node : graph.outputs())
-            {
+            int idx = 0;
+
+            for (auto &node : graph.outputs()) {
                 string tensorName = node.key();
                 string nextTaskName = node.val();
-                int nextTaskId = _taskMap[nextTaskName]->id();
-                auto target = _taskMap[nextTaskName];
-                auto it = find(nexts.begin(), nexts.end(), target);
-                if(it == nexts.end())
-                {
-                    nexts.emplace_back( target );
-                    // target->prevs().emplace_back( task );
+                int nextTaskId;
+                auto target = _taskMap.find(nextTaskName);
+
+                if (target != _taskMap.end()) {
+
+                    nextTaskId = target->second->id();
+                    auto it = find(nexts.begin(), nexts.end(), target->second);
+
+                    if (it == nexts.end()) {
+                        nexts.emplace_back(target->second);
+                    }
+
+                    output_index[nextTaskId].push_back(idx);
+                    LOG_DBG("[OUTPUT][" + task->name() + "] Tensorname : " + tensorName + " / nextTaskName : " + nextTaskName +", id : " +std::to_string(nextTaskId) + " / idx : " + std::to_string(idx));
+                    idx++;
+                    
+                } else {
+                    nextTaskId = -1;
                 }
-                output_index[nextTaskId].push_back(idx);
-                idx++;
             }
         }
-        if(task!=_head)
+
+        if (task != _head) 
         {
-            int idx = 0;
             auto &prevs = task->prevs();
-            for(auto &node : graph.inputs())
-            {
+            //for (size_t i = 0; i < task->inputs().size(); ++i) {
+            //    cout <<task->name() << "->inputs (" <<to_string(i) <<") " <<task->inputs()[i].name() << endl;
+            //}
+            std::vector<string> input_name_order;
+
+            for (auto &node : inputs) {
+
                 string tensorName = node.key();
                 string prevTaskName = node.val();
+                
+                input_name_order.push_back(tensorName);
+
                 int prevTaskId = _taskMap[prevTaskName]->id();
                 auto target = _taskMap[prevTaskName];
                 auto it = find(prevs.begin(), prevs.end(), target);
-                if(it == prevs.end())
-                {
-                    prevs.emplace_back( target );
-                    // target->prevs().emplace_back( task );
+
+                if (it == prevs.end()) {
+                    prevs.emplace_back(target);
                 }
-                input_index[prevTaskId].push_back(idx);
-                idx++;
+                if(input_index.find(prevTaskId) == input_index.end()){
+
+                    std::map<string,int> position_in_outputs;
+                    for (size_t i = 0; i < target->outputs().size(); ++i){
+                        position_in_outputs[target->outputs()[i].name()] = i;
+                    }
+
+                    std::vector<int> relative_positions;
+                    for (size_t i = 0; i < task->inputs().size(); ++i) {
+                        if (position_in_outputs.find( task->inputs()[i].name()) != position_in_outputs.end()) {
+                            relative_positions.push_back(position_in_outputs[task->inputs()[i].name()]);
+                        }
+                    }
+
+                    std::vector<int> sorted_positions = relative_positions;
+                    std::sort(sorted_positions.begin(), sorted_positions.end());
+
+                    std::map<int, int> index_map;
+                    for (size_t i = 0; i < sorted_positions.size(); ++i) {
+                        index_map[sorted_positions[i]] = i;
+                    }
+
+                    std::vector<int> normalized_positions;
+                    for (int pos : relative_positions) {
+                        normalized_positions.push_back(index_map[pos]);
+                    }
+                    input_index[prevTaskId] = normalized_positions;
+
+                }
+                LOG_DBG("[INPUT][" + task->name() + "] Tensorname : " + tensorName + " / prevTaskName : " + prevTaskName +", id : " +std::to_string(prevTaskId) );
             }
+            task->input_name_order(input_name_order);
+
+            task->input_tensor_queue_set(task->prevs().size());//JG
+
+            for (auto i = 0u; i < task->prevs().size(); ++i) {
+                task->input_tensor_queue_idx()[task->prevs()[i]->name()] = static_cast<int>(i);
+            }
+            /*
+            std::cout << "Input Index:\n";
+            for (const auto& pair : input_index) {
+                int prevTaskId = pair.first;
+                const std::vector<int>& positions = pair.second;
+                
+                std::cout << "PrevTaskId " << prevTaskId << ": ";
+                for (int pos : positions) {
+                    std::cout << pos << " ";
+                }
+                std::cout << "\n";
+            }*/
         }
-        // if(task!=_tail)
-        // {
-        //     int idx = 0;
-        //     for(auto &node : graph.outputs())
-        //     {
-        //         string tensorName = node.key();
-        //         string nextTaskName = node.val();
-        //         // cout << task->name() << "-> " << nextTaskName << endl;
-        //         int nextTaskId = _taskMap[nextTaskName]->id();
-        //         output_index[nextTaskId].push_back(idx);
-        //         idx++;
-        //     }
-        // }
         task->inference_engine() = this;
     }
     _numTails = 0;
@@ -229,7 +281,11 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
             _numTails++;
         }
     }
-    DXRT_ASSERT(_numTails>=1, "invalid graph");
+    LOG_DBG("_numTails : "+_numTails)
+    DXRT_ASSERT(_numTails==1, "Invalid Graph : check the number of tail task \
+                                (The final inference output aggregation for multi-tail tasks is not yet supported.)");
+
+#ifdef PRINT_ALL_INFERENCE_ENGINE
     for(auto &task : _tasks)
     {
         cout << "[ ";
@@ -252,6 +308,7 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
         //     cout << "  [" << node.key() << ", " << node.val() << "], ";
         // }
         std::ignore = outputs;// cout << endl;
+        /*
         cout << "  inputs" << endl;
         for(auto &prev:task->prevs())
         {
@@ -282,20 +339,11 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
                 cout << "      " << tensor.name() << endl;
             }
         }
+        */
     }
-    //////// new impl. for complex graph
-    // auto task = _head;
-    // while(1)
-    // {
-    //     cout << task->name();
-    //     task = task->next();
-    //     if(task==nullptr)
-    //         break;
-    //     else
-    //         cout << " -> ";
-    // }
-    // cout << endl;
+
     cout << *this << endl;
+#endif
     LOG_DBG("InferenceEngine created.");
 }
 InferenceEngine::~InferenceEngine(void)
@@ -446,6 +494,10 @@ string InferenceEngine::name()
 {
     return _name;
 }
+vector<string> InferenceEngine::task_order()
+{
+    return _taskOrder;
+}
 int InferenceEngine::latency()
 {
     LOG_DXRT_DBG << endl;
@@ -478,7 +530,37 @@ uint32_t InferenceEngine::inference_time()
     return _infTime.Get();
 #endif
 }
+vector<TensorPtrs> InferenceEngine::GetOutputs()
+{
+    LOG_DXRT_DBG << "Collecting outputs from all tasks in order." << endl;
+    vector<TensorPtrs> all_outputs;
 
+    // Iterate through each task in the task order
+    for (const auto& task_name : _taskOrder)
+    {
+        // Find the corresponding task in the task map
+        auto it = _taskMap.find(task_name);
+        if (it != _taskMap.end())
+        {
+            // Get the outputs of the task
+            auto task = it->second;
+            TensorPtrs task_outputs;
+            for (auto& tensor : task->outputs())
+            {
+                task_outputs.emplace_back(make_shared<Tensor>(tensor));
+            }
+            // Add the outputs to the list
+            all_outputs.push_back(task_outputs);
+        }
+        #ifdef USE_ORT
+        else
+        {
+            cout << "Task " << task_name << " not found in task map." << endl;
+        }
+        #endif
+    }
+    return all_outputs;
+}
 vector<uint8_t> InferenceEngine::bitmatch_mask(int index)
 {
     vector<uint8_t> data(_modelData.deepx_binary.bitmatch_mask(index).buffer(), _modelData.deepx_binary.bitmatch_mask(index).buffer() + _modelData.deepx_binary.bitmatch_mask(index).size());

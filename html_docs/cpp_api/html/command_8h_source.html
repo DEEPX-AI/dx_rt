@@ -78,7 +78,7 @@ $(function() {
 <div class="line"><a name="l00006"></a><span class="lineno">    6</span>&#160;<span class="preprocessor">#include &quot;dxrt/common.h&quot;</span></div>
 <div class="line"><a name="l00007"></a><span class="lineno">    7</span>&#160; </div>
 <div class="line"><a name="l00008"></a><span class="lineno">    8</span>&#160;<span class="keyword">namespace </span><a class="code" href="namespacedxrt.html">dxrt</a> {</div>
-<div class="line"><a name="l00009"></a><span class="lineno">    9</span>&#160;<span class="keyword">enum</span> Command</div>
+<div class="line"><a name="l00009"></a><span class="lineno">    9</span>&#160;<span class="keyword">enum</span> DXRT_API Command</div>
 <div class="line"><a name="l00010"></a><span class="lineno">   10</span>&#160;{</div>
 <div class="line"><a name="l00011"></a><span class="lineno">   11</span>&#160;    GET_STATUS = 0,</div>
 <div class="line"><a name="l00012"></a><span class="lineno">   12</span>&#160;    RESET = 1,</div>
@@ -89,7 +89,7 @@ $(function() {
 <div class="line"><a name="l00017"></a><span class="lineno">   17</span>&#160;    SET_DVFS = 6,</div>
 <div class="line"><a name="l00018"></a><span class="lineno">   18</span>&#160;    MAX_CMD,</div>
 <div class="line"><a name="l00019"></a><span class="lineno">   19</span>&#160;};</div>
-<div class="line"><a name="l00020"></a><span class="lineno">   20</span>&#160;<span class="keyword">typedef</span> <span class="keyword">struct </span>{</div>
+<div class="line"><a name="l00020"></a><span class="lineno"><a class="line" href="structdxrt_1_1DXRT__API.html">   20</a></span>&#160;<span class="keyword">typedef</span> <span class="keyword">struct </span><a class="code" href="structdxrt_1_1DXRT__API.html">DXRT_API</a> {</div>
 <div class="line"><a name="l00021"></a><span class="lineno">   21</span>&#160;    uint16_t fw_ver;                <span class="comment">// firmware version. A.B.C (e.g. 103)</span></div>
 <div class="line"><a name="l00022"></a><span class="lineno">   22</span>&#160;    uint16_t dummy;</div>
 <div class="line"><a name="l00023"></a><span class="lineno">   23</span>&#160;    uint16_t bd_rev;                <span class="comment">// board revision. /10 (e.g. 1 = 0.1, 2 = 0.2)</span></div>
@@ -97,11 +97,12 @@ $(function() {
 <div class="line"><a name="l00025"></a><span class="lineno">   25</span>&#160;    uint16_t bd_id;                 <span class="comment">// board id. (e.g. 0~65535)</span></div>
 <div class="line"><a name="l00026"></a><span class="lineno">   26</span>&#160;    uint16_t ddr_freq;              <span class="comment">// ddr frequency. (e.g. 4200, 5500)</span></div>
 <div class="line"><a name="l00027"></a><span class="lineno">   27</span>&#160;    uint16_t ddr_type;              <span class="comment">// ddr type. (1 = lpddr4, 2= lpddr5)</span></div>
-<div class="line"><a name="l00028"></a><span class="lineno">   28</span>&#160;} bdinfo_t;</div>
-<div class="line"><a name="l00032"></a><span class="lineno">   32</span>&#160;<span class="keywordtype">int</span> <a class="code" href="namespacedxrt.html#a16d0d1d1dc18182cf24aa74f12d9a515">CommandLineInterface</a>(Command cmd, std::vector&lt;uint32_t&gt; vec);</div>
+<div class="line"><a name="l00028"></a><span class="lineno">   28</span>&#160;} <a class="code" href="structdxrt_1_1DXRT__API.html">bdinfo_t</a>;</div>
+<div class="line"><a name="l00032"></a><span class="lineno">   32</span>&#160;<a class="code" href="structdxrt_1_1DXRT__API.html">DXRT_API</a> <span class="keywordtype">int</span> <a class="code" href="namespacedxrt.html#a9ccf41f6e21badc40edbb81ddc2b3f5e">CommandLineInterface</a>(Command cmd, std::vector&lt;uint32_t&gt; vec);</div>
 <div class="line"><a name="l00033"></a><span class="lineno">   33</span>&#160;} <span class="comment">// namespace dxrt</span></div>
 </div><!-- fragment --></div><!-- contents -->
-<div class="ttc" id="anamespacedxrt_html_a16d0d1d1dc18182cf24aa74f12d9a515"><div class="ttname"><a href="namespacedxrt.html#a16d0d1d1dc18182cf24aa74f12d9a515">dxrt::CommandLineInterface</a></div><div class="ttdeci">int CommandLineInterface(Command cmd, std::vector&lt; uint32_t &gt; vec)</div><div class="ttdoc">get hardware status (this function is valid only for accelerator devices)</div></div>
+<div class="ttc" id="astructdxrt_1_1DXRT__API_html"><div class="ttname"><a href="structdxrt_1_1DXRT__API.html">dxrt::DXRT_API</a></div><div class="ttdoc">face detection data format from device</div><div class="ttdef"><b>Definition:</b> command.h:20</div></div>
+<div class="ttc" id="anamespacedxrt_html_a9ccf41f6e21badc40edbb81ddc2b3f5e"><div class="ttname"><a href="namespacedxrt.html#a9ccf41f6e21badc40edbb81ddc2b3f5e">dxrt::CommandLineInterface</a></div><div class="ttdeci">DXRT_API int CommandLineInterface(Command cmd, std::vector&lt; uint32_t &gt; vec)</div><div class="ttdoc">get hardware status (this function is valid only for accelerator devices)</div></div>
 <div class="ttc" id="anamespacedxrt_html"><div class="ttname"><a href="namespacedxrt.html">dxrt</a></div><div class="ttdoc">DXRT C++ APIs are provided in this namespace.</div><div class="ttdef"><b>Definition:</b> buffer.h:8</div></div>
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>

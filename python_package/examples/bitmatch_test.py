@@ -14,6 +14,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Argparse")
     parser.add_argument("--model", "-m", type=str, required=True, help="model dir.")
     parser.add_argument("--log", "-l", type=str, required=True, help="log filename ex) log")
+    parser.add_argument("--debug", "-d", type=str, required=False, help="RT debug options, 0: Do not generate RT binaries. 1: Generate RT binaries for debugging. 2(defualt): Generate RT binaries for release.",default="1")
     parser.add_argument("--npu", "-n", type=int, required=False, help="1(on, defualt) or 0(off), npu validation only(w/o cpu offloading)", default=0)
     args = parser.parse_args()
     return args
@@ -40,6 +41,7 @@ def int8tofloat32(arr):
     return np.array(float_array)
 
 def bit_match(mask_path, gt_path, rt_path, single_output):
+    #print(gt_path, rt_path)
     mask = np.array([])
     task_num = int(rt_path.split('_')[-3])
     if mask_path and os.path.exists(mask_path):
@@ -53,7 +55,6 @@ def bit_match(mask_path, gt_path, rt_path, single_output):
     if 'argmax' in gt_path:
         gt = np.frombuffer(open(gt_path, "rb").read(), dtype=np.uint16)
         rt = np.frombuffer(open(rt_path, "rb").read(), dtype=np.uint16)
-        #rt = np.array([single_output['output']], dtype=np.uint16)
     else:
         gt = np.frombuffer(open(gt_path, "rb").read(), dtype=np.int8)
         rt = np.frombuffer(open(rt_path, "rb").read(), dtype=np.int8)
@@ -67,6 +68,8 @@ def bit_match(mask_path, gt_path, rt_path, single_output):
             warnings.warn(f"size mismatch GT output : {gt.shape} vs mask : {mask.shape}")
         else:
             gt = np.where(mask, gt[:mask.shape[0]], 0)
+        print(gt.shape, rt.shape, mask.shape)
+    '''
     elif mask.nbytes == 0 and gt.shape[0] != rt.shape[0]:
         warnings.warn(f"mask not found : rt.shape : {rt.shape}, gt.shape : {gt.shape}")
         # if the mask is neccesary but empty
@@ -76,7 +79,7 @@ def bit_match(mask_path, gt_path, rt_path, single_output):
         elif gt.shape[0] < rt.shape[0]:
             padding_length = len(rt) - len(gt)
             gt = np.pad(gt, (0, padding_length), 'constant', constant_values=0)
-
+    '''
     print("rt : ", rt)
     print("gt : ", gt)
 
@@ -108,8 +111,9 @@ def bit_match_dir(args, single_outputs):
     with open(log_file_name, "a") as log_file:
         targets_rt = {os.path.basename(f) for f in glob.glob(os.path.join(rt_dir, '*'))}
         targets_gt = {os.path.basename(f) for f in glob.glob(os.path.join(gt_dir, '*'))}
-
-        targets = [[rt, gt] for rt in targets_rt for gt in targets_gt if rt.split('.')[0] == gt.split('.')[0]]
+        #print(targets_gt)
+        #print(targets_rt)
+        targets = [[rt, gt] for rt in targets_rt for gt in targets_gt if rt == gt]
         
         for rt_file, gt_file in targets:
             rt_file_path = os.path.join(rt_dir, rt_file)
@@ -118,11 +122,38 @@ def bit_match_dir(args, single_outputs):
             for suffix in ["_output_"]:
                 if suffix in rt_file:
                     task = rt_file.split(suffix)[0]
-                    idx = rt_file.split(suffix)[1].split('.bin')[0]
+                    idx = rt_file.split(suffix)[1].split('.')[0]
                     task_dir = os.path.join(dir, task)
                     task_mask_file = os.path.join(task_dir, 'bitmatch.bin') if "output" in suffix else None
                     result = bit_match(task_mask_file, gt_file_path, rt_file_path, single_outputs[idx])
                     log_file.write(f'{rt_file_path}, {gt_file_path}, {result}\n')
+
+def get_shape(lst, depth=0):
+    if isinstance(lst, list):
+        if len(lst) == 0:
+            return "()"
+        shapes = [get_shape(item, depth + 1) for item in lst]
+        min_length = min(len(shape) for shape in shapes)
+        if min_length == 1:
+            return f"({''.join(shapes)},)"
+        else:
+            return f"[{''.join(shapes)}]"
+    elif isinstance(lst, np.ndarray):
+        return str(lst.shape)
+    else:
+        return "()"
+
+def add_index_to_filename(filename, index):
+    #print(filename)
+    pattern = re.compile(r"(./\w+_\d+_output)(\.\w+)?\.bin")
+    match = pattern.match(filename)
+    if match:
+        base_name = match.group(1)
+        extension = match.group(2) if match.group(2) else ""
+        new_file = f"{base_name}_{index}{extension}.bin"
+        return new_file
+    else: 
+        return None
 
 def inference(args):
     dir = args.model
@@ -152,6 +183,7 @@ def inference(args):
         log_file.write(",".join(toposort_order) + f",{val_blocks}, ...")
 
     ie = InferenceEngine(model_file)
+    print("task order : ",ie.get_task_order())
     single_outputs = dict()
 
     with open(log_file_name, "a") as log_file:
@@ -165,7 +197,8 @@ def inference(args):
             with open(input_file, "rb") as f:
                 input_data = [np.frombuffer(f.read(), dtype=np.uint8)]
             outputs = ie.run(input_data)[0]
-
+            #all_outputs = ie.get_outputs()
+            
             log_file.write(f'{input_file} inference SUCCEEDED\n')
 
             subprocess.call("sync", shell=True)
@@ -185,8 +218,9 @@ def inference(args):
                 npu_cnt = -1
             
             for file in files:
-                new_file = os.path.basename(file.replace(".bin", f"_{index}.bin"))
-                shutil.move(file, os.path.join(rt_dir, new_file))
+                new_file = add_index_to_filename(file,index)
+                if new_file is not None:
+                    shutil.move(file, os.path.join(rt_dir, new_file))
             
             masks=list()
             for idx in range(npu_cnt):
@@ -201,7 +235,7 @@ def inference(args):
 if __name__ == "__main__":
     args = parse_args()
 
-    os.environ['DXRT_DEBUG_DATA'] = "2" 
+    os.environ['DXRT_DEBUG_DATA'] = args.debug
     subprocess.call(f"rm -rf ./npu_*.bin ./cpu_*.bin {args.model}/rt/npu_*.bin {args.model}/rt/cpu_*.bin", shell=True)
     subprocess.call(f"mkdir -p {args.model}/rt", shell=True)
 

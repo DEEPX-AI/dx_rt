@@ -6,14 +6,14 @@
 #include "dxrt/common.h"
 
 namespace dxrt {
-class Buffer
+class DXRT_API Buffer
 {    
 public:
     Buffer(uint32_t size);
     ~Buffer();
     void* Get();
     void* Get(uint32_t size);
-    friend std::ostream& operator<<(std::ostream&, const Buffer&);
+    friend DXRT_API std::ostream& operator<<(std::ostream&, const Buffer&);
 private:
     uint64_t _start = 0;
     uint64_t _end = 0;

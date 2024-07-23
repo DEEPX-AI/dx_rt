@@ -3,7 +3,7 @@
 pushd .
 cmd=()
 DX_SRC_DIR=$PWD
-target_arch=$(uname -p)  
+target_arch=$(uname -m)  
 install_onnx=false  
 install_dep=false  
 
@@ -81,11 +81,11 @@ function install_onnx()
         wget https://github.com/microsoft/onnxruntime/releases/download/v1.12.0/onnxruntime-linux-$onnxruntime_arch-1.12.0.tgz
         mkdir onnxruntime_$target_arch
         tar -zxvf onnxruntime-linux-$onnxruntime_arch-1.12.0.tgz -C onnxruntime_$target_arch --strip-components=1 
-        if [ $(uname -p) != "$target_arch" ]; then
-            if [ $(uname -p) == "aarch64" ] && [ $target_arch == "aarch64" ]; then  
+        if [ $(uname -m) != "$target_arch" ]; then
+            if [ $(uname -m) == "aarch64" ] && [ $target_arch == "aarch64" ]; then  
                 sudo cp -a onnxruntime_$target_arch/* /usr/local/
             else
-                echo " onnxruntime install library for Cross Compilation (host : $(uname -p), target : $target_arch)"
+                echo " onnxruntime install library for Cross Compilation (host : $(uname -m), target : $target_arch)"
             fi
         else
             echo ""

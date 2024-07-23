@@ -23,8 +23,9 @@ macro(add_mlperf_loadgen)
 endmacro(add_mlperf_loadgen)
 
 macro(add_onnxruntime)
-find_library(onnxruntime HINTS ${onnxruntime_LIB_DIRS})
-LIST(APPEND link_libs onnxruntime)
+find_library(ONNXLIB_DIRS onnxruntime HINTS ${onnxruntime_LIB_DIRS})
+include_directories(${onnxruntime_INCLUDE_DIRS})
+LIST(APPEND link_libs ${ONNXLIB_DIRS})
 endmacro(add_onnxruntime)
 
 macro(add_dxrt target)
@@ -32,7 +33,13 @@ macro(add_dxrt target)
     ${CMAKE_SOURCE_DIR}/lib/include
     ${CMAKE_SOURCE_DIR}/extern/include
   )
-  target_link_libraries(${target} dxrt pthread ${link_libs})
+  message("${target} PRIVATE ${ONNXLIB_DIRS}")
+  target_link_directories(${target} PRIVATE ${ONNXLIB_DIRS})
+  if(MSVC)
+    target_link_libraries(${target} dxrt ${link_libs})
+  else()
+    target_link_libraries(${target} dxrt pthread ${link_libs})
+  endif()
 endmacro(add_dxrt)
 
 macro(add_target target)

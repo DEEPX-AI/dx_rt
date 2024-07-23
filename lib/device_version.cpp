@@ -9,14 +9,14 @@ using namespace std;
 
 namespace dxrt {
 
-DxDeviceVersion::DxDeviceVersion(Device *device, uint16_t fw_ver, int type, int interface, uint32_t variant)
+DxDeviceVersion::DxDeviceVersion(Device *device, uint16_t fw_ver, int type, int interface_value, uint32_t variant)
 {
     LOG_DXRT_DBG << "DeepX version Create " << endl;
     _dev       = device;
     _fw_ver    = fw_ver;
     _variant   = variant;
     _type      = static_cast<dxrt_device_type_t>(type);
-    _interface = static_cast<dxrt_device_interface_t>(interface);
+    _interface = static_cast<dxrt_device_interface_t>(interface_value);
 }
 
 void DxDeviceVersion::GetVersion(void)

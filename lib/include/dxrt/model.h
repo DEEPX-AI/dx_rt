@@ -4,7 +4,13 @@
 #include <iostream>
 #include <fstream>
 #include <cassert>
-
+#ifdef _WINDOWS
+#include <limits>
+    #ifdef max
+        #undef max
+        #undef min
+    #endif // max
+#endif
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"
 #include "rapidjson/prettywriter.h"
@@ -14,7 +20,7 @@
 
 using namespace std;
 namespace deepx_binaryinfo {
-    struct Models {
+    struct DXRT_API Models {
         string &npu()     { return _npu; }
         string &name()    { return _name; }
         string &str()     { return _str; }
@@ -30,7 +36,7 @@ namespace deepx_binaryinfo {
         int64_t _size = 0;
     };
 
-    struct BinaryInfoDatabase {
+    struct DXRT_API BinaryInfoDatabase {
         Models &merged_model()       { return _merged_model; }
         vector<Models> &npu_models() { return _npu_models; }
         Models &npu_models(int i)    { return _npu_models[i]; }
@@ -58,7 +64,7 @@ namespace deepx_binaryinfo {
 } /* namespace deepx_binaryinfo */
 
 namespace deepx_graphinfo {
-    struct KeyValueInfo {
+    struct DXRT_API KeyValueInfo {
         string &key() { return _key; }
         string &val() { return _val; }
 
@@ -66,7 +72,7 @@ namespace deepx_graphinfo {
         string _val;
     };
 
-    struct GraphBindingDatabase {
+    struct DXRT_API GraphBindingDatabase {
         string &name() { return _name; }
         string &type() { return _type; }
         vector<KeyValueInfo> &inputs()  { return _inputs; }
@@ -81,7 +87,7 @@ namespace deepx_graphinfo {
         
     };
 
-    struct GraphInfoDatabase {
+    struct DXRT_API GraphInfoDatabase {
         vector<GraphBindingDatabase> &m_graph() { return _m_graph; }
         GraphBindingDatabase &m_graph(int i)    { return _m_graph[i]; }
         vector<string> &topoSort_order()        { return _topoSort_order; }
@@ -92,7 +98,7 @@ namespace deepx_graphinfo {
 } /* namespace deepx_graphinfo */
 
 namespace deepx_rmapinfo {
-    struct Version {        
+    struct DXRT_API Version {
         string &npu()      { return _npu; }
         string &rmap()     { return _rmap; }
         string &rmapinfo() { return _rmapinfo; }
@@ -102,12 +108,12 @@ namespace deepx_rmapinfo {
         string _rmapinfo;
     };
 
-    struct Npu {
+    struct DXRT_API Npu {
         int64_t &mac() { return _mac; }
         int64_t _mac = 0;
     };
 
-    struct Counts {
+    struct DXRT_API Counts {
         int64_t &layer() { return _layer; }
         int64_t &cmd()   { return _cmd; }
 
@@ -115,7 +121,7 @@ namespace deepx_rmapinfo {
         int64_t _cmd = 0;
     };
 
-    struct Memory {
+    struct DXRT_API Memory {
         string  &name()   { return _name; }
         int64_t &offset() { return _offset; }
         int64_t &size()   { return _size; }
@@ -127,7 +133,7 @@ namespace deepx_rmapinfo {
         int64_t _type = 0;
     };
 
-    struct Shapes {
+    struct DXRT_API Shapes {
         int64_t &shape_size()    { return _shape_size; }
         vector<int64_t> &shape() { return _shape; }
         int64_t &shape(int i)    { return _shape[i]; }
@@ -136,7 +142,7 @@ namespace deepx_rmapinfo {
         vector<int64_t> _shape;
     };
 
-    struct InOutput {
+    struct DXRT_API InOutput {
         string  &name()   { return _name; }
         Shapes  &shapes() { return _shapes; }
         int64_t &type()   { return _type; }
@@ -152,7 +158,7 @@ namespace deepx_rmapinfo {
         int64_t _format = 0;
     };
 
-    struct OutputList {
+    struct DXRT_API OutputList {
         int64_t &output_size()     { return _output_size; }
         vector<InOutput> &output() { return _output; }
         InOutput &output(int i)    { return _output[i]; }
@@ -161,7 +167,7 @@ namespace deepx_rmapinfo {
         vector<InOutput> _output;
     };
 
-    struct Outputs {
+    struct DXRT_API Outputs {
         Memory  &memory()         { return _memory; }
         OutputList  &outputlist() { return _outputlist; }
 
@@ -169,7 +175,7 @@ namespace deepx_rmapinfo {
         OutputList _outputlist;
     };
 
-    struct Memorys {
+    struct DXRT_API Memorys {
         int64_t &memory_size()   { return _memory_size; }
         vector<Memory> &memory() { return _memory; }
         Memory   &memory(int i)  { return _memory[i]; }
@@ -178,7 +184,7 @@ namespace deepx_rmapinfo {
         vector<Memory> _memory;
     };
 
-    struct Number {
+    struct DXRT_API Number {
         int64_t &layer(){ return _layer; }
         int64_t &tile() { return _tile; }
 
@@ -186,7 +192,7 @@ namespace deepx_rmapinfo {
         int64_t _tile = 0;
     };
 
-    struct Operators {
+    struct DXRT_API Operators {
         int64_t &operator_size()   { return _operator_size; }
         inline vector<string> &anoperator() { return _anoperator; }
         string &anoperator(int i) { return _anoperator[i]; }
@@ -195,7 +201,7 @@ namespace deepx_rmapinfo {
         vector<string> _anoperator;
     };
 
-    struct PreNextLayer {
+    struct DXRT_API PreNextLayer {
         int64_t &layer_size()     { return _layer_size; }
         vector<int64_t> &number() { return _number; }
         int64_t &number(int i)    { return _number[i]; }
@@ -204,7 +210,7 @@ namespace deepx_rmapinfo {
         vector<int64_t> _number;
     };
 
-    struct PreNextLayers {
+    struct DXRT_API PreNextLayers {
         PreNextLayer &preLayer()  { return _preLayer; }
         PreNextLayer &nextLayer() { return _nextLayer; }
 
@@ -212,7 +218,7 @@ namespace deepx_rmapinfo {
         PreNextLayer _nextLayer;
     };
 
-    struct Layer {
+    struct DXRT_API Layer {
         Memory &memory()   { return _memory; }
         Number &number()   { return _number; }
         InOutput &input()  { return _input; }
@@ -230,7 +236,7 @@ namespace deepx_rmapinfo {
         PreNextLayers _nextLayers;
     };
 
-    struct Layers {
+    struct DXRT_API Layers {
         int64_t &layer_size()  { return _layer_size; }
         vector<Layer> &layer() { return _layer; }
         Layer   &layer(int i)  { return _layer[i]; }
@@ -239,7 +245,7 @@ namespace deepx_rmapinfo {
         vector<Layer> _layer;
     };
 
-    struct RegisterInfoDatabase {
+    struct DXRT_API RegisterInfoDatabase {
         Version  &version()  { return _version; }
         string   &model()    { return _model; }
         Npu      &npu()      { return _npu; }
@@ -263,14 +269,14 @@ namespace deepx_rmapinfo {
         Layers   _layers;
     };
 
-    struct rmapInfoDatabase {
+    struct DXRT_API rmapInfoDatabase {
         vector<RegisterInfoDatabase> &m_rmap() { return _m_rmap; }
         RegisterInfoDatabase &m_rmap(int i)    { return _m_rmap[i]; }
 
         vector<RegisterInfoDatabase> _m_rmap;
     };
 
-    enum DataType : int {
+    enum DXRT_API DataType : int {
         DATA_TYPE_NONE = 0,
         UINT8 = 1,
         UINT16 = 2,
@@ -279,11 +285,11 @@ namespace deepx_rmapinfo {
         INT16 = 5,
         INT32 = 6,
         FLOAT32 = 7,
-        DataType_INT_MIN_SENTINEL_DO_NOT_USE_ = numeric_limits<int32_t>::min(),
-        DataType_INT_MAX_SENTINEL_DO_NOT_USE_ = numeric_limits<int32_t>::max()
+        DataType_INT_MIN_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int32_t>::min(),
+        DataType_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int32_t>::max()
     };
 
-    enum DataFormat : int {
+    enum DXRT_API DataFormat : int {
         DATAFORMAT_NONE = 0,
         NCHWd = 1,
         NHWCd = 2,
@@ -291,25 +297,25 @@ namespace deepx_rmapinfo {
         PPU_YOLO = 4,
         PPU_FD = 5,
         PPU_POSE = 6,
-        DataFormat_INT_MIN_SENTINEL_DO_NOT_USE_ = numeric_limits<int32_t>::min(),
-        DataFormat_INT_MAX_SENTINEL_DO_NOT_USE_ = numeric_limits<int32_t>::max()
+        DataFormat_INT_MIN_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int32_t>::min(),
+        DataFormat_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int32_t>::max()
     };
 
-    enum MemoryType : int {
+    enum DXRT_API MemoryType : int {
         MEMORYTYPE_NONE = 0,
         DRAM = 1,
         ARGMAX = 2,
         PPU = 3,
-        MemoryType_INT_MIN_SENTINEL_DO_NOT_USE_ = numeric_limits<int32_t>::min(),
-        MemoryType_INT_MAX_SENTINEL_DO_NOT_USE_ = numeric_limits<int32_t>::max()
+        MemoryType_INT_MIN_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int32_t>::min(),
+        MemoryType_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int32_t>::max()
     };
 
-    enum InputMode : int {
+    enum DXRT_API InputMode : int {
         INPUTMODE_NONE = 0,
         FORMATTER = 1,
         IM2COL = 2,
-        InputMode_INT_MIN_SENTINEL_DO_NOT_USE_ = numeric_limits<int32_t>::min(),
-        InputMode_INT_MAX_SENTINEL_DO_NOT_USE_ = numeric_limits<int32_t>::max()
+        InputMode_INT_MIN_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int32_t>::min(),
+        InputMode_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int32_t>::max()
     };
 
     inline DataType GetDataTypeNum (const string& str) {
@@ -351,19 +357,19 @@ namespace deepx_rmapinfo {
 } /* namespace deepx_rmapinfo */
 
 namespace dxrt {
-struct ModelDataBase {
+struct DXRT_API ModelDataBase {
     deepx_graphinfo::GraphInfoDatabase deepx_graph;
     deepx_binaryinfo::BinaryInfoDatabase deepx_binary;
     deepx_rmapinfo::rmapInfoDatabase deepx_rmap;
 };
-std::ostream& operator<<(std::ostream&, const ModelDataBase&);
+DXRT_API std::ostream& operator<<(std::ostream&, const ModelDataBase&);
 /** \brief parse a model, and show information
  * \return return 0 if model parsing is done successfully, 
            return -1 if failed to parse model
 */
-int ParseModel(std::string file);
-ModelDataBase LoadModelParam(std::string file);
-deepx_graphinfo::GraphInfoDatabase LoadGraphInfo(ModelDataBase data);
-deepx_binaryinfo::BinaryInfoDatabase LoadBinaryInfo(char *buffer, int fileSize);
-deepx_rmapinfo::rmapInfoDatabase LoadRmapInfo(ModelDataBase data);
+DXRT_API int ParseModel(std::string file);
+DXRT_API ModelDataBase LoadModelParam(std::string file);
+DXRT_API deepx_graphinfo::GraphInfoDatabase LoadGraphInfo(ModelDataBase data);
+DXRT_API deepx_binaryinfo::BinaryInfoDatabase LoadBinaryInfo(char *buffer, int fileSize);
+DXRT_API deepx_rmapinfo::rmapInfoDatabase LoadRmapInfo(ModelDataBase data);
 }

@@ -67,7 +67,7 @@ shared_ptr<Worker> Worker::Create(string name_, Worker::Type type_, int numThrea
     shared_ptr<Worker> ret = make_shared<Worker>(name_, type_, numThreads, device_, cpuHandle_);
     return ret;
 }
-int Worker::request(RequestPtr req)
+int Worker::request(std::shared_ptr<Request> req)
 {
     unique_lock<mutex> lk(_lock);
     _queue.push(req);
@@ -227,8 +227,23 @@ void Worker::DeviceOutputThread(int id)
                             else
                             {
                                 DataDumpBin(req->task()->name() + "_output.bin", req->outputs());
-                            }                            
+                            }
                         }
+                        if (req->model_type() == 1)
+                        {
+                            // LOG_VALUE(response->argmax);
+                            *((uint16_t *)(req->outputs().front().data())) = response.argmax;
+                            if(_debugData>0)
+                                DataDumpBin(req->task()->name() + "_output.argmax.bin", req->outputs());
+                        }
+                        else if (req->model_type() == 2)
+                        {
+                            // LOG_VALUE(response->ppu_filter_num);
+                            vector<int64_t> shape{response.ppu_filter_num};
+                            req->outputs().front().shape() = shape;
+                            if(_debugData>0)
+                                DataDumpBin(req->task()->name() + "_output.ppu.bin", req->outputs());
+                        }      
                         req->task()->ProcessResponse(req, &response);
                         _device->CallBack();
                         // processCnt++;
@@ -304,6 +319,7 @@ void Worker::CpuHandleThread()
         if(_debugData>0)
         {
             DataDumpBin(req->task()->name() + "_output.bin", req->outputs());
+            dxrt::DataDumpBin(req->task()->name() + "_output_done.bin", &loopCnt, 1);           
         }
         loopCnt++;
     }

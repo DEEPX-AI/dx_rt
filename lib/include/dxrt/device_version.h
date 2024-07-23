@@ -16,7 +16,7 @@ namespace dxrt {
 
 class Device;
 
-struct deepx_pcie_info {
+struct DXRT_API deepx_pcie_info {
     uint32_t driver_version;
     uint8_t  bus;
     uint8_t  dev;
@@ -25,16 +25,16 @@ struct deepx_pcie_info {
     int      width; /* 1, 2, 4 */
 };
 
-typedef struct
+typedef struct DXRT_API
 {
     uint32_t        rt_drv_ver;
     deepx_pcie_info pcie;
 } dxrt_dev_info_t;
 
-class DxDeviceVersion
+class DXRT_API DxDeviceVersion
 {
 public:
-    DxDeviceVersion(Device *device, uint16_t fw_ver, int type, int interface, uint32_t variant);
+    DxDeviceVersion(Device *device, uint16_t fw_ver, int type, int interface_value, uint32_t variant);
     void GetVersion(void);
     void CheckVersion(void);
 

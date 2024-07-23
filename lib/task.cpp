@@ -39,188 +39,41 @@ TaskStats &TaskStats::GetInstance(int id)
 }
 
 Task::Task(string name_, vector<rmapinfo> rmapInfos_, std::vector<std::vector<uint8_t>>&& data_)
-: _name(name_), _infos(rmapInfos_), _data(move(data_)), _latency(30), _infTime(30)
+: _taskData(nextId, name_, rmapInfos_), _data(move(data_)), _latency(30), _infTime(30)
 {
-    _id = nextId++;    
+    nextId++;
     _inferenceCnt = 0;
-    if(!_infos.empty())
+    if (_taskData._infos.empty() == false)
     {
-        _processor = Processor::NPU;
-        DXRT_ASSERT(_data.size()==2 || _data.size()==4, "invalid npu task " + _name + ": " + to_string(data_.size()));
-        for(auto &info:_infos)
-        {
-            _memUsage += info.size();
-        }
-        auto &info = _infos.front();
-        _numOutputs = info.outputs().outputlist().output_size();
-        {
-            vector<int64_t> shapes;
-            for(int i=0; i<info.input().shapes().shape_size();i++)
-            {        
-                shapes.emplace_back(info.input().shapes().shape(i));
-            }
-            _inputShape.emplace_back(shapes);
-            _inputNames.emplace_back(info.input().memory().name());
-        }
-        LOG_DXRT_DBG << "NPU Task: imported input shapes" << endl;
-        {        
-            for(int i=0; i<info.outputs().outputlist().output_size(); i++)
-            {
-                auto &node = info.outputs().outputlist().output(i);
-                vector<int64_t> shapes;
-                for(int j=0; j<node.shapes().shape_size(); j++)
-                {
-                    shapes.emplace_back(node.shapes().shape(j));
-                }
-                if(shapes.size()==4)
-                {
-                    shapes[3] = GetAlign64(shapes[3]);
-                }
-                _outputShape.emplace_back(shapes);
-                _outputOffsets.emplace_back(info.outputs().outputlist().output(i).memory().offset() - info.outputs().outputlist().output(0).memory().offset());
-                _outputSize += info.outputs().outputlist().output(i).memory().size();
-                _outputNames.emplace_back(node.name());
-            }
-        }
-        LOG_DXRT_DBG << "NPU Task: imported output shapes"<< endl;
-        _inputSize = info.input().memory().size();
-        _inputDataType = (DataType)info.input().type();
-        if(info.outputs().outputlist().output_size()>0)
-        {
-            _outputDataType = (DataType)info.outputs().outputlist().output(0).type();
-        }
-        else
-        {
-            _outputDataType = DataType::NONE_TYPE;
-        }
-        LOG_DXRT_DBG << "NPU Task: imported data types" << endl;
+        DXRT_ASSERT(_data.size() == 2 || _data.size() == 4,
+            "invalid npu task " + name() + ": " + to_string(data_.size()));
 
-        for(int i=0;i<_numInputs;i++)
-        {
-            _inputTensors.emplace_back(Tensor(_inputNames[i], _inputShape[i], _inputDataType, nullptr));
-        }
-        for(int i=0;i<_numOutputs;i++)
-        {
-            _outputTensors.emplace_back(Tensor(_outputNames[i], _outputShape[i], _outputDataType, nullptr));
-        }
-        LOG_DXRT_DBG << "NPU Task: imported tensors" << endl;
-        for(size_t i=0; i<_infos.size(); i++)
-        {
-            auto &info = _infos[i];
-            auto cmdSize = info.memorys().memory(0).size();
-            auto weightSize = info.memorys().memory(1).size();
-            dxrt_model_t model;          
-            model.npu_id = 0;
-            model.type = 0;
-            model.cmds = static_cast<int32_t>(info.counts().cmd());
-            model.cmd.data = reinterpret_cast<uint64_t>( _data[ 2*i + 0 ].data() );
-            model.cmd.base = 0; // decided in device
-            model.cmd.offset = 0; // defined in device
-            model.cmd.size = static_cast<uint32_t>(cmdSize);
-            model.weight.data = reinterpret_cast<uint64_t>( _data[ 2*i + 1 ].data() );
-            model.weight.base = 0; // decided in device
-            model.weight.offset = 0; // defined in device
-            model.weight.size = static_cast<uint32_t>(weightSize);
-            model.output_all_offset = static_cast<uint32_t>(info.outputs().memory().offset());
-            model.output_all_size = static_cast<uint32_t>(info.outputs().memory().size());
-            model.last_output_offset = static_cast<uint32_t>(info.outputs().outputlist().output(0).memory().offset() - info.outputs().memory().offset());
-            model.last_output_size = _outputSize;
-
-            if(info.outputs().outputlist().output(0).memory().type()==deepx_rmapinfo::MemoryType::ARGMAX)
-            {
-                model.type = 1;
-                // model.last_output_offset = model.output_all_size;
-                // model.last_output_size = 64;
-                // model.output_all_size += 64;
-                // _outputSize = 64;
-                model.last_output_size = 2;
-                _outputSize = 2;
-                _isArgMax = true;
-            }
-            else if(info.outputs().outputlist().output(0).memory().type()==deepx_rmapinfo::MemoryType::PPU)
-            {
-                if(info.outputs().outputlist().output(0).format()>=deepx_rmapinfo::DataFormat::PPU_YOLO
-                    && info.outputs().outputlist().output(0).format()<=deepx_rmapinfo::DataFormat::PPU_POSE )
-                {
-                    model.type = 2;
-                    _outputTensors.clear();
-                    int dataType = DataType::BBOX + info.outputs().outputlist().output(0).format() - deepx_rmapinfo::DataFormat::PPU_YOLO;    
-                    _outputTensors.emplace_back(
-                        Tensor(_outputNames[i], _outputShape[i], (DataType)dataType, nullptr)
-                    );
-                    model.last_output_offset = model.output_all_size;
-                    model.last_output_size = 128*1024;
-                    model.output_all_size += 128*1024;
-                    _outputSize = 128*1024;
-                }
-            }
-            if(_infos.size()>1)
-            {
-                model.npu_id = -1;
-            }
-            else
-            {
-                if(info.version().npu()=="M1_8K")
-                {
-                    model.npu_id = 1;
-                }
-                else
-                {
-                    model.npu_id = 0;
-                }
-            }
-            _npuModel.emplace_back(model);
-        }
-        _outputMemSize = 0;
-        for(auto &model:_npuModel)
-        {
-            _outputMemSize = max(_outputMemSize, model.output_all_size);
-        }
+        _taskData.set_from_npu(_data);
         LOG_DXRT_DBG << "NPU Task: imported npu parameters" << endl;
         _devices = CheckDevices();
         LOG_DXRT_DBG << "NPU Task: checked devices" << endl;
-        for(auto &device:_devices)
+        for (auto &device : _devices)
         {
-            DXRT_ASSERT( device->RegisterTask(this)==0, "failed to register task" );
+            DXRT_ASSERT(device->RegisterTask(this) == 0, "failed to register task");
         }
         LOG_DXRT_DBG << "NPU Task created" << endl;
     }
     else
     {
-        _processor = Processor::CPU;
-        _cpuHandle = make_shared<CpuHandle>( _data.front().data(), _data.front().size(), _name );
+        _taskData._processor = Processor::CPU;
+        _cpuHandle = make_shared<CpuHandle>(_data.front().data(), _data.front().size(), _taskData._name);
         // cout << *_cpuHandle << endl;
-        _numInputs = _cpuHandle->_numInputs;
-        _numOutputs = _cpuHandle->_numOutputs;
-        _inputSize = _cpuHandle->_inputSize;
-        _outputSize = _cpuHandle->_outputSize;
-        _outputMemSize = _outputSize;
-        _memUsage = _inputSize + _outputSize;
-        _inputDataType = _cpuHandle->_inputDataType;
-        _outputDataType = _cpuHandle->_outputDataType;
-        _inputNames = _cpuHandle->_inputNames;
-        _outputNames = _cpuHandle->_outputNames;
-        _inputShape = _cpuHandle->_inputShape;
-        _outputShape = _cpuHandle->_outputShape;
-        _inputOffsets = _cpuHandle->_inputOffsets;
-        _outputOffsets = _cpuHandle->_outputOffsets;
-        for(int i=0;i<_numInputs;i++)
-        {
-            _inputTensors.emplace_back(Tensor(_inputNames[i], _inputShape[i], _inputDataType, nullptr));
-        }
-        for(int i=0;i<_numOutputs;i++)
-        {
-            _outputTensors.emplace_back(Tensor(_outputNames[i], _outputShape[i], _outputDataType, nullptr));
-        }
+        _taskData.set_from_cpu(_cpuHandle);
+        _cpuHandle->Start();
+        LOG_DXRT_DBG << "CPU Task created" << endl;
     }
-    _inputTensorQueue = vector<queue<Tensor>>(_numInputs);
     Request::Init();
 }
 
 Task::Task()
-: _latency(30), _infTime(30)
+: _taskData(nextId, "EMPTY", {}), _latency(30), _infTime(30)
 {
-    _id = nextId++;
+    nextId++;
     LOG_DBG("Task created.");
 }
 
@@ -239,62 +92,74 @@ Task::~Task(void)
 
 int Task::InferenceRequest(RequestPtr req)
 {
-    // cout << "Req " << req->id() << ": " << (req->requestor()?req->requestor()->name():"") << " -> " << _name << ", " << _inputTensorQueue.size() << endl;
-    if(_prevTasks.size()>1)
+    LOG_DXRT_DBG << "[" << req->id() << "] " << "- - - - - - - Req " << req->id() << ": " << (req->requestor() ? req->requestor()->name() : "") << " -> " << name() << ", " << _inputTensorQueue.size() << std::endl;
+    if (_prevTasks.size() > 1)
     {
-        unique_lock<mutex> lk(_inputTensorQueueLock);        
+        unique_lock<mutex> lk(_inputTensorQueueLock);
+        //LOG_DXRT_DBG << "[" << req->id() << "] " << "1) Req " << req->id() << ": " << (req->requestor() ? req->requestor()->name() : "") << " -> " << _name << ", " << _inputTensorQueue.size() << std::endl;
         auto &task = req->task();
         auto &requestor = req->requestor();
-        if(requestor)
+        if (requestor)
         {
             //bool multiInputReady = true;
             auto requestorId = requestor->id();
             auto indices = task->input_index()[requestorId];
             int cnt = 0;
-            for(auto &index : indices)
+            int qidx = 0;
+            for (auto &index : indices)
             {
-                // cout << "push " << index << endl;
-                _inputTensorQueue[index].push( req->inputs()[cnt] );
-                cnt++;
+                //_inputTensorQueue[index].push( req->inputs()[cnt] );//Origin?
+                qidx = _inputTensorQueueIdx[requestor->name()];
+                _inputTensorQueue[qidx].push(req->inputs()[index]); //JG
+                LOG_DXRT_DBG << "[" << req->id() << "] " << "push inputTensorQueue[" << qidx << "] req->inputs(" << index << ")" << std::endl;
             }
-            for(auto &q : _inputTensorQueue)
+            for (auto &q : _inputTensorQueue)
             {
-                if(q.empty())
+                if (q.empty())
                 {
-                    // cout << "        multi input NOT Ready" << endl;
+                    LOG_DXRT_DBG << "        multi input NOT Ready - inputTensorQueue[" << cnt << "] is empty" << std::endl;
                     return req->id();
                 }
+                cnt++;
             }
             Tensors inputs;
-            for(auto &q : _inputTensorQueue)
+            for (auto &q : _inputTensorQueue)
             {
-                inputs.emplace_back(q.front());
-                q.pop();
+                while (!q.empty())
+                {
+                    inputs.emplace_back(std::move(q.front()));
+                    q.pop();
+                }
             }
+            LOG_DXRT_DBG << "        multi input Ready, inputs size : " << inputs.size() << std::endl;
             req->inputs() = move(inputs);
-            // cout << "        multi input Ready" << endl;
+            //LOG_DXRT << "[" << req->id() << "] " << "cnt : " << cnt << std::endl;
         }
-    }    
-    if(_processor==Processor::NPU)
+    }
+    if (processor() == Processor::NPU)
     {
+        LOG_DXRT_DBG << "[" << req->id() << "] " << "N) Req " << req->id() << ": " << (req->requestor() ? req->requestor()->name() : "") << " -> " << name() << ", " << _inputTensorQueue.size() << std::endl;
         auto device = PickOneDevice(_devices);
         req->CheckTimePoint(0);
-        req->model_type() = _npuModel.front().type;
+        req->model_type() = _taskData._npuModel.front().type;
         device->InferenceRequest(req);
     }
     else
     {
+        LOG_DXRT_DBG << "[" << req->id() << "] " << "C) Req " << req->id() << ": " << (req->requestor() ? req->requestor()->name() : "") << " -> " << name() << ", " << _inputTensorQueue.size() << std::endl;
         req->CheckTimePoint(0);
         _cpuHandle->InferenceRequest(req);
     }
     return req->id();
 }
+
 int Task::ProcessResponse(RequestPtr req, dxrt_response_t *response)
-{    
+{
     _inferenceCnt++;
     req->CheckTimePoint(1);
-    // cout << "    Response : " << req->id() << ", " << (req->requestor()?req->requestor()->name():"") << " -> " << req->task()->name() << ", " << req->latency() << endl;
-    if(_processor==Processor::NPU)
+    LOG_DXRT_DBG << "[" << req->id() << "] " << "    Response : " << req->id() << ", " << (req->requestor() ? req->requestor()->name() : "") << " -> " << req->task()->name() << ", " << req->latency() << std::endl;
+    _taskData._outputTensors = req->outputs(); 
+    if (processor() == Processor::NPU)
     {
         req->inference_time() = response->inf_time;
     }
@@ -302,58 +167,59 @@ int Task::ProcessResponse(RequestPtr req, dxrt_response_t *response)
     {
         req->inference_time() = req->latency();
     }
-    if(!_nextTasks.empty())
+    if (!_nextTasks.empty())
     {
         // LOG_VALUE(_nextTasks.size());
-        for(auto &next:_nextTasks)
-        {            
-            auto outputs = SelectElements(req->outputs(), _outputTensorIdx[next->id()] );
+        for (auto &next : _nextTasks)
+        {
+            auto outputs = SelectElements(req->outputs(), _outputTensorIdx[next->id()]);
+
             auto nextReq = Request::Create(next.get(), outputs, {}, req->user_arg(), req->last_output_ptr());
-            
+
             nextReq->head() = req->head();
             nextReq->requestor() = req->task();
             nextReq->SetStatus(Request::Status::REQ_BUSY);
-            // cout << *nextReq << endl;
-            // cout << "Req " << nextReq->id() << ": " << _name << " -> " << next->name() << endl;
+            LOG_DXRT_DBG << *nextReq << std::endl;
+            LOG_DXRT_DBG << "Req " << nextReq->id() << ": " << name() << " -> " << next->name() << std::endl;
             next->InferenceRequest(nextReq);
-            // cout << "Req " << nextReq->id() << ": " << _name << " -> " << next->name() << " done" << endl;
-            // cout << "inf. request done" << endl;
+            LOG_DXRT_DBG << "Req " << nextReq->id() << ": " << name() << " -> " << next->name() << " done" << std::endl;
         }
     }
     else
     {
-        LOG_DXRT_DBG << "tail task done: " << _id << ", " << req->id() << endl;
-        if(_processor==Processor::NPU)
+        LOG_DXRT_DBG << "tail task done: " << id() << ", " << req->id() << std::endl;
+        /* move to DeviceOutputThread
+        if (_processor == Processor::NPU)
         {
-            if(req->model_type()==1)
+            if (req->model_type() == 1)
             {
                 // LOG_VALUE(response->argmax);
-                *((uint16_t*)(req->outputs().front().data())) = response->argmax;
-                DataDumpBin(req->task()->name() + "_output.bin", req->outputs());
-
+                *((uint16_t *)(req->outputs().front().data())) = response->argmax;
+                DataDumpBin(req->task()->name() + "_output.argmax.bin", req->outputs());
+                
             }
-            else if(req->model_type()==2)
+            else if (req->model_type() == 2)
             {
                 // LOG_VALUE(response->ppu_filter_num);
                 vector<int64_t> shape{response->ppu_filter_num};
                 req->outputs().front().shape() = shape;
             }
         }
+        */
         auto &head = req->head();
-        if(head->task()!=this)
+        if (head->task() != this)
         {
             head->outputs() = req->outputs();
             head->NotifyCompletion();
             head->SetStatus(Request::Status::REQ_DONE);
-            if(head->complete_cnt()==_completeCnt)
+            if (head->complete_cnt() == _completeCnt)
             {
-                // cout << "tail task done: task" << _id << ", " << req->id() << endl;
                 auto latency = chrono::duration_cast<chrono::microseconds>(req->time_point()->end - head->time_point()->start).count();
                 _ie->PushLatency(latency);
                 _ie->PushInferenceTime(latency);
             }
-        // LOG_VALUE(req->head()->id());
-        // LOG_VALUE(req->head()->latency());
+            // LOG_VALUE(req->head()->id());
+            // LOG_VALUE(req->head()->latency());
         }
         else
         {
@@ -361,20 +227,19 @@ int Task::ProcessResponse(RequestPtr req, dxrt_response_t *response)
             _ie->PushInferenceTime(req->inference_time());
         }
         req->SetStatus(Request::Status::REQ_DONE);
-        if(_callBack!=nullptr)
+        if (_callBack != nullptr)
         {
-            LOG_DXRT_DBG << "task callback" << endl;
+            LOG_DXRT_DBG << "task callback" << std::endl;
             future<void> result = async(launch::async, [&](void){
                 TensorPtrs ret;
-                for(auto &tensor:req->outputs())
+                for (auto &tensor : req->outputs())
                 {
                     ret.emplace_back(
-                        make_shared<Tensor>(tensor)
-                    );
+                        make_shared<Tensor>(tensor));
                 }
                 _callBack(ret, req->user_arg());
-                // _callBack(req->outputs(), req->user_arg());
-            } );
+                // _callBack(req->outputs(), req->user_arg()); });
+            });
         }
     }
     _latency.Push(req->latency());
@@ -409,77 +274,77 @@ void Task::RegisterCallBack(function<int(TensorPtrs &outputs, void *userArg)> f)
 
 int Task::id()
 {
-    return _id;
+    return _taskData.id();
 }
 string Task::name()
 {
-    return _name;
+    return _taskData.name();
 }
 
 void *Task::input_buf(int deviceId, int bufId)
 {
-    return _devices[deviceId]->input_buf(_id, bufId);
+    return _devices[deviceId]->input_buf(_taskData.id(), bufId);
 }
 
 Tensors Task::inputs(void* ptr, uint64_t phyAddr)
 {
-    if(ptr==nullptr)
+    if (ptr == nullptr)
     {
-        return _inputTensors;
+        return _taskData._inputTensors;
     }
     else
     {
-        Tensors ret(_inputTensors);
-        int i=0;
-        for(auto &t:ret)
+        Tensors ret(_taskData._inputTensors);
+        int i = 0;
+        for (auto &t : ret)
         {
-            t.data() = static_cast<void*>(static_cast<uint8_t*>(ptr) + _inputOffsets[i]);
-            t.phy_addr() = phyAddr + _inputOffsets[i];
+            t.data() = static_cast<void*>(static_cast<uint8_t*>(ptr) + _taskData._inputOffsets[i]);
+            t.phy_addr() = phyAddr + _taskData._inputOffsets[i];
             i++;
         }
         return ret;
     }
-    return _inputTensors;
+    return _taskData._inputTensors;
 }
 
 Tensors Task::outputs(void* ptr, uint64_t phyAddr)
 {
-    if(ptr==nullptr)
+    if (ptr == nullptr)
     {
-        return _outputTensors;
+        return _taskData._outputTensors;
     }
     else
     {
-        Tensors ret(_outputTensors);
-        int i=0;
-        for(auto &t:ret)
+        Tensors ret(_taskData._outputTensors);
+        int i = 0;
+        for (auto &t : ret)
         {
-            t.data() = static_cast<void*>(static_cast<uint8_t*>(ptr) + _outputOffsets[i]);
-            t.phy_addr() = phyAddr + _outputOffsets[i];
+            t.data() = static_cast<void*>(static_cast<uint8_t*>(ptr) + _taskData._outputOffsets[i]);
+            t.phy_addr() = phyAddr + _taskData._outputOffsets[i];
             i++;
         }
         return ret;
     }
-    return _outputTensors;
+    return _taskData._outputTensors;
 }
 
 Processor Task::processor()
 {
-    return _processor;
+    return _taskData._processor;
 }
 
 uint32_t Task::input_size()
 {
-    return _inputSize;
+    return _taskData._inputSize;
 }
 
 uint32_t Task::output_size()
 {
-    return _outputSize;
+    return _taskData._outputSize;
 }
 uint32_t Task::output_mem_size()
 {
-    return _outputMemSize;
+    return _taskData._outputMemSize;
 }
 map<int, vector<int>> &Task::input_index()
 {
@@ -489,6 +354,13 @@ map<int, vector<int>> &Task::output_index()
 {
     return _outputTensorIdx;
 }
+void Task::input_name_order(const std::vector<string>& order) {
+    _inputNameOrder = order;
+}
+
+const std::vector<string>& Task::input_name_order() const {
+    return _inputNameOrder;
+}
 atomic<int> &Task::inference_count()
 {
     return _inferenceCnt;
@@ -496,11 +368,11 @@ atomic<int> &Task::inference_count()
 
 vector<rmapinfo> Task::npu_param()
 {
-    return _infos;
+    return _taskData._infos;
 }
 vector<dxrt_model_t> Task::npu_model()
 {
-    return _npuModel;
+    return _taskData._npuModel;
 }
 TaskPtr &Task::next()
 {
@@ -509,6 +381,19 @@ TaskPtr &Task::next()
 TaskPtrs &Task::prevs()
 {
     return _prevTasks;
+}
+map<string, int> &Task::input_tensor_queue_idx()
+{
+    return _inputTensorQueueIdx;
+}
+vector<queue<Tensor>> &Task::input_tensor_queue()
+{
+    return _inputTensorQueue;
+}
+vector<queue<Tensor>> &Task::input_tensor_queue_set(size_t size)
+{
+    _inputTensorQueue = vector<queue<Tensor>>(size);
+    return _inputTensorQueue;
 }
 TaskPtrs &Task::nexts()
 {
@@ -524,7 +409,7 @@ bool &Task::is_tail()
 }
 bool &Task::is_argmax()
 {
-    return _isArgMax;
+    return _taskData._isArgMax;
 }
 std::function<int(TensorPtrs&, void*)> Task::callback()
 {
@@ -532,13 +417,13 @@ std::function<int(TensorPtrs&, void*)> Task::callback()
 }
 int Task::latency()
 {
-    if(_latency.IsEmpty())
+    if (_latency.IsEmpty())
         return 0;
     return _latency.Get();
 }
 uint32_t Task::inference_time()
 {
-    if(_infTime.IsEmpty())
+    if (_infTime.IsEmpty())
         return 0;
     return _infTime.Get();
 }
@@ -553,12 +438,12 @@ InferenceEngine* &Task::inference_engine()
 
 ostream& operator<<(ostream& os, const Task& task)
 {
-    os << dec << "  Task[" << task._id << "] " << task._name << ", " << task._processor 
-        << ", " << task._memUsage << "bytes (input " << task._inputSize << ", output " << task._outputSize << ")" << endl;
+    os << dec << "  Task[" << task._taskData._id << "] " << task._taskData._name << ", " << task._taskData._processor
+        << ", " << task._taskData._memUsage << "bytes (input " << task._taskData._inputSize << ", output " << task._taskData._outputSize << ")" << endl;
     os << "    inputs" << endl;
-    for(auto &tensor : task._inputTensors) os << "      " << tensor << endl;
+    for (auto &tensor : task._taskData._inputTensors) os << "      " << tensor << endl;
     os << "    outputs" << endl;
-    for(auto &tensor : task._outputTensors) os << "      " << tensor << endl;    
+    for (auto &tensor : task._taskData._outputTensors) os << "      " << tensor << endl;
     /*for(auto &device : task._devices)
     {
         // os << *device << endl;
@@ -584,4 +469,4 @@ ostream& operator<<(ostream& os, const Task& task)
 /* TODO : Devices */
 /* TODO : Create Task MAP */
 
-} // namespace dxrt
+}  // namespace dxrt

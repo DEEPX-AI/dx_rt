@@ -10,9 +10,9 @@ namespace dxrt {
 class CLI
 {
 public:
-    CLI(cxxopts::ParseResult &);
-    ~CLI();
-    void Run();
+    DXRT_API CLI(cxxopts::ParseResult &);
+    DXRT_API ~CLI();
+    DXRT_API void Run();
 private:
     cxxopts::ParseResult _cmd;
     int _resetOpt = -1;

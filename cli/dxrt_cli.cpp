@@ -1,7 +1,9 @@
 // Copyright (c) 2022 DEEPX Corporation. All rights reserved.
 // Licensed under the MIT License.
 
+#ifdef __linux__
 #include <getopt.h>
+#endif
 #include <vector>
 #include <sstream>
 #include "dxrt/dxrt_api.h"

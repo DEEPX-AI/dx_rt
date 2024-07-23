@@ -4,7 +4,11 @@
 #include "dxrt/common.h"
 #include "dxrt/driver.h"
 #include <map>
-#include <linux/ioctl.h>
+#ifdef __linux__
+    #include <linux/ioctl.h>
+#elif _WIN32
+    #include <windows.h>
+#endif
 
 #include<sstream>
 
@@ -12,7 +16,7 @@ using namespace std;
 
 namespace dxrt {
 
-vector<pair<int,string>> ioctlTable = {
+DXRT_API vector<pair<int,string>> ioctlTable = {
     { dxrt::dxrt_ioctl_t::DXRT_IOCTL_MESSAGE, "IOCTL_MESSAGE" },
     { dxrt::dxrt_ioctl_t::DXRT_IOCTL_DUMMY, "IOCTL_DUMMY" },
 };
@@ -30,7 +34,7 @@ std::ostream& operator<<(std::ostream& os, const dxrt_error_t& error)
     os << errTable[error] ;
     return os;
 }
-std::string ErrTable(dxrt_error_t error)
+DXRT_API std::string ErrTable(dxrt_error_t error)
 {
     return errTable[error];
 }
@@ -102,7 +106,11 @@ std::ostream& operator<<(std::ostream& os, const dxrt_device_info_t& info)
         << "board type " << info.bd_type << ", "
         << "ddr freq " << info.ddr_freq << ", "
         << "ddr type " << info.ddr_type << ", "
+#ifdef __linux__        
         << "interface " << info.interface << ", "
+#elif _WIN32
+        << "interface " << info.interface_value << ", "
+#endif
         << string(info.fw_info)
         << dec;
     return os;

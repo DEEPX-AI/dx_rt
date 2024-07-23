@@ -13,7 +13,7 @@ namespace dxrt {
 /** \brief model test data information
  * \headerfile "dxrt/dxrt_api.h"
 */
-struct TestData
+struct DXRT_API TestData
 {
     TestData(int id_, std::string inputFile_, std::vector<std::string> refOutputFile_, std::string outputFile_, 
         std::string modelPath_, uint32_t inputSize, uint32_t outputSize);

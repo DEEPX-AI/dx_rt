@@ -9,7 +9,11 @@
 #include "dxrt/tensor.h"
 #include <string.h>
 #include <cmath>
-#include <sys/time.h>
+#ifdef __linux__
+    #include <sys/time.h>
+#elif _WIN32
+    #include <windows.h>
+#endif
 #include <time.h>
 #include <iostream>
 #include <iomanip>
@@ -20,24 +24,24 @@
 #define data_align(x, a) ( a*( x/a) + (int)(((x%a)>0) ? a : 0) )
 
 namespace dxrt {
-std::vector<int> RandomSequence(int n);
-unsigned int RandomValue();
-std::vector<std::string> StringSplit(std::string s, std::string divid);    
-int DataCompare(DataType type, void *d1, void *d2, int size); /* 0 : data same, -1 : different at offset zero, n(>0) : different at offset n */
-int DataCompare(void *d1, void *d2, int size); /* 0 : data same, -1 : different at offset zero, n(>0) : different at offset n */
-int DataCompare(std::string f1, std::string f2);
-int DataCompare(std::string f1, std::string f2, std::string path, std::string *logBuf=nullptr, int log_en=0, int type=1);
-int DataCompare(std::string f1, std::string f2, deepx_rmapinfo::RegisterInfoDatabase Cfg, std::string *logBuf=nullptr, int log_en=0, int type=0);
-int DataCompare(char *f1, char *f2, deepx_rmapinfo::RegisterInfoDatabase Cfg, std::string *logBuf=nullptr, int log_en=0, int type=0);
+DXRT_API std::vector<int> RandomSequence(int n);
+DXRT_API unsigned int RandomValue();
+DXRT_API std::vector<std::string> StringSplit(std::string s, std::string divid);
+DXRT_API int DataCompare(DataType type, void *d1, void *d2, int size); /* 0 : data same, -1 : different at offset zero, n(>0) : different at offset n */
+DXRT_API int DataCompare(void *d1, void *d2, int size); /* 0 : data same, -1 : different at offset zero, n(>0) : different at offset n */
+DXRT_API int DataCompare(std::string f1, std::string f2);
+DXRT_API int DataCompare(std::string f1, std::string f2, std::string path, std::string *logBuf=nullptr, int log_en=0, int type=1);
+DXRT_API int DataCompare(std::string f1, std::string f2, deepx_rmapinfo::RegisterInfoDatabase Cfg, std::string *logBuf=nullptr, int log_en=0, int type=0);
+DXRT_API int DataCompare(char *f1, char *f2, deepx_rmapinfo::RegisterInfoDatabase Cfg, std::string *logBuf=nullptr, int log_en=0, int type=0);
 //int GetDataSize(deepx_rmapinfo::DataType dType);
-int DataFromFile(std::string f, void *d);
-void DataFromFile(std::string f, void *d, unsigned int size);
-void DataDumpBin(std::string filename, void *data, unsigned int size);
-uint32_t SizeFromFile(std::string f);
-std::vector<std::string> GetFileList(std::string dir);
-uint64_t GetAlign64(uint64_t size);
-void* MemAlloc(size_t size, size_t align=8, int value=0);
-void MemFree(void **p);
+DXRT_API int DataFromFile(std::string f, void *d);
+DXRT_API void DataFromFile(std::string f, void *d, unsigned int size);
+DXRT_API void DataDumpBin(std::string filename, void *data, unsigned int size);
+DXRT_API uint32_t SizeFromFile(std::string f);
+DXRT_API std::vector<std::string> GetFileList(std::string dir);
+DXRT_API uint64_t GetAlign64(uint64_t size);
+DXRT_API void* MemAlloc(size_t size, size_t align=8, int value=0);
+DXRT_API void MemFree(void **p);
 template< typename T >
 std::string int_to_hex( T i )
 {
@@ -86,14 +90,22 @@ std::vector<T> SelectElements(vector<T>& org, vector<int>& indices)
 
 static inline void get_start_time(struct timeval *s)
 {
+#ifdef __linux__
 	gettimeofday(s, NULL);
+#elif _WIN32
+    LARGE_INTEGER counter, freq;
+    QueryPerformanceCounter(&counter);
+    QueryPerformanceFrequency(&freq);
+    s->tv_sec = counter.QuadPart / freq.QuadPart;
+    s->tv_usec = (long)((counter.QuadPart % freq.QuadPart) * 1000000 / freq.QuadPart);
+#endif
 }
 static inline uint64_t get_elapsed_time(struct timeval s)
 {
 	struct timeval e;
 	uint64_t elapsed;
 
-	gettimeofday(&e, NULL);
+    get_start_time(&e);
 
 	e.tv_sec = e.tv_sec - s.tv_sec;
 	if (e.tv_usec < s.tv_usec) {
@@ -109,6 +121,6 @@ static inline uint64_t get_elapsed_time(struct timeval s)
 }
 
 //TODO: enum refactorying required
-int GetDataSize_rmapinfo_datatype(deepx_rmapinfo::DataType dType);
-int GetDataSize_Datatype(DataType dType);
+DXRT_API int GetDataSize_rmapinfo_datatype(deepx_rmapinfo::DataType dType);
+DXRT_API int GetDataSize_Datatype(DataType dType);
 } // namespace dxrt

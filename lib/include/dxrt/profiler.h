@@ -16,7 +16,7 @@ namespace dxrt {
 // using ProfilerClock = std::chrono::high_resolution_clock;
 using ProfilerClock = std::chrono::steady_clock;
 // using ProfilerClock = std::chrono::system_clock;
-struct TimePoint
+struct DXRT_API TimePoint
 {
     ProfilerClock::time_point start;
     ProfilerClock::time_point end;
@@ -26,7 +26,7 @@ using TimePointPtr = std::shared_ptr<TimePoint>;
 /** \brief This class provides time measurement API based on timestamp.
  * \headerfile "dxrt/dxrt_api.h"
 */
-class Profiler
+class DXRT_API Profiler
 {
 public:
     /** \brief Get pre-created instance. (Don't create your own instance.)

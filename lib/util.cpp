@@ -517,15 +517,35 @@ void DataDumpBin(string filename, void *data, unsigned int size)
 vector<string> GetFileList(string dir)
 {
     vector<string> v;
+#ifdef __linux__
     DIR* p = opendir(dir.c_str());
-    struct dirent *dp;
-    while((dp = readdir(p)) != NULL)
+    struct dirent* dp;
+    while ((dp = readdir(p)) != NULL)
     {
         // cout << dp->d_name << "===" << endl;
-        if(strcmp(dp->d_name, ".")!=0 && strcmp(dp->d_name, "..")!=0)
+        if (strcmp(dp->d_name, ".") != 0 && strcmp(dp->d_name, "..") != 0)
             v.emplace_back(dp->d_name);
     }
     closedir(p);
+#elif _WIN32
+    WIN32_FIND_DATA findFileData;
+    HANDLE hFind = FindFirstFile((dir + "\\*").c_str(), &findFileData);
+
+    if (hFind != INVALID_HANDLE_VALUE)
+    {
+        do
+        {
+            if (strcmp(findFileData.cFileName, ".") != 0 &&
+                strcmp(findFileData.cFileName, "..") != 0)
+            {
+                v.emplace_back(findFileData.cFileName);
+            }
+        } while (FindNextFile(hFind, &findFileData) != 0);
+
+        FindClose(hFind);
+    }
+#endif
+
     return v;
 }
 
@@ -585,6 +605,7 @@ int DataCompare(DataType type, void *d1, void *d2, int size)
 void* MemAlloc(size_t size, size_t align, int value)
 {
     void *mem = NULL;
+#ifdef __linux__
     int rc = posix_memalign((void**)&mem, align, size);
     if(rc==EINVAL)
     {
@@ -596,6 +617,22 @@ void* MemAlloc(size_t size, size_t align, int value)
         cout << "Error: posix_memalign returned ENOMEM." << endl;
         return mem;
     }
+#elif _WIN32
+    mem = _aligned_malloc(size, align);
+    if (!mem)
+    {
+        if (errno == EINVAL)
+        {
+            std::cout << "Error: _aligned_malloc returned EINVAL." << std::endl;
+        }
+        else
+        {
+            std::cout << "Error: _aligned_malloc failed to allocate memory." << std::endl;
+        }
+        return mem;
+    }
+#endif
+
     if (value != 0)
     {
         LOG_DBG( "Default value of allocation memory:"<< value );
@@ -609,10 +646,14 @@ void* MemAlloc(size_t size, size_t align, int value)
 }
 void MemFree(void **p)
 {
-    if(*p!=nullptr)
+    if (*p != nullptr)
     {
+#ifdef __linux__
         free(*p);
-        *p = nullptr;
+#elif _WIN32
+        _aligned_free(p);
+#endif
+        * p = nullptr;
     }
 }
 

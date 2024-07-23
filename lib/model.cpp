@@ -9,7 +9,9 @@
 #include <stdio.h>
 #include <errno.h>
 #include "dxrt/filesys_support.h"
-#include <cxxabi.h>
+#ifdef __linux__
+    #include <cxxabi.h>
+#endif
 
 using namespace std;
 using namespace rapidjson;
@@ -59,14 +61,7 @@ static string dataFormatTable[] =
 	"NHWC",
 	"NHW"
 };
-int ParseModel(string file)
-{
-    InferenceEngine ie(file);
-    // cout << ie << endl;
-    // auto modelData = LoadModelParam(file);
-    // cout << modelData << endl;
-    return 0;
-}
+
 ModelDataBase LoadModelParam(string file)
 {
     ModelDataBase param;
@@ -349,20 +344,37 @@ deepx_graphinfo::GraphInfoDatabase LoadGraphInfo(ModelDataBase data)
                     }
                 }
             }
-
             // [field]-"outputs"
             if (graphObj.HasMember("outputs") && graphObj["outputs"].IsObject()) {
                 const Value& outputsObj = graphObj["outputs"];
                 for (Value::ConstMemberIterator iter = outputsObj.MemberBegin(); iter != outputsObj.MemberEnd(); ++iter) {
-                    deepx_graphinfo::KeyValueInfo keyVal;
-                    keyVal.key() = iter->name.GetString();
-                    const Value& value = iter->value;
-                    for (SizeType i = 0; i < value.Size(); i++) {
-                        if (value[i].IsString())
-                            keyVal.val() = value[i].GetString();
+                    if (iter->name.IsString()) {
+                        const Value& value = iter->value;
+                        if (value.Size() > 0){
+                            for (SizeType i = 0; i < value.Size(); i++) {
+                                if (value[i].IsString()) {
+                                    deepx_graphinfo::KeyValueInfo keyVal;
+                                    keyVal.key() = iter->name.GetString();
+                                    keyVal.val() = value[i].GetString(); 
+                                    graph.outputs().push_back(keyVal);
+                                }
+                            }
+                        }
+                        else{
+                            deepx_graphinfo::KeyValueInfo keyVal;
+                            keyVal.key() = iter->name.GetString();
+                            graph.outputs().push_back(keyVal);
+                        }
                     }
-                    graph.outputs().push_back(keyVal);
                 }
+            }
+            cout << "\n - - show graph inputs - - "<< endl;
+            for(const auto& item : graph._inputs) {
+                cout << " - - - - Key: " << item._key << ", Value: " << item._val << std::endl;
+            }
+            cout << "\n - - show graph outputs - - "<< endl;
+            for(const auto& item : graph._outputs) {
+                cout << " - - - - Key: " << item._key << ", Value: " << item._val << std::endl;
             }
             param.m_graph().push_back(graph);
         }
@@ -374,7 +386,6 @@ deepx_graphinfo::GraphInfoDatabase LoadGraphInfo(ModelDataBase data)
         for (SizeType i = 0; i < toposortOrderArray.Size(); i++)
             param.topoSort_order().push_back(toposortOrderArray[i].GetString());
     }
-
     return param;
 }
 

@@ -79,25 +79,25 @@ $(function() {
 <div class="line"><a name="l00007"></a><span class="lineno">    7</span>&#160; </div>
 <div class="line"><a name="l00011"></a><span class="lineno">   11</span>&#160;<span class="keyword">namespace </span><a class="code" href="namespacedxrt.html">dxrt</a> {</div>
 <div class="line"><a name="l00012"></a><span class="lineno">   12</span>&#160; </div>
-<div class="line"><a name="l00013"></a><span class="lineno"><a class="line" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3">   13</a></span>&#160;<span class="keyword">enum</span> <a class="code" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3">DataType</a></div>
+<div class="line"><a name="l00013"></a><span class="lineno">   13</span>&#160;<span class="keyword">enum</span> DXRT_API DataType</div>
 <div class="line"><a name="l00014"></a><span class="lineno">   14</span>&#160;{</div>
 <div class="line"><a name="l00015"></a><span class="lineno">   15</span>&#160;    NONE_TYPE = 0,</div>
-<div class="line"><a name="l00016"></a><span class="lineno"><a class="line" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3ade4c5a3ca715133231f8bd84202e19ed">   16</a></span>&#160;    <a class="code" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3ade4c5a3ca715133231f8bd84202e19ed">UINT8</a>,   </div>
-<div class="line"><a name="l00017"></a><span class="lineno"><a class="line" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3a3d69d5a6f1d5d61e0d4888e6893547cc">   17</a></span>&#160;    <a class="code" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3a3d69d5a6f1d5d61e0d4888e6893547cc">UINT16</a>,  </div>
-<div class="line"><a name="l00018"></a><span class="lineno"><a class="line" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3a8b67cfb9962eea4e64616eea29a9fc3c">   18</a></span>&#160;    <a class="code" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3a8b67cfb9962eea4e64616eea29a9fc3c">UINT32</a>,  </div>
-<div class="line"><a name="l00019"></a><span class="lineno"><a class="line" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3a3957172704f2a6ae51a37bac3f0345ce">   19</a></span>&#160;    <a class="code" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3a3957172704f2a6ae51a37bac3f0345ce">INT8</a>,    </div>
-<div class="line"><a name="l00020"></a><span class="lineno"><a class="line" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3ab396fd9999ac8cbcea3babf3631ec741">   20</a></span>&#160;    <a class="code" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3ab396fd9999ac8cbcea3babf3631ec741">INT16</a>,   </div>
-<div class="line"><a name="l00021"></a><span class="lineno"><a class="line" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3a4204a547f0bafbf132aeb7baf4063803">   21</a></span>&#160;    <a class="code" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3a4204a547f0bafbf132aeb7baf4063803">INT32</a>,   </div>
-<div class="line"><a name="l00022"></a><span class="lineno"><a class="line" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3adc3bc24e12afff0f5eb850524838d942">   22</a></span>&#160;    <a class="code" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3adc3bc24e12afff0f5eb850524838d942">FLOAT</a>,   </div>
-<div class="line"><a name="l00023"></a><span class="lineno"><a class="line" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3a2db25cb6692b4f3de82d436163c16179">   23</a></span>&#160;    <a class="code" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3a2db25cb6692b4f3de82d436163c16179">BBOX</a>,   </div>
-<div class="line"><a name="l00024"></a><span class="lineno"><a class="line" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3ac406df6d0d4fa29463fb8f52641bf8ad">   24</a></span>&#160;    <a class="code" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3ac406df6d0d4fa29463fb8f52641bf8ad">FACE</a>,   </div>
-<div class="line"><a name="l00025"></a><span class="lineno"><a class="line" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3ac285a20ae7081cd3b5dcf8820eda7cdf">   25</a></span>&#160;    <a class="code" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3ac285a20ae7081cd3b5dcf8820eda7cdf">POSE</a>,   </div>
+<div class="line"><a name="l00016"></a><span class="lineno">   16</span>&#160;    UINT8,   </div>
+<div class="line"><a name="l00017"></a><span class="lineno">   17</span>&#160;    UINT16,  </div>
+<div class="line"><a name="l00018"></a><span class="lineno">   18</span>&#160;    UINT32,  </div>
+<div class="line"><a name="l00019"></a><span class="lineno">   19</span>&#160;    INT8,    </div>
+<div class="line"><a name="l00020"></a><span class="lineno">   20</span>&#160;    INT16,   </div>
+<div class="line"><a name="l00021"></a><span class="lineno">   21</span>&#160;    INT32,   </div>
+<div class="line"><a name="l00022"></a><span class="lineno">   22</span>&#160;    FLOAT,   </div>
+<div class="line"><a name="l00023"></a><span class="lineno">   23</span>&#160;    BBOX,   </div>
+<div class="line"><a name="l00024"></a><span class="lineno">   24</span>&#160;    FACE,   </div>
+<div class="line"><a name="l00025"></a><span class="lineno">   25</span>&#160;    POSE,   </div>
 <div class="line"><a name="l00026"></a><span class="lineno">   26</span>&#160;    MAX_TYPE,</div>
 <div class="line"><a name="l00027"></a><span class="lineno">   27</span>&#160;};</div>
-<div class="line"><a name="l00028"></a><span class="lineno">   28</span>&#160;<span class="keyword">extern</span> std::string DataTypeToString(<a class="code" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3">DataType</a> type);</div>
-<div class="line"><a name="l00029"></a><span class="lineno">   29</span>&#160;std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> <a class="code" href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3">DataType</a>&amp;);</div>
+<div class="line"><a name="l00028"></a><span class="lineno">   28</span>&#160;DXRT_API std::string DataTypeToString(DataType type);</div>
+<div class="line"><a name="l00029"></a><span class="lineno">   29</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> DataType&amp;);</div>
 <div class="line"><a name="l00030"></a><span class="lineno">   30</span>&#160; </div>
-<div class="line"><a name="l00031"></a><span class="lineno">   31</span>&#160;<span class="keyword">typedef</span> <span class="keyword">struct </span>{</div>
+<div class="line"><a name="l00031"></a><span class="lineno">   31</span>&#160;<span class="keyword">typedef</span> <span class="keyword">struct </span>DXRT_API {</div>
 <div class="line"><a name="l00032"></a><span class="lineno">   32</span>&#160;    <span class="keywordtype">float</span> x;</div>
 <div class="line"><a name="l00033"></a><span class="lineno">   33</span>&#160;    <span class="keywordtype">float</span> y;</div>
 <div class="line"><a name="l00034"></a><span class="lineno">   34</span>&#160;    <span class="keywordtype">float</span> w;</div>
@@ -111,7 +111,7 @@ $(function() {
 <div class="line"><a name="l00042"></a><span class="lineno">   42</span>&#160;    <span class="keywordtype">char</span> padding[4];</div>
 <div class="line"><a name="l00043"></a><span class="lineno">   43</span>&#160;} DeviceBoundingBox_t;</div>
 <div class="line"><a name="l00044"></a><span class="lineno">   44</span>&#160; </div>
-<div class="line"><a name="l00048"></a><span class="lineno"><a class="line" href="structdxrt_1_1DeviceFace__t.html">   48</a></span>&#160;<span class="keyword">typedef</span> <span class="keyword">struct </span>{</div>
+<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;<span class="keyword">typedef</span> <span class="keyword">struct </span>DXRT_API {</div>
 <div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160;    <span class="keywordtype">float</span> x;</div>
 <div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160;    <span class="keywordtype">float</span> y;</div>
 <div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;    <span class="keywordtype">float</span> w;</div>
@@ -122,8 +122,8 @@ $(function() {
 <div class="line"><a name="l00056"></a><span class="lineno">   56</span>&#160;    uint8_t layer_idx;</div>
 <div class="line"><a name="l00057"></a><span class="lineno">   57</span>&#160;    <span class="keywordtype">float</span> score;</div>
 <div class="line"><a name="l00058"></a><span class="lineno">   58</span>&#160;    <span class="keywordtype">float</span> kpts[5][2];</div>
-<div class="line"><a name="l00059"></a><span class="lineno">   59</span>&#160;} <a class="code" href="structdxrt_1_1DeviceFace__t.html">DeviceFace_t</a>;</div>
-<div class="line"><a name="l00063"></a><span class="lineno"><a class="line" href="structdxrt_1_1DevicePose__t.html">   63</a></span>&#160;<span class="keyword">typedef</span> <span class="keyword">struct </span>{</div>
+<div class="line"><a name="l00059"></a><span class="lineno">   59</span>&#160;} <a class="code" href="namespacedxrt.html#ab574f3d576e9116720420cedca3ff9bf">DeviceFace_t</a>;</div>
+<div class="line"><a name="l00063"></a><span class="lineno">   63</span>&#160;<span class="keyword">typedef</span> <span class="keyword">struct </span>DXRT_API {</div>
 <div class="line"><a name="l00064"></a><span class="lineno">   64</span>&#160;    <span class="keywordtype">float</span> x;</div>
 <div class="line"><a name="l00065"></a><span class="lineno">   65</span>&#160;    <span class="keywordtype">float</span> y;</div>
 <div class="line"><a name="l00066"></a><span class="lineno">   66</span>&#160;    <span class="keywordtype">float</span> w;</div>
@@ -136,24 +136,13 @@ $(function() {
 <div class="line"><a name="l00073"></a><span class="lineno">   73</span>&#160;    uint32_t label;</div>
 <div class="line"><a name="l00074"></a><span class="lineno">   74</span>&#160;    <span class="keywordtype">float</span> kpts[17][3];</div>
 <div class="line"><a name="l00075"></a><span class="lineno">   75</span>&#160;    <span class="keywordtype">char</span> padding[24];</div>
-<div class="line"><a name="l00076"></a><span class="lineno">   76</span>&#160;} <a class="code" href="structdxrt_1_1DevicePose__t.html">DevicePose_t</a>;</div>
+<div class="line"><a name="l00076"></a><span class="lineno">   76</span>&#160;} <a class="code" href="namespacedxrt.html#a97943489f0354a7170736555f596161c">DevicePose_t</a>;</div>
 <div class="line"><a name="l00077"></a><span class="lineno">   77</span>&#160; </div>
 <div class="line"><a name="l00078"></a><span class="lineno">   78</span>&#160;} <span class="comment">// namespace dxrt</span></div>
 </div><!-- fragment --></div><!-- contents -->
-<div class="ttc" id="anamespacedxrt_html_ab77b34051412213844efe193b50e53e3a3957172704f2a6ae51a37bac3f0345ce"><div class="ttname"><a href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3a3957172704f2a6ae51a37bac3f0345ce">dxrt::INT8</a></div><div class="ttdeci">@ INT8</div><div class="ttdoc">8bit signed integer</div><div class="ttdef"><b>Definition:</b> datatype.h:19</div></div>
-<div class="ttc" id="anamespacedxrt_html_ab77b34051412213844efe193b50e53e3a8b67cfb9962eea4e64616eea29a9fc3c"><div class="ttname"><a href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3a8b67cfb9962eea4e64616eea29a9fc3c">dxrt::UINT32</a></div><div class="ttdeci">@ UINT32</div><div class="ttdoc">32bit unsigned integer</div><div class="ttdef"><b>Definition:</b> datatype.h:18</div></div>
-<div class="ttc" id="anamespacedxrt_html_ab77b34051412213844efe193b50e53e3"><div class="ttname"><a href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3">dxrt::DataType</a></div><div class="ttdeci">DataType</div><div class="ttdef"><b>Definition:</b> datatype.h:13</div></div>
-<div class="ttc" id="anamespacedxrt_html_ab77b34051412213844efe193b50e53e3a4204a547f0bafbf132aeb7baf4063803"><div class="ttname"><a href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3a4204a547f0bafbf132aeb7baf4063803">dxrt::INT32</a></div><div class="ttdeci">@ INT32</div><div class="ttdoc">32bit signed integer</div><div class="ttdef"><b>Definition:</b> datatype.h:21</div></div>
-<div class="ttc" id="anamespacedxrt_html_ab77b34051412213844efe193b50e53e3ac285a20ae7081cd3b5dcf8820eda7cdf"><div class="ttname"><a href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3ac285a20ae7081cd3b5dcf8820eda7cdf">dxrt::POSE</a></div><div class="ttdeci">@ POSE</div><div class="ttdoc">custom structure for poses boxes from device</div><div class="ttdef"><b>Definition:</b> datatype.h:25</div></div>
-<div class="ttc" id="anamespacedxrt_html_ab77b34051412213844efe193b50e53e3a2db25cb6692b4f3de82d436163c16179"><div class="ttname"><a href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3a2db25cb6692b4f3de82d436163c16179">dxrt::BBOX</a></div><div class="ttdeci">@ BBOX</div><div class="ttdoc">custom structure for bounding boxes from device</div><div class="ttdef"><b>Definition:</b> datatype.h:23</div></div>
-<div class="ttc" id="astructdxrt_1_1DeviceFace__t_html"><div class="ttname"><a href="structdxrt_1_1DeviceFace__t.html">dxrt::DeviceFace_t</a></div><div class="ttdoc">face detection data format from device</div><div class="ttdef"><b>Definition:</b> datatype.h:48</div></div>
-<div class="ttc" id="anamespacedxrt_html_ab77b34051412213844efe193b50e53e3a3d69d5a6f1d5d61e0d4888e6893547cc"><div class="ttname"><a href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3a3d69d5a6f1d5d61e0d4888e6893547cc">dxrt::UINT16</a></div><div class="ttdeci">@ UINT16</div><div class="ttdoc">16it unsigned integer</div><div class="ttdef"><b>Definition:</b> datatype.h:17</div></div>
-<div class="ttc" id="anamespacedxrt_html_ab77b34051412213844efe193b50e53e3ac406df6d0d4fa29463fb8f52641bf8ad"><div class="ttname"><a href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3ac406df6d0d4fa29463fb8f52641bf8ad">dxrt::FACE</a></div><div class="ttdeci">@ FACE</div><div class="ttdoc">custom structure for faces from device</div><div class="ttdef"><b>Definition:</b> datatype.h:24</div></div>
-<div class="ttc" id="astructdxrt_1_1DevicePose__t_html"><div class="ttname"><a href="structdxrt_1_1DevicePose__t.html">dxrt::DevicePose_t</a></div><div class="ttdoc">pose estimation data format from device</div><div class="ttdef"><b>Definition:</b> datatype.h:63</div></div>
-<div class="ttc" id="anamespacedxrt_html_ab77b34051412213844efe193b50e53e3ade4c5a3ca715133231f8bd84202e19ed"><div class="ttname"><a href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3ade4c5a3ca715133231f8bd84202e19ed">dxrt::UINT8</a></div><div class="ttdeci">@ UINT8</div><div class="ttdoc">8bit unsigned integer</div><div class="ttdef"><b>Definition:</b> datatype.h:16</div></div>
+<div class="ttc" id="anamespacedxrt_html_a97943489f0354a7170736555f596161c"><div class="ttname"><a href="namespacedxrt.html#a97943489f0354a7170736555f596161c">dxrt::DevicePose_t</a></div><div class="ttdeci">struct dxrt::DXRT_API DevicePose_t</div><div class="ttdoc">pose estimation data format from device</div></div>
+<div class="ttc" id="anamespacedxrt_html_ab574f3d576e9116720420cedca3ff9bf"><div class="ttname"><a href="namespacedxrt.html#ab574f3d576e9116720420cedca3ff9bf">dxrt::DeviceFace_t</a></div><div class="ttdeci">struct dxrt::DXRT_API DeviceFace_t</div><div class="ttdoc">face detection data format from device</div></div>
 <div class="ttc" id="anamespacedxrt_html"><div class="ttname"><a href="namespacedxrt.html">dxrt</a></div><div class="ttdoc">DXRT C++ APIs are provided in this namespace.</div><div class="ttdef"><b>Definition:</b> buffer.h:8</div></div>
-<div class="ttc" id="anamespacedxrt_html_ab77b34051412213844efe193b50e53e3ab396fd9999ac8cbcea3babf3631ec741"><div class="ttname"><a href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3ab396fd9999ac8cbcea3babf3631ec741">dxrt::INT16</a></div><div class="ttdeci">@ INT16</div><div class="ttdoc">16bit signed integer</div><div class="ttdef"><b>Definition:</b> datatype.h:20</div></div>
-<div class="ttc" id="anamespacedxrt_html_ab77b34051412213844efe193b50e53e3adc3bc24e12afff0f5eb850524838d942"><div class="ttname"><a href="namespacedxrt.html#ab77b34051412213844efe193b50e53e3adc3bc24e12afff0f5eb850524838d942">dxrt::FLOAT</a></div><div class="ttdeci">@ FLOAT</div><div class="ttdoc">32bit float</div><div class="ttdef"><b>Definition:</b> datatype.h:22</div></div>
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
 Generated by &#160;<a href="http://www.doxygen.org/index.html">

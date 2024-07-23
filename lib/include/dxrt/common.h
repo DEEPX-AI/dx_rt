@@ -3,15 +3,33 @@
 
 #pragma once
 
+#ifdef _WIN32
+    #ifdef DXRT_STATIC
+        #define DXRT_API
+    #else
+        #ifdef DXRT_EXPORTS
+            #define DXRT_API __declspec(dllexport)
+        #else
+            #define DXRT_API __declspec(dllimport)
+        #endif
+    #endif
+#else
+    #define DXRT_API
+#endif
+
 #include <string>
 #include <iostream>
 #include <fstream>
 #include <stdint.h>
 #include <vector>
 #include <queue>
-#include <dirent.h>
+#ifdef __linux__
+    #include <dirent.h>
+#endif
 #include <cmath>
-#include <unistd.h>
+#ifdef __linux__
+    #include <unistd.h>
+#endif
 #include <memory>
 #include <functional>
 #include <assert.h>
@@ -57,18 +75,18 @@ namespace dxrt {
 /** @brief Processors 
  * @headerfile "dxrt/dxrt_api.h"
 */
-enum Processor
+enum DXRT_API Processor
 {
     NPU, ///< Neural Processing Unit(dxnn)
     CPU, ///< Central Processing Unit(ONNX)
     NONE_PROCESSOR,
 };
-std::ostream& operator<<(std::ostream&, const Processor&);
+DXRT_API std::ostream& operator<<(std::ostream&, const Processor&);
 
 /* \brief Inference modes 
  * \headerfile "dxrt/dxrt_api.h"
 */
-enum InferenceMode
+enum DXRT_API InferenceMode
 {
     SYNC, // Synchronous inference (wait for device response after inference request)
     ASYNC,// Asynchronous inference (don't wait for device response after inference request)
@@ -76,9 +94,9 @@ enum InferenceMode
 /** @brief CPU cache flush API (Platform-dependent)
  * @headerfile "dxrt/dxrt_api.h"
 */
-int CleanMemIf();
+DXRT_API int CleanMemIf();
 
-std::string DeviceVariant();
+DXRT_API std::string DeviceVariant();
 
 template <typename T>
 T vectorProduct(const std::vector<T>& v)

@@ -14,7 +14,7 @@ class Task;
  * \details Generally, this should be connected to any inference engine objects.
  * \headerfile "dxrt/dxrt_api.h"
 */
-class Tensor
+class DXRT_API Tensor
 {
 public:
     Tensor(std::string name_, std::vector<int64_t> shape_, DataType type_, void *data_=nullptr);
@@ -33,7 +33,7 @@ public:
      * \return address of the element [N, height, width, channel] (N=1 for current ver.)
     */
     void* data(int height, int width, int channel);
-    friend std::ostream& operator<<(std::ostream&, const Tensor&);
+    friend DXRT_API std::ostream& operator<<(std::ostream&, const Tensor&);
 private:
     std::string _name;
     std::vector<int64_t> _shape;
@@ -47,7 +47,7 @@ using Tensors = std::vector<Tensor>;
 using TensorPtr = std::shared_ptr<Tensor>;
 using TensorPtrs = std::vector<std::shared_ptr<Tensor>>;
 
-void DataDumpBin(std::string filename, std::vector<dxrt::Tensor> tensors);
-void DataDumpBin(std::string filename, std::vector<std::shared_ptr<dxrt::Tensor>> tensors);
+DXRT_API void DataDumpBin(std::string filename, std::vector<dxrt::Tensor> tensors);
+DXRT_API void DataDumpBin(std::string filename, std::vector<std::shared_ptr<dxrt::Tensor>> tensors);
 
 } // namespace dxrt

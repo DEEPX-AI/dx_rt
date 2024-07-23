@@ -10,7 +10,11 @@
 #include <string>
 #include <vector>
 #include <cmath>
-#include <sys/time.h>
+#ifdef __linux__
+    #include <sys/time.h>
+#elif _WIN32
+    #include <windows.h>
+#endif
 #include <time.h>
 #include <thread>
 #include <mutex>
@@ -114,7 +118,7 @@ CpuHandle::CpuHandle(void* data_, int64_t size_, string name_)
     // DataDumpBin("tmp.onnx", data_, size_);
     _session = make_shared<Ort::Session>(_env, data_, size_, _sessionOptions);
     Ort::AllocatorWithDefaultOptions allocator;
-    Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault);
+    // Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault);
     _numInputs = _session->GetInputCount();
     _numOutputs = _session->GetOutputCount();
     _inputNames.clear();
@@ -151,11 +155,8 @@ CpuHandle::CpuHandle(void* data_, int64_t size_, string name_)
         Ort::TypeInfo typeInfo = _session->GetInputTypeInfo(i);
         auto tensorInfo = typeInfo.GetTensorTypeAndShapeInfo();
         auto dataType = tensorInfo.GetElementType();
-        if(i==0)
-        {
-            _inputDataType = convertDataType(dataType);
-            _inputDataTypeOrg = (int)dataType;
-        }
+        _inputDataTypes.push_back(convertDataType(dataType)); 
+        _inputDataTypesOrg.push_back((int)dataType);          
         _inputShape.push_back(tensorInfo.GetShape());
         auto size = dxrt::vectorProduct(_inputShape.back()) * convertElementSize(dataType);
         _inputSize += size;
@@ -170,27 +171,25 @@ CpuHandle::CpuHandle(void* data_, int64_t size_, string name_)
         Ort::TypeInfo typeInfo = _session->GetOutputTypeInfo(i);
         auto tensorInfo = typeInfo.GetTensorTypeAndShapeInfo();
         auto dataType = tensorInfo.GetElementType();
-        if(i==0)
-        {
-            _outputDataType = convertDataType(dataType);
-            _outputDataTypeOrg = (int)dataType;
-        }
+        _outputDataTypes.push_back(convertDataType(dataType)); 
+        _outputDataTypesOrg.push_back((int)dataType);          
         _outputShape.push_back(tensorInfo.GetShape());
         auto size = dxrt::vectorProduct(_outputShape.back()) * convertElementSize(dataType);
         _outputSize += size;
         _outputSizes.push_back(size);
+
         if(i<_numOutputs-1)
         {
             _outputOffsets.push_back(_outputSize);
         }
     }
-    _buffer = make_shared<Buffer>(4*(_inputSize + _outputSize));
-    _worker = Worker::Create(_name, Worker::Type::CPU_HANDLE, 1, nullptr, this);
+ 
 }
 CpuHandle::~CpuHandle()
 {
     LOG_DXRT_DBG << endl;
-    _worker->Stop();
+    if (_worker != nullptr)
+        _worker->Stop();
 }
 int CpuHandle::InferenceRequest(RequestPtr req)
 {
@@ -198,75 +197,132 @@ int CpuHandle::InferenceRequest(RequestPtr req)
 }
 void CpuHandle::Run(RequestPtr req)
 {
-    // cout << "CpuHandleRun:" << req->id() << endl;
+    LOG_DXRT_DBG << "CpuHandleRun:" << req->id() << std::endl;
     auto task = req->task();
     if(req->inputs().empty())
     {
         req->inputs() = task->inputs( _buffer->Get(task->input_size()) );
     }
     req->outputs() = task->outputs( _buffer->Get(task->output_size()) );
-    // {
-    //     LOG_VALUE(req->inputs().size());
-    //     LOG_VALUE(req->outputs().size());
-    //     for(auto &t:req->inputs()) cout << t << endl;
-    //     for(auto &t:req->outputs()) cout << t << endl;
-    //     // exit(0);
-    // }
+
     vector<Ort::Value> inputTensors, outputTensors;
     Ort::MemoryInfo memoryInfo = 
         Ort::MemoryInfo::CreateCpu(
             OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault
         );
-    for(int i=0;i<_numInputs;i++)
-    {
-        inputTensors.emplace_back(
-            move(
+
+    auto &input_index = task->input_index();
+    LOG_DXRT_DBG << task->id() << " - _numInputs : " << std::to_string(_numInputs) << std::endl;
+
+    if (!task->is_head() && task->prevs().size() == 1) {
+        LOG_DXRT_DBG << std::to_string(req->requestor()->id()) << std::endl;
+        auto idxs = input_index[req->requestor()->id()];
+        for (int i = 0; i < _numInputs; i++) {
+            int idx = idxs[i];
+            LOG_DXRT_DBG << "CpuHandle : " << req->inputs()[idx].name() << " / i : " << std::to_string(i) << " idx : " << std::to_string(idx) << std::endl;
+            LOG_DXRT_DBG << "_inputShape" << std::endl;
+            int acc = 4;
+            for (int64_t &element : _inputShape[i]) {
+                LOG_DXRT_DBG << element << " ";
+                acc *= element;
+            }
+            LOG_DXRT_DBG << "_inputSizes : " << std::to_string(_inputSizes[i]) << std::endl;
+            LOG_DXRT_DBG << "_inputDataTypesOrg : " << std::to_string(_inputDataTypesOrg[i]) << std::endl;
+        }
+        for (int i = 0; i < _numInputs; i++) {
+            int idx = idxs[i];
+            inputTensors.emplace_back(
+                Ort::Value::CreateTensor(
+                    memoryInfo,
+                    req->inputs()[idx].data(),
+                    _inputSizes[i],
+                    _inputShape[i].data(),
+                    _inputShape[i].size(),
+                    (ONNXTensorElementDataType)_inputDataTypesOrg[i]
+                )
+            );
+        }
+    } else if (!task->is_head() && task->prevs().size() > 1) {
+        LOG_DXRT_DBG << "prev task size : " << task->prevs().size() << std::endl;
+        int idx = 0;
+        for (auto &name : task->input_name_order()) {
+            for (int i = 0; i < _numInputs; i++) {
+                if (req->inputs()[i].name() == name) {
+                    LOG_DXRT_DBG << "- - - name : " << name << " idx : " << idx << " i : " << i << std::endl;
+                    inputTensors.emplace_back(
+                        Ort::Value::CreateTensor(
+                            memoryInfo,
+                            req->inputs()[i].data(),
+                            _inputSizes[idx],
+                            _inputShape[idx].data(),
+                            _inputShape[idx].size(),
+                            (ONNXTensorElementDataType)_inputDataTypesOrg[idx]
+                        )
+                    );
+                }
+            }
+            idx++;
+        }
+    } else {
+        LOG_DXRT_DBG << " task is head, _numInputs :" << _numInputs << std::endl;
+        for (int i = 0; i < _numInputs; i++) {
+            LOG_DXRT_DBG << "CpuHandle : " << req->inputs()[i].name() << " / i : " << std::to_string(i) << std::endl;
+            LOG_DXRT_DBG << "_inputShape" << std::endl;
+            int acc = 4;
+            for (int64_t &element : _inputShape[i]) {
+                LOG_DXRT_DBG << element << " ";
+                acc *= element;
+            }
+            LOG_DXRT_DBG << "_inputSizes : " << std::to_string(_inputSizes[i]) << std::endl;
+            LOG_DXRT_DBG << "_inputDataTypesOrg : " << std::to_string(_inputDataTypesOrg[i]) << std::endl;
+        }
+        for (int i = 0; i < _numInputs; i++) {
+            inputTensors.emplace_back(
                 Ort::Value::CreateTensor(
                     memoryInfo,
                     req->inputs()[i].data(),
                     _inputSizes[i],
                     _inputShape[i].data(),
                     _inputShape[i].size(),
-                    (ONNXTensorElementDataType)_inputDataTypeOrg
+                    (ONNXTensorElementDataType)_inputDataTypesOrg[i]
                 )
-            )
-        );
+            );
+        }
     }
-    for(int i=0;i<_numOutputs;i++)
-    {
+
+    for (int i = 0; i < _numOutputs; i++) {
+        LOG_DXRT_DBG << "CpuHandle : " << req->outputs()[i].name() << " output Tensor processing dtype : " << std::to_string(_outputDataTypesOrg[i]) << " / i : " << std::to_string(i) << std::endl;
         outputTensors.emplace_back(
-            move(
-                Ort::Value::CreateTensor(
-                    memoryInfo,
-                    req->outputs()[i].data(),
-                    _outputSizes[i],
-                    _outputShape[i].data(),
-                    _outputShape[i].size(),
-                    (ONNXTensorElementDataType)_outputDataTypeOrg
-                )
+            Ort::Value::CreateTensor(
+                memoryInfo,
+                req->outputs()[i].data(),
+                _outputSizes[i],
+                _outputShape[i].data(),
+                _outputShape[i].size(),
+                (ONNXTensorElementDataType)_outputDataTypesOrg[i]
             )
         );
     }
-    // cout << "session run start : " << req->id() << endl;
-    // auto &profiler = Profiler::GetInstance();
-    // profiler.Start("ort");
-    // for(auto &x:_inputNamesChar) cout << string(x) << endl;
-    _session->Run( Ort::RunOptions{nullptr},
-        _inputNamesChar.data(), inputTensors.data(), inputTensors.size(),
-        _outputNamesChar.data(), outputTensors.data(), outputTensors.size()
-    );
-    // profiler.End("ort");
-    // DataDumpBin("ort.output.bin", (float*)req->outputs().front().data(), _outputSize);
-    // DataDumpTxt("ort.output.txt", (float*)req->outputs().front().data(), 1, 25200, 85);
-    // LOG_VALUE(profiler.Get("ort"));
-    // cout << "session run end : " << req->id() << endl;
+
+    LOG_DXRT_DBG << "session run start : " << req->id() << std::endl;
+    _session->Run(Ort::RunOptions{nullptr},
+                  _inputNamesChar.data(), inputTensors.data(), inputTensors.size(),
+                  _outputNamesChar.data(), outputTensors.data(), outputTensors.size());
+    LOG_DXRT_DBG << "session run end : " << req->id() << std::endl;
+
     req->task()->ProcessResponse(req, nullptr);
-    // cout << req->latency() << endl;
 }
 void CpuHandle::Terminate()
 {
     _worker->Stop();
 }
+void CpuHandle::Start()
+{
+    _buffer = make_shared<Buffer>(4*(_inputSize + _outputSize));
+    _worker = Worker::Create(_name, Worker::Type::CPU_HANDLE, 1, nullptr, this);
+}
+
+
 #else
 CpuHandle::CpuHandle(void* data_, int64_t size_, string name_) : _name(name_){
 	std::ignore = size_;
@@ -279,6 +335,7 @@ int CpuHandle::InferenceRequest(RequestPtr req) {
 }
 void CpuHandle::Run(RequestPtr req) {std::ignore = req;}
 void CpuHandle::Terminate() {}
+void CpuHandle::Start() {}
 
 #endif
 
@@ -286,11 +343,11 @@ ostream& operator<<(ostream& os, const CpuHandle& c)
 {
     for(int i=0;i<c._numInputs;i++)
     {
-        os << "            input [" << dec << i << "] " << c._inputNames[i] << ", " << c._inputDataType << ", " << c._inputShape[i] << endl;
+        os << "            input [" << dec << i << "] " << c._inputNames[i] << ", " << c._inputDataTypes[i] << ", " << c._inputShape[i] << endl;
     }
     for(int i=0;i<c._numOutputs;i++)
     {
-        os << "            output [" << dec << i << "] " << c._outputNames[i] << ", " << c._outputDataType << ", " << c._outputShape[i] << endl;
+        os << "            output [" << dec << i << "] " << c._outputNames[i] << ", " << c._outputDataTypes[i] << ", " << c._outputShape[i] << endl;
     }
     return os;
 }

@@ -8,7 +8,7 @@ using namespace std;
 
 namespace dxrt {
 
-string DataTypeToString(DataType type)
+DXRT_API string DataTypeToString(DataType type)
 {
     switch (type) {
         case dxrt::DataType::NONE_TYPE: return "NONE_TYPE";

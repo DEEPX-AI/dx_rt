@@ -1,5 +1,15 @@
 cmake_minimum_required(VERSION 3.14)
 project(dxrt DESCRIPTION "DEEPX Runtime SDK")
+
+if (MSVC)
+    if (DEFINED ENV{WindowsSdkDir})
+        set(CMAKE_SYSTEM_PREFIX_PATH "$ENV{WindowsSdkDir}")
+    else()
+        set(CMAKE_SYSTEM_PREFIX_PATH "C:/Program Files (x86)/Windows Kits/10")
+    endif()
+endif()
+
+
 set(CMAKE_CXX_STANDARD_REQUIRED "ON")
 set(CMAKE_CXX_STANDARD "11")
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -29,15 +39,24 @@ include(dxrt.cfg)
 include(dxrt.function)
 
 # global compile options
-if (USE_SHARED_DXRT_LIB)
-    add_compile_options(-W -Wall -pthread -fstrict-volatile-bitfields -fPIC)
+if (MSVC)
+    add_definitions(-D_AMD64_ -D_WIN64 -DWIN64)
 else()
-    add_compile_options(-W -Wall -pthread -fstrict-volatile-bitfields)
+    if (USE_SHARED_DXRT_LIB)
+        add_compile_options(-W -Wall -pthread -fstrict-volatile-bitfields -fPIC)
+    else()
+        add_compile_options(-W -Wall -pthread -fstrict-volatile-bitfields)
+    endif()
 endif()
+
 if (ENABLE_DEBUG_INFO)
-add_compile_options(-g -rdynamic)
+    if (NOT MSVC) 
+        add_compile_options(-g -rdynamic)
+    endif()
 endif()
-add_link_options(-pthread)
+if (NOT MSVC)
+    add_link_options(-pthread)
+endif()
 file(STRINGS build.cfg build_cfg_contents REGEX "^[^/]*[^/].*")
 set(build_cfg_contents "${build_cfg_contents}" CACHE STRING "global compile def.")
 file(STRINGS release.ver release_ver)
@@ -53,16 +72,40 @@ else()
 # add_compile_definitions(USE_ORT)
 endif()
 
+#if(MSVC)
+    #include_directories("C:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared")
+#endif()
+
 if(USE_PYTHON)
     set(PYBIND_INCLUDE_DIR extern/pybind11/include)
     set(PYBIND_TARGET_DIR extern/pybind11)
     get_pybind11()
-    find_package(PythonInterp ${PYBIND11_PYTHON_VERSION} REQUIRED)
+    find_package(Python COMPONENTS Interpreter Development REQUIRED)
+
+    #find_package(PythonInterp ${PYBIND11_PYTHON_VERSION} REQUIRED)
     set(PYTHON_EXECUTABLE ${Python_EXECUTABLE})
+    if (Python_FOUND)
+        execute_process(
+            COMMAND ${Python_EXECUTABLE} -c "import sys; print(sys.version_info.major)"
+            OUTPUT_VARIABLE PYTHON_VERSION_MAJOR
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+
+        execute_process(
+            COMMAND ${Python_EXECUTABLE} -c "import sys; print(sys.version_info.minor)"
+            OUTPUT_VARIABLE PYTHON_VERSION_MINOR
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+
+        # Python 버전을 "X.Y" 형식으로 설정
+        set(PYBIND11_PYTHON_VERSION "${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR}")
+        message(STATUS "Found Python: ${Python_EXECUTABLE} (version ${PYBIND11_PYTHON_VERSION})")
+    else ()
+        message(FATAL_ERROR "Python not found.")
+    endif ()
     include_directories(${PYBIND_INCLUDE_DIR})
     add_subdirectory(${PYBIND_TARGET_DIR} EXCLUDE_FROM_ALL)
     # find python library
-    find_package(PythonLibs REQUIRED)
     include_directories(${PYTHON_INCLUDE_DIRS})
     # include_directories(/usr/include/eigen3)
     add_compile_definitions(USE_PYTHON)

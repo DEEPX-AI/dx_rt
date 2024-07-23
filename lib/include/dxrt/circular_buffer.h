@@ -11,7 +11,7 @@
 
 namespace dxrt {
 template <typename T>
-class CircularBuffer
+class DXRT_API CircularBuffer
 {    
 public:
     CircularBuffer(int size);

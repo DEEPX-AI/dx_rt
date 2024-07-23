@@ -3,22 +3,37 @@
 #include <iostream>
 #include <memory>
 #include <cstring>
-#include <sys/stat.h>
-#include <unistd.h>
+#ifdef __linux__
+    #include <sys/stat.h>
+    #include <unistd.h>
+#elif _WIN32
+    #include <windows.h>
+#endif __linux__
 
 using namespace std;
 
-#define PATH_MAX    (400)
+#ifdef __linux__
+    #define PATH_MAX    (400)
+#elif _WIN32
+    #define MAX_PATH    (400)
+#endif __linux__
+
 string dxrt::getCurrentPath()
 {
+#ifdef __linux__
     char buffer[PATH_MAX];
     if (getcwd(buffer, sizeof(buffer)) != NULL) {
         // std::cout << "Current working directory: " << buffer << std::endl;
+        return string(buffer);
     } else {
         cout <<"getcwd() error" << endl;
         return "";
     }
-    return string(buffer);
+#elif _WIN32
+    TCHAR buffer[MAX_PATH];
+    GetCurrentDirectory(MAX_PATH, buffer);
+    return std::string(buffer);
+#endif
 }
 
 string dxrt::getPath(const string& path)
@@ -29,19 +44,27 @@ string dxrt::getPath(const string& path)
     else if (path.substr(0, 2) == "./" || path.substr(0, 3) == "../")
     {
         char cwd[1024];
+#ifdef __linux__
         if (getcwd(cwd, sizeof(cwd)) != nullptr)
             return string(cwd) + '/' + path;
         else
             return path;
+#elif _WIN32
+        if (GetCurrentDirectory(sizeof(cwd), cwd) != 0)
+            return string(cwd) + '/' + path;
+        else
+            return path;
+#endif
     }
     return path;
 }
 
 string dxrt::getAbsolutePath(const string& path)
 {
-    if(path.length() < 1)return "";
-    if(path[0]=='\\')return path;
-    char* resolvedPath = realpath(path.c_str(),NULL);
+    if (path.length() < 1)return "";
+#ifdef __linux__
+    if (path[0] == '\\')return path;
+    char* resolvedPath = realpath(path.c_str(), NULL);
     if (resolvedPath == NULL)
     {
         return "";
@@ -49,6 +72,22 @@ string dxrt::getAbsolutePath(const string& path)
     string absolutePath(resolvedPath);
     free(resolvedPath);
     return absolutePath;
+
+#elif _WIN32
+    // Check if path is already absolute (starts with '\\')
+    if (path[0] == '\\') return path;
+
+    // Buffer to store resolved path
+    char resolvedPath[MAX_PATH];
+    DWORD len = GetFullPathName(path.c_str(), MAX_PATH, resolvedPath, nullptr);
+    if (len == 0) {
+        std::cerr << "Error getting full path: " << GetLastError() << std::endl;
+        return "";
+    }
+    string absolutePath(resolvedPath);
+    free(resolvedPath);
+    return absolutePath;
+#endif
 }
 
 string dxrt::getParentPath(const string& path)
