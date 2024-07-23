@@ -1,7 +1,6 @@
 var searchData=
 [
-  ['parsemodel_52',['ParseModel',['../namespacedxrt.html#a3be83887ca550fa903876b6599dc56ed',1,'dxrt']]],
-  ['pose_53',['POSE',['../namespacedxrt.html#ab77b34051412213844efe193b50e53e3ac285a20ae7081cd3b5dcf8820eda7cdf',1,'dxrt']]],
-  ['processor_54',['Processor',['../namespacedxrt.html#a51e8f05c5acab04a70c3d458d5d3e6b9',1,'dxrt']]],
-  ['profiler_55',['Profiler',['../classdxrt_1_1Profiler.html',1,'dxrt']]]
+  ['task_5forder_35',['task_order',['../classdxrt_1_1InferenceEngine.html#a22087ed8a6839bfc1c4a6b9c21629236',1,'dxrt::InferenceEngine']]],
+  ['tensor_36',['Tensor',['../classdxrt_1_1Tensor.html',1,'dxrt']]],
+  ['testdata_37',['TestData',['../structdxrt_1_1TestData.html',1,'dxrt']]]
 ];

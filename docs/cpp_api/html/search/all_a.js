@@ -1,6 +1,7 @@
 var searchData=
 [
-  ['name_47',['name',['../classdxrt_1_1InferenceEngine.html#a3fb16094508bd367cc4971238f002765',1,'dxrt::InferenceEngine']]],
-  ['npu_48',['NPU',['../namespacedxrt.html#a51e8f05c5acab04a70c3d458d5d3e6b9a6ad6842bfb542672f5a41af651b78160',1,'dxrt']]],
-  ['npustatusstr_49',['npuStatusStr',['../classdxrt_1_1DxrtDeviceInfoWithStatus.html#a0a5dd15ee91d8a97351a97e677a8d066',1,'dxrt::DxrtDeviceInfoWithStatus']]]
+  ['registercallback_28',['RegisterCallBack',['../classdxrt_1_1InferenceEngine.html#a3d3fc75faa79470d9a3bdbdc61561a3a',1,'dxrt::InferenceEngine']]],
+  ['run_29',['Run',['../classdxrt_1_1InferenceEngine.html#a88cea5324cbeb436034adb60cf31050f',1,'dxrt::InferenceEngine']]],
+  ['runasync_30',['RunAsync',['../classdxrt_1_1InferenceEngine.html#af3006c9a7183f7e42d1528aa8a6fea24',1,'dxrt::InferenceEngine']]],
+  ['runbenchmark_31',['RunBenchMark',['../classdxrt_1_1InferenceEngine.html#ab91c2e1adde9259fe2823416f80edb54',1,'dxrt::InferenceEngine']]]
 ];

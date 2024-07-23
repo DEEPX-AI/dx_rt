@@ -8,7 +8,7 @@
 
 namespace dxrt {
 
-typedef enum
+typedef enum DXRT_API
 {
     FW_LOG_TEMP = 0x10000000,
     FW_LOG_DXRT_DEQUEUE_REQUEST,
@@ -19,7 +19,7 @@ typedef enum
     FW_LOG_MAX,
 } dxrt_fwlog_cmd_t;
 
-typedef struct
+typedef struct DXRT_API
 {
     uint32_t data_offset;
     uint32_t data_size;
@@ -29,7 +29,7 @@ typedef struct
     uint32_t crc32;
 } dx_fw_image_info_t;
 
-typedef struct
+typedef struct DXRT_API
 {
     char                signature[16];
     dx_fw_image_info_t  images[8];
@@ -39,7 +39,7 @@ typedef struct
     char                fw_ver[16];
 } dx_fw_header_t;
 
-enum fw_update_err_code_t : uint32_t  {
+enum DXRT_API fw_update_err_code_t : uint32_t  {
 	FW_UPDATE_SUCCESS		= 0,
 	ERR_HEADER_MISMATCH 	= 1 << 1,
 	ERR_BOARD_TYPE			= 1 << 2,
@@ -50,7 +50,7 @@ enum fw_update_err_code_t : uint32_t  {
 	ERR_LOW_FW_VER			= 1 << 7,
 };
 
-class FwLog
+class DXRT_API FwLog
 {
 public:
     FwLog(std::vector<dxrt_device_log_t>);
@@ -62,7 +62,7 @@ private:
     std::string _str;
 };
 
-class Fw
+class DXRT_API Fw
 {
 public:
     Fw(std::string file);

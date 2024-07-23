@@ -140,7 +140,11 @@ string DxrtDeviceInfoWithStatus::memoryTypeStr() const
 }
 string DxrtDeviceInfoWithStatus::interfaceTypeStr() const
 {
+#ifdef __linux__
     return map_lookup(interface_types, _info.interface);
+#elif _WIN32
+    return map_lookup(interface_types, _info.interface_value);
+#endif
 }
 
 string DxrtDeviceInfoWithStatus::memorySizeStrBinaryPrefix() const

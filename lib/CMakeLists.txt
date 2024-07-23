@@ -1,11 +1,13 @@
 # DXRT LIB
 set(target dxrt)
-if (USE_SHARED_DXRT_LIB)
-    set(dxrt_lib_file "${CMAKE_CURRENT_SOURCE_DIR}/lib/libdxrt_${CMAKE_SYSTEM_PROCESSOR}.so"
-    CACHE STRING "dxrt lib. file")
-else()
-    set(dxrt_lib_file "${CMAKE_CURRENT_SOURCE_DIR}/lib/libdxrt_${CMAKE_SYSTEM_PROCESSOR}.a"
-        CACHE STRING "dxrt lib. file")
+if (NOT MSVC)
+    if (USE_SHARED_DXRT_LIB)
+        set(dxrt_lib_file "${CMAKE_CURRENT_SOURCE_DIR}/lib/libdxrt_${CMAKE_SYSTEM_PROCESSOR}.so"
+            CACHE STRING "dxrt lib. file")
+    else()
+        set(dxrt_lib_file "${CMAKE_CURRENT_SOURCE_DIR}/lib/libdxrt_${CMAKE_SYSTEM_PROCESSOR}.a"
+            CACHE STRING "dxrt lib. file")
+    endif()
 endif()
 
 FILE(GLOB_RECURSE srcs "*.cpp" "*.cc" "*.c")
@@ -15,11 +17,41 @@ FILE(GLOB_RECURSE headers "include/dxrt/*.h")
 list(REMOVE_ITEM srcs "${CMAKE_CURRENT_SOURCE_DIR}/bindings/python/src/py_inference_engine.cpp")
 message("DXRT LIB Source files : " ${srcs})
 message("DXRT LIB Header files : " ${headers})
-if (USE_SHARED_DXRT_LIB)
-    add_library(${target} SHARED ${srcs})
+
+if (MSVC)
+    if (USE_SHARED_DXRT_LIB)
+        add_library(${target} SHARED ${srcs})
+        set_target_properties(${target} PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+            ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+        )
+        # Define DLL export macro
+        target_compile_definitions(${target} 
+            PRIVATE DXRT_EXPORTS 
+            PUBLIC DXRT_DLL
+        )
+    else()
+        add_library(${target} STATIC ${srcs})
+        set_target_properties(${target} PROPERTIES
+            ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+        )
+        # Define macro for static library
+        target_compile_definitions(${target}
+            PUBLIC DXRT_STATIC
+        )
+    endif()
 else()
-    add_library(${target} STATIC ${srcs})
+    if (USE_SHARED_DXRT_LIB)
+        add_library(${target} SHARED ${srcs})
+        set_target_properties(${target} PROPERTIES
+            LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+        )
+    else()
+        add_library(${target} STATIC ${srcs})
+        set_property(TARGET ${target} PROPERTY POSITION_INDEPENDENT_CODE ON)
+    endif()
 endif()
+
 file(STRINGS ${CMAKE_CURRENT_SOURCE_DIR}/cfg/common.cfg cfgs)
 foreach(cfg ${cfgs})
     target_compile_definitions(${target} PUBLIC "${cfg}")
@@ -59,13 +91,24 @@ write_basic_package_version_file(
     COMPATIBILITY SameMajorVersion
 )
 
-install(
-    TARGETS ${target}
-    EXPORT ${target}
-    RUNTIME DESTINATION bin
-    LIBRARY DESTINATION lib
-    PUBLIC_HEADER DESTINATION include/dxrt
-)
+if(MSVC)
+    install(
+        TARGETS ${target}
+        EXPORT ${target}
+        RUNTIME DESTINATION bin
+        ARCHIVE DESTINATION lib
+        PUBLIC_HEADER DESTINATION include/dxrt
+    )
+else()
+    install(
+        TARGETS ${target}
+        EXPORT ${target}
+        RUNTIME DESTINATION bin
+        LIBRARY DESTINATION lib
+        PUBLIC_HEADER DESTINATION include/dxrt
+    )
+endif()
+
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/dxrt DESTINATION include)
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/extern/include/rapidjson DESTINATION include)
 install(FILES ${CMAKE_SOURCE_DIR}/extern/include/cxxopts.hpp DESTINATION include)

@@ -18,8 +18,8 @@ cmd=()
 clean_build=false
 verbose=false
 build_type=release
-host_arch=$(uname -p)
-target_arch=$(uname -p)
+host_arch=$(uname -m)
+target_arch=$(uname -m)
 build_mode="Release Build"
 install=""
 uninstall=false
@@ -71,6 +71,7 @@ cmd+=(-DCMAKE_GENERATOR=Ninja)
 if [ ! -z $install ]; then
     cmd+=(-DCMAKE_INSTALL_PREFIX=$install)
 fi
+cmd+=(-DPython_EXECUTABLE=$(which python))
 
 echo cmake args : ${cmd[@]}
 [ $clean_build == "true" ] && sudo rm -rf $build_dir

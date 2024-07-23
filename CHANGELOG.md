@@ -1,4 +1,16 @@
 # Changelog
+## v1.2.3 / 2024-07-23
+### Changed
+- Update process id & model_format for device message
+- Remove device dependency for parse_model
+### Fixed
+- Fix memory leck problem
+- Fix FindPythonInterp error after cmake 3.27
+- Fix ppu output bug
+### Added
+- Implement multi-task and multi in/out for achieving CPU offloading level 1
+
+# Changelog
 ## v1.1.2 / 2024-07-03
 ### Changed
 - update documents

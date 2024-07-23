@@ -32,6 +32,8 @@ uint64\+\_\+t \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a93e1d7b460b7f8656e7
 \begin{DoxyCompactList}\small\item\em Get total size of output tensors. \end{DoxyCompactList}\item 
 std\+::string \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a3fb16094508bd367cc4971238f002765}{name}} ()
 \begin{DoxyCompactList}\small\item\em Get model name. \end{DoxyCompactList}\item 
+std\+::vector$<$ string $>$ \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a22087ed8a6839bfc1c4a6b9c21629236}{task\+\_\+order}} ()
+\begin{DoxyCompactList}\small\item\em Get model task order. \end{DoxyCompactList}\item 
 int \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a990ca720e7f8a28ac5394206eb6f9491}{latency}} ()
 \begin{DoxyCompactList}\small\item\em Get recent latency. \end{DoxyCompactList}\item 
 uint32\+\_\+t \mbox{\hyperlink{classdxrt_1_1InferenceEngine_aad2f3b616e0e996b66ef7df37dc16a85}{inference\+\_\+time}} ()
@@ -260,6 +262,19 @@ run benchmark with loop n times
 \end{DoxyParams}
 \begin{DoxyReturn}{Returns}
 average fps 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1InferenceEngine_a22087ed8a6839bfc1c4a6b9c21629236}\label{classdxrt_1_1InferenceEngine_a22087ed8a6839bfc1c4a6b9c21629236}} 
+\index{dxrt::InferenceEngine@{dxrt::InferenceEngine}!task\_order@{task\_order}}
+\index{task\_order@{task\_order}!dxrt::InferenceEngine@{dxrt::InferenceEngine}}
+\doxysubsubsection{\texorpdfstring{task\_order()}{task\_order()}}
+{\footnotesize\ttfamily std\+::vector$<$string$>$ dxrt\+::\+Inference\+Engine\+::task\+\_\+order (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Get model task order. 
+
+\begin{DoxyReturn}{Returns}
+task order 
 \end{DoxyReturn}
 \mbox{\Hypertarget{classdxrt_1_1InferenceEngine_ac9375d94db868748a7c3d072c846897b}\label{classdxrt_1_1InferenceEngine_ac9375d94db868748a7c3d072c846897b}} 
 \index{dxrt::InferenceEngine@{dxrt::InferenceEngine}!Wait@{Wait}}

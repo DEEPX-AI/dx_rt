@@ -16,9 +16,9 @@ class Tensor;
 class Task;
 class Device;
 class Request;
-class CpuHandle;
+struct CpuHandle;
 
-class Worker
+class DXRT_API Worker
 {
 public:
     enum Type

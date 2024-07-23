@@ -70,17 +70,20 @@ $(function() {
 <div class="title">filesys_support.h</div>  </div>
 </div><!--header-->
 <div class="contents">
-<div class="fragment"><div class="line"><a name="l00001"></a><span class="lineno">    1</span>&#160;<span class="preprocessor">#include&lt;string&gt;</span></div>
+<div class="fragment"><div class="line"><a name="l00001"></a><span class="lineno">    1</span>&#160;<span class="preprocessor">#pragma once</span></div>
 <div class="line"><a name="l00002"></a><span class="lineno">    2</span>&#160; </div>
-<div class="line"><a name="l00003"></a><span class="lineno">    3</span>&#160;<span class="keyword">namespace </span><a class="code" href="namespacedxrt.html">dxrt</a>{</div>
-<div class="line"><a name="l00004"></a><span class="lineno">    4</span>&#160;    std::string getPath(<span class="keyword">const</span> std::string&amp; path);</div>
-<div class="line"><a name="l00005"></a><span class="lineno">    5</span>&#160;    std::string getCurrentPath();</div>
-<div class="line"><a name="l00006"></a><span class="lineno">    6</span>&#160;    std::string getAbsolutePath(<span class="keyword">const</span> std::string&amp; path);</div>
-<div class="line"><a name="l00007"></a><span class="lineno">    7</span>&#160;    std::string getParentPath(<span class="keyword">const</span> std::string&amp; path);</div>
-<div class="line"><a name="l00008"></a><span class="lineno">    8</span>&#160;    <span class="keywordtype">int</span> getFileSize(<span class="keyword">const</span> std::string&amp; filename);</div>
-<div class="line"><a name="l00009"></a><span class="lineno">    9</span>&#160;    <span class="keywordtype">bool</span> fileExists(<span class="keyword">const</span> std::string&amp; path);</div>
-<div class="line"><a name="l00010"></a><span class="lineno">   10</span>&#160;    std::string getExtension(<span class="keyword">const</span> std::string&amp; path);</div>
-<div class="line"><a name="l00011"></a><span class="lineno">   11</span>&#160;}</div>
+<div class="line"><a name="l00003"></a><span class="lineno">    3</span>&#160;<span class="preprocessor">#include &quot;dxrt/common.h&quot;</span></div>
+<div class="line"><a name="l00004"></a><span class="lineno">    4</span>&#160;<span class="preprocessor">#include&lt;string&gt;</span></div>
+<div class="line"><a name="l00005"></a><span class="lineno">    5</span>&#160; </div>
+<div class="line"><a name="l00006"></a><span class="lineno">    6</span>&#160;<span class="keyword">namespace </span><a class="code" href="namespacedxrt.html">dxrt</a>{</div>
+<div class="line"><a name="l00007"></a><span class="lineno">    7</span>&#160;    DXRT_API std::string getPath(<span class="keyword">const</span> std::string&amp; path);</div>
+<div class="line"><a name="l00008"></a><span class="lineno">    8</span>&#160;    DXRT_API std::string getCurrentPath();</div>
+<div class="line"><a name="l00009"></a><span class="lineno">    9</span>&#160;    DXRT_API std::string getAbsolutePath(<span class="keyword">const</span> std::string&amp; path);</div>
+<div class="line"><a name="l00010"></a><span class="lineno">   10</span>&#160;    DXRT_API std::string getParentPath(<span class="keyword">const</span> std::string&amp; path);</div>
+<div class="line"><a name="l00011"></a><span class="lineno">   11</span>&#160;    DXRT_API <span class="keywordtype">int</span> getFileSize(<span class="keyword">const</span> std::string&amp; filename);</div>
+<div class="line"><a name="l00012"></a><span class="lineno">   12</span>&#160;    DXRT_API <span class="keywordtype">bool</span> fileExists(<span class="keyword">const</span> std::string&amp; path);</div>
+<div class="line"><a name="l00013"></a><span class="lineno">   13</span>&#160;    DXRT_API std::string getExtension(<span class="keyword">const</span> std::string&amp; path);</div>
+<div class="line"><a name="l00014"></a><span class="lineno">   14</span>&#160;}</div>
 </div><!-- fragment --></div><!-- contents -->
 <div class="ttc" id="anamespacedxrt_html"><div class="ttname"><a href="namespacedxrt.html">dxrt</a></div><div class="ttdoc">DXRT C++ APIs are provided in this namespace.</div><div class="ttdef"><b>Definition:</b> buffer.h:8</div></div>
 <!-- start footer part -->

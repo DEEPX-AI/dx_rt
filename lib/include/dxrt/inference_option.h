@@ -6,12 +6,12 @@
 #include "dxrt/common.h"
 
 namespace dxrt {
-enum InferenceMode;
+enum DXRT_API InferenceMode;
 /** @brief This struct specifies inference options applied to dxrt::InferenceEngine.
  * @details User can configure which npu device is used to inference.
  * @headerfile "dxrt/dxrt_api.h"
 */
-struct InferenceOption
+struct DXRT_API InferenceOption
 {
     /** @brief device ID list to use 
      * @details make a list which contains list of device ID to use. if it is empty(or use default value), then all devices are used.
@@ -20,10 +20,10 @@ struct InferenceOption
     // TODO : add data format
 };
 
-std::ostream& operator<<(std::ostream&, const InferenceOption&);
+DXRT_API std::ostream& operator<<(std::ostream&, const InferenceOption&);
 
 /** @brief Default inference option 
 */
-extern InferenceOption DefaultInferenceOption;
+extern DXRT_API InferenceOption DefaultInferenceOption;
 
 } // namespace dxrt

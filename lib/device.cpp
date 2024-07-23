@@ -16,11 +16,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
-#include <unistd.h>
+#ifdef __linux__
+    #include <unistd.h>
+#endif
 #include <errno.h>
 #include <string.h>
-#include <sys/mman.h>
-#include <sys/ioctl.h>
+#ifdef __linux__
+    #include <sys/mman.h>
+    #include <sys/ioctl.h>
+#endif
 #include <sys/types.h>
 #include <limits>
 #include <algorithm>
@@ -56,7 +60,11 @@ Device::~Device(void)
         _errorWorker->Stop();
     }    
     Terminate();
+#ifdef __linux__
     close(_devFd);
+#elif _WIN32
+    CloseHandle(_devHandle);
+#endif
     LOG_DXRT_DBG << "Device " << _id << " released." << endl;
     if(_type==1)
     {
@@ -103,11 +111,31 @@ int Device::Process(dxrt_cmd_t cmd, void *data, uint32_t size, uint32_t sub_cmd)
     msg.sub_cmd = static_cast<int32_t>(sub_cmd),
     msg.data = data;
     msg.size = size;
+
+#ifdef __linux__
     ret = ioctl(_devFd, static_cast<unsigned long>(dxrt::dxrt_ioctl_t::DXRT_IOCTL_MESSAGE), &msg);
     if(ret<0)
         return errno*(-1);
-    else
-        return ret;
+#elif _WIN32
+    DWORD bytesReturned;
+    BOOL success = DeviceIoControl(
+        (HANDLE)_devFd,
+        static_cast<DWORD>(dxrt::dxrt_ioctl_t::DXRT_IOCTL_MESSAGE),
+        &msg,
+        sizeof(msg),
+        NULL,
+        0,
+        &bytesReturned,
+        NULL
+    );
+    if (!success) {
+        ret = GetLastError() * (-1);
+    }
+    else {
+        ret = bytesReturned;
+    }
+#endif
+    return ret;
 }
 
 int Device::InferenceRequest(RequestPtr req)
@@ -231,8 +259,19 @@ int Device::InferenceRequest(RequestPtr req)
     if(_type==1)
     {
         LOG_DXRT_DBG << "Device " << _id << " Request : " << req->npu_inference() << endl;
+#ifdef __linux__
         // ret = write(_devFd, inference, sizeof(dxrt_request_t));
         ret = write(_devFd, &req->npu_inference(), sizeof(dxrt_request_t));
+#elif _WIN32
+        DWORD bytesWritten;
+        BOOL success = WriteFile(_devHandle, &req->npu_inference(), sizeof(dxrt_request_t), &bytesWritten, NULL);
+        if (!success) {
+            ret = -1;
+        }
+        else {
+            ret = bytesWritten;
+        }
+#endif
         LOG_DXRT_DBG << "written " << ret << endl;
     }
     else
@@ -296,16 +335,27 @@ int Device::Release(Task *task)
     {
         Deallocate(inf);
     }
+    _outputValidateBuffers.erase(taskId);
     return 0;
 }
 int Device::Response(dxrt_response_t &response)
 {    
     int ret;
+#ifdef __linux__
     ret = read(_devFd, &response, sizeof(dxrt_response_t));
     if(ret!=sizeof(response))
     {
         return -1;
     }
+#elif _WIN32
+    DWORD bytesRead;
+    BOOL success = ReadFile(_devHandle, &response, sizeof(dxrt_response_t), &bytesRead, NULL);
+    if (!success || bytesRead != sizeof(dxrt_response_t))
+    {
+        return -1;
+    }
+    ret = bytesRead;
+#endif
     LOG_DXRT_DBG << "Device " << _id << " Response : " << response.req_id << endl;
     return 0;
 }
@@ -329,6 +379,7 @@ int Device::Wait(void)
 {
     LOG_DXRT_DBG << "Device " << _id << " Wait" << endl;
     int ret;
+#ifdef __linux__
     ret = poll(&_devPollFd, 1, DEVICE_POLL_LIMIT_MS);
     LOG_DXRT_DBG << "Device " << _id << " Wakeup" << endl;
     if(ret<0)
@@ -336,13 +387,34 @@ int Device::Wait(void)
         cout << "Error: Device " << _id << "poll fail." << endl;
         return -1;
     }
+#elif _WIN32
+    DWORD waitResult = WaitForSingleObject(_devHandle, DEVICE_POLL_LIMIT_MS);
+    if (waitResult == WAIT_FAILED)
+    {
+        cout << "Error: Device " << _id << " WaitForSingleObject fail." << endl;
+        return -1;
+    }
+    else if (waitResult == WAIT_TIMEOUT)
+    {
+        // Timeout occurred, you might want to handle this case
+        cout << "Warning: Device " << _id << " wait timeout." << endl;
+        return -1;
+    }
+#endif
     return 0;
 }
-void Device::Identify(int id_, bool skip)
+void Device::BoundOption(dxrt_sche_sub_cmd_t subCmd)
+{
+    int ret;
+    ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_SCHEDULE, reinterpret_cast<void*>(&_boundOp), sizeof(dxrt_sche_sub_cmd_t), subCmd);
+    DXRT_ASSERT(ret==0, "failed to apply bound option to device");
+}
+void Device::Identify(int id_, SkipMode skip)
 {
     LOG_DXRT_DBG << "Device " << _id << " Identify" << endl;
     int ret;
     _id = id_;    
+#ifdef __linux__
     _devFd = open(_file.c_str(), O_RDWR|O_SYNC);
     if(_devFd<0)
     {
@@ -355,14 +427,33 @@ void Device::Identify(int id_, bool skip)
         // .events = POLLIN|POLLHUP,
         .revents = 0,
     };
+#elif _WIN32
+    _devHandle = CreateFile(_file.c_str(),
+        GENERIC_READ | GENERIC_WRITE,
+        0,
+        NULL,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL,
+        NULL);
+    if (_devHandle == INVALID_HANDLE_VALUE)
+    {
+        cout << "Error: Can't open " << _file << endl;
+        return;
+    }
+#endif
     _info = dxrt_device_info_t();
     _info.type = 0;
     ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_IDENTIFY_DEVICE, reinterpret_cast<void*>(&_info));
     DXRT_ASSERT(ret==0, "failed to identify device");
 
-    if(!skip)
+    _skip = skip;
+    if(_skip != VERSION_CHECK)
     {
+#ifdef __linux__
         DxDeviceVersion dxVer(this, _info.fw_ver, _info.type, _info.interface, _info.variant);
+#elif _WIN32
+        DxDeviceVersion dxVer(this, _info.fw_ver, _info.type, _info.interface_value, _info.variant);
+#endif
         dxVer.CheckVersion();
     }
 
@@ -373,11 +464,22 @@ void Device::Identify(int id_, bool skip)
         << dec << ", num_dma_ch " << _info.num_dma_ch << endl;
     DXRT_ASSERT(_info.mem_size>0, "invalid device memory size");
     _type = _info.type;
+    _variant = _info.variant;
+#ifdef __linux__
     void *_mem = mmap(0, _info.mem_size, PROT_READ|PROT_WRITE, MAP_SHARED, _devFd, 0);
     if(reinterpret_cast<int64_t>(_mem)==-1)
     {
         _mem = nullptr;
     }
+#elif _WIN32
+    HANDLE fileMapping = CreateFileMapping(_devHandle, NULL, PAGE_READWRITE, 0, _info.mem_size, NULL);
+    void* _mem = nullptr;
+    if (fileMapping != NULL)
+    {
+        _mem = MapViewOfFile(fileMapping, FILE_MAP_ALL_ACCESS, 0, 0, _info.mem_size);
+        CloseHandle(fileMapping);
+    }
+#endif
     _memory = make_shared<Memory>(_info, _mem);
     dxrt_device_info_t featureMemInfo = _info;
     dxrt_device_info_t modelMemInfo = _info;
@@ -395,6 +497,11 @@ void Device::Identify(int id_, bool skip)
     }
 
     LOG_DXRT_DBG << "    Device " << _id << ": " << _info << endl;
+    if((_variant == 202) && (_skip != COMMON_SKIP))
+    {
+        _boundOp = N_BOUND_NORMAL;
+        BoundOption(DX_SCHED_ADD);
+    }
 
     if(_type==0)
     {
@@ -413,6 +520,8 @@ void Device::Terminate()
     LOG_DXRT_DBG << "Device " << _id << " terminate" << endl;
 
     uint32_t i;
+    if((_variant == 202) && (_skip != COMMON_SKIP))
+        BoundOption(DX_SCHED_DELETE);
     for(i=0;i<_info.num_dma_ch;i++)
     {
         dxrt_response_t data;
@@ -559,6 +668,7 @@ int Device::RegisterTask(Task* task)
             inference.output.size = _type==1?model.output_all_size:task->output_size();
             // inference.output .size = task->output_size();
             inference.model_type = static_cast<uint32_t>(model.type);
+            inference.model_format = static_cast<uint32_t>(model.format);
             inference.model_cmds = static_cast<uint32_t>(model.cmds);
             inference.cmd_offset = model.cmd.offset;
             inference.weight_offset = model.weight.offset;
@@ -567,19 +677,9 @@ int Device::RegisterTask(Task* task)
             if(_memory->data()==0)
             {
                 {
-                    vector<uint8_t> buf(task->input_size());
-                    _inputTensorBuffers[id].emplace_back( move(buf) );
-                }
-                {
-                    vector<uint8_t> buf(task->output_size());
-                    _outputTensorBuffers[id].emplace_back( move(buf) );
-                }
-                {
                     vector<uint8_t> buf(model.output_all_size);
                     _outputValidateBuffers[id] = move(buf);
                 }
-                inference.input.data = reinterpret_cast<uint64_t>(_inputTensorBuffers[id].back().data());
-                inference.output.data = reinterpret_cast<uint64_t>(_outputTensorBuffers[id].back().data());
             }
             else
             {
@@ -593,7 +693,8 @@ int Device::RegisterTask(Task* task)
                 _outputValidateBuffers[id] = vector<uint8_t>(static_cast<uint8_t*>(start), static_cast<uint8_t*>(end));
                 // LOG_VALUE_HEX(inference.last_output_offset);
             }
-            dxrt_request_acc_t inferenceAcc; 
+            dxrt_request_acc_t inferenceAcc;
+            memset(static_cast<void *>(&inferenceAcc), 0x00, sizeof(dxrt_request_acc_t));
             inferenceAcc.req_id = inference.req_id;
             inferenceAcc.task_id = static_cast<uint32_t>(task->id());
             inferenceAcc.input.data = inference.input.data;
@@ -605,6 +706,8 @@ int Device::RegisterTask(Task* task)
             inferenceAcc.output.offset = inference.output.offset;
             inferenceAcc.output.size = inference.output.size;
             inferenceAcc.model_type = static_cast<int16_t>(inference.model_type);
+            inferenceAcc.model_format = static_cast<int16_t>(inference.model_format);
+            inferenceAcc.bound = _boundOp;
 
             _npuInference[id].emplace_back(inference);
             _npuInferenceAcc[id].emplace_back(inferenceAcc);
@@ -613,10 +716,6 @@ int Device::RegisterTask(Task* task)
         cout << "model weight: " << model.weight << endl;
         DXRT_ASSERT(Write(model.cmd)==0, "failed to write model parameters");
         DXRT_ASSERT(Write(model.weight)==0, "failed to write model parameters");
-        {
-            int opt = 2;
-            Reset(opt);
-        }
         // cout << "write done" << endl;
     }
     for(auto &inf:_npuInferenceAcc[id])
@@ -777,7 +876,7 @@ shared_ptr<Device> PickOneDevice(vector<shared_ptr<Device>> &devices_)
     return pick;
 #endif
 }
-vector<shared_ptr<Device>> CheckDevices(bool skip)
+vector<shared_ptr<Device>> CheckDevices(SkipMode skip)
 {
     LOG_DXRT_DBG << endl;    
     const char* forceNumDevStr = getenv("DXRT_FORCE_NUM_DEV");

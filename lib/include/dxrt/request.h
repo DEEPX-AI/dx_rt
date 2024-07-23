@@ -21,7 +21,7 @@ class Request;
 using RequestPtr = std::shared_ptr<Request>;
 struct TimePoint;
 using TimePointPtr = std::shared_ptr<TimePoint>;
-class Request
+class DXRT_API Request
 {
 public:
     enum Status
@@ -67,7 +67,7 @@ public:
     bool &latency_valid();
     bool &validate_device();
     int16_t &model_type();
-    friend std::ostream& operator<<(std::ostream&, const Request&);
+    friend DXRT_API std::ostream& operator<<(std::ostream&, const Request&);
 private:
     int _id;
     RequestPtr _head;
@@ -98,7 +98,7 @@ private:
     static std::vector<RequestPtr> _requestMap;
     static std::mutex _mapLock;
 };
-class RequestMap
+class DXRT_API RequestMap
 {
 public:
     RequestMap(void);
@@ -109,6 +109,6 @@ private:
     std::unordered_map<int, RequestPtr> _map;
     std::mutex _lock;
 };
-std::ostream& operator<<(std::ostream&, const Request::Status&);
+DXRT_API std::ostream& operator<<(std::ostream&, const Request::Status&);
 
 } // namespace dxrt

@@ -6,7 +6,7 @@
 #include "dxrt/common.h"
 
 namespace dxrt {
-class ExceptionHandler
+class DXRT_API ExceptionHandler
 {
 public:
     ExceptionHandler();

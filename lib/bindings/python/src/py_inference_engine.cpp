@@ -15,6 +15,7 @@ namespace dxrt
 {
 namespace py = pybind11;
 
+#ifdef __linux__
 string pyFormatDescriptorTable[] = {
     [DataType::NONE_TYPE] = py::format_descriptor<uint8_t>::format(),
     [DataType::UINT8] = py::format_descriptor<uint8_t>::format(),
@@ -28,6 +29,30 @@ string pyFormatDescriptorTable[] = {
     [DataType::FACE] = py::format_descriptor<float>::format(),
     [DataType::POSE] = py::format_descriptor<float>::format(),
 };
+#elif _WIN32
+string pyFormatDescriptorTable[DataType::MAX_TYPE];
+
+void initializePyFormatDescriptorTable() {
+    pyFormatDescriptorTable[DataType::NONE_TYPE] = py::format_descriptor<uint8_t>::format();
+    pyFormatDescriptorTable[DataType::UINT8] = py::format_descriptor<uint8_t>::format();
+    pyFormatDescriptorTable[DataType::UINT16] = py::format_descriptor<uint16_t>::format();
+    pyFormatDescriptorTable[DataType::UINT32] = py::format_descriptor<uint32_t>::format();
+    pyFormatDescriptorTable[DataType::INT8] = py::format_descriptor<int8_t>::format();
+    pyFormatDescriptorTable[DataType::INT16] = py::format_descriptor<int16_t>::format();
+    pyFormatDescriptorTable[DataType::INT32] = py::format_descriptor<int32_t>::format();
+    pyFormatDescriptorTable[DataType::FLOAT] = py::format_descriptor<float>::format();
+    pyFormatDescriptorTable[DataType::BBOX] = py::format_descriptor<float>::format();
+    pyFormatDescriptorTable[DataType::FACE] = py::format_descriptor<float>::format();
+    pyFormatDescriptorTable[DataType::POSE] = py::format_descriptor<float>::format();
+}
+
+static struct InitializePyFormatDescriptorTable {
+    InitializePyFormatDescriptorTable() {
+        initializePyFormatDescriptorTable();
+    }
+} initPyFormatDescriptorTable;
+
+#endif 
 string pyGetFormatDescriptor(DataType dtype)
 {
     return pyFormatDescriptorTable[dtype];
@@ -100,13 +125,46 @@ vector<string> pyGetOutputDataType(InferenceEngine &ie)
     }
     return ret;
 }
-
+vector<string> pyGetTaskOrder(InferenceEngine &ie)
+{
+    vector<string> ret;
+    ret = ie.task_order();
+    return ret;
+}
+vector<vector<py::array>> pyGetOutputs(InferenceEngine &ie)
+{
+    vector<vector<py::array>> results;
+    auto outputsVector = ie.GetOutputs();
+    for(auto &outputs:outputsVector){
+        vector<py::array> result;
+        for(auto &output:outputs)
+        {
+            auto shape = output->shape();
+            result.emplace_back(
+                py::array(
+                    py::buffer_info(
+                        output->data(),
+                        output->elem_size(),
+                        pyGetFormatDescriptor(output->type()),
+                        shape.size(),
+                        shape,
+                        py::detail::c_strides(shape, output->elem_size()) // TODO : Prebuild this vector in inference engine
+                    )
+                )
+            );
+            // for(int i=0;i<10;i++) cout << *((float*)output->data() + i) << endl;
+        }
+        results.emplace_back(result);
+    }
+    return results;
+}
 PYBIND11_MODULE(_pydxrt, m) {
     py::class_<InferenceEngine>(m, "InferenceEngine")
         .def(py::init<string>())
         .def("benchmark", &InferenceEngine::RunBenchMark)
         .def("input_size", &InferenceEngine::input_size)
         .def("output_size", &InferenceEngine::output_size)
+        .def("task_order", &InferenceEngine::task_order)
         .def("latency", &InferenceEngine::latency)
         .def("inf_time", &InferenceEngine::inference_time)
         .def("bitmatch_mask", &InferenceEngine::bitmatch_mask)
@@ -116,6 +174,9 @@ PYBIND11_MODULE(_pydxrt, m) {
     m.def("parse_model", &ParseModel);
     m.def("input_dtype", &pyGetInputDataType);
     m.def("output_dtype", &pyGetOutputDataType);
+    m.def("task_order", &pyGetTaskOrder);
+    m.def("get_outputs", &pyGetOutputs);
+
 }
 
 }/* namespace dxrt */

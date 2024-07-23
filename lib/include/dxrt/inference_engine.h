@@ -14,6 +14,11 @@
 #include "dxrt/testdata.h"
 #include "dxrt/circular_buffer.h"
 
+#ifdef _WIN32
+#include <chrono>
+#include <thread>
+#endif
+
 #define NPU_PARAM_FILE "rmap.info"
 
 namespace dxrt {
@@ -39,7 +44,7 @@ struct TimePoint;
  * @endcode
  * @headerfile "dxrt/dxrt_api.h"
 */
-class InferenceEngine
+class DXRT_API InferenceEngine
 {
 public:
     InferenceEngine(const std::string &, InferenceOption &option=DefaultInferenceOption);
@@ -120,6 +125,10 @@ public:
      * @return model name
      */
     std::string name();
+    /** @brief Get model task order
+     * @return task order
+     */
+    std::vector<string> task_order();
     /** @brief Get recent latency
      * @return latency (microseconds)
      */
@@ -128,8 +137,9 @@ public:
      * @return inference time (microseconds)
      */
     uint32_t inference_time();
+    vector<TensorPtrs> GetOutputs();
     vector<uint8_t> bitmatch_mask(int index);
-    friend std::ostream& operator<<(std::ostream&, const InferenceEngine&);
+    friend DXRT_API std::ostream& operator<<(std::ostream&, const InferenceEngine&);
 private:
     std::string _modelFile;
     std::string _modelDir;
@@ -145,6 +155,8 @@ private:
     std::map<std::string, std::shared_ptr<Task>> _taskMap;
     CircularBuffer<int> _latency;
     CircularBuffer<uint32_t> _infTime;
+    std::vector<string> _taskOrder; 
+
 };
 
 } /* namespace dxrt */

@@ -13,7 +13,7 @@ namespace dxrt {
 class Device;
 using DevicePtr = std::shared_ptr<Device>;
 
-
+#ifdef __linux      // / TODO: Duplicate declaration (dxrt/device_struct.h)
 typedef struct device_status
 {
     uint32_t voltage[4];
@@ -24,19 +24,9 @@ typedef struct device_status
     uint32_t count[4];
     uint32_t boot_state;
 } dxrt_device_status_t;
+#endif
 
-/** @brief This class provides DX Device information and status.
- * @headerfile "dxrt/device_info_status.h"
- * @code
- * //load device info
- * DxrtDeviceInfoWithStatus info = DxrtDeviceInfoWithStatus::getStatusInfo(devicePointer);
- * //get information as format
- * cout << info.getInfoString() << endl;
- * cout << info.getStatusString() << endl;
- * @endcode
- */
-
-class DxrtDeviceInfoWithStatus
+class DXRT_API DxrtDeviceInfoWithStatus
 {
 public:
     static DxrtDeviceInfoWithStatus getStatusInfo(DevicePtr device);
@@ -141,6 +131,6 @@ private:
     DxrtDeviceInfoWithStatus(int id, dxrt_device_info_t info, dxrt_device_status_t status);
 
 };
-std::ostream& operator<<(std::ostream& os, const DxrtDeviceInfoWithStatus& d);
+DXRT_API std::ostream& operator<<(std::ostream& os, const DxrtDeviceInfoWithStatus& d);
 
 } //namespace dxrt

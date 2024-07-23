@@ -94,7 +94,20 @@ class InferenceEngine:
         mask_list = np.array(self.engine.bitmatch_mask(index), dtype=np.uint8)
         mask = np.unpackbits(mask_list, bitorder="little")
         return mask
+    
+    def get_task_order(self) -> np.ndarray:
+        """Get task order array in single file"""
+        task_order = np.array(self.engine.task_order())
+        return task_order
+    
+    def get_outputs(self) -> List[List[np.ndarray]]:
+        """Get the outputs from the inference engine.
 
+        Returns:
+            List[List[np.ndarray]]: List of outputs, each output is a list of numpy arrays.
+        """
+        return C.get_outputs(self.engine)
+    
     def check_inputs(self, input_feed_list: List[np.ndarray]) -> None:
         """Check input if it is valid inputs.
 

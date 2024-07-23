@@ -4,4 +4,4 @@
 #pragma once
 
 
-#define DXRT_VERSION "1.0.0"
+#define DXRT_VERSION "v1.2.0"

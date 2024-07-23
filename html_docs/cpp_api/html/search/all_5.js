@@ -1,6 +1,8 @@
 var searchData=
 [
-  ['face_23',['FACE',['../namespacedxrt.html#ab77b34051412213844efe193b50e53e3ac406df6d0d4fa29463fb8f52641bf8ad',1,'dxrt']]],
-  ['float_24',['FLOAT',['../namespacedxrt.html#ab77b34051412213844efe193b50e53e3adc3bc24e12afff0f5eb850524838d942',1,'dxrt']]],
-  ['fwversionstr_25',['fwVersionStr',['../classdxrt_1_1DxrtDeviceInfoWithStatus.html#a09bce15360e82dd2a897abe5bc833878',1,'dxrt::DxrtDeviceInfoWithStatus']]]
+  ['inference_5ftime_17',['inference_time',['../classdxrt_1_1InferenceEngine.html#aad2f3b616e0e996b66ef7df37dc16a85',1,'dxrt::InferenceEngine']]],
+  ['inferenceengine_18',['InferenceEngine',['../classdxrt_1_1InferenceEngine.html',1,'dxrt']]],
+  ['inferenceoption_19',['InferenceOption',['../structdxrt_1_1InferenceOption.html',1,'dxrt']]],
+  ['input_5fsize_20',['input_size',['../classdxrt_1_1InferenceEngine.html#a96c4e5953a0daf4a1c886002c052a6ba',1,'dxrt::InferenceEngine']]],
+  ['inputs_21',['inputs',['../classdxrt_1_1InferenceEngine.html#afbee8b031fdd6c0a3916ed00d08c9cd8',1,'dxrt::InferenceEngine']]]
 ];

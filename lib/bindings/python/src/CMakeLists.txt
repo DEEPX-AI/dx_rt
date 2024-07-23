@@ -6,14 +6,19 @@ if(NOT DEFINED PYBIND11_PYTHON_VERSION)
     message(FATAL_ERROR "PYBIND11_PYTHON_VERSION is not defined. To build _pydxrt, pass python version")
 endif()
 
-set(python_v "${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR}")
-if(${python_v} LESS "38")
-    set(m_flag "m")
+if(MSVC)
+    set(PYTHON_MODULE_EXTENSION ".pyd")
 else()
-    set(m_flag "")
+    set(python_v "${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR}")  
+    if(${python_v} LESS 38)
+        set(m_flag "m")
+    else()
+        set(m_flag "")
+    endif()
+
+    set(PYTHON_MODULE_EXTENSION ".cpython-${python_v}${m_flag}-${CMAKE_SYSTEM_PROCESSOR}-linux-gnu.so")
 endif()
 
-set(PYTHON_MODULE_EXTENSION ".cpython-${python_v}${m_flag}-${CMAKE_SYSTEM_PROCESSOR}-linux-gnu.so")
 set(PYDXRT_DIR ${CMAKE_CURRENT_LIST_DIR})
 
 pybind11_add_module( ${target} py_inference_engine.cpp )
@@ -21,7 +26,11 @@ target_include_directories(${target} PRIVATE
   ${CMAKE_SOURCE_DIR}/lib/include
   ${CMAKE_SOURCE_DIR}/extern/include
 )
-target_link_libraries(${target} PRIVATE dxrt pthread ${link_libs})
+if(MSVC)
+    target_link_libraries(${target} PRIVATE dxrt ${link_libs})
+else()
+    target_link_libraries(${target} PRIVATE dxrt pthread ${link_libs})
+endif()
 # add_dxrt(_pydxrt)
 
 # target_include_directories(_pydxrt

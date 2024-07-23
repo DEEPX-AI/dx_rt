@@ -92,7 +92,6 @@ void DataDumpBin(std::string filename, std::vector<Tensor> tensors)
     DXRT_ASSERT(out.is_open(), "Failed to open " + filename);        
     for(auto &tensor:tensors)
     {
-        // cout << "dump " << tensor.name() << " to " << filename << endl;
         uint8_t *bytes = reinterpret_cast<uint8_t*>(tensor.data());
         auto size = vectorProduct(tensor.shape())*tensor.elem_size();
         out.write(reinterpret_cast<const char*>(bytes), size);            

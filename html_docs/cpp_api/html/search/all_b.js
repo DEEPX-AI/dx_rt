@@ -1,5 +1,6 @@
 var searchData=
 [
-  ['output_5fsize_50',['output_size',['../classdxrt_1_1InferenceEngine.html#a93e1d7b460b7f8656e725ed708de507b',1,'dxrt::InferenceEngine']]],
-  ['outputs_51',['outputs',['../classdxrt_1_1InferenceEngine.html#a0893b724d6eed939556f1315ce05829d',1,'dxrt::InferenceEngine']]]
+  ['save_32',['Save',['../classdxrt_1_1Profiler.html#ae7a4f64cc8dcfea179ab9eb0a8bea8da',1,'dxrt::Profiler']]],
+  ['show_33',['Show',['../classdxrt_1_1Profiler.html#a8b3f38d3b67f15fd530cca295c8a50a8',1,'dxrt::Profiler']]],
+  ['start_34',['Start',['../classdxrt_1_1Profiler.html#aec94050841dbf409644cf73a1647820b',1,'dxrt::Profiler']]]
 ];

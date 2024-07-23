@@ -12,19 +12,40 @@
 #include <signal.h>
 #include <thread>
 #include <condition_variable>
-#include <poll.h>
+#ifdef __linux__
+    #include <poll.h>
+#elif _WIN32
+    #include <windows.h>
+    struct pollfd {
+        HANDLE fd;
+        short events;
+        short revents;
+    };
+#endif
 
 namespace dxrt {
 using DevicePtr = std::shared_ptr<Device>;
 
+enum SkipMode
+{
+    NONE            = 0,
+    VERSION_CHECK,
+    COMMON_SKIP
+};
+
 class Worker;
 class Memory;
+#ifdef __linux__
 class InferenceOption;
+#elif _WIN32
+// TODO: cpu_handle.h������ struct�� ����Ǿ� ����.
+struct InferenceOption;
+#endif
 class Task;
 class Profiler;
 class Buffer;
 class FwLog;
-class Device
+class DXRT_API Device
 {
 public:
     const static std::string DeviceStatusTable[];
@@ -49,7 +70,8 @@ public:
     int Write(dxrt_meminfo_t &);
     int Read(dxrt_meminfo_t &);
     int Wait();
-    void Identify(int id_, bool skip = false);
+    void Identify(int id_, SkipMode skip = NONE);
+    void BoundOption(dxrt_sche_sub_cmd_t subCmd);
     void Terminate();
     void Reset(int opt);
     void ResetBuffer(int opt);
@@ -67,12 +89,19 @@ public:
     std::vector<dxrt_model_t> npu_model(int taskId);
     std::vector<Tensors> inputs(int taskId);
     Tensors outputs(int taskId);
-    friend std::ostream& operator<<(std::ostream &, const Device&);
+    friend DXRT_API std::ostream& operator<<(std::ostream &, const Device&);
 protected:
     int _id = 0;
     uint32_t _type = 0; /* 0: ACC type, 1: STD type */
+    SkipMode _skip;
+    npu_bound_op _boundOp;
+    uint32_t _variant;
     int _devFd = -1;
+#ifdef __linux__
     struct pollfd _devPollFd;
+#elif _WIN32
+    HANDLE _devHandle = INVALID_HANDLE_VALUE;
+#endif
     std::string _file;
     std::string _name;
     dxrt_device_info_t _info;
@@ -102,10 +131,10 @@ protected:
     std::shared_ptr<Buffer> _buffer=nullptr;
 };
 
-extern std::shared_ptr<Device> PickOneDevice(std::vector<std::shared_ptr<Device>> &devices_);
-extern std::vector<std::shared_ptr<Device>> CheckDevices(bool skip = false);
-extern void WaitDeviceResponses(std::vector<std::shared_ptr<Device>> &devices_); // temp.
-std::ostream& operator<<(std::ostream&, const dxrt_device_status_t&);
-std::ostream& operator<<(std::ostream& os, const dxrt_device_info_t& info);
+extern DXRT_API std::shared_ptr<Device> PickOneDevice(std::vector<std::shared_ptr<Device>> &devices_);
+extern DXRT_API std::vector<std::shared_ptr<Device>> CheckDevices(SkipMode skip = NONE);
+extern DXRT_API void WaitDeviceResponses(std::vector<std::shared_ptr<Device>> &devices_); // temp.
+DXRT_API std::ostream& operator<<(std::ostream&, const dxrt_device_status_t&);
+DXRT_API std::ostream& operator<<(std::ostream& os, const dxrt_device_info_t& info);
 
 } // namespace dxrt

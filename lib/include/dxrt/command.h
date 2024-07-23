@@ -6,7 +6,7 @@
 #include "dxrt/common.h"
 
 namespace dxrt {
-enum Command
+enum DXRT_API Command
 {
     GET_STATUS = 0,
     RESET = 1,
@@ -17,7 +17,7 @@ enum Command
     SET_DVFS = 6,
     MAX_CMD,
 };
-typedef struct {
+typedef struct DXRT_API {
     uint16_t fw_ver;                // firmware version. A.B.C (e.g. 103)
     uint16_t dummy;
     uint16_t bd_rev;                // board revision. /10 (e.g. 1 = 0.1, 2 = 0.2)
@@ -29,5 +29,5 @@ typedef struct {
 /** \brief get hardware status (this function is valid only for accelerator devices)
  * \return return 0 if hardware status is read successfully
 */
-int CommandLineInterface(Command cmd, std::vector<uint32_t> vec);
+DXRT_API int CommandLineInterface(Command cmd, std::vector<uint32_t> vec);
 } // namespace dxrt

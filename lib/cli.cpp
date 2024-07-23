@@ -94,7 +94,7 @@ void CLI::Run(void)
     }
     if (withDev)
     {
-        auto devicesAll = CheckDevices((fwUpdateSubCmd & FWUPDATE_FORCE) ? true : false);
+        auto devicesAll = CheckDevices((fwUpdateSubCmd & FWUPDATE_FORCE) ? VERSION_CHECK : COMMON_SKIP);
         if(_deviceId==-1)
         {
             devices = devicesAll;

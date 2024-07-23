@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['parsemodel_113',['ParseModel',['../namespacedxrt.html#a3be83887ca550fa903876b6599dc56ed',1,'dxrt']]]
+  ['task_5forder_72',['task_order',['../classdxrt_1_1InferenceEngine.html#a22087ed8a6839bfc1c4a6b9c21629236',1,'dxrt::InferenceEngine']]]
 ];

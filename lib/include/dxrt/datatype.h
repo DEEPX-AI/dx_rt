@@ -10,7 +10,7 @@
 */
 namespace dxrt {
 
-enum DataType
+enum DXRT_API DataType
 {
     NONE_TYPE = 0,
     UINT8,   ///< 8bit unsigned integer
@@ -25,10 +25,10 @@ enum DataType
     POSE,   ///< custom structure for poses boxes from device
     MAX_TYPE,
 };
-extern std::string DataTypeToString(DataType type);
-std::ostream& operator<<(std::ostream&, const DataType&);
+DXRT_API std::string DataTypeToString(DataType type);
+DXRT_API std::ostream& operator<<(std::ostream&, const DataType&);
 
-typedef struct {
+typedef struct DXRT_API {
 	float x;
 	float y;
 	float w;
@@ -45,7 +45,7 @@ typedef struct {
 /** \brief face detection data format from device 
  * \headerfile "dxrt/dxrt_api.h"
 */
-typedef struct {
+typedef struct DXRT_API {
 	float x;
 	float y;
 	float w;
@@ -60,7 +60,7 @@ typedef struct {
 /** \brief pose estimation data format from device 
  * \headerfile "dxrt/dxrt_api.h"
 */
-typedef struct {
+typedef struct DXRT_API {
 	float x;
 	float y;
 	float w;

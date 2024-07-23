@@ -3,9 +3,12 @@
 
 #pragma once
 
+#include <vector>
+
 #include "dxrt/common.h"
 #include "dxrt/datatype.h"
 #include "dxrt/request.h"
+
 #ifdef USE_ORT
 #include <onnxruntime_cxx_api.h>
 #endif
@@ -13,7 +16,7 @@
 namespace dxrt {
 class Buffer;
 class Worker;
-struct CpuHandle
+struct DXRT_API CpuHandle
 {
     CpuHandle(void* data_, int64_t size_, std::string name_);
     ~CpuHandle();
@@ -25,10 +28,10 @@ struct CpuHandle
     uint32_t _inputSize = 0;
     uint32_t _outputSize = 0;
     uint32_t _outputMemSize = 0;
-    DataType _inputDataType;
-    DataType _outputDataType;
-    int _inputDataTypeOrg;
-    int _outputDataTypeOrg;
+    std::vector<DataType> _inputDataTypes;  
+    std::vector<DataType> _outputDataTypes; 
+    std::vector<int> _inputDataTypesOrg;    
+    std::vector<int> _outputDataTypesOrg;   
     int _numInputs = 1;
     int _numOutputs;
     std::string _name;
@@ -43,10 +46,12 @@ struct CpuHandle
     std::vector<uint64_t> _inputSizes;
     std::vector<uint64_t> _outputSizes;
     std::shared_ptr<Buffer> _buffer;
+
     int InferenceRequest(RequestPtr req);
+    void Start();
     void Run(RequestPtr req);
     void Terminate(void);
     std::shared_ptr<Worker> _worker=nullptr;
-    friend std::ostream& operator<<(std::ostream&, const CpuHandle&);
+    friend DXRT_API std::ostream& operator<<(std::ostream&, const CpuHandle&);
 };
 } /* namespace dxrt */

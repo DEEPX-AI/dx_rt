@@ -10,3 +10,4 @@ SET(CMAKE_OBJDUMP         riscv64-enx122-linux-gnu-objdump )
 SET(CMAKE_RANLIB          riscv64-enx122-linux-gnu-ranlib )
 
 set(onnxruntime_LIB_DIRS /usr/local/lib)
+set(onnxruntime_INCLUDE_DIRS /usr/local/include)

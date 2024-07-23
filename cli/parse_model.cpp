@@ -1,19 +1,23 @@
-#include <getopt.h>
 #include "dxrt/dxrt_api.h"
 
 using namespace std;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
+
+#ifdef __linux__
+#include <getopt.h>
+
 static struct option const opts[] = {
     { "model", required_argument, 0, 'm' },
     { "help", no_argument, 0, 'h' },
     { 0, 0, 0, 0 }
 };
-const char* usage =
-"parse model\n"
-"  -m, --model     model path\n"
-"  -h, --help      show help\n"
-;
+#endif 
+
+const char* usage = "parse model\n"
+                    "  -m, --model     model path\n"
+                    "  -h, --help      show help\n";
+
 void help()
 {
     cout << usage << endl;    
@@ -21,7 +25,7 @@ void help()
 
 int main(int argc, char *argv[])
 {
-    int optCmd, ret;
+    int ret;
     string modelPath="";
     if(argc==1)
     {
@@ -30,6 +34,8 @@ int main(int argc, char *argv[])
         return -1;
     }
 
+#ifdef __linux__
+    int optCmd;
     while ((optCmd = getopt_long(argc, argv, "m:h", opts,
         NULL)) != -1) {
         switch (optCmd) {
@@ -45,6 +51,25 @@ int main(int argc, char *argv[])
                 break;
         }
     }
+#elif _WIN32
+    for (int i = 1; i < argc; i++) {
+        string arg = argv[i];
+        if (arg == "-m" || arg == "--model") {
+            if (i + 1 < argc) {
+                modelPath = argv[++i];
+            }
+            else {
+                cerr << "Error: -m option requires an argument." << endl;
+                return -1;
+            }
+        }
+        else if (arg == "-h" || arg == "--help") {
+            help();
+            return 0;
+        }
+    }
+#endif
+
     LOG_VALUE(modelPath);
     DXRT_ASSERT(!modelPath.empty(), "no model path");
     ret = dxrt::ParseModel(modelPath);

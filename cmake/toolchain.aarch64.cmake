@@ -10,4 +10,5 @@ SET(CMAKE_OBJCOPY         /usr/bin/aarch64-linux-gnu-objcopy )
 SET(CMAKE_OBJDUMP         /usr/bin/aarch64-linux-gnu-objdump )
 SET(CMAKE_RANLIB          /usr/bin/aarch64-linux-gnu-ranlib )
 
-set(onnxruntime_LIB_DIRS /usr/local/lib)
+set(onnxruntime_LIB_DIRS ${CMAKE_SOURCE_DIR}/util/onnxruntime_aarch64/lib)
+set(onnxruntime_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/util/onnxruntime_aarch64/include)
