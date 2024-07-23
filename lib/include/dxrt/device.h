@@ -17,6 +17,13 @@
 namespace dxrt {
 using DevicePtr = std::shared_ptr<Device>;
 
+enum SkipMode
+{
+    NONE            = 0,
+    VERSION_CHECK,
+    COMMON_SKIP
+};
+
 class Worker;
 class Memory;
 class InferenceOption;
@@ -49,7 +56,8 @@ public:
     int Write(dxrt_meminfo_t &);
     int Read(dxrt_meminfo_t &);
     int Wait();
-    void Identify(int id_, bool skip = false);
+    void Identify(int id_, SkipMode skip = NONE);
+    void BoundOption(dxrt_sche_sub_cmd_t subCmd);
     void Terminate();
     void Reset(int opt);
     void ResetBuffer(int opt);
@@ -71,6 +79,9 @@ public:
 protected:
     int _id = 0;
     uint32_t _type = 0; /* 0: ACC type, 1: STD type */
+    SkipMode _skip;
+    npu_bound_op _boundOp;
+    uint32_t _variant;
     int _devFd = -1;
     struct pollfd _devPollFd;
     std::string _file;
@@ -103,7 +114,7 @@ protected:
 };
 
 extern std::shared_ptr<Device> PickOneDevice(std::vector<std::shared_ptr<Device>> &devices_);
-extern std::vector<std::shared_ptr<Device>> CheckDevices(bool skip = false);
+extern std::vector<std::shared_ptr<Device>> CheckDevices(SkipMode skip = NONE);
 extern void WaitDeviceResponses(std::vector<std::shared_ptr<Device>> &devices_); // temp.
 std::ostream& operator<<(std::ostream&, const dxrt_device_status_t&);
 std::ostream& operator<<(std::ostream& os, const dxrt_device_info_t& info);

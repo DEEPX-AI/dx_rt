@@ -143,8 +143,9 @@ Task::Task(string name_, vector<rmapinfo> rmapInfos_, std::vector<std::vector<ui
                     && info.outputs().outputlist().output(0).format()<=deepx_rmapinfo::DataFormat::PPU_POSE )
                 {
                     model.type = 2;
+                    model.format = info.outputs().outputlist().output(0).format();
                     _outputTensors.clear();
-                    int dataType = DataType::BBOX + info.outputs().outputlist().output(0).format() - deepx_rmapinfo::DataFormat::PPU_YOLO;    
+                    int dataType = DataType::BBOX + info.outputs().outputlist().output(0).format() - deepx_rmapinfo::DataFormat::PPU_YOLO;
                     _outputTensors.emplace_back(
                         Tensor(_outputNames[i], _outputShape[i], (DataType)dataType, nullptr)
                     );

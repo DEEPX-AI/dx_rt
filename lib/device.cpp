@@ -296,6 +296,7 @@ int Device::Release(Task *task)
     {
         Deallocate(inf);
     }
+    _outputValidateBuffers.erase(taskId);
     return 0;
 }
 int Device::Response(dxrt_response_t &response)
@@ -338,7 +339,13 @@ int Device::Wait(void)
     }
     return 0;
 }
-void Device::Identify(int id_, bool skip)
+void Device::BoundOption(dxrt_sche_sub_cmd_t subCmd)
+{
+    int ret;
+    ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_SCHEDULE, reinterpret_cast<void*>(&_boundOp), sizeof(dxrt_sche_sub_cmd_t), subCmd);
+    DXRT_ASSERT(ret==0, "failed to apply bound option to device");
+}
+void Device::Identify(int id_, SkipMode skip)
 {
     LOG_DXRT_DBG << "Device " << _id << " Identify" << endl;
     int ret;
@@ -360,7 +367,8 @@ void Device::Identify(int id_, bool skip)
     ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_IDENTIFY_DEVICE, reinterpret_cast<void*>(&_info));
     DXRT_ASSERT(ret==0, "failed to identify device");
 
-    if(!skip)
+    _skip = skip;
+    if(_skip != VERSION_CHECK)
     {
         DxDeviceVersion dxVer(this, _info.fw_ver, _info.type, _info.interface, _info.variant);
         dxVer.CheckVersion();
@@ -373,6 +381,7 @@ void Device::Identify(int id_, bool skip)
         << dec << ", num_dma_ch " << _info.num_dma_ch << endl;
     DXRT_ASSERT(_info.mem_size>0, "invalid device memory size");
     _type = _info.type;
+    _variant = _info.variant;
     void *_mem = mmap(0, _info.mem_size, PROT_READ|PROT_WRITE, MAP_SHARED, _devFd, 0);
     if(reinterpret_cast<int64_t>(_mem)==-1)
     {
@@ -395,6 +404,11 @@ void Device::Identify(int id_, bool skip)
     }
 
     LOG_DXRT_DBG << "    Device " << _id << ": " << _info << endl;
+    if((_variant == 202) && (_skip != COMMON_SKIP))
+    {
+        _boundOp = N_BOUND_NORMAL;
+        BoundOption(DX_SCHED_ADD);
+    }
 
     if(_type==0)
     {
@@ -413,6 +427,8 @@ void Device::Terminate()
     LOG_DXRT_DBG << "Device " << _id << " terminate" << endl;
 
     uint32_t i;
+    if((_variant == 202) && (_skip != COMMON_SKIP))
+        BoundOption(DX_SCHED_DELETE);
     for(i=0;i<_info.num_dma_ch;i++)
     {
         dxrt_response_t data;
@@ -559,6 +575,7 @@ int Device::RegisterTask(Task* task)
             inference.output.size = _type==1?model.output_all_size:task->output_size();
             // inference.output .size = task->output_size();
             inference.model_type = static_cast<uint32_t>(model.type);
+            inference.model_format = static_cast<uint32_t>(model.format);
             inference.model_cmds = static_cast<uint32_t>(model.cmds);
             inference.cmd_offset = model.cmd.offset;
             inference.weight_offset = model.weight.offset;
@@ -567,19 +584,9 @@ int Device::RegisterTask(Task* task)
             if(_memory->data()==0)
             {
                 {
-                    vector<uint8_t> buf(task->input_size());
-                    _inputTensorBuffers[id].emplace_back( move(buf) );
-                }
-                {
-                    vector<uint8_t> buf(task->output_size());
-                    _outputTensorBuffers[id].emplace_back( move(buf) );
-                }
-                {
                     vector<uint8_t> buf(model.output_all_size);
                     _outputValidateBuffers[id] = move(buf);
                 }
-                inference.input.data = reinterpret_cast<uint64_t>(_inputTensorBuffers[id].back().data());
-                inference.output.data = reinterpret_cast<uint64_t>(_outputTensorBuffers[id].back().data());
             }
             else
             {
@@ -593,7 +600,8 @@ int Device::RegisterTask(Task* task)
                 _outputValidateBuffers[id] = vector<uint8_t>(static_cast<uint8_t*>(start), static_cast<uint8_t*>(end));
                 // LOG_VALUE_HEX(inference.last_output_offset);
             }
-            dxrt_request_acc_t inferenceAcc; 
+            dxrt_request_acc_t inferenceAcc;
+            memset(static_cast<void *>(&inferenceAcc), 0x00, sizeof(dxrt_request_acc_t));
             inferenceAcc.req_id = inference.req_id;
             inferenceAcc.task_id = static_cast<uint32_t>(task->id());
             inferenceAcc.input.data = inference.input.data;
@@ -605,6 +613,8 @@ int Device::RegisterTask(Task* task)
             inferenceAcc.output.offset = inference.output.offset;
             inferenceAcc.output.size = inference.output.size;
             inferenceAcc.model_type = static_cast<int16_t>(inference.model_type);
+            inferenceAcc.model_format = static_cast<int16_t>(inference.model_format);
+            inferenceAcc.bound = _boundOp;
 
             _npuInference[id].emplace_back(inference);
             _npuInferenceAcc[id].emplace_back(inferenceAcc);
@@ -613,10 +623,6 @@ int Device::RegisterTask(Task* task)
         cout << "model weight: " << model.weight << endl;
         DXRT_ASSERT(Write(model.cmd)==0, "failed to write model parameters");
         DXRT_ASSERT(Write(model.weight)==0, "failed to write model parameters");
-        {
-            int opt = 2;
-            Reset(opt);
-        }
         // cout << "write done" << endl;
     }
     for(auto &inf:_npuInferenceAcc[id])
@@ -777,7 +783,7 @@ shared_ptr<Device> PickOneDevice(vector<shared_ptr<Device>> &devices_)
     return pick;
 #endif
 }
-vector<shared_ptr<Device>> CheckDevices(bool skip)
+vector<shared_ptr<Device>> CheckDevices(SkipMode skip)
 {
     LOG_DXRT_DBG << endl;    
     const char* forceNumDevStr = getenv("DXRT_FORCE_NUM_DEV");

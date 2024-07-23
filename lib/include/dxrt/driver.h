@@ -11,8 +11,7 @@ namespace dxrt {
 /**********************/
 /* RT/driver sync     */
 
-typedef enum
-{
+typedef enum {
     ERR_NONE      = 0,
     ERR_NPU0_HANG = 1,
     ERR_NPU1_HANG,
@@ -22,8 +21,32 @@ typedef enum
     ERR_PCIE_DMA_CH2_FAIL,
 } dxrt_error_t;
 
-typedef struct device_info
-{
+typedef enum _npu_priority_op {
+    N_PRIORITY_NORMAL = 0,
+    N_PRIORITY_HIGH,
+} npu_priority_op;
+
+typedef enum _npu_bandwidth_op {
+    N_BANDWIDTH_NORMAL = 0,
+    N_BANDWIDTH_NPU0,
+    N_BANDWIDTH_NPU1,
+    N_BANDWIDTH_NPU2,
+    N_BANDWIDTH_PCIE,
+    N_BANDWIDTH_MAX,
+} npu_bandwidth_op;
+
+typedef enum _npu_bound_op {
+    N_BOUND_NORMAL = 0,     /*inference with 3-npu */
+    N_BOUND_INF_ONLY_NPU0,
+    N_BOUND_INF_ONLY_NPU1,
+    N_BOUND_INF_ONLY_NPU2,
+    N_BOUND_INF_2_NPU_01,   /* Infrence with 2-npu */
+    N_BOUND_INF_2_NPU_12,   /* Infrence with 2-npu */
+    N_BOUND_INF_2_NPU_02,   /* Infrence with 2-npu */
+    N_BOUND_INF_MAX,
+} npu_bound_op;
+
+typedef struct device_info {
     uint32_t type = 0; /* 0: ACC type, 1: STD type */
     uint32_t variant = 0; /* 100: L1, 101: L2, 102: L3, 103: L4,
                         200: M1, 201: M1A */
@@ -39,8 +62,7 @@ typedef struct device_info
     char     fw_info[64] = "";
 } dxrt_device_info_t;
 
-typedef struct _dxrt_meminfo_t
-{
+typedef struct _dxrt_meminfo_t {
     uint64_t data = 0;
     uint64_t base = 0;
     uint32_t offset = 0;
@@ -52,6 +74,7 @@ typedef struct _dxrt_request_t {
     dxrt_meminfo_t input;
     dxrt_meminfo_t output;
     uint32_t  model_type = 0;
+    uint32_t  model_format = 0;
     uint32_t  model_cmds = 0;
     uint32_t  cmd_offset = 0;
     uint32_t  weight_offset = 0;
@@ -64,7 +87,8 @@ typedef struct _dxrt_request_acc_t {
     dxrt_meminfo_t input;
     dxrt_meminfo_t output;
     int16_t   npu_id = 0;
-    int16_t   model_type = 0;
+    int8_t    model_type   = 0;
+    int8_t    model_format = 0;
     uint32_t  model_cmds = 0;
     uint32_t  cmd_offset = 0;
     uint32_t  weight_offset = 0;
@@ -74,15 +98,22 @@ typedef struct _dxrt_request_acc_t {
     int32_t   dma_ch = 0;
     uint32_t  arg0 = 0; // additional parameter dependent to hw (for m1 8k)
     uint32_t  status = 0;
+    uint32_t  prior;        /* scheduler option - priority(npu_priority_op) */
+    uint32_t  prior_level;  /* scheduler option - priority level */
+    uint32_t  bandwidth;    /* scheduler option - bandwith(npu_bandwidth_op) */
+    uint32_t  bound;        /* scheduler option - bound   (npu_bound_op) */
+    uint32_t  queue;
 } dxrt_request_acc_t;
 
 typedef struct _dxrt_response_t {
-    uint32_t  req_id = 0;
-    uint32_t  inf_time = 0;
-    uint16_t   argmax = 0;
-    uint16_t   model_type = 0;
-    int32_t   status = 0;
-    uint32_t   ppu_filter_num = 0;
+    uint32_t  req_id            = 0;
+    uint32_t  inf_time          = 0;
+    uint16_t  argmax            = 0;
+    uint16_t  model_type        = 0;
+    int32_t   status            = 0;
+    uint32_t  ppu_filter_num    = 0;
+    uint32_t  proc_id           = 0;
+    uint32_t  queue             = 0;
 } dxrt_response_t;
 
 typedef struct
@@ -92,8 +123,7 @@ typedef struct
     void* data = NULL;
     uint32_t size = 0;
 } dxrt_message_t;
-typedef struct
-{
+typedef struct {
     uint32_t cmd = 0;	/* command */
     uint32_t ack = 0;	/* Response from device */
     uint32_t size = 0;	/* Data Size */
@@ -120,8 +150,14 @@ typedef enum {
     DXRT_CMD_TERMINATE,
     DXRT_CMD_ERROR,
     DXRT_CMD_DRV_INFO, /* Sub-command */
+    DXRT_CMD_SCHEDULE, /* Sub-command */
     DXRT_CMD_MAX,
 } dxrt_cmd_t;
+
+typedef enum {
+    DX_SCHED_ADD    = 1,
+    DX_SCHED_DELETE = 2
+} dxrt_sche_sub_cmd_t;
 
 typedef enum {
     DRVINFO_CMD_GET_RT_INFO   = 0,
@@ -159,7 +195,8 @@ typedef enum {
 typedef struct
 {
     int16_t npu_id;
-    int16_t type; // 0: normal, 1: argmax, 2: ppu
+    int8_t  type; // 0: normal, 1: argmax, 2: ppu
+    int8_t  format;
     int32_t cmds;
     dxrt_meminfo_t cmd;
     dxrt_meminfo_t weight;
