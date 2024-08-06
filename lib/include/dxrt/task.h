@@ -98,6 +98,7 @@ private:
     std::vector<std::queue<Tensor>> _inputTensorQueue;
     std::map<std::string, int> _inputTensorQueueIdx;
     std::mutex _inputTensorQueueLock;
+    std::mutex _reqLock;
 
     bool _isHead = false;
     bool _isTail = false;

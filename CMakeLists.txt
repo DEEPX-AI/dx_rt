@@ -9,9 +9,6 @@ if (MSVC)
     endif()
 endif()
 
-
-set(CMAKE_CXX_STANDARD_REQUIRED "ON")
-set(CMAKE_CXX_STANDARD "11")
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/release" CACHE PATH "Default install path" FORCE)
 endif()
@@ -37,6 +34,14 @@ include(dxrt.cfg)
 
 # functions
 include(dxrt.function)
+
+set(CMAKE_CXX_STANDARD_REQUIRED "ON")
+
+if(USE_ORT)
+    set(CMAKE_CXX_STANDARD "14")
+else()
+    set(CMAKE_CXX_STANDARD "11")
+endif()
 
 # global compile options
 if (MSVC)

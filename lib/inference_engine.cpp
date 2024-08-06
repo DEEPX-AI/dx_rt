@@ -23,6 +23,7 @@
 #endif
 #include <regex>
 
+#define PRINT_ALL_INFERENCE_ENGINE
 
 using namespace std;
 
@@ -299,49 +300,7 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
             cout << next->name() << ", ";
         }
         cout << " ]" << endl;
-        auto &graph = _graphMap[task->name()];
-        auto &outputs = graph.outputs();
-        auto &input_index = task->input_index();
-        auto &output_index = task->output_index();
-        // for(auto &node : graph.outputs())
-        // {
-        //     cout << "  [" << node.key() << ", " << node.val() << "], ";
-        // }
-        std::ignore = outputs;// cout << endl;
-        /*
-        cout << "  inputs" << endl;
-        for(auto &prev:task->prevs())
-        {
-            auto idxs = input_index[prev->id()];
-            cout << "    " << prev->name() << " -> " << task->name() << endl;
-            vector<Tensor> tensors;
-            for(auto &idx:idxs)
-            {
-                tensors.emplace_back( task->inputs()[idx] );
-            }
-            for(auto &tensor: tensors)
-            {
-                cout << "      " << tensor.name() << endl;
-            }
-        }
-        cout << "  outputs" << endl;
-        for(auto &next:task->nexts())
-        {
-            auto idxs = output_index[next->id()];
-            cout << "    " << task->name() << " -> " << next->name() << endl;
-            vector<Tensor> tensors;
-            for(auto &idx:idxs)
-            {
-                tensors.emplace_back( task->outputs()[idx] );
-            }
-            for(auto &tensor: tensors)
-            {
-                cout << "      " << tensor.name() << endl;
-            }
-        }
-        */
     }
-
     cout << *this << endl;
 #endif
     LOG_DBG("InferenceEngine created.");

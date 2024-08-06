@@ -170,20 +170,21 @@ $(function() {
 <div class="line"><a name="l00098"></a><span class="lineno">   98</span>&#160;    std::vector&lt;std::queue&lt;Tensor&gt;&gt; _inputTensorQueue;</div>
 <div class="line"><a name="l00099"></a><span class="lineno">   99</span>&#160;    std::map&lt;std::string, int&gt; _inputTensorQueueIdx;</div>
 <div class="line"><a name="l00100"></a><span class="lineno">  100</span>&#160;    std::mutex _inputTensorQueueLock;</div>
-<div class="line"><a name="l00101"></a><span class="lineno">  101</span>&#160; </div>
-<div class="line"><a name="l00102"></a><span class="lineno">  102</span>&#160;    <span class="keywordtype">bool</span> _isHead = <span class="keyword">false</span>;</div>
-<div class="line"><a name="l00103"></a><span class="lineno">  103</span>&#160;    <span class="keywordtype">bool</span> _isTail = <span class="keyword">false</span>;</div>
-<div class="line"><a name="l00104"></a><span class="lineno">  104</span>&#160; </div>
-<div class="line"><a name="l00105"></a><span class="lineno">  105</span>&#160;    std::atomic&lt;int&gt; _inferenceCnt;</div>
-<div class="line"><a name="l00106"></a><span class="lineno">  106</span>&#160;    std::function&lt;int(TensorPtrs&amp;, <span class="keywordtype">void</span>*)&gt; _callBack;</div>
-<div class="line"><a name="l00107"></a><span class="lineno">  107</span>&#160;    CircularBuffer&lt;int&gt; _latency;</div>
-<div class="line"><a name="l00108"></a><span class="lineno">  108</span>&#160;    CircularBuffer&lt;uint32_t&gt; _infTime;</div>
-<div class="line"><a name="l00109"></a><span class="lineno">  109</span>&#160;    std::shared_ptr&lt;CpuHandle&gt; _cpuHandle;</div>
-<div class="line"><a name="l00110"></a><span class="lineno">  110</span>&#160;    InferenceEngine *_ie;</div>
-<div class="line"><a name="l00111"></a><span class="lineno">  111</span>&#160;    <span class="keywordtype">int</span> _completeCnt = 1;</div>
-<div class="line"><a name="l00112"></a><span class="lineno">  112</span>&#160;    <span class="keyword">static</span> <span class="keywordtype">int</span> nextId;</div>
-<div class="line"><a name="l00113"></a><span class="lineno">  113</span>&#160;};</div>
-<div class="line"><a name="l00114"></a><span class="lineno">  114</span>&#160;} <span class="comment">// namespace dxrt</span></div>
+<div class="line"><a name="l00101"></a><span class="lineno">  101</span>&#160;    std::mutex _reqLock;</div>
+<div class="line"><a name="l00102"></a><span class="lineno">  102</span>&#160; </div>
+<div class="line"><a name="l00103"></a><span class="lineno">  103</span>&#160;    <span class="keywordtype">bool</span> _isHead = <span class="keyword">false</span>;</div>
+<div class="line"><a name="l00104"></a><span class="lineno">  104</span>&#160;    <span class="keywordtype">bool</span> _isTail = <span class="keyword">false</span>;</div>
+<div class="line"><a name="l00105"></a><span class="lineno">  105</span>&#160; </div>
+<div class="line"><a name="l00106"></a><span class="lineno">  106</span>&#160;    std::atomic&lt;int&gt; _inferenceCnt;</div>
+<div class="line"><a name="l00107"></a><span class="lineno">  107</span>&#160;    std::function&lt;int(TensorPtrs&amp;, <span class="keywordtype">void</span>*)&gt; _callBack;</div>
+<div class="line"><a name="l00108"></a><span class="lineno">  108</span>&#160;    CircularBuffer&lt;int&gt; _latency;</div>
+<div class="line"><a name="l00109"></a><span class="lineno">  109</span>&#160;    CircularBuffer&lt;uint32_t&gt; _infTime;</div>
+<div class="line"><a name="l00110"></a><span class="lineno">  110</span>&#160;    std::shared_ptr&lt;CpuHandle&gt; _cpuHandle;</div>
+<div class="line"><a name="l00111"></a><span class="lineno">  111</span>&#160;    InferenceEngine *_ie;</div>
+<div class="line"><a name="l00112"></a><span class="lineno">  112</span>&#160;    <span class="keywordtype">int</span> _completeCnt = 1;</div>
+<div class="line"><a name="l00113"></a><span class="lineno">  113</span>&#160;    <span class="keyword">static</span> <span class="keywordtype">int</span> nextId;</div>
+<div class="line"><a name="l00114"></a><span class="lineno">  114</span>&#160;};</div>
+<div class="line"><a name="l00115"></a><span class="lineno">  115</span>&#160;} <span class="comment">// namespace dxrt</span></div>
 </div><!-- fragment --></div><!-- contents -->
 <div class="ttc" id="anamespacedxrt_html"><div class="ttname"><a href="namespacedxrt.html">dxrt</a></div><div class="ttdoc">DXRT C++ APIs are provided in this namespace.</div><div class="ttdef"><b>Definition:</b> buffer.h:8</div></div>
 <!-- start footer part -->

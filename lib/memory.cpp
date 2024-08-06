@@ -51,6 +51,7 @@ uint32_t Memory::GetBufferAsOffset(uint32_t required)
     }
     offset = _cur - _start;
     _cur += required;
+    LOG_DXRT_DBG << "offset : "<< offset << ", required : "<< required<< endl;
     return offset;
 }
 int64_t Memory::Allocate(uint64_t required)

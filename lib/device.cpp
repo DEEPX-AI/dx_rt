@@ -319,7 +319,11 @@ TensorPtrs Device::Validate(RequestPtr req, bool skipInference)
             make_shared<Tensor>("output", vector<int64_t>{memInfo.size}, DataType::INT8, ptr)
         );
         // cout << *ret.back() << endl;
-        DXRT_ASSERT( Read(memInfo)==0, "Fail to read device");
+        //DXRT_ASSERT( Read(memInfo)==0, "Fail to read device");
+        if(Read(memInfo)!=0){
+            LOG_DXRT_DBG << "Validate output is empty." << endl;
+            ret.clear();
+        }
     }
     return ret;
 }
@@ -712,8 +716,6 @@ int Device::RegisterTask(Task* task)
             _npuInference[id].emplace_back(inference);
             _npuInferenceAcc[id].emplace_back(inferenceAcc);
         }
-        cout << "model cmd: " << model.cmd << endl;
-        cout << "model weight: " << model.weight << endl;
         DXRT_ASSERT(Write(model.cmd)==0, "failed to write model parameters");
         DXRT_ASSERT(Write(model.weight)==0, "failed to write model parameters");
         // cout << "write done" << endl;

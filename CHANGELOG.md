@@ -1,4 +1,23 @@
 # Changelog
+## v2.0.1 / 2024-08-06
+### Changed
+- None
+### Fixed
+- Fix argmax model w/ empty output
+### Added
+- None
+
+# Changelog
+## v2.0.0 / 2024-08-02
+### Changed
+- dxnn version up(v6). so prior dxnn models will not work from this version.
+### Fixed
+- None
+### Added
+- stress test script
+- batch run async in pybinding
+
+# Changelog
 ## v1.2.3 / 2024-07-23
 ### Changed
 - Update process id & model_format for device message

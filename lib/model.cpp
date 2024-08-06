@@ -100,7 +100,7 @@ deepx_binaryinfo::BinaryInfoDatabase LoadBinaryInfo(char *buffer, int fileSize)
     deepx_binaryinfo::BinaryInfoDatabase param;
     Document document;
 
-    int offset = 0, verInfo = 0, sizeInfo = 0;
+    int offset = 0, verInfo = 0, sizeInfo = 8192;
     string signInfo, headerInfo;    
 
     signInfo = string(buffer, 4);
@@ -114,16 +114,8 @@ deepx_binaryinfo::BinaryInfoDatabase LoadBinaryInfo(char *buffer, int fileSize)
     verInfo = static_cast<int>(buffer[4]);
     cout << "DXNN Model Ver. : " << verInfo << endl;
 
-    if (verInfo >= 2)
-        sizeInfo = 8192;
-    else
-        sizeInfo = 1024;
-
-    for(int i=0;i<fileSize;i++)
-    {
-        // LOG_VALUE((256+(int)buf[i]-22)%256);
-        buffer[i] = (char)((256+(int)buffer[i]-22)%256);
-    }
+    DXRT_ASSERT(verInfo >= 6, "No support for dxnn versions below 6.");
+    sizeInfo = 8192;
 
     headerInfo = string(buffer+offset,sizeInfo-offset);
     offset = sizeInfo;
@@ -367,14 +359,6 @@ deepx_graphinfo::GraphInfoDatabase LoadGraphInfo(ModelDataBase data)
                         }
                     }
                 }
-            }
-            cout << "\n - - show graph inputs - - "<< endl;
-            for(const auto& item : graph._inputs) {
-                cout << " - - - - Key: " << item._key << ", Value: " << item._val << std::endl;
-            }
-            cout << "\n - - show graph outputs - - "<< endl;
-            for(const auto& item : graph._outputs) {
-                cout << " - - - - Key: " << item._key << ", Value: " << item._val << std::endl;
             }
             param.m_graph().push_back(graph);
         }

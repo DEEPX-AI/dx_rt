@@ -200,8 +200,8 @@ void Worker::DeviceOutputThread(int id)
                     if(dump[i]==0xFFFFFFFF) break;
                     // cout << hex << dump[i] << " : " << dump[i+1] << endl;
                 }
-                dxrt::DataDumpBin(_dumpFile, dump.data(), dump.size());            
-                dxrt::DataDumpTxt(_dumpFile+".txt", static_cast<uint32_t*>(dump.data()), 1, dump.size()/2, 2, true);
+                DataDumpBin(_dumpFile, dump.data(), dump.size());            
+                DataDumpTxt(_dumpFile+".txt", static_cast<uint32_t*>(dump.data()), 1, dump.size()/2, 2, true);
                 _stop = true;
                 DXRT_ASSERT(false, "");
             }
@@ -222,7 +222,9 @@ void Worker::DeviceOutputThread(int id)
                             if(_debugData==1)
                             {
                                 dxrt::TensorPtrs outputs = _device->Validate(req, true);
-                                DataDumpBin(req->task()->name() + "_output.bin", outputs);
+                                if(!outputs.empty()){
+                                    DataDumpBin(req->task()->name() + "_output.bin", outputs);
+                                }
                             }
                             else
                             {
@@ -319,7 +321,7 @@ void Worker::CpuHandleThread()
         if(_debugData>0)
         {
             DataDumpBin(req->task()->name() + "_output.bin", req->outputs());
-            dxrt::DataDumpBin(req->task()->name() + "_output_done.bin", &loopCnt, 1);           
+            DataDumpBin(req->task()->name() + "_output_done.bin", &loopCnt, 1);           
         }
         loopCnt++;
     }

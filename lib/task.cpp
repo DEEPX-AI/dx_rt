@@ -155,6 +155,7 @@ int Task::InferenceRequest(RequestPtr req)
 
 int Task::ProcessResponse(RequestPtr req, dxrt_response_t *response)
 {
+    unique_lock<mutex> lk(_reqLock);
     _inferenceCnt++;
     req->CheckTimePoint(1);
     LOG_DXRT_DBG << "[" << req->id() << "] " << "    Response : " << req->id() << ", " << (req->requestor() ? req->requestor()->name() : "") << " -> " << req->task()->name() << ", " << req->latency() << std::endl;
@@ -188,24 +189,6 @@ int Task::ProcessResponse(RequestPtr req, dxrt_response_t *response)
     else
     {
         LOG_DXRT_DBG << "tail task done: " << id() << ", " << req->id() << std::endl;
-        /* move to DeviceOutputThread
-        if (_processor == Processor::NPU)
-        {
-            if (req->model_type() == 1)
-            {
-                // LOG_VALUE(response->argmax);
-                *((uint16_t *)(req->outputs().front().data())) = response->argmax;
-                DataDumpBin(req->task()->name() + "_output.argmax.bin", req->outputs());
-                
-            }
-            else if (req->model_type() == 2)
-            {
-                // LOG_VALUE(response->ppu_filter_num);
-                vector<int64_t> shape{response->ppu_filter_num};
-                req->outputs().front().shape() = shape;
-            }
-        }
-        */
         auto &head = req->head();
         if (head->task() != this)
         {
@@ -237,6 +220,7 @@ int Task::ProcessResponse(RequestPtr req, dxrt_response_t *response)
                     ret.emplace_back(
                         make_shared<Tensor>(tensor));
                 }
+                LOG_DXRT_DBG << "user_arg : " <<*reinterpret_cast<int*>(req->user_arg())  << std::endl;
                 _callBack(ret, req->user_arg());
                 // _callBack(req->outputs(), req->user_arg()); });
             });

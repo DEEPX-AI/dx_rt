@@ -11,7 +11,7 @@ using std::map;
 map<int, string> device_types {{0,"ACC"},{1,"STD"}};
 map<int, string> device_type_words {{0,"Accelator"},{1,"Standalone"}};
 map<int, string> device_variants{{100,"L1"},{101,"L2"},{102,"L3"},{103,"L4"},
-    {200,"M1"},{201,"M1A"}};
+    {200,"M1"},{202,"M1"}};
 map<int, string> board_types{{1,"SOM"},{2,"M.2"},{3,"H1"}};
 map<int, string> memory_types{{1,"LPDDR4"},{2,"LPDDR5"}};
 map<int, string> interface_types{{0,"ASIC"},{1,"FPGA"}};
