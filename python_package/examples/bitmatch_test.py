@@ -6,31 +6,51 @@ import numpy as np
 import subprocess
 import shutil
 from dx_engine import InferenceEngine
-import json
 import struct 
 import re 
+import platform
+
+USE_ORT=0
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Argparse")
     parser.add_argument("--model", "-m", type=str, required=True, help="model dir.")
     parser.add_argument("--log", "-l", type=str, required=True, help="log filename ex) log")
     parser.add_argument("--debug", "-d", type=str, required=False, help="RT debug options, 0: Do not generate RT binaries. 1: Generate RT binaries for debugging. 2(defualt): Generate RT binaries for release.",default="1")
-    parser.add_argument("--npu", "-n", type=int, required=False, help="1(on, defualt) or 0(off), npu validation only(w/o cpu offloading)", default=0)
     args = parser.parse_args()
     return args
 
-def count_val_blocks(file_path):
-    with open(file_path, 'r') as file:
-        val_block_count = 0
-        in_val_block = False
+def get_target_arch():
+    machine = platform.machine().lower()
+    if machine in ['x86_64', 'amd64']:
+        return 'x86_64'
+    elif machine in ['arm64', 'aarch64']:
+        return 'aarch64'
+    elif machine.startswith('arm'):
+        return 'arm'
+    elif machine in ['risc64']:
+        return 'risc64'
+    else:
+        return 'unknown'
+    
+def find_dxrt_dir(target_arch):
+    dxrt_dir = '/usr/local'
 
-        for line in file:
-            if line.strip().startswith("val {"):
-                in_val_block = True
-            elif in_val_block and line.strip() == "}":
-                val_block_count += 1
-                in_val_block = False
-    return val_block_count
+    if not os.path.exists(dxrt_dir):
+        print(f"-- Error : {dxrt_dir} directory does not exist")
+        exit(1)
+    
+    return dxrt_dir
+
+def check_use_ort(dxrt_dir):
+    gen_h_path = os.path.join(dxrt_dir, 'include', 'dxrt', 'gen.h')
+    if os.path.exists(gen_h_path):
+        with open(gen_h_path, 'r') as file:
+            for line in file:
+                if 'USE_ORT' in line:
+                    return 1
+    return 0
+
 
 def int8tofloat32(arr):
     float_array=[]
@@ -41,9 +61,9 @@ def int8tofloat32(arr):
     return np.array(float_array)
 
 def bit_match(mask_path, gt_path, rt_path, single_output):
-    #print(gt_path, rt_path)
     mask = np.array([])
     task_num = int(rt_path.split('_')[-3])
+    #ie_outputs = single_output['ie_outputs']
     if mask_path and os.path.exists(mask_path):
         mask = np.frombuffer(open(mask_path, "rb").read(), dtype=np.uint8)
         mask = np.unpackbits(mask, bitorder="little")
@@ -55,19 +75,33 @@ def bit_match(mask_path, gt_path, rt_path, single_output):
     if 'argmax' in gt_path:
         gt = np.frombuffer(open(gt_path, "rb").read(), dtype=np.uint16)
         rt = np.frombuffer(open(rt_path, "rb").read(), dtype=np.uint16)
+        """
+        if len(ie_outputs)>0:
+            ie_outputs_t = b""
+            for ie_output in ie_outputs:
+                binary_data = ie_output.tobytes()
+                ie_outputs_t = ie_outputs_t + binary_data
+            ie_outputs = np.frombuffer(ie_outputs_t, dtype=np.uint16)
+        """
     else:
         gt = np.frombuffer(open(gt_path, "rb").read(), dtype=np.int8)
         rt = np.frombuffer(open(rt_path, "rb").read(), dtype=np.int8)
+        """
+        if len(ie_outputs)>0:
+            ie_outputs_t = b""
+            for ie_output in ie_outputs:
+                binary_data = ie_output.tobytes()
+                ie_outputs_t = ie_outputs_t + binary_data
+            ie_outputs = np.frombuffer(ie_outputs_t, dtype=np.int8)
+        """
 
-    if mask.nbytes > 0:
+    if mask.nbytes > 0 and 'ppu' not in gt_path:
         if mask.shape != rt.shape:
             warnings.warn(f"size mismatch Runtime output : {rt.shape} vs mask : {mask.shape}")
-        else:
-            rt = np.where(mask, rt[:mask.shape[0]], 0)
+        rt = np.where(mask, rt[:mask.shape[0]], 0)
         if mask.shape != gt.shape:
             warnings.warn(f"size mismatch GT output : {gt.shape} vs mask : {mask.shape}")
-        else:
-            gt = np.where(mask, gt[:mask.shape[0]], 0)
+        gt = np.where(mask, gt[:mask.shape[0]], 0)
         print(gt.shape, rt.shape, mask.shape)
     '''
     elif mask.nbytes == 0 and gt.shape[0] != rt.shape[0]:
@@ -80,24 +114,32 @@ def bit_match(mask_path, gt_path, rt_path, single_output):
             padding_length = len(rt) - len(gt)
             gt = np.pad(gt, (0, padding_length), 'constant', constant_values=0)
     '''
-    print("rt : ", rt)
-    print("gt : ", gt)
+
+
+    #print("ie_outputs : ", ie_outputs[:np.min([len(ie_outputs),10])], ie_outputs.shape)
+    print("rt(.bin) : ", rt[:np.min([len(rt),10])], rt.shape)
+    print("gt(.bin) : ", gt[:np.min([len(gt),10])], gt.shape)
 
     if np.all(rt == gt):
-        result = True
+        result = "PASS"
+        #if np.all(gt==ie_outputs):
+        #    result = "PASS(OOO)"
     else:
-        result = False
-    if not result and len(gt) != 1:
+        result = "FAIL"
+    if  result == "FAIL" and len(gt) != 1:
         rt_byte = rt[:4].tobytes()
         gt_byte = gt[:4].tobytes()
         rt_float_value = struct.unpack('f', rt_byte)[0]
         gt_float_value = struct.unpack('f', gt_byte)[0]
-        if np.allclose(rt_float_value, gt_float_value, rtol=1e-05, atol=5e-7):
+        print(rt_float_value,gt_float_value)
+        if np.allclose(rt_float_value, gt_float_value, rtol=1e-04, atol=1e-06):
             rt = int8tofloat32(rt)
             gt = int8tofloat32(gt)
             if np.allclose(rt, gt, rtol=1e-05, atol=5e-07):
-                result = True
-
+                result = "PASS"
+            elif np.allclose(rt, gt, rtol=1e-04, atol=1e-06):
+                result = "CLOSE"
+                
     print(f"{rt_path} vs {gt_path} : (rt:{rt.shape}, gt:{gt.shape}) {result} ")
     print('\n')   
     return result
@@ -108,6 +150,8 @@ def bit_match_dir(args, single_outputs):
     rt_dir = os.path.join(dir, "rt")
     gt_dir = os.path.join(dir, "gt")
     
+    print(f"rt_dir : {rt_dir}")
+    print(f"gt_dir : {gt_dir}",end="\n\n")
     with open(log_file_name, "a") as log_file:
         targets_rt = {os.path.basename(f) for f in glob.glob(os.path.join(rt_dir, '*'))}
         targets_gt = {os.path.basename(f) for f in glob.glob(os.path.join(gt_dir, '*'))}
@@ -128,32 +172,16 @@ def bit_match_dir(args, single_outputs):
                     result = bit_match(task_mask_file, gt_file_path, rt_file_path, single_outputs[idx])
                     log_file.write(f'{rt_file_path}, {gt_file_path}, {result}\n')
 
-def get_shape(lst, depth=0):
-    if isinstance(lst, list):
-        if len(lst) == 0:
-            return "()"
-        shapes = [get_shape(item, depth + 1) for item in lst]
-        min_length = min(len(shape) for shape in shapes)
-        if min_length == 1:
-            return f"({''.join(shapes)},)"
-        else:
-            return f"[{''.join(shapes)}]"
-    elif isinstance(lst, np.ndarray):
-        return str(lst.shape)
-    else:
-        return "()"
-
 def add_index_to_filename(filename, index):
-    #print(filename)
-    pattern = re.compile(r"(./\w+_\d+_output)(\.\w+)?\.bin")
+    pattern = re.compile(r"(./\w+_\d+_output)(\w+)?(\.\w+)?\.bin")
     match = pattern.match(filename)
     if match:
         base_name = match.group(1)
-        extension = match.group(2) if match.group(2) else ""
-        new_file = f"{base_name}_{index}{extension}.bin"
+        extension1 = match.group(2) or ""
+        extension2 = match.group(3) or ""
+        new_file = f"{base_name}_{index}{extension1}{extension2}.bin"
         return new_file
-    else: 
-        return None
+    return None
 
 def inference(args):
     dir = args.model
@@ -161,16 +189,6 @@ def inference(args):
     log_file_name = f'{args.log}.txt'
     rt_dir = os.path.join(dir, "rt")
     gt_dir = os.path.join(dir, "gt")
-    
-    connection_info_file = os.path.join(dir, "connection_info.json")
-    toposort_order = []
-    if os.path.exists(connection_info_file):
-        with open(connection_info_file, "r") as json_file:
-            connection_info = json.load(json_file)
-            toposort_order = connection_info.get("toposort_order", [])
-
-    bitmatch_cfg_file = os.path.join(dir, "bitmatch_cfg.txt")
-    val_blocks = count_val_blocks(bitmatch_cfg_file) if os.path.exists(bitmatch_cfg_file) else -1
 
     indexes = [file.strip().split("input_")[1].split(".bin")[0] for file in glob.glob(os.path.join(gt_dir, 'input_*.bin'))]
 
@@ -178,27 +196,30 @@ def inference(args):
     if not os.path.exists(model_file):
         model_file = os.path.join(dir, f"{model_name}.dxnn")
 
+    ie = InferenceEngine(model_file)
+    toposort_order = ie.get_task_order()
+    print("task order : ",toposort_order)
+
     with open(log_file_name, "a") as log_file:
         log_file.write(f'\n{model_file} engine setting,')
-        log_file.write(",".join(toposort_order) + f",{val_blocks}, ...")
+        log_file.write(",".join(toposort_order) + ", ...")
 
-    ie = InferenceEngine(model_file)
-    print("task order : ",ie.get_task_order())
     single_outputs = dict()
 
     with open(log_file_name, "a") as log_file:
         log_file.write(' - SUCCEEDED\n')
         for index in indexes:
-            if args.npu: 
+            if USE_ORT==0: 
                 input_file = os.path.join(gt_dir, f"npu_0_input_{index}.bin")
             else:
                 input_file = os.path.join(gt_dir, f"input_{index}.bin")
-
             with open(input_file, "rb") as f:
-                input_data = [np.frombuffer(f.read(), dtype=np.uint8)]
-            outputs = ie.run(input_data)[0]
-            #all_outputs = ie.get_outputs()
+                input_data = [np.frombuffer(f.read(), dtype=np.int8)]
+            outputs = ie.run(input_data)
             
+
+            #all_outputs = ie.get_outputs()
+
             log_file.write(f'{input_file} inference SUCCEEDED\n')
 
             subprocess.call("sync", shell=True)
@@ -225,20 +246,29 @@ def inference(args):
             masks=list()
             for idx in range(npu_cnt):
                 masks.append(ie.get_bitmatch_mask(index=idx))
-            
-            if np.max(outputs.shape) == 1:
-                single_outputs[index] = {'output': outputs[0], 'masks':masks}
+            if len(outputs) == 1 and np.max(outputs[0].shape) == 1:
+                single_outputs[index] = {'output': outputs[0], 'masks':masks,'ie_outputs': outputs}
             else:
-                single_outputs[index] = {'output': None, 'masks': masks}
+                single_outputs[index] = {'output': None, 'masks': masks, 'ie_outputs':outputs}
     return single_outputs
 
 if __name__ == "__main__":
     args = parse_args()
+    if args.model[-1] == "/":
+        args.model = args.model[:-1]
+    
+    target_arch = get_target_arch()
+    if target_arch == 'unknown':
+        print("-- Error: Unknown target architecture")
+        exit(1)
+    dxrt_dir = find_dxrt_dir(target_arch)
+    USE_ORT = check_use_ort(dxrt_dir)
+    print(f"USE_ORT = {USE_ORT}")
 
     os.environ['DXRT_DEBUG_DATA'] = args.debug
-    subprocess.call(f"rm -rf ./npu_*.bin ./cpu_*.bin {args.model}/rt/npu_*.bin {args.model}/rt/cpu_*.bin", shell=True)
+    subprocess.call(f"rm -f ./npu_*.bin ./cpu_*.bin {args.model}/rt/*.bin", shell=True)
     subprocess.call(f"mkdir -p {args.model}/rt", shell=True)
 
     single_outputs = inference(args)
     bit_match_dir(args, single_outputs)
-    subprocess.call(f"rm -f ./dxrt.dump*", shell=True)
+    subprocess.call(f"rm -f ./npu_*.bin ./cpu_*.bin ./dxrt.dump*", shell=True)

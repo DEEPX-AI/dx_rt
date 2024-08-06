@@ -52,19 +52,10 @@ class InferenceEngine:
             float: fps
         """
         return self.engine.benchmark(loop_cnt)
-
-    def arun(self, input_feed_list: List[np.ndarray]) -> List[np.ndarray]:
-        """Return Asynchronous Inference Result
-
-        Args:
-            input_feed_list (List[np.ndarray]): List of Numpy array.
-
-        Returns:
-            List[np.ndarray]
-        """
-        raise_not_implemented_error()  # TODO
-        self.check_inputs(input_feed_list)
-        return self.engine.arun(input_feed_list)
+    
+    def arun_batch(self, input_feed_list: List[np.ndarray], repeat: int) -> List[np.ndarray]:
+        """Return Asynchronous Batch Inference Result."""
+        return C.batch_run_async(self.engine, input_feed_list,repeat)
 
     def input_size(self) -> List[int]:
         """Get engine's input size."""
