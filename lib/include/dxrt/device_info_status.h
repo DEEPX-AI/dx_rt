@@ -4,6 +4,7 @@
 #pragma once
 
 #include <string>
+#include <memory>
 #include "dxrt/common.h"
 #include "dxrt/driver.h"
 #include "dxrt/device_struct.h"
@@ -28,7 +29,7 @@ typedef struct device_status
 
 class DXRT_API DxrtDeviceInfoWithStatus
 {
-public:
+ public:
     static DxrtDeviceInfoWithStatus getStatusInfo(DevicePtr device);
 
     /** @brief return device id
@@ -38,27 +39,23 @@ public:
     /** @brief return device type as three leater
      *  @return string "ACC" or "STD"
      */
-    std::string deviceTypeStr() const; //ACC, STD
+    std::string deviceTypeStr() const;
     /** @brief return device type as plain word
      *  @return string "Accelator" or "Standalone"
      */
-    std::string deviceTypeWord() const; //Accelator, Standalone
+    std::string deviceTypeWord() const;
     /** @brief return device chip variant type.
-     *  @return string "L1", "L2", "L3", "M1", "M1A"...
+     *  @return string "L1", "L2", "L3", "M1"...
      */
-    std::string deviceVariantStr() const; //L1, L2, L3, M1, M1A...
+    std::string deviceVariantStr() const;
     /** @brief return device board type.
      *  @return string "SOM", "M.2" or "H1"
      */
-    std::string boardTypeStr() const; //SOM, M.2, H1...
+    std::string boardTypeStr() const;
     /** @brief return device memory type.
      *  @return string "LPDDR4", "LPDDR5"
      */
-    std::string memoryTypeStr() const; //LPDDR4, LPDDR5...
-    /** @brief return device interface type.
-     *  @return string "ASIC" or "FPGA"
-     */
-    std::string interfaceTypeStr() const; //ASIC, FPGA
+    std::string memoryTypeStr() const;
     /** @brief return device memory size as integer
      *  @return memory size as 64-bit integer
      */
@@ -71,28 +68,28 @@ public:
      *  @return memory size as string
      *  @return ex: "1.98GiB", "512Mib"
      */
-    std::string memorySizeStrBinaryPrefix() const; // 1.98GiB
+    std::string memorySizeStrBinaryPrefix() const;
     /** @brief return device memory size as string, full integer 
      *  @return memory size as string
      *  @return ex: "2,130,706,432Byte", "536,870,912 Byte"
      */
-    std::string memorySizeStrWithComma() const; //2,130,706,432Byte
+    std::string memorySizeStrWithComma() const;
     /** @brief return device memory information as a line 
      *  @return memory size as string
      *  @return ex: "Memory: LPDDR4 4200 MHz, 1.98GiB"
      */
-    std::string allMemoryInfoStr() const; 
+    std::string allMemoryInfoStr() const;
     /** @brief get device Dynamic Voltage Frequency State   
      *  @return dvfs Enabled(Max Frequency:900)
      *  @return dvfs Disabled
      *  
      */
-    std::string dvfsStateInfoStr() const; 
+    std::string dvfsStateInfoStr() const;
     /** @brief a NPU state information as a line 
      *  @return string contains voltage, clock, temp of device (ex: "NPU 0: voltage 825 mV, clock 800 MHz, temperature 46'C")
      *  
      */
-    std::string npuStatusStr(int no) const; //NPU 0: voltage 825 mV, clock 800 MHz, temperature 46'C
+    std::string npuStatusStr(int no) const;  // NPU 0: voltage 825 mV, clock 800 MHz, temperature 46'C
     /** @brief a NPU FW version
      *  @return version number as string(ex: 1.2.3)
      */
@@ -119,18 +116,17 @@ public:
      @endverbatim
      */
     std::string getStatusString() const;
-    
+
     const dxrt_device_status_t& status() const{return _status;}
     const dxrt_device_info_t& info() const{return _info;}
 
-private:
+ private:
     int _id;
     dxrt_device_info_t _info;
     dxrt_device_status_t _status;
 
     DxrtDeviceInfoWithStatus(int id, dxrt_device_info_t info, dxrt_device_status_t status);
-
 };
 DXRT_API std::ostream& operator<<(std::ostream& os, const DxrtDeviceInfoWithStatus& d);
 
-} //namespace dxrt
+}  // namespace dxrt

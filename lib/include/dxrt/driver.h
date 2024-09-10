@@ -139,7 +139,7 @@ typedef struct {
     uint32_t data[1000] = {0,};
 } dxrt_device_message_t;
 typedef enum {
-    DXRT_CMD_IDENTIFY_DEVICE = 0,
+    DXRT_CMD_IDENTIFY_DEVICE = 0, /* Sub-command */
     DXRT_CMD_GET_STATUS,
     DXRT_CMD_RESET,
     DXRT_CMD_UPDATE_CONFIG,
@@ -160,8 +160,15 @@ typedef enum {
     DXRT_CMD_ERROR,
     DXRT_CMD_DRV_INFO, /* Sub-command */
     DXRT_CMD_SCHEDULE, /* Sub-command */
+    DXRT_CMD_UPLOAD_FIRMWARE,
     DXRT_CMD_MAX,
 } dxrt_cmd_t;
+
+/* CMD : DXRT_CMD_IDENTIFY_DEVICE*/
+typedef enum {
+    DX_IDENTIFY_NONE        = 0,
+    DX_IDENTIFY_FWUPLOAD    = 1,
+} dxrt_ident_sub_cmd_t;
 
 typedef enum {
     DX_SCHED_ADD    = 1,

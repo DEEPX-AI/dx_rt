@@ -50,55 +50,7 @@ loops : 100
   FPS : 72.0879
   Bit match test : SKIP
 -----------------------------------
-```
-Multiple model run can be configured by using config json file.  
-```
-$ run_model -c <json file>
-```
-Refer to following json example.  
-```
-{
-  "models": [
-    {
-      "model": {
-        "path": "/dxrt/m1a/1705/yolov7_640_ppu",
-        "data": [
-          {
-            "input": "/dxrt/m1a/1705/yolov7_640_ppu/npu_input_0.bin",
-            "output": "/dxrt/m1a/1705/yolov7_640_ppu/npu_output_0.ppu.bin.rt",
-            "refoutput": "/dxrt/m1a/1705/yolov7_640_ppu/npu_output_0.ppu.bin"
-          },
-          {
-            "input": "/dxrt/m1a/1705/yolov7_640_ppu/npu_input_1.bin",
-            "output": "/dxrt/m1a/1705/yolov7_640_ppu/npu_output_1.ppu.bin.rt",
-            "refoutput": "/dxrt/m1a/1705/yolov7_640_ppu/npu_output_1.ppu.bin"
-          }
-        ]
-      }
-    },
-    {
-      "model": {
-        "path": "/dxrt/m1a/1705/yolov4",
-        "data": [
-          {
-            "input": "/dxrt/m1a/1705/yolov4/npu_input_0.bin",
-            "output": "/dxrt/m1a/1705/yolov4/npu_output_0.bin.rt",
-            "refoutput": "/dxrt/m1a/1705/yolov4/npu_output_0.bin"
-          }
-        ]
-      }
-    },
-    {
-      "model": {
-        "path": "/dxrt/m1a/1705/eyenix_ssdlite320"
-      }
-    }
-  ],
-  "loops_benchmark": 30,
-  "loops_datacheck": 20,
-  "loops_aging": 50
-}
-```
+
 ## Firmware Interface DXRT-CLI tool  
 Read device status, and handle them by commandline interface  
 (only for accelerator device)  

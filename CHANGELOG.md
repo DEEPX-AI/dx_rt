@@ -1,4 +1,13 @@
 # Changelog
+## v2.0.3 / 2024-09-04
+### Changed
+- align change: 64 to 16
+### Fixed
+- remove cross compile package for non-x64 environment
+### Added
+- add firmware upload mode on cli
+- support INT64 for cpu onnx
+
 ## v2.0.1 / 2024-08-06
 ### Changed
 - None

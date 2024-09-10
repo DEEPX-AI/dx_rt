@@ -194,7 +194,8 @@ void Worker::DeviceOutputThread(int id)
                 string _dumpFile = "dxrt.dump.bin." + to_string(_device->id());
                 cout << "Error Detected: " + ErrTable(static_cast<dxrt_error_t>(response.status)) << endl;
                 cout << "    Device " << _device->id() << " dump to file " << _dumpFile << endl;
-                auto dump = _device->Dump();
+                 vector<uint32_t> dump(1000, 0);
+                _device->Process(dxrt::dxrt_cmd_t::DXRT_CMD_DUMP, dump.data());
                 for(size_t i=0;i<dump.size(); i+=2)
                 {
                     if(dump[i]==0xFFFFFFFF) break;

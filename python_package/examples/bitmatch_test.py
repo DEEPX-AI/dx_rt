@@ -116,7 +116,7 @@ def bit_match(mask_path, gt_path, rt_path, single_output):
     '''
 
 
-    #print("ie_outputs : ", ie_outputs[:np.min([len(ie_outputs),10])], ie_outputs.shape)
+    #print("ie_outputs : ", ie_outputs[:np.min([len(ie_outputs),10])])
     print("rt(.bin) : ", rt[:np.min([len(rt),10])], rt.shape)
     print("gt(.bin) : ", gt[:np.min([len(gt),10])], gt.shape)
 

@@ -22,6 +22,7 @@ namespace dxrt {
 #ifdef __linux__
 static void signalHandler(int signo)
 {
+#ifdef DXRT_SHOW_STACKTRACE_ON_HANDLER
     void* array[22];
     size_t size;
     char** strings;
@@ -35,6 +36,7 @@ static void signalHandler(int signo)
         printf("[%lu] %s\n", i, strings[i]);
     }
     free(strings);
+#endif
     exit(EXIT_FAILURE);
 }
 #elif _WIN32

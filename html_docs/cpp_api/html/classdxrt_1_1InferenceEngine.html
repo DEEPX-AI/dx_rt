@@ -128,7 +128,8 @@ Public Member Functions</h2></td></tr>
 <div class="line"><span class="keyword">auto</span> ie = <a class="code" href="classdxrt_1_1InferenceEngine.html">dxrt::InferenceEngine</a>(modelPath, <span class="keyword">nullptr</span>);</div>
 </div><!-- fragment --> <div class="fragment"><div class="line"><span class="comment">// Use a new inference option</span></div>
 <div class="line"><span class="keyword">auto</span> modelPath = <span class="stringliteral">&quot;model.dxnn&quot;</span>; <span class="comment">// assume compiled model path name is &quot;model.dxnn&quot;</span></div>
-<div class="line"><a class="code" href="structdxrt_1_1InferenceOption.html">dxrt::InferenceOption</a> option(1, 1, 2, dxrt::InferenceMode::MODE_ASYNC);</div>
+<div class="line"><a class="code" href="structdxrt_1_1InferenceOption.html">dxrt::InferenceOption</a> option;</div>
+<div class="line">option.<a class="code" href="structdxrt_1_1InferenceOption.html#ae98837ff566fe2b089a5b1bf07feb48c">devices</a> = {0,1,3};  <span class="comment">//use only 0,1,3 device</span></div>
 <div class="line"><span class="keyword">auto</span> ie = <a class="code" href="classdxrt_1_1InferenceEngine.html">dxrt::InferenceEngine</a>(modelPath, option);</div>
 </div><!-- fragment --> </div><h2 class="groupheader">Member Function Documentation</h2>
 <a id="aad2f3b616e0e996b66ef7df37dc16a85"></a>
@@ -377,8 +378,7 @@ if ptr and phyAddr is given, outputs tensors that contains output addresses </dd
     <tr><td class="paramdir">[in]</td><td class="paramname">inputPtr</td><td>input data pointer to run inference </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">userArg</td><td>user-defined arguments as a void pointer(e.g. original frame data, metadata about input, ... ) </td></tr>
     <tr><td class="paramdir">[out]</td><td class="paramname">outputPtr</td><td>pointer to output data, if it is nullptr, output data is stored in buffer inside DXRT. <div class="fragment"><div class="line"><span class="keyword">auto</span> modelPath = <span class="stringliteral">&quot;model&quot;</span>; <span class="comment">// assume compiled model path name is &quot;model&quot;</span></div>
-<div class="line"><a class="code" href="structdxrt_1_1InferenceOption.html">dxrt::InferenceOption</a> option(1, 1, 2, dxrt::InferenceMode::MODE_ASYNC);</div>
-<div class="line"><span class="keyword">auto</span> ie = <a class="code" href="classdxrt_1_1InferenceEngine.html">dxrt::InferenceEngine</a>(modelPath, option);</div>
+<div class="line"><span class="keyword">auto</span> ie = <a class="code" href="classdxrt_1_1InferenceEngine.html">dxrt::InferenceEngine</a>(modelPath);</div>
 <div class="line"><span class="keyword">auto</span> <a class="code" href="classdxrt_1_1InferenceEngine.html#a0893b724d6eed939556f1315ce05829d">outputs</a> = ie.Run();</div>
 </div><!-- fragment --> </td></tr>
   </table>
@@ -426,7 +426,8 @@ if ptr and phyAddr is given, outputs tensors that contains output addresses </dd
     <tr><td class="paramdir">[in]</td><td class="paramname">inputPtr</td><td>input data pointer to run inference </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">userArg</td><td>user-defined arguments as a void pointer(e.g. original frame data, metadata about input, ... ) </td></tr>
     <tr><td class="paramdir">[out]</td><td class="paramname">outputPtr</td><td>pointer to output data, if it is nullptr, output data area is allocated by DXRT. <div class="fragment"><div class="line"><span class="keyword">auto</span> modelPath = <span class="stringliteral">&quot;model&quot;</span>; <span class="comment">// assume compiled model path name is &quot;model&quot;</span></div>
-<div class="line"><a class="code" href="structdxrt_1_1InferenceOption.html">dxrt::InferenceOption</a> option(1, 1, 2, dxrt::InferenceMode::MODE_ASYNC);</div>
+<div class="line"><a class="code" href="structdxrt_1_1InferenceOption.html">dxrt::InferenceOption</a> option;</div>
+<div class="line">option.<a class="code" href="structdxrt_1_1InferenceOption.html#ae98837ff566fe2b089a5b1bf07feb48c">devices</a> = {0,1,3};  <span class="comment">//use only 0,1,3 device</span></div>
 <div class="line"><span class="keyword">auto</span> ie = <a class="code" href="classdxrt_1_1InferenceEngine.html">dxrt::InferenceEngine</a>(modelPath, option);</div>
 <div class="line"><span class="keyword">auto</span> <a class="code" href="classdxrt_1_1InferenceEngine.html#a0893b724d6eed939556f1315ce05829d">outputs</a> = ie.Run();</div>
 </div><!-- fragment --> </td></tr>
@@ -513,8 +514,9 @@ if ptr and phyAddr is given, outputs tensors that contains output addresses </dd
 </div>
 </div><!-- contents -->
 <div class="ttc" id="astructdxrt_1_1InferenceOption_html"><div class="ttname"><a href="structdxrt_1_1InferenceOption.html">dxrt::InferenceOption</a></div><div class="ttdoc">This struct specifies inference options applied to dxrt::InferenceEngine.</div><div class="ttdef"><b>Definition:</b> inference_option.h:14</div></div>
+<div class="ttc" id="astructdxrt_1_1InferenceOption_html_ae98837ff566fe2b089a5b1bf07feb48c"><div class="ttname"><a href="structdxrt_1_1InferenceOption.html#ae98837ff566fe2b089a5b1bf07feb48c">dxrt::InferenceOption::devices</a></div><div class="ttdeci">std::vector&lt; int &gt; devices</div><div class="ttdoc">device ID list to use</div><div class="ttdef"><b>Definition:</b> inference_option.h:19</div></div>
 <div class="ttc" id="aclassdxrt_1_1InferenceEngine_html_a0893b724d6eed939556f1315ce05829d"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html#a0893b724d6eed939556f1315ce05829d">dxrt::InferenceEngine::outputs</a></div><div class="ttdeci">Tensors outputs(void *ptr=nullptr, uint64_t phyAddr=0)</div><div class="ttdoc">Get output tensor.</div></div>
-<div class="ttc" id="aclassdxrt_1_1InferenceEngine_html"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html">dxrt::InferenceEngine</a></div><div class="ttdoc">This class abstracts runtime inference executor for user's compiled model.</div><div class="ttdef"><b>Definition:</b> inference_engine.h:47</div></div>
+<div class="ttc" id="aclassdxrt_1_1InferenceEngine_html"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html">dxrt::InferenceEngine</a></div><div class="ttdoc">This class abstracts runtime inference executor for user's compiled model.</div><div class="ttdef"><b>Definition:</b> inference_engine.h:48</div></div>
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
 Generated by &#160;<a href="http://www.doxygen.org/index.html">

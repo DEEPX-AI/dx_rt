@@ -46,6 +46,11 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
         _modelData = LoadModelParam(_modelFile);
         _taskOrder = _modelData.deepx_graph.topoSort_order();
         // topoSort_order = {"npu_1"};// for debug
+
+        //version check
+
+
+
         if(_taskOrder.empty())
         {
             _taskOrder.push_back(
@@ -98,6 +103,13 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
                 {
                     // cout << "found " << order << endl;
                     auto rmapInfo = _modelData.deepx_rmap.m_rmap(j);
+#define MIN_CG_VERSION "2.20.0"
+                    // version check
+                    string version_str = rmapInfo.version().rmapinfo();
+                    DXRT_ASSERT(isSupporterModelVersion(version_str),
+                       (string("Not Supported model compiler version ")+version_str).c_str());
+
+
                     if(_graphMap.find(order)!=_graphMap.end())
                         rmapInfo.input().memory().name() = _graphMap[order].inputs().front().key(); // Temp. workaround : rmapinfo doesn't have input tensor name
                     rmapInfos.emplace_back(rmapInfo);

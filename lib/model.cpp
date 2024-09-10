@@ -17,6 +17,9 @@ using namespace std;
 using namespace rapidjson;
 using namespace deepx_rmapinfo;
 
+
+#define MIN_CG_VERSION "2.20.0"
+
 namespace dxrt
 {
 
@@ -660,6 +663,39 @@ ostream& operator<<(ostream& os, const ModelDataBase& m)
         }
     }
     return os;
+}
+
+std::tuple<int, int, int> convertVersion(const string& vers)
+{
+    vector<int> version_nos;
+    int no = -1;
+    for (char c : vers)
+    {
+        if ((c >= '0') && (c <= '9'))
+        {
+            if (no == -1) no = 0;
+            no  = no * 10 + static_cast<int>(c - '0');
+        }
+        else
+        {
+            if (no >= 0) version_nos.push_back(no);
+            no = -1;
+        }
+    }
+    if (no >= 0) version_nos.push_back(no);
+    int v1 = 0, v2 = 0, v3 = 0;
+    if (version_nos.size() > 0) v1 = version_nos[0];
+    if (version_nos.size() > 1) v2 = version_nos[1];
+    if (version_nos.size() > 2) v3 = version_nos[2];
+
+
+    return std::make_tuple(v1, v2, v3);
+}
+bool isSupporterModelVersion(const string& vers)
+{
+    auto min_version = convertVersion(std::string(MIN_CG_VERSION));
+    auto this_version = convertVersion(vers);
+    return this_version >= min_version;
 }
 
 }/* namespace dxrt */

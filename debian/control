@@ -1,0 +1,13 @@
+Source: libdxrt
+Section: libs
+Priority: optional
+Maintainer: Koo Bongyu <kbg@deepx.ai>
+Build-Depends: debhelper (>= 9), cmake
+Standards-Version: 3.9.6
+Homepage: https://deepx.ai
+
+Package: libdxrt
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: a DEEPX runtime library
+ DXRT library

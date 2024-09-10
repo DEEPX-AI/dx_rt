@@ -48,66 +48,6 @@ vector<string> StringSplit(string s, string divid)
 	return v;
 }
 
-int DataCompare(void *d1, void *d2, int size)
-{
-    int ret = -1;
-    const int size_uint64t = static_cast<int>(sizeof(uint64_t));
-    if(size<size_uint64t)
-    {
-        uint64_t buf1 = 0, buf2 = 0;
-        memcpy(static_cast<void*>(&buf1), d1, size);
-        memcpy(static_cast<void*>(&buf2), d2, size);
-        if(memcmp(static_cast<void*>(&buf1), static_cast<void*>(&buf2), size)==0)
-            ret = 0;
-        else
-            ret = -1;
-    }
-    else
-    {
-        uint64_t *buf1 = static_cast<uint64_t*>(d1);
-        uint64_t *buf2 = static_cast<uint64_t*>(d2);
-        for(int i=0;i<(size/size_uint64t);i++)
-        {
-            if(buf1[i]!=buf2[i])
-            {
-                // cout << hex << i*sizeof(uint64_t) << ": " << buf1[i] << dec << endl;
-                if(i==0)
-                    return -1;
-                else
-                    return i*size_uint64t;
-            }
-        }
-        ret = 0;
-    }    
-    return ret;
-}
-
-int DataCompare(string f1, string f2)
-{
-    ifstream f_in1(f1, ios::binary|ifstream::ate);
-    ifstream f_in2(f2, ios::binary|ifstream::ate);
-    int ret;
-
-    ifstream::pos_type size_f1 = f_in1.tellg();
-    ifstream::pos_type size_f2 = f_in2.tellg();
-
-    DXRT_ASSERT(size_f1==size_f2, "different data size to compare");
-    void *buf1, *buf2;
-    buf1 = dxrt::MemAlloc(size_f1);
-    buf2 = dxrt::MemAlloc(size_f2);
-    f_in1.seekg(0, ifstream::beg);
-    f_in2.seekg(0, ifstream::beg);
-    f_in1.read((char*)buf1, size_f1);
-    f_in2.read((char*)buf2, size_f2);
-    ret = memcmp(buf1, buf2, size_f1);
-    cout << "    " << f1 << endl << "    vs " << f2 << " : " << ret << ((ret==0)?(" [PASS]"):(" [FAIL]")) << endl;
-    f_in1.close();
-    f_in2.close();
-    dxrt::MemFree(&buf1);
-    dxrt::MemFree(&buf2);
-
-    return ret;
-}
 ///////////////////// Data Compare Logic using npu param file information /////////////////////////
 int GetDataSize_rmapinfo_datatype(deepx_rmapinfo::DataType dType)
 {
@@ -125,6 +65,10 @@ int GetDataSize_rmapinfo_datatype(deepx_rmapinfo::DataType dType)
         case deepx_rmapinfo::DataType::INT32  :
         case deepx_rmapinfo::DataType::FLOAT32:
             size = 4;
+            break;
+        case deepx_rmapinfo::DataType::UINT64 :
+        case deepx_rmapinfo::DataType::INT64  :
+            size = 8;
             break;
         default:
             cout << "Unwanted Data Type is inserted in GetDataSize." << dType << endl;
@@ -148,6 +92,10 @@ int GetDataSize_Datatype(DataType dType)
         case DataType::INT32  :
         case DataType::FLOAT:
             size = 4;
+            break;
+        case DataType::UINT64 :
+        case DataType::INT64  :
+            size = 8;
             break;
         case DataType::BBOX :
             size = 32;
@@ -180,297 +128,6 @@ vector<int> GetShape(deepx_rmapinfo::Shapes shape, deepx_rmapinfo::DataFormat dF
         vector<int> shapes{static_cast<int>(shape.shape(0)), static_cast<int>(shape.shape(3)), static_cast<int>(shape.shape(1)), static_cast<int>(shape.shape(2))};
         return shapes;
     }
-}
-
-int GetBaseStride(deepx_rmapinfo::DataType dType, deepx_rmapinfo::DataFormat dFormat, int shapeC, int *sLoop)
-{
-    int stride = 0;
-    if (dFormat == deepx_rmapinfo::DataFormat::NHWd)
-    {
-        stride = 2;
-        return stride;
-    }
-
-    switch(dType){
-        /*64units compare mode of channel shape*/
-        case deepx_rmapinfo::DataType::UINT8  :
-        case deepx_rmapinfo::DataType::INT8   :
-            stride = 64;
-            *sLoop = ceil(shapeC/64.);
-            break;
-        /*Straigt compare mode of channel shape*/
-        case deepx_rmapinfo::DataType::INT16  :
-        case deepx_rmapinfo::DataType::UINT16 :
-            stride = 32;
-            break;
-        case deepx_rmapinfo::DataType::UINT32 :
-        case deepx_rmapinfo::DataType::INT32  :
-        case deepx_rmapinfo::DataType::FLOAT32:
-            stride = 256;
-            break;
-        default:
-            cout << "Unwanted Data Type is inserted in GetStride." << dType << endl;
-            exit(0);
-    }
-    return stride;
-}
-
-int CompareBuf(char *DataCompareBuf1, char *DataCompareBuf2, deepx_rmapinfo::RegisterInfoDatabase Cfg, string *logBuf, int log_en, int type)
-{
-    int ret = 0;
-    if(Cfg.layers().layer_size()<=0)
-    {
-        ret = memcmp(DataCompareBuf1, DataCompareBuf2, Cfg.outputs().memory().size());
-        return ret;
-    }
-    /*Data Compare
-        type 0 : all layers
-        type 1 : output layers
-    */
-    if(type==0)
-    {
-        uint64_t base = Cfg.outputs().memory().offset();
-        int num_layers = static_cast<int>(Cfg.counts().layer());
-
-        for (int l=0; l<num_layers; l++)
-        {
-            deepx_rmapinfo::Layer layer = Cfg.layers().layer(l);
-            deepx_rmapinfo::Shapes shape = Cfg.layers().layer(l).output().shapes();
-            /* Check whether NPU Output is writted to DDR or not */
-            int base_off = layer.memory().size() == 0 ? -1 : layer.memory().offset() - base;
-            int sLoop = 1;
-            int dSize = GetDataSize_rmapinfo_datatype(static_cast<deepx_rmapinfo::DataType>(Cfg.layers().layer(l).output().type()));
-            int baseS = GetBaseStride(static_cast<deepx_rmapinfo::DataType>(Cfg.layers().layer(l).output().type()), deepx_rmapinfo::DataFormat::NHWCd, shape.shape(1), &sLoop);
-            int stride = (baseS >= shape.shape(1)*dSize) ? baseS : ceil(shape.shape(1)*dSize/static_cast<float>(baseS))*baseS;
-            int cmpSize = shape.shape(1) * dSize;
-            int cmpSize_rest = cmpSize; /*only user in 1 byte data size*/
-            /* printf("[DBG] layer %d, name %s, BaseOffset:%d, shape:[%d,%d,%d,%d], dSize:%d, stride:%d, cmpSize:%d, baseS:%d sLoop:%d\n",
-                           l, layer.memory().name().c_str(), base_off,
-                           shape.shape(0), shape.shape(1),shape.shape(2), shape.shape(3),
-                           dSize, stride, cmpSize, baseS, sLoop); */
-            if (base_off >= 0) {
-                for (int il=0; il<sLoop; il++)
-                {
-                    if (dSize == 1) { /*Only 1 byte data size*/
-                        cmpSize = (cmpSize_rest/64. > 1) ? 64 : cmpSize_rest;
-                        if (cmpSize == 64)
-                            cmpSize_rest = cmpSize_rest - 64;
-                        stride = 64;
-                        /* In case the dummy is not existed on memory, - only shape1 : 32 */
-                        if (
-                            (shape.shape(1) == 32) &&
-                            (layer.memory().size() == shape.shape(1)*shape.shape(2)*shape.shape(3))
-                            )
-                            stride = 32;
-                    }
-                    // printf("inner loop : %d, cmpSize : %d, stride : %d\n", il, cmpSize, stride);
-                    for (int h=0; h<shape.shape(2); h++)
-                    {
-                        for (int w=0; w<shape.shape(3); w++)
-                        {
-                            uint32_t idx = base_off + il*shape.shape(3)*shape.shape(2)*stride + h*shape.shape(3)*stride + w*stride;
-                            ret = memcmp(   &DataCompareBuf1[ idx ],
-                                            &DataCompareBuf2[ idx ],
-                                            cmpSize);
-                            if (ret != 0)
-                            {
-                                auto tile_num = layer.number().tile();
-                                auto layer_num = layer.number().layer();
-                                string failInfo = "[Fail Layer Info] Name:" + layer.memory().name() +
-                                                    ", L:" + to_string(layer_num) + ", T:" + to_string(tile_num) + ", H:" + to_string(h) + ", W:" + to_string(w) +
-                                                    ", Fail Offset:" + int_to_hex(idx);
-                                /* failInfo.append("num_layers:" + to_string(l) +
-                                                 ", BaseOffset:" + to_string(base_off) +
-                                                 ", shape:["+to_string(shape.shape(0))+","+
-                                                             to_string(shape.shape(1))+","+
-                                                             to_string(shape.shape(2))+","+
-                                                             to_string(shape.shape(3))+"]" +
-                                                 ", dSize:" + to_string(dSize) +
-                                                 ", stride:" + to_string(stride) +
-                                                 ", cmpSize:" + to_string(cmpSize) + '\n');   */
-                                for (int j=0;j<cmpSize;j++)
-                                {
-                                    if(DataCompareBuf1[idx+j] != DataCompareBuf2[idx+j])
-                                    {
-                                        uint32_t a = static_cast<uint32_t>(static_cast<unsigned char>(DataCompareBuf1[idx+j]));
-                                        uint32_t b = (uint32_t)(unsigned char)DataCompareBuf2[idx+j];
-                                        failInfo.append(
-                                            ", [" + int_to_hex(idx+j) + "] : " + int_to_hex(a) + " vs " + int_to_hex(b)
-                                        );
-                                        break;
-                                    }
-                                }
-                                failInfo.append("\n");
-                                logBuf->append(failInfo);
-                                cout << failInfo;
-
-                                cout << "Buffer1 data..." << endl;
-                                uint32_t *ptr = static_cast<uint32_t*>(static_cast<void*>(&DataCompareBuf1[idx]));
-                                const int size_uint32t = static_cast<int>(sizeof(uint32_t));
-                                for(int j=0;j<(cmpSize/size_uint32t);j++)
-                                {
-                                    cout << hex << ptr[j] << " ";
-                                }
-                                cout << endl;
-                                cout << "Buffer2 data..." << endl;
-                                ptr = static_cast<uint32_t*>(static_cast<void*>(&DataCompareBuf2[idx]));
-                                for(int j=0;j<(cmpSize/size_uint32t);j++)
-                                {
-                                    cout << hex << ptr[j] << " ";
-                                }
-                                cout << endl;
-                                goto fail;
-                            }
-                        }
-                    }
-                }
-            } else {
-                if (log_en)
-                    cout << "The data of layer are not saved in RAM (Layer:" << dec << l << ")" << endl;
-            }
-        }
-    }
-    else if(type==1)
-    {
-        uint64_t base;
-        int num_outputs = static_cast<int>(Cfg.outputs().outputlist().output_size());
-        vector<uint64_t> offsets;        
-        for(int i=0; i<num_outputs; i++)
-        {
-            offsets.emplace_back(Cfg.outputs().outputlist().output(i).memory().offset());
-        }
-        base = offsets.front();
-        for(auto offset:offsets)
-        {
-            base = min(offset, base);
-        }
-        for(int i=0; i<num_outputs; i++)
-        {
-            vector<int> shapes = GetShape(Cfg.outputs().outputlist().output(i).shapes(), static_cast<deepx_rmapinfo::DataFormat>(Cfg.outputs().outputlist().output(i).format()));
-            int base_off = Cfg.outputs().outputlist().output(i).memory().offset() - base;
-            int sLoop = 1;
-            int dSize = GetDataSize_rmapinfo_datatype((deepx_rmapinfo::DataType)Cfg.outputs().outputlist().output(i).type());
-            int baseS = GetBaseStride((deepx_rmapinfo::DataType)Cfg.outputs().outputlist().output(i).type(), static_cast<deepx_rmapinfo::DataFormat>(Cfg.outputs().outputlist().output(i).format()), shapes[1], &sLoop);
-            int stride = (baseS >= shapes[1]*dSize) ? baseS : ceil(shapes[1]*dSize/static_cast<float>(baseS))*baseS;
-            int cmpSize = shapes[1] * dSize;
-            int cmpSize_rest = cmpSize; /*only user in 1 byte data size*/
-            /* printf("[DBG] output %d, name %s, BaseOffset:%d, shape:[%d,%d,%d,%d], dSize:%d, stride:%d, cmpSize:%d, baseS:%d sLoop:%d\n",
-                         i, Cfg.outputs().outputlist().output(i).name().c_str(), base_off,
-                         shapes[0], shapes[1], shapes[2], shapes[3],
-                         dSize, stride, cmpSize, baseS, sLoop); */
-            if (base_off >= 0) {
-                for (int il=0; il<sLoop; il++)
-                {
-                    if (dSize == 1) { /*Only 1 byte data size*/
-                        cmpSize = (cmpSize_rest/64. > 1) ? 64 : cmpSize_rest;
-                        if (cmpSize == 64)
-                            cmpSize_rest = cmpSize_rest - 64;
-                        stride = 64;
-                    }
-                    // printf("inner loop : %d, cmpSize : %d, stride : %d\n", il, cmpSize, stride);
-                    for (int h=0; h<shapes[2]; h++)
-                    {
-                        for (int w=0; w<shapes[3]; w++)
-                        {
-                            uint32_t idx = base_off + il*shapes[3]*shapes[2]*stride + h*shapes[3]*stride + w*stride;
-                            ret = memcmp(   &DataCompareBuf1[ idx ],
-                                            &DataCompareBuf2[ idx ],
-                                            cmpSize);
-                            // cout << hex << (uint32_t)DataCompareBuf1[ idx ] << ", " << (uint32_t)DataCompareBuf2[ idx ] << endl;
-                            if (ret != 0)
-                            {
-                                // int tile_num = layer.number().tile();
-                                // int layer_num = layer.number().layer();
-                                string failInfo = "[Fail Layer Info] Name:" + Cfg.outputs().outputlist().output(i).name() + \
-                                                    ", H:" + to_string(h) + ", W:" + to_string(w) + \
-                                                    ", Fail Offset:" + to_string(idx) + "\n";
-                                failInfo.append("output index:" + to_string(i) + \
-                                                ", BaseOffset:" + to_string(base_off) + \
-                                                ", shape:["+to_string(shapes[0])+","+\
-                                                            to_string(shapes[1])+","+\
-                                                            to_string(shapes[2])+","+\
-                                                            to_string(shapes[3])+"]" + \
-                                                ", dSize:" + to_string(dSize) + \
-                                                ", stride:" + to_string(stride) + \
-                                                ", cmpSize:" + to_string(cmpSize) + '\n');
-                                (*logBuf).append(failInfo);
-                                cout << failInfo;
-
-                                cout << "Buffer1 data..." << endl;
-                                uint32_t *ptr = static_cast<uint32_t*>(static_cast<void*>(&DataCompareBuf1[idx]));
-                                const int size_uint32t = static_cast<int>(sizeof(uint32_t));
-                                for(int j=0;j<(cmpSize/size_uint32t);j++)
-                                {
-                                    cout << hex << ptr[j] << " ";
-                                }
-                                cout << endl;
-                                cout << "Buffer2 data..." << endl;
-                                ptr = static_cast<uint32_t*>(static_cast<void*>(&DataCompareBuf2[idx]));
-                                for(int j=0;j<(cmpSize/size_uint32t);j++)
-                                {
-                                    cout << hex << ptr[j] << " ";
-                                }
-                                cout << endl;
-                                goto fail;
-                            }
-                        }
-                    }
-                }
-            } else {
-                // if (log_en)
-                //     cout << "The data of layer are not saved in RAM (Layer:" << dec << l << ")" << endl;
-            }
-        }
-    }
-fail:
-    return ret;
-}
-// int DataCompare(string f1, string f2, string path, string *logBuf, int log_en, int type)
-// {
-//     deepx_rmapinfo::RegisterInfoDatabase cfg = dxrt::LoadNpuParam(path+"/"+NPU_PARAM_FILE);
-//     // cfg.PrintDebugString();
-//     return DataCompare(f1, f2, cfg, logBuf, log_en, type);
-// }
-int DataCompare(string f1, string f2, deepx_rmapinfo::RegisterInfoDatabase Cfg, string *logBuf, int log_en, int type)
-{
-    LOG_DXRT_DBG << endl;
-    if(Cfg.layers().layer_size()<=0)
-    {
-        return DataCompare(f1, f2);
-    }
-    ifstream f_in1(f1, ios::binary|ifstream::ate);
-    ifstream f_in2(f2, ios::binary|ifstream::ate);
-    int ret;
-
-    ifstream::pos_type size_f1 = f_in1.tellg();
-    ifstream::pos_type size_f2 = f_in2.tellg();
-
-    DXRT_ASSERT(size_f1==size_f2, "different data size to compare");
-    void *buf1, *buf2;
-    buf1 = dxrt::MemAlloc(size_f1);
-    buf2 = dxrt::MemAlloc(size_f2);
-
-    f_in1.seekg(0, ifstream::beg);
-    f_in2.seekg(0, ifstream::beg);
-
-    f_in1.read((char*)buf1, size_f1);
-    f_in2.read((char*)buf2, size_f2);
-    ret = CompareBuf((char*)buf1, (char*)buf2, Cfg, logBuf, log_en, type);
-    cout << "    " << f1 << endl << "    vs " << f2 << " : " << ret << ((ret==0)?(" [PASS]"):(" [FAIL]")) << endl;
-    f_in1.close();
-    f_in2.close();
-    dxrt::MemFree(&buf1);
-    dxrt::MemFree(&buf2);
-
-    return ret;
-}
-int DataCompare(char *f1, char *f2, deepx_rmapinfo::RegisterInfoDatabase Cfg, string *logBuf, int log_en, int type)
-{
-    int ret = CompareBuf(f1, f2, Cfg, logBuf, log_en, type);
-    LOG_DXRT_DBG << "    Data Compare Result : " << ((ret==0)?(" [PASS]"):(" [FAIL]")) << endl;
-    if(log_en)
-        cout << "    Data Compare Result : " << ((ret==0)?(" [PASS]"):(" [FAIL]")) << endl;
-    return ret;
 }
 int DataFromFile(string f, void *d)
 {
@@ -549,13 +206,23 @@ vector<string> GetFileList(string dir)
     return v;
 }
 
-uint64_t GetAlign64(uint64_t size)
+uint64_t GetAlign(uint64_t size)
 {
-    int remainder = size % 64;
-    if (remainder != 0) {
-        size += 64 - remainder;
+    if(size < 64){
+        int remainder = size % 16;
+        if (remainder != 0) {
+            size += 16 - remainder;
+        }
+        return size;
     }
-    return size;
+    else{
+        int remainder = size % 64;
+        if (remainder != 0) {
+            size += 64 - remainder;
+        }
+        return size;
+    }
+
 }
 
 template<typename T>
@@ -593,15 +260,7 @@ int(*comparePpuDataFunctions[])(void*, void*, int)  = {
     reinterpret_cast<int(*)(void*, void*, int)>(compareFace),
     reinterpret_cast<int(*)(void*, void*, int)>(comparePose),
 };
-int DataCompare(DataType type, void *d1, void *d2, int size)
-{
-    int ret = -1;
-    if(type>=DataType::BBOX && type<=DataType::POSE)
-    {
-        ret = comparePpuDataFunctions[ type - DataType::BBOX ](d1, d2, size);
-    }    
-    return ret;
-}
+
 void* MemAlloc(size_t size, size_t align, int value)
 {
     void *mem = NULL;
