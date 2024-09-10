@@ -1,4 +1,7 @@
-# DXRT CLI App.
-add_target(dxrt-cli SRC_LIST dxrt_cli.cpp)
-add_target(run_model SRC_LIST run_model.cpp)
-add_target(parse_model SRC_LIST parse_model.cpp)
+
+file(GLOB SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
+foreach(source_file ${SRC_FILES})
+    get_filename_component(filename ${source_file} NAME_WE)
+
+    add_target(${filename} SRC_LIST ${source_file})
+endforeach()

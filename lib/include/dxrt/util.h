@@ -27,19 +27,13 @@ namespace dxrt {
 DXRT_API std::vector<int> RandomSequence(int n);
 DXRT_API unsigned int RandomValue();
 DXRT_API std::vector<std::string> StringSplit(std::string s, std::string divid);
-DXRT_API int DataCompare(DataType type, void *d1, void *d2, int size); /* 0 : data same, -1 : different at offset zero, n(>0) : different at offset n */
-DXRT_API int DataCompare(void *d1, void *d2, int size); /* 0 : data same, -1 : different at offset zero, n(>0) : different at offset n */
-DXRT_API int DataCompare(std::string f1, std::string f2);
-DXRT_API int DataCompare(std::string f1, std::string f2, std::string path, std::string *logBuf=nullptr, int log_en=0, int type=1);
-DXRT_API int DataCompare(std::string f1, std::string f2, deepx_rmapinfo::RegisterInfoDatabase Cfg, std::string *logBuf=nullptr, int log_en=0, int type=0);
-DXRT_API int DataCompare(char *f1, char *f2, deepx_rmapinfo::RegisterInfoDatabase Cfg, std::string *logBuf=nullptr, int log_en=0, int type=0);
 //int GetDataSize(deepx_rmapinfo::DataType dType);
 DXRT_API int DataFromFile(std::string f, void *d);
 DXRT_API void DataFromFile(std::string f, void *d, unsigned int size);
 DXRT_API void DataDumpBin(std::string filename, void *data, unsigned int size);
 DXRT_API uint32_t SizeFromFile(std::string f);
 DXRT_API std::vector<std::string> GetFileList(std::string dir);
-DXRT_API uint64_t GetAlign64(uint64_t size);
+DXRT_API uint64_t GetAlign(uint64_t size);
 DXRT_API void* MemAlloc(size_t size, size_t align=8, int value=0);
 DXRT_API void MemFree(void **p);
 template< typename T >

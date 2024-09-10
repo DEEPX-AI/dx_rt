@@ -3,27 +3,73 @@
 
 #pragma once
 
+#include <string>
 #include "dxrt/common.h"
+#include "dxrt/device.h"
 #include "cxxopts.hpp"
 
+
 namespace dxrt {
-class CLI
+class CLICommand
 {
-public:
-    DXRT_API CLI(cxxopts::ParseResult &);
-    DXRT_API ~CLI();
+ public:
+    DXRT_API explicit CLICommand(cxxopts::ParseResult &);
+    virtual DXRT_API ~CLICommand();
     DXRT_API void Run();
-private:
+ protected:
     cxxopts::ParseResult _cmd;
-    int _resetOpt = -1;
     int _deviceId = -1;
-    bool _printDeviceStatus = false;
-    std::string _dumpFile = "";
-    std::vector<uint32_t> _fwConfig;
-    std::string _fwLogFile = "";
-    std::string _fwUpdateFile = "";
-    std::string _fwFile = "";
-    bool _printDeviceInfo = false;
+    bool _withDevice = true;
+    dxrt::SkipMode _checkDeviceSkip = dxrt::SkipMode::COMMON_SKIP;
+    virtual void doCommand(DevicePtr devicePtr) = 0;
 };
 
-} // namespace dxrtdks
+class DeviceStatusCLICommand : public CLICommand
+{
+ public:
+    explicit DeviceStatusCLICommand(cxxopts::ParseResult &);
+ private:
+    void doCommand(DevicePtr devicePtr) override;
+};
+class DeviceInfoCLICommand : public CLICommand
+{
+ public:
+    explicit DeviceInfoCLICommand(cxxopts::ParseResult &);
+ private:
+    void doCommand(DevicePtr devicePtr) override;
+};
+class FWVersionCommand : public CLICommand
+{
+ public:
+    explicit FWVersionCommand(cxxopts::ParseResult &);
+ private:
+    void doCommand(DevicePtr devicePtr) override;
+};
+class DeviceResetCommand : public CLICommand
+{
+ public:
+    explicit DeviceResetCommand(cxxopts::ParseResult &);
+ private:
+    void doCommand(DevicePtr devicePtr) override;
+};
+class FWUpdateCommand : public CLICommand
+{
+ public:
+    explicit FWUpdateCommand(cxxopts::ParseResult &);
+ private:
+    void doCommand(DevicePtr devicePtr) override;
+    uint32_t _fwUpdateSubCmd;
+    std::string _fwUpdateFile;
+};
+
+class FWUploadCommand : public CLICommand
+{
+ public:
+    explicit FWUploadCommand(cxxopts::ParseResult &);
+ private:
+    void doCommand(DevicePtr devicePtr) override;
+    uint32_t _fwUpdateSubCmd;
+    std::string _fwUpdateFile;
+};
+
+}  // namespace dxrt

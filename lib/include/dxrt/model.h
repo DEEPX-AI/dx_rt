@@ -4,6 +4,7 @@
 #include <iostream>
 #include <fstream>
 #include <cassert>
+#include <tuple>
 #ifdef _WINDOWS
 #include <limits>
     #ifdef max
@@ -281,10 +282,12 @@ namespace deepx_rmapinfo {
         UINT8 = 1,
         UINT16 = 2,
         UINT32 = 3,
-        INT8 = 4,
-        INT16 = 5,
-        INT32 = 6,
-        FLOAT32 = 7,
+        UINT64 = 4,
+        INT8 = 5,
+        INT16 = 6,
+        INT32 = 7,
+        INT64 = 8,
+        FLOAT32 = 9,
         DataType_INT_MIN_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int32_t>::min(),
         DataType_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int32_t>::max()
     };
@@ -323,9 +326,11 @@ namespace deepx_rmapinfo {
         if (str == "UINT8")     return DataType::UINT8;
         if (str == "UINT16")    return DataType::UINT16;
         if (str == "UINT32")    return DataType::UINT32;
+        if (str == "UINT64")    return DataType::UINT64;
         if (str == "INT8")      return DataType::INT8;
         if (str == "INT16")     return DataType::INT16;
         if (str == "INT32")     return DataType::INT32;
+        if (str == "INT64")     return DataType::INT64;
         if (str == "FLOAT32")   return DataType::FLOAT32;
         return DataType::DATA_TYPE_NONE;
     };
@@ -372,4 +377,5 @@ DXRT_API ModelDataBase LoadModelParam(std::string file);
 DXRT_API deepx_graphinfo::GraphInfoDatabase LoadGraphInfo(ModelDataBase data);
 DXRT_API deepx_binaryinfo::BinaryInfoDatabase LoadBinaryInfo(char *buffer, int fileSize);
 DXRT_API deepx_rmapinfo::rmapInfoDatabase LoadRmapInfo(ModelDataBase data);
+bool isSupporterModelVersion(const string& vers);
 }

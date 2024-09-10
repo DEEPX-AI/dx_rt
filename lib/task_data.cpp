@@ -49,7 +49,7 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_)
             }
             if (shapes.size() == 4)
             {
-                shapes[3] = GetAlign64(shapes[3]);
+                shapes[3] = GetAlign(shapes[3]);
             }
             _outputShape.emplace_back(shapes);
             _outputOffsets.emplace_back(info.outputs().outputlist().output(i).memory().offset()

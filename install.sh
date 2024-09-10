@@ -28,7 +28,7 @@ function install_dep()
     install_cmake=false
     if [ "$install_dep" == true ]; then
         echo " Install dependence package tools "
-        sudo apt-get -y install build-essential make zlib1g-dev libcurl4-openssl-dev wget tar zip cmake
+        sudo apt-get -y install build-essential make zlib1g-dev libcurl4-openssl-dev wget tar zip cmake git
         echo ""
         echo " Install python libraries" 
         sudo apt-get -y install python3-dev python3-distutils python3-pip python3-tk python3-lxml python3-six
@@ -56,8 +56,10 @@ function install_dep()
             sudo make install 
         fi
         sudo apt install ninja-build
-        sudo apt-get -y install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-        sudo apt-get -y install gcc-riscv64-linux-gnu g++-riscv64-linux-gnu
+        if [ $(uname -m) == "x86_64" ]; then
+            sudo apt-get -y install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+            sudo apt-get -y install gcc-riscv64-linux-gnu g++-riscv64-linux-gnu
+        fi
     fi
 }
 

@@ -52,9 +52,12 @@ else()
     endif()
 endif()
 
-file(STRINGS ${CMAKE_CURRENT_SOURCE_DIR}/cfg/common.cfg cfgs)
-foreach(cfg ${cfgs})
-    target_compile_definitions(${target} PUBLIC "${cfg}")
+file(GLOB CFG_FILES ${CMAKE_CURRENT_SOURCE_DIR}/cfg/*.cfg)
+foreach(cfg_file ${CFG_FILES})
+    file(STRINGS ${cfg_file} cfgs)
+    foreach(cfg ${cfgs})
+        target_compile_definitions(${target} PUBLIC "${cfg}")
+    endforeach()
 endforeach()
 target_include_directories(
     ${target} 

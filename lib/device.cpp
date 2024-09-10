@@ -413,7 +413,7 @@ void Device::BoundOption(dxrt_sche_sub_cmd_t subCmd)
     ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_SCHEDULE, reinterpret_cast<void*>(&_boundOp), sizeof(dxrt_sche_sub_cmd_t), subCmd);
     DXRT_ASSERT(ret==0, "failed to apply bound option to device");
 }
-void Device::Identify(int id_, SkipMode skip)
+void Device::Identify(int id_, SkipMode skip, uint32_t subCmd)
 {
     LOG_DXRT_DBG << "Device " << _id << " Identify" << endl;
     int ret;
@@ -447,7 +447,7 @@ void Device::Identify(int id_, SkipMode skip)
 #endif
     _info = dxrt_device_info_t();
     _info.type = 0;
-    ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_IDENTIFY_DEVICE, reinterpret_cast<void*>(&_info));
+    ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_IDENTIFY_DEVICE, reinterpret_cast<void*>(&_info), 0, subCmd);
     DXRT_ASSERT(ret==0, "failed to identify device");
 
     _skip = skip;
@@ -543,17 +543,7 @@ void Device::ResetBuffer(int opt)
     std::ignore = opt;
     _modelMem->ResetBuffer();
 }
-vector<uint32_t> Device::Dump()
-{
-    vector<uint32_t> dump(1000, 0);    
-    Process(dxrt::dxrt_cmd_t::DXRT_CMD_DUMP, dump.data());
-    return dump;
-}
-void Device::UpdateFwConfig(vector<uint32_t> cfg)
-{
-    int size = sizeof(uint32_t)*cfg.size();
-    Process(dxrt::dxrt_cmd_t::DXRT_CMD_UPDATE_CONFIG, cfg.data(), size);
-}
+
 int Device::UpdateFw(string fwFile, int subCmd)
 {
     DXRT_ASSERT(fileExists(fwFile), fwFile + " doesn't exist.");
@@ -561,13 +551,14 @@ int Device::UpdateFw(string fwFile, int subCmd)
     DataFromFile(fwFile, buf.data());
     return Process(dxrt::dxrt_cmd_t::DXRT_CMD_UPDATE_FIRMWARE, buf.data(), buf.size(), subCmd);
 }
-shared_ptr<FwLog> Device::GetFwLog()
-{    
-    vector<dxrt_device_log_t> logBuf(512, {0,0,{0,}});
-    Process(dxrt::dxrt_cmd_t::DXRT_CMD_GET_LOG, logBuf.data());
-    auto fwlog = make_shared<FwLog>(logBuf);
-    return fwlog;
+int Device::UploadFw(string fwFile, int subCmd)
+{
+    DXRT_ASSERT(fileExists(fwFile), fwFile + " doesn't exist.");
+    vector<uint8_t> buf(getFileSize(fwFile));
+    DataFromFile(fwFile, buf.data());
+    return Process(dxrt::dxrt_cmd_t::DXRT_CMD_UPLOAD_FIRMWARE, buf.data(), buf.size(), subCmd);
 }
+
 int64_t Device::Allocate(uint64_t size)
 {
     LOG_DXRT_DBG << "Device " << _id << " allocate: " << showbase << hex << "+" << size << endl;
@@ -597,12 +588,12 @@ void Device::ThreadImpl(void)
         if(_stop) break;
         dxrt_response_t response;
         response.req_id = 0;
-        LOG_DXRT_DBG << "Device " << _id << " wait. " << endl;        
+        LOG_DXRT_DBG << "Device " << _id << " wait. " << endl;
         ret = Wait();
-        // cout << "Device " << _id << " wakeup : " << ret << endl;        
+        // cout << "Device " << _id << " wakeup : " << ret << endl;
         if(_stop) break;
         // LOG_VALUE(ret);
-        _profiler.End(_name);        
+        _profiler.End(_name);
         ret = Response(response);
         if(_stop) break;
         LOG_DXRT_DBG << "Device " << _id << " got response " << response.req_id << endl;
@@ -878,7 +869,7 @@ shared_ptr<Device> PickOneDevice(vector<shared_ptr<Device>> &devices_)
     return pick;
 #endif
 }
-vector<shared_ptr<Device>> CheckDevices(SkipMode skip)
+vector<shared_ptr<Device>> CheckDevices(SkipMode skip, uint32_t subCmd)
 {
     LOG_DXRT_DBG << endl;    
     const char* forceNumDevStr = getenv("DXRT_FORCE_NUM_DEV");
@@ -905,7 +896,7 @@ vector<shared_ptr<Device>> CheckDevices(SkipMode skip)
 
                 LOG_DBG("Found " + devFile);
                 shared_ptr<Device> device = make_shared<Device>(devFile);
-                device->Identify(cnt, skip);
+                device->Identify(cnt, skip, subCmd);
                 devices.emplace_back(move(device));
             }
             else

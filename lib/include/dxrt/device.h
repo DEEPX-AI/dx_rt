@@ -70,14 +70,14 @@ public:
     int Write(dxrt_meminfo_t &);
     int Read(dxrt_meminfo_t &);
     int Wait();
-    void Identify(int id_, SkipMode skip = NONE);
+    void Identify(int id_, SkipMode skip = NONE, uint32_t subCmd = 0);
+    void SetSubMode(uint32_t cmd) { _subCmd = cmd; }
     void BoundOption(dxrt_sche_sub_cmd_t subCmd);
     void Terminate();
     void Reset(int opt);
     void ResetBuffer(int opt);
-    std::vector<uint32_t> Dump();
-    void UpdateFwConfig(std::vector<uint32_t> cfg);
     int UpdateFw(std::string fwFile, int subCmd = 0);
+    int UploadFw(std::string fwFile, int subCmd = 0);
     std::shared_ptr<FwLog> GetFwLog();
     int64_t Allocate(uint64_t size);
     int64_t Allocate(dxrt_request_t &inference);
@@ -106,6 +106,7 @@ protected:
     std::string _name;
     dxrt_device_info_t _info;
     dxrt_device_status_t _status;
+    uint32_t _subCmd;
     int _load = 0;
     int _inferenceCnt = 0;
     bool _hasWorkers = false;
@@ -132,7 +133,7 @@ protected:
 };
 
 extern DXRT_API std::shared_ptr<Device> PickOneDevice(std::vector<std::shared_ptr<Device>> &devices_);
-extern DXRT_API std::vector<std::shared_ptr<Device>> CheckDevices(SkipMode skip = NONE);
+extern DXRT_API std::vector<std::shared_ptr<Device>> CheckDevices(SkipMode skip = NONE, uint32_t subCmd = 0);
 extern DXRT_API void WaitDeviceResponses(std::vector<std::shared_ptr<Device>> &devices_); // temp.
 DXRT_API std::ostream& operator<<(std::ostream&, const dxrt_device_status_t&);
 DXRT_API std::ostream& operator<<(std::ostream& os, const dxrt_device_info_t& info);

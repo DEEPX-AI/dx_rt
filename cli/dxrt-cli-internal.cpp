@@ -7,6 +7,7 @@
 #include <vector>
 #include <sstream>
 #include "dxrt/dxrt_api.h"
+#include "dxrt/cli_internal.h"
 #include "cxxopts.hpp"
 
 using namespace std;
@@ -28,14 +29,51 @@ int main(int argc, char *argv[])
     ;
 
     auto cmd = options.parse(argc, argv);
-    if(cmd.count("help"))
+    if (cmd.count("help"))
     {
         cout << "DXRT " DXRT_VERSION << endl;
         cout << options.help() << endl;
         exit(0);
     }
-    auto cli = dxrt::CLI(cmd);
-    cli.Run();
-
+    else if (cmd.count("status"))
+    {
+        dxrt::DeviceStatusCLICommand cli(cmd);
+        cli.Run();
+    }
+    else if (cmd.count("info"))
+    {
+        dxrt::DeviceInfoCLICommand cli(cmd);
+        cli.Run();
+    }
+    else if (cmd.count("reset"))
+    {
+        dxrt::DeviceResetCommand cli(cmd);
+        cli.Run();
+    }
+    else if (cmd.count("fwupdate"))
+    {
+        dxrt::FWUpdateCommand cli(cmd);
+        cli.Run();
+    }
+    else if (cmd.count("dump"))
+    {
+        dxrt::DeviceDumpCommand cli(cmd);
+        cli.Run();
+    }
+    else if (cmd.count("fwconfig"))
+    {
+        dxrt::FWConfigCommand cli(cmd);
+        cli.Run();
+    }
+    else if (cmd.count("fwlog"))
+    {
+        dxrt::FWLogCommand cli(cmd);
+        cli.Run();
+    }
+    else if (cmd.count("fwupload"))
+    {
+        dxrt::FWUploadCommand cli(cmd);
+        cli.Run();
+    }
     return 0;
 }

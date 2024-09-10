@@ -39,7 +39,8 @@ struct TimePoint;
  * @code
  * // Use a new inference option
  * auto modelPath = "model.dxnn"; // assume compiled model path name is "model.dxnn"
- * dxrt::InferenceOption option(1, 1, 2, dxrt::InferenceMode::MODE_ASYNC);
+ * dxrt::InferenceOption option;
+ * option.devices = {0,1,3};  //use only 0,1,3 device
  * auto ie = dxrt::InferenceEngine(modelPath, option);
  * @endcode
  * @headerfile "dxrt/dxrt_api.h"
@@ -55,8 +56,7 @@ public:
      * @param[out] outputPtr pointer to output data, if it is nullptr, output data is stored in buffer inside DXRT.
      * @code
      * auto modelPath = "model"; // assume compiled model path name is "model"
-     * dxrt::InferenceOption option(1, 1, 2, dxrt::InferenceMode::MODE_ASYNC);
-     * auto ie = dxrt::InferenceEngine(modelPath, option);
+     * auto ie = dxrt::InferenceEngine(modelPath);
      * auto outputs = ie.Run();
      * @endcode
      * @return output tensors as vector of smart pointer instances 
@@ -69,7 +69,8 @@ public:
      * @param[out] outputPtr pointer to output data, if it is nullptr, output data area is allocated by DXRT.
      * @code
      * auto modelPath = "model"; // assume compiled model path name is "model"
-     * dxrt::InferenceOption option(1, 1, 2, dxrt::InferenceMode::MODE_ASYNC);
+     * dxrt::InferenceOption option;
+     * option.devices = {0,1,3};  //use only 0,1,3 device
      * auto ie = dxrt::InferenceEngine(modelPath, option);
      * auto outputs = ie.Run();
      * @endcode
