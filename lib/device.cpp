@@ -320,6 +320,9 @@ TensorPtrs Device::Validate(RequestPtr req, bool skipInference)
         );
         // cout << *ret.back() << endl;
         //DXRT_ASSERT( Read(memInfo)==0, "Fail to read device");
+
+        if (memInfo.size == 0) memInfo = inferenceAcc.output; //temporary solution for zero size argmax model
+
         if(Read(memInfo)!=0){
             LOG_DXRT_DBG << "Validate output is empty." << endl;
             ret.clear();

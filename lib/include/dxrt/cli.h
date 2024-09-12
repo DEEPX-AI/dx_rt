@@ -20,6 +20,7 @@ class CLICommand
     cxxopts::ParseResult _cmd;
     int _deviceId = -1;
     bool _withDevice = true;
+    int _subCommand = 0;
     dxrt::SkipMode _checkDeviceSkip = dxrt::SkipMode::COMMON_SKIP;
     virtual void doCommand(DevicePtr devicePtr) = 0;
 };
@@ -71,5 +72,34 @@ class FWUploadCommand : public CLICommand
     uint32_t _fwUpdateSubCmd;
     std::string _fwUpdateFile;
 };
+
+
+
+class DeviceDumpCommand : public CLICommand
+{
+ public:
+    explicit DeviceDumpCommand(cxxopts::ParseResult &);
+ private:
+    void doCommand(DevicePtr devicePtr) override;
+};
+
+class FWConfigCommand : public CLICommand
+{
+ public:
+    explicit FWConfigCommand(cxxopts::ParseResult &);
+ private:
+    void doCommand(DevicePtr devicePtr) override;
+};
+
+class FWLogCommand : public CLICommand
+{
+ public:
+    explicit FWLogCommand(cxxopts::ParseResult &);
+ private:
+    void doCommand(DevicePtr devicePtr) override;
+};
+
+
+
 
 }  // namespace dxrt

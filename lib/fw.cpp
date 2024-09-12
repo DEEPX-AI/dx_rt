@@ -134,7 +134,7 @@ void Fw::Show(void)
     cout << "Total Image : " << fwHeader.length << endl;
     cout << "Board Type  : " << fwHeader.board_type << endl;
     cout << "DDR Type    : " << fwHeader.ddr_type << endl;
-    cout << "FIrmware Ver: " << fwHeader.fw_ver << endl;
+    cout << "Firmware Ver: " << fwHeader.fw_ver << endl;
 }
 
 string Fw::GetFwBinVersion()

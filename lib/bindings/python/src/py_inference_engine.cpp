@@ -208,7 +208,7 @@ std::vector<std::vector<py::array>> pyBatchRunAsync(InferenceEngine &ie, const s
 
     {
         std::unique_lock<std::mutex> lock(mtx);
-        cv.wait(lock, [&] { return callBackCnt.load() >= inputs.size() * repeat; });
+        cv.wait(lock, [&] { return static_cast<uint32_t>(callBackCnt.load()) >= inputs.size() * repeat; });
     }
 
     std::cout << "All callbacks completed." << std::endl;

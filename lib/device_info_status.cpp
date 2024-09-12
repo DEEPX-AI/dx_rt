@@ -7,6 +7,7 @@
 #include<iostream>
 #include<iomanip>
 #include<sstream>
+#include<array>
 
 using std::string;
 using std::endl;
