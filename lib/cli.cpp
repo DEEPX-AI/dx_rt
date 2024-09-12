@@ -54,7 +54,7 @@ void CLICommand::Run(void)
 
     if (_withDevice)
     {
-        auto devicesAll = CheckDevices(_checkDeviceSkip);
+        auto devicesAll = CheckDevices(_checkDeviceSkip, _subCommand);
         if (_deviceId == -1)
         {
             devices = devicesAll;
@@ -153,6 +153,7 @@ FWUploadCommand::FWUploadCommand(cxxopts::ParseResult &cmd)
 : CLICommand(cmd)
 {
     _withDevice = true;
+    _subCommand = 1;
 }
 
 void FWUploadCommand::doCommand(DevicePtr devicePtr)
@@ -169,6 +170,77 @@ void FWUploadCommand::doCommand(DevicePtr devicePtr)
         }
     }
 }
+
+
+
+
+//function for cmds
+vector<uint32_t> Dump(DevicePtr devicePtr)
+{
+    vector<uint32_t> dump(1000, 0);
+    devicePtr->Process(dxrt::dxrt_cmd_t::DXRT_CMD_DUMP, dump.data());
+    return dump;
+}
+void UpdateFwConfig(DevicePtr devicePtr, vector<uint32_t> cfg)
+{
+    int size = sizeof(uint32_t)*cfg.size();
+    devicePtr->Process(dxrt::dxrt_cmd_t::DXRT_CMD_UPDATE_CONFIG, cfg.data(), size);
+}
+shared_ptr<FwLog> GetFwLog(DevicePtr devicePtr)
+{
+    vector<dxrt_device_log_t> logBuf(512, {0, 0, {0, }});
+    devicePtr ->Process(dxrt::dxrt_cmd_t::DXRT_CMD_GET_LOG, logBuf.data());
+    auto fwlog = make_shared<FwLog>(logBuf);
+    return fwlog;
+}
+
+
+DeviceDumpCommand::DeviceDumpCommand(cxxopts::ParseResult &cmd)
+: CLICommand(cmd)
+{
+    _withDevice = true;
+}
+void DeviceDumpCommand::doCommand(DevicePtr devicePtr)
+{
+    string dumpFileName = _cmd["dump"].as<string>();
+    cout << "    Device " << devicePtr->id() << " dump to file " << dumpFileName << endl;
+    auto dump = Dump(devicePtr);
+    for (size_t i = 0; i < dump.size(); i+=2)
+    {
+        if (dump[i] == 0xFFFFFFFF) break;
+        cout << hex << dump[i] << " : " << dump[i+1] << endl;
+    }
+    dxrt::DataDumpBin(dumpFileName, dump.data(), dump.size());
+    dxrt::DataDumpTxt(dumpFileName+".txt", static_cast<uint32_t*>(dump.data()), 1, dump.size()/2, 2, true);
+}
+
+FWConfigCommand::FWConfigCommand(cxxopts::ParseResult &cmd)
+: CLICommand(cmd)
+{
+    _withDevice = true;
+}
+void FWConfigCommand::doCommand(DevicePtr devicePtr)
+{
+    auto fwConfig = _cmd["fwconfig"].as<vector<uint32_t>>();
+    cout << "    Device " << devicePtr->id() << " update firmware config by " << fwConfig.size() << endl;
+    UpdateFwConfig(devicePtr, fwConfig);
+}
+
+FWLogCommand::FWLogCommand(cxxopts::ParseResult &cmd)
+: CLICommand(cmd)
+{
+    _withDevice = true;
+}
+void FWLogCommand::doCommand(DevicePtr devicePtr)
+{
+    string logFileName = _cmd["fwlog"].as<string>();
+    cout << "    Device " << devicePtr->id() << " get log to file " << logFileName << endl;
+    auto fwLog = GetFwLog(devicePtr);
+    fwLog->toFile(logFileName);
+    cout << fwLog->str() << endl;
+}
+
+
 
 
 

@@ -102,6 +102,7 @@ deepx_binaryinfo::BinaryInfoDatabase LoadBinaryInfo(char *buffer, int fileSize)
 {
     deepx_binaryinfo::BinaryInfoDatabase param;
     Document document;
+    std::ignore = fileSize;
 
     int offset = 0, verInfo = 0, sizeInfo = 8192;
     string signInfo, headerInfo;    

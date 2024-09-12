@@ -8,15 +8,13 @@
     #include <unistd.h>
 #elif _WIN32
     #include <windows.h>
-#endif __linux__
+#endif  // __linux__
 
 using namespace std;
 
-#ifdef __linux__
-    #define PATH_MAX    (400)
-#elif _WIN32
+#ifndef __linux__
     #define MAX_PATH    (400)
-#endif __linux__
+#endif  // __linux__
 
 string dxrt::getCurrentPath()
 {
