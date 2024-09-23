@@ -5,6 +5,9 @@
 #include "dxrt/datatype.h"
 #include "dxrt/inference_engine.h"
 #include <algorithm>
+#if __cplusplus > 201103L
+#include <random>
+#endif
 
 using namespace std;
 namespace dxrt
@@ -22,7 +25,13 @@ vector<int> RandomSequence(int n)
     vector<int> v(n);
     for(int i=0;i<n;i++)
         v[i] = i;
+#if __cplusplus > 201103L
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(v.begin(), v.end(), g);
+#else
     random_shuffle(v.begin(), v.end());
+#endif
     cout << __func__ << " : ";
     for(int i=0;i<n;i++)
         cout << dec << v[i] << " ";
