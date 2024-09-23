@@ -61,7 +61,9 @@ int ParseModel(string file)
     {
         vector<dxrt::rmapinfo> rmapInfos;
         vector<vector<uint8_t>> data;
-
+#ifdef USE_ORT
+        bool is_cpu_model = false;
+#endif
         bool found = false;
         auto graphs = modelData.deepx_graph.m_graph();
         for (auto &graph : graphs)
