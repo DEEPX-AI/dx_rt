@@ -3,14 +3,16 @@
 
 #include "dxrt/common.h"
 #include "dxrt/driver.h"
+#include "dxrt/device_util.h"
+
 #include <map>
 #ifdef __linux__
     #include <linux/ioctl.h>
 #elif _WIN32
     #include <windows.h>
 #endif
-
 #include<sstream>
+#include <iomanip>
 
 using namespace std;
 
@@ -24,10 +26,81 @@ map<int,string> errTable = {
     {dxrt::dxrt_error_t::ERR_NPU0_HANG, "NPU0 Hang"},
     {dxrt::dxrt_error_t::ERR_NPU1_HANG, "NPU1 Hang"},
     {dxrt::dxrt_error_t::ERR_NPU2_HANG, "NPU2 Hang"},
+    {dxrt::dxrt_error_t::ERR_NPU_BUS, "NPU BUS Error"},
     {dxrt::dxrt_error_t::ERR_PCIE_DMA_CH0_FAIL, "PCIe-DMA Fail in ch0"},
     {dxrt::dxrt_error_t::ERR_PCIE_DMA_CH1_FAIL, "PCIe-DMA Fail in ch1"},
     {dxrt::dxrt_error_t::ERR_PCIE_DMA_CH2_FAIL, "PCIe-DMA Fail in ch2"},
 };
+
+std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_err_t& error) {
+    auto formatPcieBDF = [](int bus, int dev, int func) {
+        ostringstream ss;
+        ss << setfill('0') << setw(2) << hex << bus << ":"
+           << setfill('0') << setw(2) << hex << dev << ":"
+           << setfill('0') << setw(2) << hex << func;
+        return ss.str();
+    };
+    string pcieBDF = formatPcieBDF(error.bus, error.dev, error.func);
+
+    os << "\n==========================================================================================" << endl;
+    os << "* Error Code       : " << errTable[error.err_code] << endl;
+    os << "* NPU ID           : " << error.npu_id << endl;
+    os << "* Rt drv version   : v" << GetDrvVersionWithDot(error.rt_driver_version) << endl;
+    os << "* Pcie drv version : v" << GetDrvVersionWithDot(error.pcie_driver_version) << endl;
+    os << "* Firmware version : v" << GetFwVersionWithDot(error.fw_ver) << endl;
+    os << "------------------------------------------------------------------------------------------" << endl;
+
+    // Print base addresses
+    os << hex;
+    os << "* Base Addresses" << endl;
+    os << "  - AXI            : 0x" << error.base_axi << endl;
+    os << "  - RMAP           : 0x" << error.base_rmap << endl;
+    os << "  - WEIGHT         : 0x" << error.base_weight << endl;
+    os << "  - IN             : 0x" << error.base_in << endl;
+    os << "  - OUT            : 0x" << error.base_out << endl;
+    os << dec;
+
+    os << "------------------------------------------------------------------------------------------" << endl;
+
+    // Print NPU debug information
+    os << "* NPU Debug Information" << endl;
+    os << "  - Cmd Num        : " << error.cmd_num << endl;
+    os << "  - Last Cmd Num   : " << error.last_cmd << endl;
+    os << "  - Abnormal Cnt   : " << error.abnormal_cnt << endl;
+    os << "  - IRQ Status     : " << error.irq_status << endl;
+    os << "  - Busy           : " << (error.busy ? "Yes" : "No") << endl;
+
+    os << "------------------------------------------------------------------------------------------" << endl;
+
+    // Print device information
+    os << "* Device Information" << endl;
+    os << "  - NPU DMA Status : " << error.dma_err << endl;
+    os << "  - Temperature    : ";
+
+    for (const auto& temp : error.temperature) {
+        if (temp > 10000) break;
+        os << temp << " ";
+    }
+    os << endl;
+    os << "  - Voltage(mV)    : [" 
+       << error.npu_voltage[0] << ", " 
+       << error.npu_voltage[1] << ", " 
+       << error.npu_voltage[2] << "]" << endl;
+
+    os << "  - Frequency(MHz) : [" 
+       << error.npu_freq[0] << ", " 
+       << error.npu_freq[1] << ", " 
+       << error.npu_freq[2] << "]" << endl;
+
+    os << "------------------------------------------------------------------------------------------" << endl;
+
+    // Print PCIe information
+    os << "* PCIe Information (" << "Gen" << error.speed << " X" << error.width << ", " << pcieBDF << ")" << endl;
+    os << "  - LTSSM State    : " << error.ltssm << endl;
+    os << "==========================================================================================" << endl;
+
+    return os;
+}
 
 std::ostream& operator<<(std::ostream& os, const dxrt_error_t& error)
 {

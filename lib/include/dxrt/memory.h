@@ -28,6 +28,7 @@ public:
     void* GetBuffer(uint32_t required);
     uint32_t GetBufferAsOffset(uint32_t required);
     int64_t Allocate(uint64_t required);
+    int64_t BackwardAllocate(uint64_t required);
     int64_t Allocate(dxrt_meminfo_t &meminfo);
     int64_t Allocate(dxrt_request_t &inference);
     void Deallocate(uint64_t addr);

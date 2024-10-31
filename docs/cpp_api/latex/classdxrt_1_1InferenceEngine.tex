@@ -16,7 +16,7 @@ Tensor\+Ptrs \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a88cea5324cbeb436034a
 \begin{DoxyCompactList}\small\item\em Run inference engine using specific input pointer Synchronously. \end{DoxyCompactList}\item 
 int \mbox{\hyperlink{classdxrt_1_1InferenceEngine_af3006c9a7183f7e42d1528aa8a6fea24}{Run\+Async}} (void $\ast$input\+Ptr, void $\ast$user\+Arg=nullptr, void $\ast$output\+Ptr=nullptr)
 \begin{DoxyCompactList}\small\item\em Non-\/blocking call to request asynchronous inference by input pointer, and get request ID from inference engine. \end{DoxyCompactList}\item 
-float \mbox{\hyperlink{classdxrt_1_1InferenceEngine_ab91c2e1adde9259fe2823416f80edb54}{Run\+Bench\+Mark}} (int num)
+float \mbox{\hyperlink{classdxrt_1_1InferenceEngine_ab0c6629f048341d62bfa3a400c90e827}{Run\+Bench\+Mark}} (int num, void $\ast$input\+Ptr=nullptr)
 \begin{DoxyCompactList}\small\item\em run benchmark with loop n times \end{DoxyCompactList}\item 
 void \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a3d3fc75faa79470d9a3bdbdc61561a3a}{Register\+Call\+Back}} (std\+::function$<$ int(Tensor\+Ptrs \&\mbox{\hyperlink{classdxrt_1_1InferenceEngine_a0893b724d6eed939556f1315ce05829d}{outputs}}, void $\ast$user\+Arg)$>$ callback\+Func)
 \begin{DoxyCompactList}\small\item\em Register user callback function to be called by inference completion. \end{DoxyCompactList}\item 
@@ -246,11 +246,11 @@ Non-\/blocking call to request asynchronous inference by input pointer, and get 
 \begin{DoxyReturn}{Returns}
 request id that can be used to wait() function 
 \end{DoxyReturn}
-\mbox{\Hypertarget{classdxrt_1_1InferenceEngine_ab91c2e1adde9259fe2823416f80edb54}\label{classdxrt_1_1InferenceEngine_ab91c2e1adde9259fe2823416f80edb54}} 
+\mbox{\Hypertarget{classdxrt_1_1InferenceEngine_ab0c6629f048341d62bfa3a400c90e827}\label{classdxrt_1_1InferenceEngine_ab0c6629f048341d62bfa3a400c90e827}} 
 \index{dxrt::InferenceEngine@{dxrt::InferenceEngine}!RunBenchMark@{RunBenchMark}}
 \index{RunBenchMark@{RunBenchMark}!dxrt::InferenceEngine@{dxrt::InferenceEngine}}
 \doxysubsubsection{\texorpdfstring{RunBenchMark()}{RunBenchMark()}}
-{\footnotesize\ttfamily float dxrt\+::\+Inference\+Engine\+::\+Run\+Bench\+Mark (\begin{DoxyParamCaption}\item[{int}]{num }\end{DoxyParamCaption})}
+{\footnotesize\ttfamily float dxrt\+::\+Inference\+Engine\+::\+Run\+Bench\+Mark (\begin{DoxyParamCaption}\item[{int}]{num,  }\item[{void $\ast$}]{input\+Ptr = {\ttfamily nullptr} }\end{DoxyParamCaption})}
 
 
 
@@ -259,6 +259,8 @@ run benchmark with loop n times
 
 \begin{DoxyParams}[1]{Parameters}
 \mbox{\texttt{ in}}  & {\em num} & number of inferences \\
+\hline
+\mbox{\texttt{ in}}  & {\em input\+Ptr} & input data pointer to run inference \\
 \hline
 \end{DoxyParams}
 \begin{DoxyReturn}{Returns}

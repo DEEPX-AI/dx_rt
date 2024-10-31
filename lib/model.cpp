@@ -249,10 +249,8 @@ deepx_binaryinfo::BinaryInfoDatabase LoadBinaryInfo(char *buffer, int fileSize)
 
     // [Buffer] - CPU Binary Data
     for (size_t i = 0; i < param.cpu_models().size(); i++) {
-        unique_ptr<char[]> cpuModelsBuf(new char[param.cpu_models(i).size()]);
-        memcpy(cpuModelsBuf.get(), buffer + (offset + param.cpu_models(i).offset()), param.cpu_models(i).size());
-        param.cpu_models(i).buffer() = cpuModelsBuf.get();
-        cpuModelsBuf.release();
+        param.cpu_models(i)._buffer.resize(param.cpu_models(i).size());
+        memcpy(param.cpu_models(i)._buffer.data(), buffer + (offset + param.cpu_models(i).offset()), param.cpu_models(i).size());
     }
 
     // [Buffer] - Graph Info.
@@ -264,20 +262,16 @@ deepx_binaryinfo::BinaryInfoDatabase LoadBinaryInfo(char *buffer, int fileSize)
 
     // [Buffer] - RMAP Binary Data
     for (size_t i = 0; i < param.rmap().size(); i++) {
-        unique_ptr<char[]> rmapBuf(new char[param.rmap(i).size()]);
-        memcpy(rmapBuf.get(), buffer + (offset + param.rmap(i).offset()), param.rmap(i).size());
-        param.rmap(i).buffer() = rmapBuf.get();
-        rmapBuf.release();
+        param.rmap(i)._buffer.resize(param.rmap(i).size());
+        memcpy(param.rmap(i)._buffer.data(), buffer + (offset + param.rmap(i).offset()), param.rmap(i).size());
     }
 
     // [Buffer] - Weight Binary Data
     for (size_t i = 0; i < param.weight().size(); i++) {
-        unique_ptr<char[]> weightBuf(new char[param.weight(i).size()]);
-        memcpy(weightBuf.get(), buffer + (offset + param.weight(i).offset()), param.weight(i).size());
-        param.weight(i).buffer() = weightBuf.get();
-        weightBuf.release();
+        param.weight(i)._buffer.resize(param.weight(i).size());
+        memcpy(param.weight(i)._buffer.data(), buffer + (offset + param.weight(i).offset()), param.weight(i).size());
     }
-    
+
     // [Buffer] - RMAP Info.
     for (size_t i = 0; i < param.rmap_info().size(); i++) {
         unique_ptr<char[]> rmapInfoBuf(new char[param.rmap_info(i).size()]);
@@ -286,13 +280,10 @@ deepx_binaryinfo::BinaryInfoDatabase LoadBinaryInfo(char *buffer, int fileSize)
         param.rmap_info(i).str() = rmapInfoStr;
         rmapInfoBuf.release();
     }
-
     // [Buffer] - Bitmatch Mask.
     for (size_t i = 0; i < param.bitmatch_mask().size(); i++) {
-        unique_ptr<char[]> bitmatchmasktBuf(new char[param.bitmatch_mask(i).size()]);
-        memcpy(bitmatchmasktBuf.get(), buffer + (offset + param.bitmatch_mask(i).offset()), param.bitmatch_mask(i).size());
-        param.bitmatch_mask(i).buffer() = bitmatchmasktBuf.get();
-        bitmatchmasktBuf.release();
+        param.bitmatch_mask(i)._buffer.resize(param.bitmatch_mask(i).size());
+        memcpy(param.bitmatch_mask(i)._buffer.data(), buffer + (offset + param.bitmatch_mask(i).offset()), param.bitmatch_mask(i).size());
     }
 
     return param;
@@ -308,7 +299,7 @@ deepx_graphinfo::GraphInfoDatabase LoadGraphInfo(ModelDataBase data)
         graphInfoBuffer += str;
     document.Parse(graphInfoBuffer.c_str());
 
-    // cout << graphInfoBuffer << endl;
+    //cout << graphInfoBuffer << endl;
 
     if (document.HasParseError()) {
         std::cerr << "No graphinfo (" << document.GetParseError() << ")" << std::endl;

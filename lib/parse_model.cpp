@@ -74,21 +74,24 @@ int ParseModel(string file)
                 break;
             }
         }
-
-        for (size_t j = 0; j < modelData.deepx_binary.rmap_info().size(); j++)
-        {
-            if (order == modelData.deepx_binary.rmap_info(j).name())
-            {
+        for (size_t j = 0; j < modelData.deepx_binary.rmap_info().size(); j++) {
+            if (order == modelData.deepx_binary.rmap_info(j).name()) {
                 auto rmapInfo = modelData.deepx_rmap.m_rmap(j);
                 if (graphMap.find(order) != graphMap.end())
                     rmapInfo.input().memory().name() = graphMap[order].inputs().front().key();
+
                 rmapInfos.emplace_back(rmapInfo);
-                data.emplace_back(move(vector<uint8_t>(rmapInfo.memorys().memory(0).size(), 0)) );
-                memcpy(data.back().data(), modelData.deepx_binary.rmap(j).buffer(), data.back().size());
+
+                data.emplace_back(move(vector<uint8_t>(rmapInfo.memorys().memory(0).size())));
+                auto& firstMemBuffer = modelData.deepx_binary.rmap(j).buffer();
+                memcpy(data.back().data(), firstMemBuffer.data(), firstMemBuffer.size());
                 DXRT_ASSERT(0 < data.back().size(), "invalid model");
-                data.emplace_back(move(vector<uint8_t>(rmapInfo.memorys().memory(1).size(), 0)) );
-                memcpy(data.back().data(), modelData.deepx_binary.weight(j).buffer(), data.back().size());
+
+                data.emplace_back(move(vector<uint8_t>(rmapInfo.memorys().memory(1).size())));
+                auto& weightBuffer = modelData.deepx_binary.weight(j).buffer();
+                memcpy(data.back().data(), weightBuffer.data(), weightBuffer.size());
                 DXRT_ASSERT(0 < data.back().size(), "invalid model");
+
                 found = true;
             }
         }
@@ -99,10 +102,9 @@ int ParseModel(string file)
             {
                 if (order == modelData.deepx_binary.cpu_models(j).name())
                 {
+                    const auto& bufferSource =modelData.deepx_binary.cpu_models(j).buffer();
+                    data.emplace_back(bufferSource.begin(), bufferSource.end());
 
-                    data.emplace_back(move(vector<uint8_t>(modelData.deepx_binary.cpu_models(j).size(), 0)) );
-                    memcpy(data.back().data(),
-                        static_cast<void*>(modelData.deepx_binary.cpu_models(j).buffer()), data.back().size());
                     found = true;
                     is_cpu_model = true;
                     break;

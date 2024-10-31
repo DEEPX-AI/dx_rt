@@ -30,7 +30,8 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
 ostream& operator<<(ostream& os, const InferenceOption& option)
 {
     os << "          inference option: "
-        << option.devices;
+        << option.devices << "/"
+        << option.boundOption;
     return os;
 }
 

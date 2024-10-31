@@ -31,7 +31,7 @@ function install_dep()
         sudo apt-get -y install build-essential make zlib1g-dev libcurl4-openssl-dev wget tar zip cmake git
         echo ""
         echo " Install python libraries" 
-        sudo apt-get -y install python3-dev python3-distutils python3-pip python3-tk python3-lxml python3-six
+        sudo apt-get -y install python3-dev python3-setuptools python3-pip python3-tk python3-lxml python3-six
         cmake_version=$(cmake --version |grep -oP "\d+\.\d+\.\d+")
         if compare_version "$cmake_version" "$cmake_version_required"; then
             install_cmake=false

@@ -5,7 +5,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=9"/>
 <meta name="generator" content="Doxygen 1.8.17"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>DXRT: /home/devops/workspace/actions-runner/dx-rt-actions-runner/_work/dx_rt/dx_rt/_internal/lib/include/dxrt/device_info_status.h Source File</title>
+<title>DXRT: /home/devops/workspace/ghes-actions-runner/worker-01/_work/dx_rt/dx_rt/_internal/lib/include/dxrt/device_info_status.h Source File</title>
 <link href="tabs.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
@@ -110,33 +110,35 @@ $(function() {
 <div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160;    std::string deviceVariantStr() <span class="keyword">const</span>;</div>
 <div class="line"><a name="l00054"></a><span class="lineno">   54</span>&#160;    std::string boardTypeStr() <span class="keyword">const</span>;</div>
 <div class="line"><a name="l00058"></a><span class="lineno">   58</span>&#160;    std::string memoryTypeStr() <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00062"></a><span class="lineno">   62</span>&#160;    int64_t memorySize()<span class="keyword"> const</span>{<span class="keywordflow">return</span> _info.mem_size;}</div>
-<div class="line"><a name="l00066"></a><span class="lineno">   66</span>&#160;    <span class="keywordtype">int</span> memoryFrequency()<span class="keyword"> const</span>{<span class="keywordflow">return</span> _info.ddr_freq;}</div>
-<div class="line"><a name="l00071"></a><span class="lineno">   71</span>&#160;    std::string memorySizeStrBinaryPrefix() <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00076"></a><span class="lineno">   76</span>&#160;    std::string memorySizeStrWithComma() <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00081"></a><span class="lineno">   81</span>&#160;    std::string allMemoryInfoStr() <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00087"></a><span class="lineno">   87</span>&#160;    std::string dvfsStateInfoStr() <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00092"></a><span class="lineno">   92</span>&#160;    std::string npuStatusStr(<span class="keywordtype">int</span> no) <span class="keyword">const</span>;  <span class="comment">// NPU 0: voltage 825 mV, clock 800 MHz, temperature 46&#39;C</span></div>
-<div class="line"><a name="l00096"></a><span class="lineno">   96</span>&#160;<span class="comment"></span>    std::string fwVersionStr() <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00097"></a><span class="lineno">   97</span>&#160; </div>
-<div class="line"><a name="l00098"></a><span class="lineno">   98</span>&#160;    std::ostream&amp; infoToStream(std::ostream&amp; os) <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00099"></a><span class="lineno">   99</span>&#160;    std::ostream&amp; statusToStream(std::ostream&amp; os) <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00109"></a><span class="lineno">  109</span>&#160;    std::string getInfoString() <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00118"></a><span class="lineno">  118</span>&#160;    std::string getStatusString() <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00119"></a><span class="lineno">  119</span>&#160; </div>
-<div class="line"><a name="l00120"></a><span class="lineno">  120</span>&#160;    <span class="keyword">const</span> dxrt_device_status_t&amp; status()<span class="keyword"> const</span>{<span class="keywordflow">return</span> _status;}</div>
-<div class="line"><a name="l00121"></a><span class="lineno">  121</span>&#160;    <span class="keyword">const</span> dxrt_device_info_t&amp; info()<span class="keyword"> const</span>{<span class="keywordflow">return</span> _info;}</div>
-<div class="line"><a name="l00122"></a><span class="lineno">  122</span>&#160; </div>
-<div class="line"><a name="l00123"></a><span class="lineno">  123</span>&#160; <span class="keyword">private</span>:</div>
-<div class="line"><a name="l00124"></a><span class="lineno">  124</span>&#160;    <span class="keywordtype">int</span> _id;</div>
-<div class="line"><a name="l00125"></a><span class="lineno">  125</span>&#160;    dxrt_device_info_t _info;</div>
-<div class="line"><a name="l00126"></a><span class="lineno">  126</span>&#160;    dxrt_device_status_t _status;</div>
-<div class="line"><a name="l00127"></a><span class="lineno">  127</span>&#160; </div>
-<div class="line"><a name="l00128"></a><span class="lineno">  128</span>&#160;    DxrtDeviceInfoWithStatus(<span class="keywordtype">int</span> <span class="keywordtype">id</span>, dxrt_device_info_t info, dxrt_device_status_t status);</div>
-<div class="line"><a name="l00129"></a><span class="lineno">  129</span>&#160;};</div>
-<div class="line"><a name="l00130"></a><span class="lineno">  130</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp; os, <span class="keyword">const</span> DxrtDeviceInfoWithStatus&amp; d);</div>
-<div class="line"><a name="l00131"></a><span class="lineno">  131</span>&#160; </div>
-<div class="line"><a name="l00132"></a><span class="lineno">  132</span>&#160;}  <span class="comment">// namespace dxrt</span></div>
+<div class="line"><a name="l00062"></a><span class="lineno">   62</span>&#160;    std::string pcieInfoStr(<span class="keywordtype">int</span> spd, <span class="keywordtype">int</span> wd, <span class="keywordtype">int</span> bus, <span class="keywordtype">int</span> dev, <span class="keywordtype">int</span> func) <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00066"></a><span class="lineno">   66</span>&#160;    int64_t memorySize()<span class="keyword"> const</span>{<span class="keywordflow">return</span> _info.mem_size;}</div>
+<div class="line"><a name="l00070"></a><span class="lineno">   70</span>&#160;    <span class="keywordtype">int</span> memoryFrequency()<span class="keyword"> const</span>{<span class="keywordflow">return</span> _info.ddr_freq;}</div>
+<div class="line"><a name="l00075"></a><span class="lineno">   75</span>&#160;    std::string memorySizeStrBinaryPrefix() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00080"></a><span class="lineno">   80</span>&#160;    std::string memorySizeStrWithComma() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00085"></a><span class="lineno">   85</span>&#160;    std::string allMemoryInfoStr() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00091"></a><span class="lineno">   91</span>&#160;    std::string dvfsStateInfoStr() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00096"></a><span class="lineno">   96</span>&#160;    std::string npuStatusStr(<span class="keywordtype">int</span> no) <span class="keyword">const</span>;  <span class="comment">// NPU 0: voltage 825 mV, clock 800 MHz, temperature 46&#39;C</span></div>
+<div class="line"><a name="l00100"></a><span class="lineno">  100</span>&#160;<span class="comment"></span>    std::string fwVersionStr() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00101"></a><span class="lineno">  101</span>&#160; </div>
+<div class="line"><a name="l00102"></a><span class="lineno">  102</span>&#160;    std::ostream&amp; infoToStream(std::ostream&amp; os) <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00103"></a><span class="lineno">  103</span>&#160;    std::ostream&amp; statusToStream(std::ostream&amp; os) <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00113"></a><span class="lineno">  113</span>&#160;    std::string getInfoString() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00122"></a><span class="lineno">  122</span>&#160;    std::string getStatusString() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00123"></a><span class="lineno">  123</span>&#160; </div>
+<div class="line"><a name="l00124"></a><span class="lineno">  124</span>&#160;    <span class="keyword">const</span> dxrt_device_status_t&amp; status()<span class="keyword"> const</span>{<span class="keywordflow">return</span> _status;}</div>
+<div class="line"><a name="l00125"></a><span class="lineno">  125</span>&#160;    <span class="keyword">const</span> dxrt_device_info_t&amp; info()<span class="keyword"> const</span>{<span class="keywordflow">return</span> _info;}</div>
+<div class="line"><a name="l00126"></a><span class="lineno">  126</span>&#160; </div>
+<div class="line"><a name="l00127"></a><span class="lineno">  127</span>&#160; <span class="keyword">private</span>:</div>
+<div class="line"><a name="l00128"></a><span class="lineno">  128</span>&#160;    <span class="keywordtype">int</span> _id;</div>
+<div class="line"><a name="l00129"></a><span class="lineno">  129</span>&#160;    dxrt_device_info_t   _info;</div>
+<div class="line"><a name="l00130"></a><span class="lineno">  130</span>&#160;    dxrt_device_status_t _status;</div>
+<div class="line"><a name="l00131"></a><span class="lineno">  131</span>&#160;    dxrt_dev_info_t      _devInfo;</div>
+<div class="line"><a name="l00132"></a><span class="lineno">  132</span>&#160; </div>
+<div class="line"><a name="l00133"></a><span class="lineno">  133</span>&#160;    DxrtDeviceInfoWithStatus(<span class="keywordtype">int</span> <span class="keywordtype">id</span>, dxrt_device_info_t info, dxrt_device_status_t status, dxrt_dev_info_t devInfo);</div>
+<div class="line"><a name="l00134"></a><span class="lineno">  134</span>&#160;};</div>
+<div class="line"><a name="l00135"></a><span class="lineno">  135</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp; os, <span class="keyword">const</span> DxrtDeviceInfoWithStatus&amp; d);</div>
+<div class="line"><a name="l00136"></a><span class="lineno">  136</span>&#160; </div>
+<div class="line"><a name="l00137"></a><span class="lineno">  137</span>&#160;}  <span class="comment">// namespace dxrt</span></div>
 </div><!-- fragment --></div><!-- contents -->
 <div class="ttc" id="anamespacedxrt_html"><div class="ttname"><a href="namespacedxrt.html">dxrt</a></div><div class="ttdoc">DXRT C++ APIs are provided in this namespace.</div><div class="ttdef"><b>Definition:</b> buffer.h:8</div></div>
 <!-- start footer part -->

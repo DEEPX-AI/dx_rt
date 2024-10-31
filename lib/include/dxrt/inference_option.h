@@ -18,6 +18,7 @@ struct DXRT_API InferenceOption
      */
     std::vector<int> devices = {};///< list of device ID to use (it is empty by default, then all devices are used.)
     // TODO : add data format
+    std::uint32_t    boundOption = 0;
 };
 
 DXRT_API std::ostream& operator<<(std::ostream&, const InferenceOption&);

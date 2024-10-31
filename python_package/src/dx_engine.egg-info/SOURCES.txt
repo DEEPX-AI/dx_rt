@@ -10,6 +10,7 @@ src/dx_engine/version.py
 src/dx_engine.egg-info/PKG-INFO
 src/dx_engine.egg-info/SOURCES.txt
 src/dx_engine.egg-info/dependency_links.txt
+src/dx_engine.egg-info/requires.txt
 src/dx_engine.egg-info/top_level.txt
 src/dx_engine/capi/__init__.py
-src/dx_engine/capi/_pydxrt.cpython-38-x86_64-linux-gnu.so
+src/dx_engine/capi/_pydxrt.cpython-39-x86_64-linux-gnu.so

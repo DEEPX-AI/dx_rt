@@ -698,15 +698,20 @@ Since ModelZoo is still not open, prebuilt model files will be provided separate
 </code></pre></div>
 <h2 id="2&gt;_run&gt;_simple&gt;_cli&gt;_to&gt;_device">2. Run simple CLI to device<a class="headerlink" href="#2&gt;_run&gt;_simple&gt;_cli&gt;_to&gt;_device" title="Permanent link">¶</a></h2>
 <p>Check basic device interface as following.
-</p><div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>sudo ./bin/dxrt-cli --status
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>./bin/dxrt-cli --status
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>      Memory @ c01000000 ~ c60400000(0 ~ 5f400000), 5f400000, cur c01000000, [0, 5f400000, 0],
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>      Memory @ c60400000 ~ c80000000(0 ~ 1fc00000), 1fc00000, cur c60400000, [0, 1fc00000, 0],
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    Device 0: type 0, var 200, addr 0xc01000000, size 0x7f000000, dma_ch 2, fw_ver 113, board rev 2, board type 1, ddr freq 4200, ddr type 1
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    Device 0: voltage [825, 800, 0, 0], clock [1000, 600, 0, 0], temperature [44, 46, 0, 0], dvfs [0, 0], boot_state 0
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>DXRT v2.0.3
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>Device 0: M1, Accelator type
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>Memory: LPDDR5 5500 MHz, 2.98GiB
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>Board: M.2, Rev 10.0
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>FW v1.5.1
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>NPU 0: voltage 750 mV, clock 1000 MHz, temperature 39'C
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>NPU 1: voltage 750 mV, clock 1000 MHz, temperature 39'C
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>NPU 2: voltage 750 mV, clock 1000 MHz, temperature 39'C
 </code></pre></div>
 <h2 id="3&gt;_run&gt;_simple&gt;_benchmark&gt;_with&gt;_the&gt;_model">3. Run simple benchmark with the model<a class="headerlink" href="#3&gt;_run&gt;_simple&gt;_benchmark&gt;_with&gt;_the&gt;_model" title="Permanent link">¶</a></h2>
-<p></p><div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>sudo ./bin/run_model -m &lt;model directory&gt;
+<p></p><div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>./bin/run_model -m &lt;model directory&gt;
 </code></pre></div>
 If the application completes successfully, you can see detection result as following.<br>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>Start benchmark.

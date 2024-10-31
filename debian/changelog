@@ -1,3 +1,35 @@
+libdxrt (2.0.5) unstable; urgency=medium
+
+  * refactor: update debian packaging rules, changelog, postinst
+
+ -- Koo Bongyu <kbg@deepx.ai>  Tue, 15 Oct 2024 09:00:00 +0900
+
+
+libdxrt (2.0.4) unstable; urgency=medium
+
+  * refactor: Implementation of multiple command modes (ioctl)
+
+ -- Koo Bongyu <kbg@deepx.ai>  Mon, 14 Oct 2024 09:00:00 +0900
+
+
+libdxrt (2.0.3) unstable; urgency=medium
+
+  * Changed: align change: 64 to 16
+  * Fixed: remove cross compile package for non-x64 environment
+  * Added: add firmware upload mode on cli
+
+ -- Koo Bongyu <kbg@deepx.ai> Mon, Sep 2319:41:23 2024 +0900
+
+
+libdxrt (2.0.2) unstable; urgency=medium
+
+  * Changed: None
+  * Fixed: Fix argmax model w/ empty output
+  * Added: None
+
+ -- Koo Bongyu <kbg@deepx.ai> Mon, Sep 2319:41:23 2024 +0900
+
+
 libdxrt (2.0.1) unstable; urgency=medium
 
   * Fix argmax model w/ empty output

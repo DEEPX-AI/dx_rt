@@ -10,6 +10,7 @@
 #include "dxrt/tensor.h"
 #include "dxrt/model.h"
 #include "dxrt/driver.h"
+#include "dxrt/buffer.h"
 
 namespace dxrt {
 
@@ -27,10 +28,20 @@ class TaskData
 
     const Tensors& input_tensors() const {return _inputTensors;}
     const Tensors& output_tensors() const {return _outputTensors;}
-
+    
 
     void set_from_npu(const std::vector<std::vector<uint8_t>>& data_);
     void set_from_cpu(std::shared_ptr<CpuHandle> cpuHandle);
+
+    Tensors inputs(void* ptr, uint64_t phyAddr = 0);
+    Tensors outputs(void* ptr, uint64_t phyAddr = 0);
+
+    int input_size() const {return _inputSize;}
+    int output_size() const {return _outputSize;}
+
+    void SetOutputBuffer(int size);
+    std::shared_ptr<Buffer> OutputBuffer();
+    void ClearOutputBuffer();
 
  public:  // TODO(ykpark): make private
     int _id;
@@ -55,6 +66,7 @@ class TaskData
     std::vector<std::vector<int64_t>> _outputShape;
     std::vector<uint64_t> _inputOffsets = {0};
     std::vector<uint64_t> _outputOffsets;
+    std::shared_ptr<Buffer> _taskOutputBuffer=nullptr;
 
     Tensors _inputTensors;
     Tensors _outputTensors;

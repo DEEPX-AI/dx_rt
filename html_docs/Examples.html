@@ -529,6 +529,15 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#firmware>_interface>_dxrt-cli>_tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      Firmware Interface DXRT-CLI tool
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -666,70 +675,111 @@
  -r, --ref       reference output data file to compare<br>
  -l, --loop      loop test<br>
  -h, --help      show help<br>
-</p><div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>$ run_model -m &lt;model_dir&gt; -i &lt;input bin.&gt; -o &lt;output bin.&gt; -r &lt;reference output bin.&gt; -l &lt;number of loops&gt;
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>-----------------------------------
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>loops : 100
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>-----------------------------------
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>...
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>...
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>-----------------------------------
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>  Inference time : 13.872ms
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>  FPS : 72.0879
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>  Bit match test : SKIP
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>-----------------------------------
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>## Firmware Interface DXRT-CLI tool  
-<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>Read device status, and handle them by commandline interface  
-<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>(only for accelerator device)  
-<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>&gt;  -s, --status         Get device status
-<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>  -i, --info           Get device info
-<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>  -r, --reset arg      Reset device(0: reset only NPU, 1: reset entire
-<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>                       device) (default: 0)
-<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>  -d, --device arg     Device ID (if not specified, CLI commands will be
-<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>                       sent to all devices.) (default: -1)
-<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>  -p, --dump arg       Dump device internals to a file
-<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>  -c, --fwconfig arg   Update firmware settings from list of parameters
-<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a>  -l, --fwlog arg      Extract firmware logs to a file
-<a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a>  -u, --fwupdate arg   Update firmware with deepx firmware file.
-<a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a>                       sub-option : [force:force update, reset:device
-<a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a>                       reset]
-<a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a>  -g, --fwversion arg  Get firmware version with deepx firmware file
-<a id="__codelineno-2-29" name="__codelineno-2-29" href="#__codelineno-2-29"></a>  -h, --help           Print usage
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>run_model -m &lt;model_dir&gt; -i &lt;input bin.&gt; -o &lt;output bin.&gt; -r &lt;reference output bin.&gt; -l &lt;number of loops&gt;
 </code></pre></div>
-$ dxrt-cli --status
-...
-...
-======================================
-Device 0: type ACC,variant M1,DMA_CH:2ch,fw_ver:2.0.2
-Memory:[Type:LPDDR4, Addr:0xc01000000, size: 1.98GiB(2,130,706,432Byte), clock: 4200dMHz]
-Board:[Type SOM,Revision:0.2],Interface:ASIC, fw_info:dxfw 2.0.2, 2024-04-26 15:35:51, GNU 10.3.1, aarch64
-NPU 0: voltage 825 mV, clock 1000 MHz, temperature 50'C
-NPU 1: voltage 800 mV, clock 600 MHz, temperature 51'C
-dvfs Disabled, boot_state:0, cnt [0, 0, 0, 0],
-======================================
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>$ run_model -m /mnt/.../model.dxnn -i /mnt/.../input.bin -l 100
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>-----------------------------------
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>loops : 100
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>-----------------------------------
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>...
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>...
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>-----------------------------------
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>  Inference time : 13.872ms
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>  FPS : 72.0879
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>  Bit match test : SKIP
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>-----------------------------------
+</code></pre></div>
 </blockquote>
-<p></p><div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>
+<h2 id="firmware&gt;_interface&gt;_dxrt-cli&gt;_tool">Firmware Interface DXRT-CLI tool<a class="headerlink" href="#firmware&gt;_interface&gt;_dxrt-cli&gt;_tool" title="Permanent link">¶</a></h2>
+<p>Read device status, and handle them by commandline interface<br>
+(only for accelerator device)  </p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>dxrt-cli &lt;option&gt; &lt;argument&gt;
 </code></pre></div>
-$ dxrt-cli --reset
-...
-...
-    Device 0 reset by option 1
-Device 0 : 0
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>
+<blockquote>
+<p>-s, --status             Get device status<br>
+-i, --info               Get device info<br>
+-m, --monitor arg        Monitoring device status every [arg] seconds<br>
+-r, --reset arg          Reset device(0: reset only NPU, 1: reset entire device) (default: 0)<br>
+-d, --device arg         Device ID (if not specified, CLI commands will be sent to all devices.) (default: -1)<br>
+-u, --fwupdate arg       Update firmware with deepx firmware file. sub-option : [force:force update, unreset:device unreset(default:reset)]<br>
+-w, --fwupload arg       Upload firmware with deepx firmware file.[2nd_boot/rtos]<br>
+-g, --fwversion arg      Get firmware version with deepx firmware file<br>
+-p, --dump arg           Dump device internals to a file<br>
+-l, --fwlog arg          Extract firmware logs to a file<br>
+-h, --help               Print usage  </p>
+</blockquote>
+<p></p><div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>$ dxrt-cli --status
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>DXRT v2.0.x
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>=======================================================
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a> * Device 0: M1, Accelator type
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>---------------------   Version   ---------------------
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a> * RT Driver version   : v1.1.0
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a> * PCIe Driver version : v1.1.0
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>-------------------------------------------------------
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a> * FW version          : v1.5.5
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>--------------------- Device Info ---------------------
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a> * Memory : LPDDR5 5500 MHz, 2.98GiB
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a> * Board  : M.2, Rev 10.0
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a> * PCIe   : Gen3 X4 [04:00:00]
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>NPU 0: voltage 750 mV, clock 1000 MHz, temperature 40'C
+<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a>NPU 1: voltage 750 mV, clock 1000 MHz, temperature 40'C
+<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a>NPU 2: voltage 750 mV, clock 1000 MHz, temperature 40'C
+<a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a>dvfs Disabled
+<a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a>=======================================================
 </code></pre></div>
-** Please reboot when updating firmware. **
-$ dxrt-cli --fwupdate fw.bin --fwupdate force
-...
-...
-============ FW Binary Information ============
-Signature   : DEEPX GENESIS-M
-Total Image : 5
-Board Type  : 1
-DDR Type    : 1
-FIrmware Ver: 2.0.2
-    Device 0 update firmware[2.0.2] by fw.bin, SubCmd:4 : SUCCESS
-Device 0 : 0
-```</div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>$ dxrt-cli --reset 0
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>DXRT v2.0.x
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    Device 0 reset by option 0
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>** Please reboot when updating firmware. **
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>$ dxrt-cli --fwupdate fw.bin
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>DXRT v2.0.x
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>============ FW Binary Information ============
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>Signature   : DEEPX GENESIS-M
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>Total Image : 6
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>Board Type  : 2
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>DDR Type    : 2
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>Firmware Ver: 1.5.2
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>    Device 0 update firmware[1.5.2] by /.../1.5.2/fw.bin, SubCmd:0 : SUCCESS
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>$ dxrt-cli -c 750 -c 1000 -c 750 -c 1000 -c 750 -c 1000
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>DXRT v2.0.x
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    Device 0 update firmware config by 6
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>$ dxrt-cli -c 750 -c 1000 -c 750 -c 1000 -c 750 -c 1000
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>DXRT v2.0.x
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    Device 0 update firmware config by 6
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>$ dxrt-cli -C firmware_settings.json
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>DXRT v2.0.x
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>npuID[@0]:: voltage - 750 / freq - 1000
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>npuID[@1]:: voltage - 750 / freq - 1000
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>npuID[@2]:: voltage - 750 / freq - 1000
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>npu throttling threshold 1 - 60
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>npu throttling threshold 2 - 90
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>npu emergency threshold - 120
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>npu throttling enabled - 1
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>    Device 0 update firmware config by 10
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>$ dxrt-cli -m 1
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>DXRT v2.0.x
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>NPU 0: voltage 750 mV, clock 1000 MHz, temperature 39'C
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>NPU 1: voltage 750 mV, clock 1000 MHz, temperature 39'C
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>NPU 2: voltage 750 mV, clock 1000 MHz, temperature 38'C
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>dvfs Disabled
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>=======================================================
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>NPU 0: voltage 750 mV, clock 1000 MHz, temperature 39'C
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>NPU 1: voltage 750 mV, clock 1000 MHz, temperature 39'C
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>NPU 2: voltage 750 mV, clock 1000 MHz, temperature 39'C
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>dvfs Disabled
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>=======================================================
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>NPU 0: voltage 750 mV, clock 1000 MHz, temperature 39'C
+<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>NPU 1: voltage 750 mV, clock 1000 MHz, temperature 38'C
+<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a>NPU 2: voltage 750 mV, clock 1000 MHz, temperature 38'C
+<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a>dvfs Disabled
+<a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a>=======================================================
+</code></pre></div></div>
 
 
 

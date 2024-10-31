@@ -5,6 +5,7 @@
 #include <fstream>
 #include <cassert>
 #include <map>
+#include <memory>
 
 #include "dxrt/common.h"
 #include "dxrt/model.h"
@@ -12,7 +13,8 @@
 #include "dxrt/tensor.h"
 #include "dxrt/inference_option.h"
 #include "dxrt/testdata.h"
-#include "dxrt/circular_buffer.h"
+#include "dxrt/inference_job.h"
+#include "dxrt/inference_timer.h"
 
 #ifdef _WIN32
 #include <chrono>
@@ -79,9 +81,10 @@ public:
     int RunAsync(void *inputPtr, void *userArg=nullptr, void *outputPtr=nullptr);
     /** @brief run benchmark with loop n times
      * @param[in] num number of inferences
+     * @param[in] inputPtr input data pointer to run inference
      * @return average fps
      */
-    float RunBenchMark(int num);
+    float RunBenchMark(int num, void* inputPtr=nullptr);
     TensorPtrs ValidateDevice(void *inputPtr, int deviceId=0);
     /** @brief Register user callback function to be called by inference completion.
      * @param[in] callbackFunc Function which is called when inference is complete, it gets outputs and user_arg ptr
@@ -95,8 +98,6 @@ public:
      * @return output tensors as vector of smart pointer instances 
      */
     TensorPtrs Wait(int reqId);
-    void PushLatency(int latency);
-    void PushInferenceTime(uint32_t infTime);
 
     /** @brief Get input tensor
      *  @param[in] ptr pointer to virtual address
@@ -154,10 +155,11 @@ private:
     std::shared_ptr<Task> _tail;
     int _numTails;
     std::map<std::string, std::shared_ptr<Task>> _taskMap;
-    CircularBuffer<int> _latency;
-    CircularBuffer<uint32_t> _infTime;
-    std::vector<string> _taskOrder; 
+    InferenceTimer _inferenceTimer;
+    std::vector<string> _taskOrder;
 
+    std::function<int(TensorPtrs &outputs, void *userArg)> _userCallback;
+    std::vector<bool> _occupiedInferenceJobs;
 };
 
 } /* namespace dxrt */

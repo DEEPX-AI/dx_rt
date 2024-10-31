@@ -49,6 +49,24 @@ string ParseFwLog(dxrt_device_log_t &log)
         case dxrt::dxrt_cmd_t::DXRT_CMD_RESET:
             oss << "reset: opt" << log.args[0] << endl;
             break;
+        case dxrt::dxrt_fwlog_cmd_t::FW_LOG_DXRT_DEQUEUE_IRQ:
+            oss << "deque(irq)  id:" << log.args[0] << ", "
+                << "front:" << log.args[1] << ", rear:" << log.args[2] << ", "
+                << "poped: " << log.args[3] << ", count: " << log.args[4] << ", "
+                << "access_count: " << log.args[5] << endl;
+            break;
+        case dxrt::dxrt_fwlog_cmd_t::FW_LOG_DXRT_DEQUEUE_POLLING:
+            oss << "deque(poll)  id:" << log.args[0] << ", "
+                << "front:" << log.args[1] << ", rear:" << log.args[2] << ", "
+                << "poped: " << log.args[3] << ", count: " << log.args[4] << ", "
+                << "access_count: " << log.args[5] << endl;
+            break;
+        case FW_LOG_DXRT_DEQUEUE_POPED:
+            oss << " > poped id:" << log.args[0] << ", "
+                << "front:" << log.args[1] << ", rear:" << log.args[2] << ", "
+                << "poped: " << log.args[3] << ", count: " << log.args[4] << ", "
+                << "access_count: " << log.args[5] << endl;
+            break;
         case dxrt::dxrt_cmd_t::DXRT_CMD_GET_STATUS:
         case dxrt::dxrt_cmd_t::DXRT_CMD_UPDATE_CONFIG:
         case dxrt::dxrt_cmd_t::DXRT_CMD_GET_LOG:
@@ -63,7 +81,6 @@ string ParseFwLog(dxrt_device_log_t &log)
         case dxrt::dxrt_cmd_t::DXRT_CMD_READ_OUTPUT_DMA_CH1:
         case dxrt::dxrt_cmd_t::DXRT_CMD_TERMINATE:
         case dxrt::dxrt_fwlog_cmd_t::FW_LOG_TEMP:
-        case dxrt::dxrt_fwlog_cmd_t::FW_LOG_DXRT_DEQUEUE_REQUEST:
         case dxrt::dxrt_fwlog_cmd_t::FW_LOG_GENERATE_MSI:
             oss << "[" << log.timestamp << "] " 
                 << log.args[0] << ", "
@@ -71,8 +88,7 @@ string ParseFwLog(dxrt_device_log_t &log)
                 << log.args[2] << ", "
                 << log.args[3] << ", "
                 << log.args[4] << ", "
-                //TODO: examine history about log args length
-                //<< log.args[5] << ", "
+                << log.args[5] << ", "
                 //<< log.args[6] << ", "
                 << endl;
             break;
@@ -84,7 +100,7 @@ string ParseFwLog(dxrt_device_log_t &log)
 
 FwLog::FwLog(vector<dxrt_device_log_t> logs_)
 :_logs(logs_), _str("")
-{    
+{
     for(auto &log:_logs)
     {
         _str.append(ParseFwLog(log));
