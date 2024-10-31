@@ -6,6 +6,7 @@
 #include "dxrt/common.h"
 #include "dxrt/tensor.h"
 #include "dxrt/driver.h"
+#include "dxrt/task_data.h"
 #include <unordered_map>
 #include <mutex>
 
@@ -21,6 +22,17 @@ class Request;
 using RequestPtr = std::shared_ptr<Request>;
 struct TimePoint;
 using TimePointPtr = std::shared_ptr<TimePoint>;
+
+class RequestData
+{
+public:
+    int requestId;
+    Tensors inputs;
+    Tensors outputs;
+    TaskData* taskData;
+};
+
+
 class DXRT_API Request
 {
 public:
@@ -34,10 +46,10 @@ public:
     Request(Task *task_, Tensors &inputs_, Tensors &outputs_);
     ~Request(void);
     static void Init();
-    static RequestPtr Create(Task *task_, Tensors inputs_, Tensors outputs_, void *userArg, void *lastOutput);
-    static RequestPtr Create(Task *task_, void *input, void *output, void *userArg, void *lastOutput);
+    static RequestPtr Create(Task *task_, Tensors inputs_, Tensors outputs_, void *userArg);
+    static RequestPtr Create(Task *task_, void *input, void *output, void *userArg);
     static RequestPtr GetById(int id);
-    static RequestPtr Pick();    
+    static RequestPtr Pick();
     static void ShowAll();
     static void Clear();
     static void SaveTaskStats(Task *task);
@@ -45,16 +57,17 @@ public:
     void SetStatus(Status s);
     void NotifyCompletion();
     void CheckTimePoint(int opt);
-    int &id();
-    RequestPtr &head();
-    Task* &task();
-    Task* &requestor();
+    int id() const;
+    void Reset();
+
+    TaskData* taskData();
+    Task* task();
+    std::string requestor_name() const;
     Tensors &inputs();
     Tensors &outputs();
-    void* &input_ptr();
-    void* &output_ptr();
-    void* &last_output_ptr();
-    void* &user_arg();
+    void* input_ptr();
+    void* output_ptr();
+    void* user_arg() const;
     void* &dev_arg();
     dxrt_request_t &npu_inference();
     dxrt_request_t* &npu_inference_ptr();
@@ -67,17 +80,23 @@ public:
     bool &latency_valid();
     bool &validate_device();
     int16_t &model_type();
+    int debug_env();
+
+    void setNpuInferenceAcc(dxrt_request_acc_t npuInferenceAcc);
+    void setCallback(std::function<void(RequestPtr)> func);  // works for start next request or complete whole inference
+    void onRequestComplete(RequestPtr req);
+
+    RequestData* getData();
+    const RequestData* getData() const;
     friend DXRT_API std::ostream& operator<<(std::ostream&, const Request&);
 private:
-    int _id;
-    RequestPtr _head;
-    Task *_task;
-    Task *_requestor;
-    Tensors _inputs;
-    Tensors _outputs;
-    void *_inputPtr;
-    void *_outputPtr;
-    void *_lastOutputPtr;
+
+    RequestData _data;
+
+    std::string _requestorName;
+
+    Task* _task;
+
     void *_userArg;
     void *_devArg;
     dxrt_request_t _npuInference;
@@ -93,6 +112,9 @@ private:
     uint32_t _infTime;
     int _completeCnt;
     std::mutex _completeCntLock;
+    std::function<void(RequestPtr)> _callback;
+    int _debugEnv;
+    
     static int _nextId;
     static std::mutex _idLock;
     static std::vector<RequestPtr> _requestMap;
@@ -110,5 +132,6 @@ private:
     std::mutex _lock;
 };
 DXRT_API std::ostream& operator<<(std::ostream&, const Request::Status&);
+//int ProcessResponse(RequestPtr req, dxrt_response_t *response);
 
 } // namespace dxrt

@@ -8,34 +8,19 @@
 #include "dxrt/common.h"
 #include "dxrt/device.h"
 
-#define RT_DRV_VERSION_CHECK (1000)
-#define FW_VERSION_CHECK     (202)
-#define PCIE_VERSION_CHECK   (2000)
+#define RT_DRV_VERSION_CHECK (1100)
+#define FW_VERSION_CHECK     (155)
+#define PCIE_VERSION_CHECK   (1100)
 
 namespace dxrt {
 
 class Device;
 
-struct DXRT_API deepx_pcie_info {
-    uint32_t driver_version;
-    uint8_t  bus;
-    uint8_t  dev;
-    uint8_t  func;
-    int      speed; /* GEN1, GEN2...*/
-    int      width; /* 1, 2, 4 */
-};
-
-typedef struct DXRT_API
-{
-    uint32_t        rt_drv_ver;
-    deepx_pcie_info pcie;
-} dxrt_dev_info_t;
-
 class DXRT_API DxDeviceVersion
 {
 public:
     DxDeviceVersion(Device *device, uint16_t fw_ver, int type, int interface_value, uint32_t variant);
-    void GetVersion(void);
+    dxrt_dev_info_t GetVersion(void);
     void CheckVersion(void);
 
 protected:

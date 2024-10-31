@@ -1,4 +1,21 @@
 # Changelog
+## v2.1.0 / 2024-10-31
+### Changed
+- run_model async mode as default  
+- Drvier and Firmware versions
+  - RT Drvier  >= v1.1.0
+  - PCIe Driver  >= v1.1.0
+  - Firmware  >= v1.5.5
+### Fixed
+-
+### Added
+- Supports multi-process & multi-device
+  - dxrtd daemon
+- Supports Python Interface (Run & RunAsync)
+  - Async mode / Batch mode
+- Device status monitoring function via cli-command
+
+# Changelog
 ## v2.0.3 / 2024-09-04
 ### Changed
 - align change: 64 to 16

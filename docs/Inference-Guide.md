@@ -37,11 +37,11 @@ auto outputs = ie.Run(inputBuf.data());
 ```
 If you want to perform inference in a non-blocking way, you can call `dxrt::InferenceEngine::RunAsync` as follows.  
 ```
-auto req = ie.RunAsync(inputBuf.data());
+auto jobId = ie.RunAsync(inputBuf.data());
 ```
 Non-blocking API issues a request ID, and you can wait for the request to complete.  
 ```
-auto outputs = ie.Wait(req);
+auto outputs = ie.Wait(jobId);
 ```
 If you don't want to wait to run your application efficiently, you can pipeline requests with callbacks.  
 ```
@@ -117,8 +117,8 @@ You can visualize events from `profiler.json` using as following.
 ```
 python3 tool/profiler/plot.py --input profiler.json
 ```
-Then, generated image file `profiler.png` will show detailed profiling data. 
-![image](/assets/images/profiler.jpg)
+Then, generated image file `profiler.png` will show detailed profiling data.  
+![image](/assets/images/profiler.jpg)  
 Please refer to usage of `tool/profiler/plot.py`.  
 ```
 usage: plot.py [-h] [-i INPUT] [-o OUTPUT] [-s START] [-e END] [-g]

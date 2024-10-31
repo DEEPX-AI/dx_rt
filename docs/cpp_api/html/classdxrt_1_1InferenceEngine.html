@@ -87,9 +87,9 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:af3006c9a7183f7e42d1528aa8a6fea24"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#af3006c9a7183f7e42d1528aa8a6fea24">RunAsync</a> (void *inputPtr, void *userArg=nullptr, void *outputPtr=nullptr)</td></tr>
 <tr class="memdesc:af3006c9a7183f7e42d1528aa8a6fea24"><td class="mdescLeft">&#160;</td><td class="mdescRight">Non-blocking call to request asynchronous inference by input pointer, and get request ID from inference engine.  <a href="classdxrt_1_1InferenceEngine.html#af3006c9a7183f7e42d1528aa8a6fea24">More...</a><br /></td></tr>
 <tr class="separator:af3006c9a7183f7e42d1528aa8a6fea24"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab91c2e1adde9259fe2823416f80edb54"><td class="memItemLeft" align="right" valign="top">float&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#ab91c2e1adde9259fe2823416f80edb54">RunBenchMark</a> (int num)</td></tr>
-<tr class="memdesc:ab91c2e1adde9259fe2823416f80edb54"><td class="mdescLeft">&#160;</td><td class="mdescRight">run benchmark with loop n times  <a href="classdxrt_1_1InferenceEngine.html#ab91c2e1adde9259fe2823416f80edb54">More...</a><br /></td></tr>
-<tr class="separator:ab91c2e1adde9259fe2823416f80edb54"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab0c6629f048341d62bfa3a400c90e827"><td class="memItemLeft" align="right" valign="top">float&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#ab0c6629f048341d62bfa3a400c90e827">RunBenchMark</a> (int num, void *inputPtr=nullptr)</td></tr>
+<tr class="memdesc:ab0c6629f048341d62bfa3a400c90e827"><td class="mdescLeft">&#160;</td><td class="mdescRight">run benchmark with loop n times  <a href="classdxrt_1_1InferenceEngine.html#ab0c6629f048341d62bfa3a400c90e827">More...</a><br /></td></tr>
+<tr class="separator:ab0c6629f048341d62bfa3a400c90e827"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3d3fc75faa79470d9a3bdbdc61561a3a"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a3d3fc75faa79470d9a3bdbdc61561a3a">RegisterCallBack</a> (std::function&lt; int(TensorPtrs &amp;<a class="el" href="classdxrt_1_1InferenceEngine.html#a0893b724d6eed939556f1315ce05829d">outputs</a>, void *userArg)&gt; callbackFunc)</td></tr>
 <tr class="memdesc:a3d3fc75faa79470d9a3bdbdc61561a3a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register user callback function to be called by inference completion.  <a href="classdxrt_1_1InferenceEngine.html#a3d3fc75faa79470d9a3bdbdc61561a3a">More...</a><br /></td></tr>
 <tr class="separator:a3d3fc75faa79470d9a3bdbdc61561a3a"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -438,8 +438,8 @@ if ptr and phyAddr is given, outputs tensors that contains output addresses </dd
 
 </div>
 </div>
-<a id="ab91c2e1adde9259fe2823416f80edb54"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab91c2e1adde9259fe2823416f80edb54">&#9670;&nbsp;</a></span>RunBenchMark()</h2>
+<a id="ab0c6629f048341d62bfa3a400c90e827"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab0c6629f048341d62bfa3a400c90e827">&#9670;&nbsp;</a></span>RunBenchMark()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -448,8 +448,18 @@ if ptr and phyAddr is given, outputs tensors that contains output addresses </dd
           <td class="memname">float dxrt::InferenceEngine::RunBenchMark </td>
           <td>(</td>
           <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>num</em></td><td>)</td>
+          <td class="paramname"><em>num</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>inputPtr</em> = <code>nullptr</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -458,6 +468,7 @@ if ptr and phyAddr is given, outputs tensors that contains output addresses </dd
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">num</td><td>number of inferences </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">inputPtr</td><td>input data pointer to run inference </td></tr>
   </table>
   </dd>
 </dl>
@@ -516,7 +527,7 @@ if ptr and phyAddr is given, outputs tensors that contains output addresses </dd
 <div class="ttc" id="astructdxrt_1_1InferenceOption_html"><div class="ttname"><a href="structdxrt_1_1InferenceOption.html">dxrt::InferenceOption</a></div><div class="ttdoc">This struct specifies inference options applied to dxrt::InferenceEngine.</div><div class="ttdef"><b>Definition:</b> inference_option.h:14</div></div>
 <div class="ttc" id="astructdxrt_1_1InferenceOption_html_ae98837ff566fe2b089a5b1bf07feb48c"><div class="ttname"><a href="structdxrt_1_1InferenceOption.html#ae98837ff566fe2b089a5b1bf07feb48c">dxrt::InferenceOption::devices</a></div><div class="ttdeci">std::vector&lt; int &gt; devices</div><div class="ttdoc">device ID list to use</div><div class="ttdef"><b>Definition:</b> inference_option.h:19</div></div>
 <div class="ttc" id="aclassdxrt_1_1InferenceEngine_html_a0893b724d6eed939556f1315ce05829d"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html#a0893b724d6eed939556f1315ce05829d">dxrt::InferenceEngine::outputs</a></div><div class="ttdeci">Tensors outputs(void *ptr=nullptr, uint64_t phyAddr=0)</div><div class="ttdoc">Get output tensor.</div></div>
-<div class="ttc" id="aclassdxrt_1_1InferenceEngine_html"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html">dxrt::InferenceEngine</a></div><div class="ttdoc">This class abstracts runtime inference executor for user's compiled model.</div><div class="ttdef"><b>Definition:</b> inference_engine.h:48</div></div>
+<div class="ttc" id="aclassdxrt_1_1InferenceEngine_html"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html">dxrt::InferenceEngine</a></div><div class="ttdoc">This class abstracts runtime inference executor for user's compiled model.</div><div class="ttdef"><b>Definition:</b> inference_engine.h:50</div></div>
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
 Generated by &#160;<a href="http://www.doxygen.org/index.html">

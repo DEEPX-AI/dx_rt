@@ -20,7 +20,7 @@ class CLICommand
     cxxopts::ParseResult _cmd;
     int _deviceId = -1;
     bool _withDevice = true;
-    int _subCommand = 0;
+    dxrt::dxrt_ident_sub_cmd_t _subCmd = dxrt::dxrt_ident_sub_cmd_t::DX_IDENTIFY_NONE;
     dxrt::SkipMode _checkDeviceSkip = dxrt::SkipMode::COMMON_SKIP;
     virtual void doCommand(DevicePtr devicePtr) = 0;
 };
@@ -38,6 +38,13 @@ class DeviceInfoCLICommand : public CLICommand
     explicit DeviceInfoCLICommand(cxxopts::ParseResult &);
  private:
     void doCommand(DevicePtr devicePtr) override;
+};
+class DeviceStatusMonitor : public CLICommand
+{
+   public:
+      explicit DeviceStatusMonitor(cxxopts::ParseResult &);
+   private:
+      void doCommand(DevicePtr devicePtr) override;
 };
 class FWVersionCommand : public CLICommand
 {
@@ -87,6 +94,14 @@ class FWConfigCommand : public CLICommand
 {
  public:
     explicit FWConfigCommand(cxxopts::ParseResult &);
+ private:
+    void doCommand(DevicePtr devicePtr) override;
+};
+
+class FWConfigCommandJson : public CLICommand
+{
+ public:
+    explicit FWConfigCommandJson(cxxopts::ParseResult &);
  private:
     void doCommand(DevicePtr devicePtr) override;
 };

@@ -3,6 +3,7 @@
 
 #include "dxrt/device_info_status.h"
 #include "dxrt/device.h"
+#include "dxrt/device_util.h"
 #include<map>
 #include<iostream>
 #include<iomanip>
@@ -88,8 +89,8 @@ static string insert_comma(const string& str)
 
 namespace dxrt {
 
-DxrtDeviceInfoWithStatus::DxrtDeviceInfoWithStatus(int id, dxrt_device_info_t info, dxrt_device_status_t status)
-:_id(id), _info(info), _status(status)
+DxrtDeviceInfoWithStatus::DxrtDeviceInfoWithStatus(int id, dxrt_device_info_t info, dxrt_device_status_t status, dxrt_dev_info_t devInfo)
+:_id(id), _info(info), _status(status), _devInfo(devInfo)
 {
 }
 
@@ -99,7 +100,8 @@ DxrtDeviceInfoWithStatus DxrtDeviceInfoWithStatus::getStatusInfo(DevicePtr devic
     int deviceId = device->id();
     auto info = device->info();
     auto status = device->status();
-    return DxrtDeviceInfoWithStatus(deviceId, info, status);
+    auto devInfo = device->devInfo();
+    return DxrtDeviceInfoWithStatus(deviceId, info, status, devInfo);
 }
 
 string DxrtDeviceInfoWithStatus::dvfsStateInfoStr() const
@@ -163,27 +165,40 @@ string DxrtDeviceInfoWithStatus::allMemoryInfoStr() const
      return string(buffer);
 }
 
-
-string DxrtDeviceInfoWithStatus::fwVersionStr() const
+string DxrtDeviceInfoWithStatus::pcieInfoStr(int spd, int wd, int bus, int dev, int func) const
 {
-    int version = _info.fw_ver;
-    int v1 = version / 100;
-    int v2 = (version % 100) / 10;
-    int v3 = version % 10;
     char buf[64];
-    snprintf(buf, sizeof(buf), "%d.%d.%d", v1, v2, v3);
+    snprintf(buf, sizeof(buf), "Gen%d X%d [%02d:%02d:%02d]", spd, wd, bus, dev, func);
     return string(buf);
 }
 
 std::ostream& DxrtDeviceInfoWithStatus::infoToStream(std::ostream& os) const
 {
-    os << std::showbase << std::dec << "Device " << getId()
+    os << "=======================================================" << endl;
+    os << std::showbase << std::dec << " * Device " << getId()
       << ": " << deviceVariantStr()<< ", "<< deviceTypeWord() <<" type" << endl;
-    os << "Memory: " << memoryTypeStr() << " " << _info.ddr_freq <<" MHz, "
+    os << "---------------------   Version   ---------------------" << endl;
+    os << " * RT Driver version   : v" << GetDrvVersionWithDot(_devInfo.rt_drv_ver) << endl;
+    if (_info.type == static_cast<uint32_t>(DeviceType::ACC_TYPE))
+    {
+        os << " * PCIe Driver version : v" << GetDrvVersionWithDot(_devInfo.pcie.driver_version) << endl;
+    }
+    os << "-------------------------------------------------------" << endl;
+    os << " * FW version          : v"<< GetFwVersionWithDot(_info.fw_ver) << endl;
+    os << "--------------------- Device Info ---------------------" << endl;
+    os << " * Memory : " << memoryTypeStr() << " " << _info.ddr_freq <<" MHz, "
       << memorySizeStrBinaryPrefix() << endl;
-    os << "Board: "<< boardTypeStr();
+    os << " * Board  : "<< boardTypeStr();
     os << std::fixed << std::setprecision(1) << ", Rev " << static_cast<double>(info().bd_rev)/10.0 << endl;
-    os << "FW v"<<fwVersionStr() << endl;
+    if (_info.type == static_cast<uint32_t>(DeviceType::ACC_TYPE))
+    {
+        os << " * PCIe   : "<<
+            pcieInfoStr(_devInfo.pcie.speed,
+                _devInfo.pcie.width,
+                _devInfo.pcie.bus,
+                _devInfo.pcie.dev,
+                _devInfo.pcie.func) << endl;
+    }
     return os;
 }
 
@@ -202,6 +217,7 @@ std::ostream&DxrtDeviceInfoWithStatus::statusToStream(std::ostream& os) const
         os << npuStatusStr(i)<< endl;
     }
     os << dvfsStateInfoStr() << endl;
+    os << "=======================================================" << endl;
     return os;
 }
 

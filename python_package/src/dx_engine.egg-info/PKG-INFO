@@ -5,20 +5,12 @@ Summary: Python wrapper class for dx_rt
 Home-page: https://github.com/KOMOSYS/dx_rt.git
 Author: Jangmin Son
 Author-email: jangmin@deepx.co.kr
-License: UNKNOWN
 Project-URL: Bug Tracker, https://github.com/KOMOSYS/dx_rt/issues
-Description: # RT's TODO
-        - [ ] Implement pybindings for all the classes in `$ROOT/python_package/src/dx_engine/capi/dx_rt.py`
-          - Can change the list of classes if the class doesn't have to be exposed.
-          - Please update README or let me know if you have any questions or improvements.
-        - [ ] build *.so file for x64, x86, etc(arm, amd) in `$ROOT/python_package/src/dx_engine/capi/` so it can be used in python package.
-        # DL's TODO
-        - [ ] When *.so file build is Done, automate PR for each build/distribution
-        - [ ] Add Unit Tests for each functiosn with bitmatching test.
-        
-Platform: UNKNOWN
 Classifier: Programming Language :: Python :: 3
 Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: OS Independent
 Requires-Python: >=3.6
 Description-Content-Type: text/markdown
+Requires-Dist: numpy
+
+

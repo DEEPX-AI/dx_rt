@@ -215,8 +215,9 @@ void CpuHandle::Run(RequestPtr req)
     LOG_DXRT_DBG << task->id() << " - _numInputs : " << std::to_string(_numInputs) << std::endl;
 
     if (!task->is_head() && task->prevs().size() == 1) {
-        LOG_DXRT_DBG << std::to_string(req->requestor()->id()) << std::endl;
-        auto idxs = input_index[req->requestor()->id()];
+        int prevTaskId = req->task()->prevs().front()->id();
+        LOG_DXRT_DBG << std::to_string(prevTaskId) << std::endl;
+        auto idxs = input_index[prevTaskId];
         for (int i = 0; i < _numInputs; i++) {
             int idx = idxs[i];
             LOG_DXRT_DBG << "CpuHandle : " << req->inputs()[idx].name() << " / i : " << std::to_string(i) << " idx : " << std::to_string(idx) << std::endl;
@@ -319,7 +320,7 @@ void CpuHandle::Terminate()
 void CpuHandle::Start()
 {
     _buffer = make_shared<Buffer>(4*(_inputSize + _outputSize));
-    _worker = Worker::Create(_name, Worker::Type::CPU_HANDLE, 1, nullptr, this);
+    _worker = CpuHandleWorker::Create(_name, 1, this);
 }
 
 

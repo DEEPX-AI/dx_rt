@@ -3,15 +3,21 @@
 
 #pragma once
 
+#include <signal.h>
+#include <mutex>
+#include <atomic>
+#include <thread>
+#include <condition_variable>
 #include "dxrt/common.h"
 #include "dxrt/request.h"
 #include "dxrt/driver.h"
 #include "dxrt/device_struct.h"
-#include <mutex>
-#include <atomic>
-#include <signal.h>
-#include <thread>
-#include <condition_variable>
+#include "dxrt/worker.h"
+#include "dxrt/driver_adapter/driver_adapter.hpp"
+#include "dxrt/task.h"
+
+#define DXRT_ASYNC_LOAD_THRE    (5)
+
 #ifdef __linux__
     #include <poll.h>
 #elif _WIN32
@@ -30,7 +36,15 @@ enum SkipMode
 {
     NONE            = 0,
     VERSION_CHECK,
-    COMMON_SKIP
+    COMMON_SKIP,
+    STATIC_SAVE_SKIP,
+    IDENTIFY_SKIP
+};
+
+enum class DeviceType : uint32_t
+{
+    ACC_TYPE = 0,
+    STD_TYPE = 1,
 };
 
 class Worker;
@@ -41,38 +55,44 @@ class InferenceOption;
 // TODO: cpu_handle.h������ struct�� ����Ǿ� ����.
 struct InferenceOption;
 #endif
-class Task;
+class TaskData;
 class Profiler;
 class Buffer;
 class FwLog;
+class MultiprocessMemory;
 class DXRT_API Device
 {
 public:
     const static std::string DeviceStatusTable[];
+    static std::atomic<bool> _sNpuValidateOpt; 
+    
+public:
     Device(const std::string &);
     ~Device(void);
     std::string name() { return _name; }
     int id() { return _id; }    
-    void *input_buf(int taskId, int bufId);
+    //void *input_buf(int taskId, int bufId);
     int load();
     void pick();
     int infCnt();
     int fd();
+
     dxrt_device_info_t info() { return _info;}
     dxrt_device_status_t status();
-    int Process(dxrt_cmd_t, void*, uint32_t size=0, uint32_t sub_cmd=0);
-    int InferenceRequest(Task *task, Tensors inputs, Tensors outputs);
-    int InferenceRequest(Tensors);
-    int InferenceRequest(RequestPtr req);
-    TensorPtrs Validate(RequestPtr req, bool skipInference=false);
-    int Release(Task *task);
+    dxrt_dev_info_t devInfo() { return _devInfo; }
+    int Process(dxrt_cmd_t, void*, uint32_t size = 0, uint32_t sub_cmd = 0);
+
+
+    int InferenceRequest(RequestData* req, npu_bound_op boundOp = N_BOUND_NORMAL);
+    TensorPtrs Validate(RequestPtr req, bool skipInference = false);
+    int Release(TaskData *task);
     int Response(dxrt_response_t &response);
     int Write(dxrt_meminfo_t &);
     int Read(dxrt_meminfo_t &);
     int Wait();
     void Identify(int id_, SkipMode skip = NONE, uint32_t subCmd = 0);
     void SetSubMode(uint32_t cmd) { _subCmd = cmd; }
-    void BoundOption(dxrt_sche_sub_cmd_t subCmd);
+    void BoundOption(dxrt_sche_sub_cmd_t subCmd, npu_bound_op boundOp);
     void Terminate();
     void Reset(int opt);
     void ResetBuffer(int opt);
@@ -84,15 +104,21 @@ public:
     void Deallocate(uint64_t addr);
     void Deallocate(dxrt_request_t &inference);
     void ThreadImpl(void);
-    int RegisterTask(Task *task);
+    int RegisterTask(TaskData *task);
     void CallBack();
     std::vector<dxrt_model_t> npu_model(int taskId);
     std::vector<Tensors> inputs(int taskId);
     Tensors outputs(int taskId);
     friend DXRT_API std::ostream& operator<<(std::ostream &, const Device&);
+
+    dxrt_request_acc_t* peekInferenceAcc(int requestId);
+    dxrt_request_t* peekInferenceStd(int requestId);
+    void popInferenceStruct(int requestId);
+    void signalToWorker(int channel);
+
 protected:
     int _id = 0;
-    uint32_t _type = 0; /* 0: ACC type, 1: STD type */
+    DeviceType _type = DeviceType::ACC_TYPE; /* 0: ACC type, 1: STD type */
     SkipMode _skip;
     npu_bound_op _boundOp;
     uint32_t _variant;
@@ -106,8 +132,9 @@ protected:
     std::string _name;
     dxrt_device_info_t _info;
     dxrt_device_status_t _status;
+    dxrt_dev_info_t _devInfo;
     uint32_t _subCmd;
-    int _load = 0;
+    std::atomic<int> _load {0};
     int _inferenceCnt = 0;
     bool _hasWorkers = false;
     Profiler &_profiler;
@@ -122,14 +149,26 @@ protected:
     std::unordered_map<int, std::vector< dxrt_request_acc_t >> _npuInferenceAcc;
     std::unordered_map<int, std::vector<Tensors>> _inputTensors;
     std::unordered_map<int, std::vector<Tensors>> _outputTensors;
-    std::unordered_map<int, std::vector<std::vector<uint8_t>>> _inputTensorBuffers;
-    std::unordered_map<int, std::vector<std::vector<uint8_t>>> _outputTensorBuffers;
+    //std::unordered_map<int, std::vector<std::vector<uint8_t>>> _inputTensorBuffers;
+    //std::unordered_map<int, std::vector<std::vector<uint8_t>>> _outputTensorBuffers;
     std::unordered_map<int, std::vector<uint8_t>> _outputValidateBuffers;
     std::unordered_map<int, int> _bufIdx;
-    std::shared_ptr<Worker> _inputWorker=nullptr;
-    std::shared_ptr<Worker> _outputWorker=nullptr;
-    std::shared_ptr<Worker> _errorWorker=nullptr;
-    std::shared_ptr<Buffer> _buffer=nullptr;
+    std::unordered_map<int, dxrt_request_t> _ongoingRequestsStd;
+    std::unordered_map<int, dxrt_request_acc_t> _ongoingRequestsAcc;
+    std::shared_ptr<DeviceInputWorker> _inputWorker = nullptr;
+    std::shared_ptr<DeviceOutputWorker> _outputWorker = nullptr;
+    std::shared_ptr<DeviceErrorWorker> _errorWorker = nullptr;
+    //std::shared_ptr<Buffer> _buffer = nullptr;
+    std::shared_ptr<DriverAdapter> _driverAdapter;
+    std::atomic<int> _readChannel = {0};
+    std::atomic<int> _writeChannel = {0};
+    int RegisterTask_STD(TaskData *task);
+    int RegisterTask_ACC(TaskData *task);
+    int InferenceRequest_STD(RequestData* req, npu_bound_op boundOp);
+    int InferenceRequest_ACC(RequestData* req, npu_bound_op boundOp);
+
+    static std::shared_ptr<MultiprocessMemory> _sMulti_mems;
+
 };
 
 extern DXRT_API std::shared_ptr<Device> PickOneDevice(std::vector<std::shared_ptr<Device>> &devices_);

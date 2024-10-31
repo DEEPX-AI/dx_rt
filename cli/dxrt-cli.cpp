@@ -18,13 +18,13 @@ int main(int argc, char *argv[])
     options.add_options()
         ("s, status", "Get device status")
         ("i, info", "Get device info")
+        ("m, monitor", "Monitoring device status every [arg] seconds",cxxopts::value<uint32_t>() )
         ("r, reset", "Reset device(0: reset only NPU, 1: reset entire device)", cxxopts::value<int>()->default_value("0"))
         ("d, device", "Device ID (if not specified, CLI commands will be sent to all devices.)", cxxopts::value<int>()->default_value("-1"))
-        ("u, fwupdate", "Update firmware with deepx firmware file.\nsub-option : [force:force update, reset:device reset]", cxxopts::value<std::vector<std::string>>())
+        ("u, fwupdate", "Update firmware with deepx firmware file.\nsub-option : [force:force update, unreset:device unreset(default:reset)]", cxxopts::value<std::vector<std::string>>())
         ("w, fwupload", "Upload firmware with deepx firmware file.[2nd_boot/rtos]", cxxopts::value<std::vector<std::string>>() )
         ("g, fwversion", "Get firmware version with deepx firmware file", cxxopts::value<string>())
         ("p, dump", "Dump device internals to a file", cxxopts::value<string>() )
-        ("c, fwconfig", "Update firmware settings from list of parameters", cxxopts::value<vector<uint32_t>>() )
         ("l, fwlog", "Extract firmware logs to a file", cxxopts::value<string>() )
         ("h, help", "Print usage");
 
@@ -43,6 +43,11 @@ int main(int argc, char *argv[])
     else if (cmd.count("info"))
     {
         dxrt::DeviceInfoCLICommand cli(cmd);
+        cli.Run();
+    }
+    else if (cmd.count("monitor"))
+    {
+        dxrt::DeviceStatusMonitor cli(cmd);
         cli.Run();
     }
     else if (cmd.count("reset"))
@@ -73,6 +78,11 @@ int main(int argc, char *argv[])
     else if (cmd.count("fwconfig"))
     {
         dxrt::FWConfigCommand cli(cmd);
+        cli.Run();
+    }
+    else if (cmd.count("fwconfig_json"))
+    {
+        dxrt::FWConfigCommandJson cli(cmd);
         cli.Run();
     }
     else if (cmd.count("fwlog"))

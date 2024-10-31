@@ -8,19 +8,116 @@
 using namespace std;
 
 #define APP_NAME "DXRT " DXRT_VERSION " run_model"
+// #define TARGET_FPS_DEBUG
+
+enum RunModelMode {
+    BENCHMARK_MODE  = 0,
+    SINGLE_MODE     = 1,
+    TARGET_FPS_MODE = 2,
+};
+static RunModelMode mode;
+static int bounding = 0;
+
+std::ostream& operator<<(std::ostream& os, RunModelMode mode) {
+    switch (mode) {
+        case BENCHMARK_MODE:  os << "Benchmark Mode"; break;
+        case SINGLE_MODE:     os << "Single Mode"; break;
+        case TARGET_FPS_MODE: os << "Target FPS Mode"; break;
+        default:              os << "Unknown Mode"; break;
+    }
+    return os;
+}
+
+void PrintInfResult(const string& inputFile, const string& outputFile, const string& modelFile, float latencyMs, float infTimeMs, float fps) {
+    vector<string> lines;
+
+    (void)modelFile;
+
+    if (!inputFile.empty()) {
+        lines.push_back("* Processing File : " + inputFile);
+        lines.push_back("* Output Saved As : " + outputFile);
+    }
+    //lines.push_back("* Model Used : " + modelFile);
+    if ((bounding > 0 and bounding < 4) or (mode == SINGLE_MODE))
+    {
+        lines.push_back("* Benchmark Result(1 Core)"); //- NPU" + to_string(bounding-1));
+        if (infTimeMs)
+            lines.push_back("  - NPU Processing Time  : " + to_string(infTimeMs) + " ms");
+        else
+            lines.push_back("  - NPU Processing Time  : " + to_string(1000. / fps) + " ms");
+        if (latencyMs)
+            lines.push_back("  - Total Latency        : " + to_string(latencyMs) + " ms");
+        
+        if (fps)
+            lines.push_back("  - FPS                  : " + to_string(fps));
+        else
+            lines.push_back("  - FPS                  : " + to_string(1000/infTimeMs));
+}
+    else
+    {
+        if (bounding == 0)
+            lines.push_back("* Benchmark Result(3 Cores)");
+        else if (bounding > 3)
+            lines.push_back("* Benchmark Result(2 Cores)");
+        else
+            lines.push_back("* Unknown Bounding Option");
+        if (fps)
+            lines.push_back("  - FPS : " + to_string(fps));
+        else
+            lines.push_back("  - FPS : " + to_string(1000/infTimeMs));
+    }
+
+    size_t maxLength = 0;
+    for (const auto& line : lines) {
+        maxLength = max(maxLength, line.size());
+    }
+
+    cout << string(maxLength, '=') << endl;
+    for (const auto& line : lines) {
+        cout << setprecision(3) << line << endl;
+    }
+    cout << string(maxLength, '=') << endl;
+}
+
+void SetRunModelMode(bool single, int targetFps)
+{
+    if (single) {
+        mode = SINGLE_MODE;
+    } else if (targetFps) {
+        mode = TARGET_FPS_MODE;
+    } else {
+        mode = BENCHMARK_MODE;
+    }
+    cout << "Run model target mode : " << mode << endl;
+}
 
 int main(int argc, char *argv[])
 {
     string modelFile, inputFile, outputFile;
     bool benchmark = false;
+    bool single = false;
     int loops = 1;
+    int device = -1;
+    int targetFps = 0;  // Target FPS
     cxxopts::Options options("run_model", APP_NAME);
     options.add_options()
         (  "m, model", "Model file (.dxnn)" , cxxopts::value<string>(modelFile) )
         (  "i, input", "Input data file", cxxopts::value<string>(inputFile) )
         (  "o, output", "Output data file", cxxopts::value<string>(outputFile)->default_value("output.bin") )
         (  "b, benchmark", "Perform benchmark test", cxxopts::value<bool>(benchmark)->default_value("false") )
+        (  "s, single", "Perform single NPU test", cxxopts::value<bool>(single)->default_value("false") )
+        (  "n, npu",
+            "NPU bounding (default:0)\n"
+            " - Bounding value 0 : inference with all NPU\n"
+            " - Bounding value 1 : inference with NPU0\n"
+            " - Bounding value 2 : inference with NPU1\n"
+            " - Bounding value 3 : inference with NPU2\n"
+            " - Bounding value 4 : inference with NPU0/1\n"
+            " - Bounding value 5 : inference with NPU1/2\n"
+            " - Bounding value 6 : inference with NPU0/2", cxxopts::value<int>(bounding) )
         (  "l, loops", "Loops to test", cxxopts::value<int>(loops)->default_value("1") )
+        (  "d, device", "device to use(blank: all)", cxxopts::value<int>(device)->default_value("-1"))
+        (  "f, fps", "Target frames per second", cxxopts::value<int>(targetFps) )
         (  "h, help", "Print usage" )
     ;    
 
@@ -35,36 +132,114 @@ int main(int argc, char *argv[])
     LOG_VALUE(outputFile);
     LOG_VALUE(benchmark);
     LOG_VALUE(loops);
+    dxrt::InferenceOption op;
+    if (device >= 0)
+    {
+        op.devices = {device};
+    }
+    if (bounding >= 0 && bounding < dxrt::N_BOUND_INF_MAX) {
+        op.boundOption = bounding;  
+    } else {
+        cout << "[ERR] Please check bounding option" << endl;
+        return -1;
+    }
 
-    dxrt::InferenceEngine ie(modelFile);
-    if(benchmark)
+    dxrt::InferenceEngine ie(modelFile, op);
+    vector<uint8_t> inputBuf(ie.input_size(), 0);
+    if(!inputFile.empty())
     {
-        auto fps = ie.RunBenchMark(loops);
-        cout << "-----------------------------------" << dec << endl;
-        cout << modelFile << endl;
-        cout << "  Inference time : " << 1000./fps << "ms" << endl;
-        cout << "  FPS : " << fps << endl;
-        cout << "-----------------------------------" << dec << endl;
+        DXRT_ASSERT(ie.input_size() == static_cast<uint64_t>(dxrt::getFileSize(inputFile)), "input file size mismatch");
+        dxrt::DataFromFile(inputFile, inputBuf.data());
     }
-    else
+
+    SetRunModelMode(single, targetFps);
+    switch (mode)
     {
-        vector<uint8_t> inputBuf(ie.input_size(), 0);
-        if(!inputFile.empty())
-        {
-            DXRT_ASSERT(ie.input_size()==static_cast<uint64_t>(dxrt::getFileSize(inputFile)), "input file size mismatch");
-            dxrt::DataFromFile(inputFile, inputBuf.data());
+        case SINGLE_MODE: {
+            for(int i=0; i<loops; i++)
+            {
+                auto outputs = ie.Run(inputBuf.data());
+                if (!inputFile.empty())
+                    dxrt::DataDumpBin(outputFile, outputs.front()->data(), ie.output_size()); /* TODO: sparse tensor */
+                PrintInfResult(inputFile, outputFile, modelFile, ie.latency()/1000., ie.inference_time()/1000., 0);
+            }
+            break;
         }
-        for(int i=0; i<loops; i++)
-        {
-            auto outputs = ie.Run(inputBuf.data());
-            dxrt::DataDumpBin(outputFile, outputs.front()->data(), ie.output_size()); /* TODO: sparse tensor */
-            cout << "-----------------------------------" << dec << endl;
-            cout << inputFile << " -> " << outputFile << endl;
-            cout << "  Latency : " << ie.latency() << "us" << endl;
-            cout << "  Inference time : " << ie.inference_time() << "us" << endl; /* TODO */
-            cout << "-----------------------------------" << dec << endl;
+        case TARGET_FPS_MODE: {
+#ifdef TARGET_FPS_DEBUG
+            vector<string> results; // Company and time storage
+#endif
+            atomic<int> callback_cnt;
+            static auto startTime = chrono::high_resolution_clock::now(); // Start time
+            auto& profiler = dxrt::Profiler::GetInstance();
+            uint64_t infTime = 0;
+            float fps = 0.0;
+
+            function<int(vector<shared_ptr<dxrt::Tensor>>, void*)> postProcCallBack = \
+                [&](vector<shared_ptr<dxrt::Tensor>> outputs, void *arg)
+                {
+                    (void)arg;
+                    ignore = outputs;
+                    callback_cnt++;
+                    return 0;
+                };
+            callback_cnt = 0;
+            ie.RegisterCallBack(postProcCallBack);
+
+            profiler.Start("TargetFps");
+            for(int i = 0; i < loops; i++)
+            {
+#ifdef TARGET_FPS_DEBUG
+                auto loopStartTime = chrono::high_resolution_clock::now(); // Start time for this loop
+#endif
+                (void)ie.RunAsync(inputBuf.data(), 0);
+#ifdef TARGET_FPS_DEBUG
+                auto elapsed = chrono::high_resolution_clock::now() - loopStartTime;
+                auto elapsedMs = chrono::duration_cast<chrono::milliseconds>(elapsed).count();
+                results.push_back("Iteration " + to_string(i + 1) + ": " + inputFile + " -> " + outputFile +
+                                   ", Time: " + to_string(elapsedMs) + " ms");
+#endif
+                // Calculate the expected time per frame
+                if (targetFps > 0)
+                {
+                    auto targetTime = 1000 / targetFps;  // in milliseconds
+                    auto totalElapsed = chrono::high_resolution_clock::now() - startTime;
+                    auto totalElapsedMs = chrono::duration_cast<chrono::milliseconds>(totalElapsed).count();
+
+                    if (totalElapsedMs < (i + 1) * targetTime)
+                    {
+                        auto sleepDuration = (i + 1) * targetTime - totalElapsedMs;
+                        this_thread::sleep_for(chrono::milliseconds(sleepDuration));
+                    }
+                }
+            }
+            profiler.End("TargetFps");
+            ie.Wait(loops);
+            infTime = profiler.Get("TargetFps");
+            fps = 1000000.0 * loops/infTime;
+            PrintInfResult(inputFile, outputFile, modelFile, 0, 0, fps);
+#ifdef TARGET_FPS_DEBUG
+            for (const auto& result : results) {
+                cout << result << endl;
+            }
+#endif
+            break;
         }
+        case BENCHMARK_MODE: {
+            //float fps = ie.RunBenchMark(loops, inputFile.empty() ? nullptr : inputBuf.data());
+            //PrintInfResult(inputFile, outputFile, modelFile, 0.0, 0.0, fps);
+            float fps = ie.RunBenchMark(loops, inputFile.empty() ? nullptr : inputBuf.data());
+            if (!inputFile.empty())
+            {
+                auto outputs = ie.Run(inputBuf.data());
+                dxrt::DataDumpBin(outputFile, outputs.front()->data(), ie.output_size()); /* TODO: sparse tensor */
+            }
+            PrintInfResult(inputFile, outputFile, modelFile, 0.0, 0.0, fps);
+            break;
+        }
+        default:
+            cout << "Unknown run model mode:" << mode << endl;
+            return -1;
     }
-    
     return 0;
 }

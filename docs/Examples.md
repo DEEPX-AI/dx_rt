@@ -39,7 +39,10 @@ Simple model run demo, which measure inference time, and check output data integ
 >  -l, --loop      loop test  
 >  -h, --help      show help  
 ```
-$ run_model -m <model_dir> -i <input bin.> -o <output bin.> -r <reference output bin.> -l <number of loops>
+run_model -m <model_dir> -i <input bin.> -o <output bin.> -r <reference output bin.> -l <number of loops>
+```
+```
+$ run_model -m /mnt/.../model.dxnn -i /mnt/.../input.bin -l 100
 -----------------------------------
 loops : 100
 -----------------------------------
@@ -50,57 +53,102 @@ loops : 100
   FPS : 72.0879
   Bit match test : SKIP
 -----------------------------------
-
+```
 ## Firmware Interface DXRT-CLI tool  
 Read device status, and handle them by commandline interface  
 (only for accelerator device)  
->  -s, --status         Get device status
-  -i, --info           Get device info
-  -r, --reset arg      Reset device(0: reset only NPU, 1: reset entire
-                       device) (default: 0)
-  -d, --device arg     Device ID (if not specified, CLI commands will be
-                       sent to all devices.) (default: -1)
-  -p, --dump arg       Dump device internals to a file
-  -c, --fwconfig arg   Update firmware settings from list of parameters
-  -l, --fwlog arg      Extract firmware logs to a file
-  -u, --fwupdate arg   Update firmware with deepx firmware file.
-                       sub-option : [force:force update, reset:device
-                       reset]
-  -g, --fwversion arg  Get firmware version with deepx firmware file
-  -h, --help           Print usage
+
+```
+dxrt-cli <option> <argument>
+```
+> -s, --status             Get device status  
+> -i, --info               Get device info  
+> -m, --monitor arg        Monitoring device status every [arg] seconds  
+> -r, --reset arg          Reset device(0: reset only NPU, 1: reset entire device) (default: 0)  
+> -d, --device arg         Device ID (if not specified, CLI commands will be sent to all devices.) (default: -1)  
+> -u, --fwupdate arg       Update firmware with deepx firmware file. sub-option : [force:force update, unreset:device unreset(default:reset)]  
+> -w, --fwupload arg       Upload firmware with deepx firmware file.[2nd_boot/rtos]  
+> -g, --fwversion arg      Get firmware version with deepx firmware file  
+> -p, --dump arg           Dump device internals to a file  
+> -l, --fwlog arg          Extract firmware logs to a file  
+> -h, --help               Print usage  
 
 ```
 $ dxrt-cli --status
-...
-...
-======================================
-Device 0: type ACC,variant M1,DMA_CH:2ch,fw_ver:2.0.2
-Memory:[Type:LPDDR4, Addr:0xc01000000, size: 1.98GiB(2,130,706,432Byte), clock: 4200dMHz]
-Board:[Type SOM,Revision:0.2],Interface:ASIC, fw_info:dxfw 2.0.2, 2024-04-26 15:35:51, GNU 10.3.1, aarch64
-NPU 0: voltage 825 mV, clock 1000 MHz, temperature 50'C
-NPU 1: voltage 800 mV, clock 600 MHz, temperature 51'C
-dvfs Disabled, boot_state:0, cnt [0, 0, 0, 0],
-======================================
+DXRT v2.0.x
+=======================================================
+ * Device 0: M1, Accelator type
+---------------------   Version   ---------------------
+ * RT Driver version   : v1.1.0
+ * PCIe Driver version : v1.1.0
+-------------------------------------------------------
+ * FW version          : v1.5.5
+--------------------- Device Info ---------------------
+ * Memory : LPDDR5 5500 MHz, 2.98GiB
+ * Board  : M.2, Rev 10.0
+ * PCIe   : Gen3 X4 [04:00:00]
 
+NPU 0: voltage 750 mV, clock 1000 MHz, temperature 40'C
+NPU 1: voltage 750 mV, clock 1000 MHz, temperature 40'C
+NPU 2: voltage 750 mV, clock 1000 MHz, temperature 40'C
+dvfs Disabled
+=======================================================
 ```
 ```
-$ dxrt-cli --reset
-...
-...
-    Device 0 reset by option 1
-Device 0 : 0
+$ dxrt-cli --reset 0
+DXRT v2.0.x
+    Device 0 reset by option 0
 ```
 ```
 ** Please reboot when updating firmware. **
-$ dxrt-cli --fwupdate fw.bin --fwupdate force
-...
-...
+$ dxrt-cli --fwupdate fw.bin
+DXRT v2.0.x
 ============ FW Binary Information ============
 Signature   : DEEPX GENESIS-M
-Total Image : 5
-Board Type  : 1
-DDR Type    : 1
-FIrmware Ver: 2.0.2
-    Device 0 update firmware[2.0.2] by fw.bin, SubCmd:4 : SUCCESS
-Device 0 : 0
+Total Image : 6
+Board Type  : 2
+DDR Type    : 2
+Firmware Ver: 1.5.2
+    Device 0 update firmware[1.5.2] by /.../1.5.2/fw.bin, SubCmd:0 : SUCCESS
+```
+```
+$ dxrt-cli -c 750 -c 1000 -c 750 -c 1000 -c 750 -c 1000
+DXRT v2.0.x
+    Device 0 update firmware config by 6
+```
+```
+$ dxrt-cli -c 750 -c 1000 -c 750 -c 1000 -c 750 -c 1000
+DXRT v2.0.x
+    Device 0 update firmware config by 6
+```
+```
+$ dxrt-cli -C firmware_settings.json
+DXRT v2.0.x
+npuID[@0]:: voltage - 750 / freq - 1000
+npuID[@1]:: voltage - 750 / freq - 1000
+npuID[@2]:: voltage - 750 / freq - 1000
+npu throttling threshold 1 - 60
+npu throttling threshold 2 - 90
+npu emergency threshold - 120
+npu throttling enabled - 1
+    Device 0 update firmware config by 10
+```
+```
+$ dxrt-cli -m 1
+DXRT v2.0.x
+NPU 0: voltage 750 mV, clock 1000 MHz, temperature 39'C
+NPU 1: voltage 750 mV, clock 1000 MHz, temperature 39'C
+NPU 2: voltage 750 mV, clock 1000 MHz, temperature 38'C
+dvfs Disabled
+=======================================================
+NPU 0: voltage 750 mV, clock 1000 MHz, temperature 39'C
+NPU 1: voltage 750 mV, clock 1000 MHz, temperature 39'C
+NPU 2: voltage 750 mV, clock 1000 MHz, temperature 39'C
+dvfs Disabled
+=======================================================
+NPU 0: voltage 750 mV, clock 1000 MHz, temperature 39'C
+NPU 1: voltage 750 mV, clock 1000 MHz, temperature 38'C
+NPU 2: voltage 750 mV, clock 1000 MHz, temperature 38'C
+dvfs Disabled
+=======================================================
 ```

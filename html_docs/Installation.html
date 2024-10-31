@@ -451,6 +451,15 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#register>_dx-rt>_service" class="md-nav__link">
+    <span class="md-ellipsis">
+      Register DX-RT Service
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -656,61 +665,60 @@
 <ul>
 <li>OS : Ubuntu 18.04, Ubuntu 20.04, Ubuntu 22.04 </li>
 <li>CMake : 3.14.0 or higher required. Refer to followings.<br>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>sudo apt-get install zlib1g-dev libcurl4-openssl-dev
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>wget https://cmake.org/files/v3.14/cmake-3.14.0.tar.gz --no-check-certificate
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>tar xvf cmake-3.14.0.tar.gz
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>cd cmake-3.14.0
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>./bootstrap --system-curl
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>make -j$(nproc)
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>sudo make install
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>$ sudo apt-get install zlib1g-dev libcurl4-openssl-dev
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>$ wget https://cmake.org/files/v3.14/cmake-3.14.0.tar.gz --no-check-certificate
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>$ tar xvf cmake-3.14.0.tar.gz
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>$ cd cmake-3.14.0
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>$ ./bootstrap --system-curl
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>$ make -j$(nproc)
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>$ sudo make install
 </code></pre></div></li>
 <li>Ninja-build<br>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>sudo apt install ninja-build
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>$ sudo apt install ninja-build
 </code></pre></div></li>
-<li>GCC : 8.0.0 or higher required.  </li>
-</ul>
-<p>aarch64 gcc (for DX_M1)<br>
-</p><div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>sudo apt-get install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+<li>
+<p>GCC : 8.0.0 or higher required.  </p>
+</li>
+<li>
+<p>aarch64 gcc<br>
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>$ sudo apt-get install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 </code></pre></div>
-riscv64 gcc (for DX_L2)<br>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>sudo apt-get install gcc-riscv64-linux-gnu g++-riscv64-linux-gnu
-</code></pre></div>
-riscv64-eyenix gcc (for DX_L1)<br>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>tar xvf riscv64_lp64d_enx122_linux_cross_2023-01-20.tgz
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>cd cross_toolchain
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>./cross_install
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>source /etc/profile
-</code></pre></div>
-* (optional) onnxruntime<br>
+</li>
+<li>riscv64 gcc<br>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>$ sudo apt-get install gcc-riscv64-linux-gnu g++-riscv64-linux-gnu
+</code></pre></div></li>
+<li>(optional) onnxruntime<br>
 Required if you need CPU offloading for NN ops that NPU does not support.<br>
 Refer to following installation example for onnxruntime linux x64 v1.12.0.<br>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>wget https://github.com/microsoft/onnxruntime/releases/download/v1.12.0/onnxruntime-linux-x64-1.12.0.tgz 
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>sudo tar -xvzf onnxruntime-linux-x64-1.12.0.tgz -C /usr/local --strip-components=1
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>sudo ldconfig 
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>$ wget https://github.com/microsoft/onnxruntime/releases/download/v1.12.0/onnxruntime-linux-x64-1.12.0.tgz 
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>$ sudo tar -xvzf onnxruntime-linux-x64-1.12.0.tgz -C /usr/local --strip-components=1
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>$ sudo ldconfig 
 </code></pre></div>
 Refer to <a href="https://github.com/microsoft/onnxruntime/tags">onnxruntime releases list</a>  <br>
 You can use ./install.sh for onnxruntime library installation    <br>
-  <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>./install.sh<span class="w"> </span>--onnxruntime<span class="w">  </span>
+  <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>./install.sh<span class="w"> </span>--onnxruntime<span class="w">  </span>
 </code></pre></div>
   To specify the compilation environment as aarch64, use the <strong>--arch</strong> option.   <br>
-  <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>./install.sh<span class="w"> </span>--arch<span class="w"> </span>aarch64<span class="w"> </span>--onnxruntime
-</code></pre></div>
+  <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>./install.sh<span class="w"> </span>--arch<span class="w"> </span>aarch64<span class="w"> </span>--onnxruntime
+</code></pre></div></li>
+</ul>
 <h2 id="get&gt;_software&gt;_repository">Get software repository<a class="headerlink" href="#get&gt;_software&gt;_repository" title="Permanent link">¶</a></h2>
 <p>Three types are provided.<br>
 * Fetch <a href="https://github.com/DEEPX-AI/dx_rt">git repository</a>
-</p><div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>git clone git@github.com:DEEPX-AI/dx_rt.git
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>$ git clone git@github.com:DEEPX-AI/dx_rt.git
 </code></pre></div>
 <h2 id="file&gt;_structure">File structure<a class="headerlink" href="#file&gt;_structure" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>├── cli
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>├── build.cfg
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>├── build.sh
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>├── cmake
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>├── docs
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>├── extern
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>├── lib
-<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>├── python_package
-<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>├── sample
-<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>└── test
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>├── cli
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>├── build.cfg
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>├── build.sh
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>├── cmake
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>├── docs
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>├── extern
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>├── lib
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>├── python_package
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>├── sample
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>├── service
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>└── test
 </code></pre></div>
 <ul>
 <li>cli : applications</li>
@@ -721,16 +729,46 @@ You can use ./install.sh for onnxruntime library installation    <br>
 <li>extern : 3rd party library files  </li>
 <li>lib : prebuilt dxrt libarary files  </li>
 <li>sample : sample images for demo applications  </li>
+<li>service : dxrt service unit file</li>
 <li>test : dxrt unit test files  </li>
 </ul>
 <h2 id="install&gt;_linux&gt;_device&gt;_driver">Install Linux Device Driver<a class="headerlink" href="#install&gt;_linux&gt;_device&gt;_driver" title="Permanent link">¶</a></h2>
 <p>Please refer to <a href="https://github.com/DEEPX-AI/dx_rt_npu_linux_driver">deepx driver git</a></p>
 <h2 id="install&gt;_python&gt;_package">Install python package<a class="headerlink" href="#install&gt;_python&gt;_package" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>$ cd python_package
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>$ pip install .
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>* You can check dx-engine in the list of Python packages using the command below.
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>$ pip list | grep dx
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>dx-engine          0.0.1
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>$ cd python_package
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>$ pip install .
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>* You can check dx-engine in the list of Python packages using the command below.
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>$ pip list | grep dx
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>dx-engine          0.0.1
+</code></pre></div>
+<h2 id="register&gt;_dx-rt&gt;_service">Register DX-RT Service<a class="headerlink" href="#register&gt;_dx-rt&gt;_service" title="Permanent link">¶</a></h2>
+<p>How to register DX-RT Service
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a># modify service unit file (check ExecStart path)
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>$ vi ./service/dxrt.service
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a># copy service unit file to system service folder
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>$ sudo cp ./service/dxrt.service /etc/systemd/system
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a># start service as daemon
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>$ sudo systemctl start dxrt.service
+</code></pre></div>
+Stop the service
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>$ sudo systemctl stop dxrt.service
+</code></pre></div>
+<p>Display status of the service
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>$ sudo systemctl status dxrt.service
+</code></pre></div>
+<p>Restart the service
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>$ sudo systemctl restart dxrt.service
+</code></pre></div>
+<p>Enable the service to start automatically at boot
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>$ sudo systemctl enable dxrt.service
+</code></pre></div>
+<p>Disable the service to start automatically at boot
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>$ sudo systemctl disable dxrt.service
+</code></pre></div>
+<p>Check Logs
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>$ sudo journalctl -u dxrt.service
 </code></pre></div></div>
 
 
