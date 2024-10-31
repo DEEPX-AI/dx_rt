@@ -25,16 +25,17 @@ namespace deepx_binaryinfo {
         string &npu()     { return _npu; }
         string &name()    { return _name; }
         string &str()     { return _str; }
-        char* &buffer()   { return _buffer; }
+        vector<char> &buffer()   { return _buffer; }
         int64_t &offset() { return _offset; }
         int64_t &size()   { return _size; }
 
         string _npu;
         string _name;
         string _str;
-        char* _buffer;
+        vector<char> _buffer;
         int64_t _offset = 0;
         int64_t _size = 0;
+
     };
 
     struct DXRT_API BinaryInfoDatabase {

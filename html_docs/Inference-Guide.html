@@ -779,10 +779,10 @@ Guides for connecting the inference engine to various image sources are provided
 </p><div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>auto outputs = ie.Run(inputBuf.data());
 </code></pre></div>
 If you want to perform inference in a non-blocking way, you can call <code>dxrt::InferenceEngine::RunAsync</code> as follows.<br>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>auto req = ie.RunAsync(inputBuf.data());
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>auto jobId = ie.RunAsync(inputBuf.data());
 </code></pre></div>
 Non-blocking API issues a request ID, and you can wait for the request to complete.<br>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>auto outputs = ie.Wait(req);
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>auto outputs = ie.Wait(jobId);
 </code></pre></div>
 If you don't want to wait to run your application efficiently, you can pipeline requests with callbacks.<br>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>std::function&lt;int(vector&lt;shared_ptr&lt;dxrt::Tensor&gt;&gt;, void*)&gt; postProcCallBack = \
@@ -881,8 +881,8 @@ After application is terminated, <code>profiler.json</code> will be created.<br>
 <p>You can visualize events from <code>profiler.json</code> using as following.<br>
 </p><div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>python3 tool/profiler/plot.py --input profiler.json
 </code></pre></div>
-Then, generated image file <code>profiler.png</code> will show detailed profiling data. 
-<img alt="image" src="/assets/images/profiler.jpg">
+Then, generated image file <code>profiler.png</code> will show detailed profiling data.<br>
+<img alt="image" src="/assets/images/profiler.jpg"><br>
 Please refer to usage of <code>tool/profiler/plot.py</code>.<br>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>usage: plot.py [-h] [-i INPUT] [-o OUTPUT] [-s START] [-e END] [-g]
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>

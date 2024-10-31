@@ -83,6 +83,42 @@ int64_t Memory::Allocate(uint64_t required)
     cout << "failed to allocate memory" << endl;
     return -1;
 }
+int64_t Memory::BackwardAllocate(uint64_t required)
+{
+    LOG_DXRT_DBG << endl;
+    unique_lock<mutex> lk(_lock);
+    for(auto it = _pool.rbegin(); it != _pool.rend(); it++)
+    {
+        auto &node = it->second;
+        if(node.status==0)
+        {
+            if(required <= node.size)
+            {
+                uint64_t addr = node.addr;
+                // LOG_VALUE_HEX(ret);
+                if(required < node.size)
+                {
+                    uint64_t remain = node.size - required;
+                    _pool[addr].addr = addr;
+                    _pool[addr].size = remain;
+                    _pool[addr].status = 0;
+
+                    addr += remain;
+                }
+
+                _pool[addr].addr = addr;
+                _pool[addr].size = required;
+                _pool[addr].status = 1;
+                return addr;
+
+            }
+        }
+    }
+    cout << "failed to allocate memory" << endl;
+    return -1;    
+}
+
+
 int64_t Memory::Allocate(dxrt_meminfo_t &meminfo)
 {
     LOG_DXRT_DBG << endl;

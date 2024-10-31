@@ -1,30 +1,28 @@
 #!/usr/bin/make -f
 #export DH_VERBOSE=1
 
-DESTDIR := $(CURDIR)/debian/tmp
-ARCH := $(shell dpkg-architecture -qDEB_BUILD_ARCH)
+ROOTDIR := $(CURDIR)
+MAINZIPFILE := $(CURDIR)/source.zip
+
+PACKAGER := libdxrt
 
 %:
 	dh $@
 
-override_dh_auto_build:
-	./build.sh --clean
-	cd python_package && pip install .
+build:
+	pwd
+	rm -rf $(MAINZIPFILE)
+	echo "ROOTDIR: $(ROOTDIR)"
+	git archive -o $(MAINZIPFILE) HEAD;
+	ls -al
 
-override_dh_auto_install:
-	dh_auto_install
-	mkdir -p $(DESTDIR)/usr/lib
-	mkdir -p $(DESTDIR)/usr/bin
-	@echo "Installing for $(ARCH)"
-	@if [ "$(ARCH)" = "amd64" ]; then \
-		cp build_x86_64/lib/libdxrt.so $(DESTDIR)/usr/lib/; \
-		cp -r build_x86_64/bin/* $(DESTDIR)/usr/bin; \
-	elif [ "$(ARCH)" = "arm64" ]; then \
-		cp build_aarch64/lib/libdxrt.so $(DESTDIR)/usr/lib/; \
-		cp -r build_aarch64/bin/* $(DESTDIR)/usr/bin; \
-	elif [ "$(ARCH)" = "riscv64" ]; then \
-		cp build_riscv64/lib/libdxrt.so $(DESTDIR)/usr/lib/; \
-		cp -r build_riscv64/bin/* $(DESTDIR)/usr/bin; \
-	else \
-		echo "Unsupported architecture: $(ARCH)" && exit 1; \
-	fi
+install:
+#	dh install
+	pwd
+	mkdir -p debian/$(PACKAGER)/usr/share/$(PACKAGER)
+	cp $(MAINZIPFILE) debian/$(PACKAGER)/usr/share/$(PACKAGER)/
+
+
+clean:
+	dh clean
+	rm -rf $(MAINZIPFILE)

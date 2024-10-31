@@ -43,6 +43,7 @@ if (MSVC)
 else()
     if (USE_SHARED_DXRT_LIB)
         add_library(${target} SHARED ${srcs})
+        #target_link_libraries(${target} rt) # for memssage queue (POSIX)
         set_target_properties(${target} PROPERTIES
             LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
         )
@@ -63,6 +64,7 @@ target_include_directories(
     ${target} 
     PUBLIC 
     ${CMAKE_SOURCE_DIR}/extern/include
+    ${CMAKE_SOURCE_DIR}/lib/dxrt_service
     ${CMAKE_CURRENT_SOURCE_DIR}/include 
 )
 # if (USE_PYTHON)

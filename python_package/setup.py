@@ -19,9 +19,9 @@ setuptools.setup(
     description="Python wrapper class for dx_rt",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/KOMOSYS/dx_rt.git",
+    url="https://gh.deepx.ai/deepx/dx_rt.git",
     project_urls={
-        "Bug Tracker": "https://github.com/KOMOSYS/dx_rt/issues",
+        "Bug Tracker": "https://gh.deepx.ai/deepx/dx_rt/issues",
     },
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -35,5 +35,5 @@ setuptools.setup(
     },
     entry_points={},
     python_requires=">=3.6",
-    install_requires=[],
+    install_requires=["numpy"],
 )

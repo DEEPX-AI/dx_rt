@@ -24,17 +24,22 @@ yolov5s_640
 ## 2. Run simple CLI to device
 Check basic device interface as following.
 ```
-sudo ./bin/dxrt-cli --status
+./bin/dxrt-cli --status
 ```
 ```
-      Memory @ c01000000 ~ c60400000(0 ~ 5f400000), 5f400000, cur c01000000, [0, 5f400000, 0],
-      Memory @ c60400000 ~ c80000000(0 ~ 1fc00000), 1fc00000, cur c60400000, [0, 1fc00000, 0],
-    Device 0: type 0, var 200, addr 0xc01000000, size 0x7f000000, dma_ch 2, fw_ver 113, board rev 2, board type 1, ddr freq 4200, ddr type 1
-    Device 0: voltage [825, 800, 0, 0], clock [1000, 600, 0, 0], temperature [44, 46, 0, 0], dvfs [0, 0], boot_state 0
+DXRT v2.0.3
+Device 0: M1, Accelator type
+Memory: LPDDR5 5500 MHz, 2.98GiB
+Board: M.2, Rev 10.0
+FW v1.5.1
+
+NPU 0: voltage 750 mV, clock 1000 MHz, temperature 39'C
+NPU 1: voltage 750 mV, clock 1000 MHz, temperature 39'C
+NPU 2: voltage 750 mV, clock 1000 MHz, temperature 39'C
 ```
 ## 3. Run simple benchmark with the model
 ```
-sudo ./bin/run_model -m <model directory>
+./bin/run_model -m <model directory>
 ```
 If the application completes successfully, you can see detection result as following.  
 ```

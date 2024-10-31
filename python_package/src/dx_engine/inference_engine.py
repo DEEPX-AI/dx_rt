@@ -1,4 +1,5 @@
 from typing import List
+import ctypes
 
 import numpy as np
 
@@ -86,9 +87,25 @@ class InferenceEngine:
         mask = np.unpackbits(mask_list, bitorder="little")
         return mask
     
+    def run_async(self, input_feed_list: List[np.ndarray], user_arg) -> int:
+        """Run inference asynchronously."""
+        user_arg_capsule = ctypes.py_object(user_arg)
+        reqId = C.run_async_engine(self.engine, input_feed_list, user_arg_capsule)
+        return reqId
+    
+    def register_callback(self, callback) -> None:
+        """Register user callback function to be called by inference completion."""
+        if not callable(callback):
+            raise TypeError("Expected a callable function for the callback")
+        self.engine.register_callback(callback) 
+
+    def wait(self, reqId) -> None:
+        """Wait for asynchronous operations to complete."""
+        return C.wait(self.engine,reqId)
+
     def get_task_order(self) -> np.ndarray:
         """Get task order array in single file"""
-        task_order = np.array(self.engine.task_order())
+        task_order = np.array(C.task_order(self.engine))
         return task_order
     
     def get_outputs(self) -> List[List[np.ndarray]]:

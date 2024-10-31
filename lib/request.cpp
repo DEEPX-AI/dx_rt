@@ -26,22 +26,23 @@ std::mutex Request::_mapLock;
 
 Request::Request(void)
 {
-    LOG_DXRT_DBG << _id << endl;
+    LOG_DXRT_DBG << getData()->requestId << endl;
 }
 Request::Request(Task *task_, Tensors &inputs_, Tensors &outputs_)
-: _task(task_), _inputs(inputs_), _outputs(outputs_)
+: _task(task_)
 {
     unique_lock<mutex> lk(_idLock);
-    _id = _nextId++;
+    _data.requestId = _nextId++;
+    _data.inputs = inputs_;
+    _data.outputs = outputs_;
     if(_nextId>REQUEST_ID_MAX_VALUE) _nextId = REQUEST_ID_INIT_VALUE;
     lk.unlock();
     _timePoint = make_shared<TimePoint>();
 }
-
 Request::~Request()
 {
-    // LOG_DXRT_DBG << _id << endl;
-    // LOG_DXRT << _id << endl;
+    // LOG_DXRT_DBG << id() << endl;
+    // LOG_DXRT << id() << endl;
 }
 
 void Request::Init()
@@ -60,39 +61,43 @@ void Request::Init()
     }
 }
 
-RequestPtr Request::Create(Task *task_, Tensors inputs_, Tensors outputs_, void *userArg, void *lastOutput)
+RequestPtr Request::Create(Task *task_, Tensors inputs_, Tensors outputs_, void *userArg)
 {
     RequestPtr req = Request::Pick();
-    req->task() = task_;
-    if(req->task()->is_head())
-    {
-        req->head() = req;
-        req->last_output_ptr() = lastOutput;
-    }
-    if(!inputs_.empty())
-        req->input_ptr() = inputs_.front().data();
-    if(!outputs_.empty())
-        req->output_ptr() = outputs_.front().data();
+    req->_task = task_;
+    req->_data.taskData = task_->getData();
+
     req->inputs() = move(inputs_);
     req->outputs() = move(outputs_);
-    req->user_arg() = userArg;
+    req->_userArg = userArg;
     req->latency_valid() = true;
     req->latency() = 0;
     req->inference_time() = 0;
     req->complete_cnt() = 0;
+    req->_requestorName == "";
+
+    const char* env = getenv("DXRT_DEBUG_DATA");
+    if (env)
+    {
+        try {
+            req->_debugEnv = std::stoi(env);
+            Device::_sNpuValidateOpt = true;
+
+        } catch (const std::invalid_argument& e) {
+            std::cerr << "Environment variable DXRT_DEBUG_DATA is invalid: " << e.what() << endl;
+        } catch (const std::out_of_range& e) {
+            std::cerr << "Environment variable DXRT_DEBUG_DATA is out of range: " << e.what() << endl;
+        }
+    }
+
     return req;
 }
-RequestPtr Request::Create(Task *task_, void *input, void *output, void *userArg, void *lastOutput)
+RequestPtr Request::Create(Task *task_, void *input, void *output, void *userArg)
 {
     RequestPtr req = Request::Pick();
-    req->task() = task_;
-    if(req->task()->is_head())
-    {
-        req->head() = req;
-        req->last_output_ptr() = lastOutput;
-    }
-    req->input_ptr() = input;
-    req->output_ptr() = output;
+    req->_task = task_;
+    req->_data.taskData = task_->getData();
+
     if(input==nullptr)
         req->inputs() = {};
     else
@@ -101,11 +106,27 @@ RequestPtr Request::Create(Task *task_, void *input, void *output, void *userArg
         req->outputs() = {};
     else    
         req->outputs() = task_->outputs(output);  // TODO: move to device?
-    req->user_arg() = userArg;
+    req->_userArg = userArg;
     req->latency_valid() = true;
     req->latency() = 0;
     req->inference_time() = 0;
     req->complete_cnt() = 0;
+    req->_requestorName == "";
+
+    const char* env = getenv("DXRT_DEBUG_DATA");
+    if (env)
+    {
+        try {
+            req->_debugEnv = std::stoi(env);
+            Device::_sNpuValidateOpt = true;
+
+        } catch (const std::invalid_argument& e) {
+            std::cerr << "Environment variable DXRT_DEBUG_DATA is invalid: " << e.what() << endl;
+        } catch (const std::out_of_range& e) {
+            std::cerr << "Environment variable DXRT_DEBUG_DATA is out of range: " << e.what() << endl;
+        }
+    }
+
     return req;
 }
 RequestPtr Request::GetById(int id)
@@ -180,6 +201,7 @@ void Request::SaveTaskStats(Task *task)
             profiler.AddTimePoint(task->name(), req->time_point());
         }
     }
+
     // LOG_VALUE(stats.latency_data.size());
     if(!stats.latency_data.empty())
     {
@@ -195,6 +217,7 @@ void Request::SaveTaskStats(Task *task)
         }
         if(cnt>0)
             stats.latency_us /= cnt;
+
     }
     if(!stats.inference_time_data.empty())
     {
@@ -209,23 +232,24 @@ void Request::SaveTaskStats(Task *task)
         }
         if(cnt>0)
             stats.inference_time_us /= cnt;
+
     }
 }
 void Request::Wait()
 {
-    LOG_DXRT_DBG << "request " << _id << endl;
+    LOG_DXRT_DBG << "request " << id() << endl;
     while( status() == Request::Status::REQ_BUSY );
 }
 void Request::SetStatus(Request::Status status)
 {
-    LOG_DXRT_DBG << _id << ", " << status << endl;
+    LOG_DXRT_DBG << id() << ", " << status << endl;
     unique_lock<mutex> lk(_statusLock);
     _status = status;
 }
 void Request::CheckTimePoint(int opt)
 {
     LOG_DXRT_DBG << endl;
-    // cout << "        tp: req" << _id << ", " << opt << endl;
+    // cout << "        tp: req" << id() << ", " << opt << endl;
     if(opt==0)
     {
         _timePoint->start = ProfilerClock::now();
@@ -239,43 +263,44 @@ void Request::CheckTimePoint(int opt)
 
 }
 
-int &Request::id()
+int Request::id() const
 {
-    return _id;
+    return _data.requestId;
 }
-RequestPtr &Request::head()
+
+TaskData* Request::taskData()
 {
-    return _head;
+    return _data.taskData;
 }
-Task* &Request::task()
+Task* Request::task()
 {
     return _task;
 }
-Task* &Request::requestor()
+std::string Request::requestor_name() const
 {
-    return _requestor;
+    return _requestorName;
 }
 Tensors &Request::inputs()
 {
-    return _inputs;
+    return _data.inputs;
 }
 Tensors &Request::outputs()
 {
-    return _outputs;
+    return _data.outputs;
 }
-void * &Request::input_ptr()
+void * Request::input_ptr()
 {
-    return _inputPtr;
+    if (_data.inputs.empty())
+        return nullptr;
+    return _data.inputs.front().data();
 }
-void * &Request::output_ptr()
+void * Request::output_ptr()
 {
-    return _outputPtr;
+    if (_data.outputs.empty())
+        return nullptr;
+    return _data.outputs.front().data();
 }
-void * &Request::last_output_ptr()
-{
-    return _lastOutputPtr;
-}
-void * &Request::user_arg()
+void * Request::user_arg() const
 {
     return _userArg;
 }
@@ -334,6 +359,37 @@ int16_t &Request::model_type()
 {
     return _modelType;
 }
+int Request::debug_env()
+{
+    return _debugEnv;
+}
+void Request::setNpuInferenceAcc(dxrt_request_acc_t npuInferenceAcc)
+{
+    _npuInferenceAcc=npuInferenceAcc;
+}
+void Request::setCallback(std::function<void(RequestPtr)> func)
+{
+    _callback = func;
+}
+void Request::onRequestComplete(RequestPtr req)
+{
+    _status = Request::Status::REQ_DONE;
+    _callback(req);  // callback registered by InferenceJobs
+}
+void Request::Reset()
+{
+    _data.taskData = nullptr;
+    _data.inputs = {};
+    _data.outputs = {};
+
+    _userArg = nullptr;
+
+    _requestorName = "";
+    _callback = nullptr;
+    _status = Status::REQ_IDLE;
+    
+    _task = nullptr;
+}
 
 RequestMap::RequestMap()
 {
@@ -370,12 +426,12 @@ int RequestMap::Add(RequestPtr req)
 
 ostream& operator<<(ostream& os, const Request& req)
 {
-    os << dec << "  Req. " << req._id << " -> task " << ((req._task!=nullptr)?(to_string(req._task->id())):"null") << endl;
-    for(auto &tensor:req._inputs)
+    os << dec << "  Req. " << req.id() << " -> task " << ((req.getData()->taskData!=nullptr)?(to_string(req.getData()->taskData->id())):"null") << endl;
+    for(auto &tensor : req.getData()->inputs)
     {
         os << tensor << endl;
     }
-    for(auto &tensor:req._outputs)
+    for(auto &tensor : req.getData()->outputs)
     {
         os << tensor << endl;
     }
@@ -387,10 +443,20 @@ std::ostream& operator<<(std::ostream& os, const Request::Status& status)
     {
         case Request::Status::REQ_IDLE: os << "IDLE"; break;
         case Request::Status::REQ_BUSY: os << "BUSY"; break;
-        case Request::Status::REQ_DONE: os << "DONE"; break;        
+        case Request::Status::REQ_DONE: os << "DONE"; break;
     }
     return os;
 
+}
+
+RequestData* Request::getData()
+{
+    return &_data;
+}
+
+const RequestData* Request::getData() const
+{
+    return &_data;
 }
 
 } // namespace dxrt

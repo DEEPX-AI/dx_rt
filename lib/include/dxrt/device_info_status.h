@@ -59,6 +59,10 @@ class DXRT_API DxrtDeviceInfoWithStatus
     /** @brief return device memory size as integer
      *  @return memory size as 64-bit integer
      */
+    std::string pcieInfoStr(int spd, int wd, int bus, int dev, int func) const;
+    /** @brief return pcie infomation with speed, gen... as string
+     *  @return pcie infomation with speed, gen... as string
+     */
     int64_t memorySize() const{return _info.mem_size;}
     /** @brief return device memory Frequency (MHz)
      *  @return memory frequency as MegaHertz
@@ -122,10 +126,11 @@ class DXRT_API DxrtDeviceInfoWithStatus
 
  private:
     int _id;
-    dxrt_device_info_t _info;
+    dxrt_device_info_t   _info;
     dxrt_device_status_t _status;
+    dxrt_dev_info_t      _devInfo;
 
-    DxrtDeviceInfoWithStatus(int id, dxrt_device_info_t info, dxrt_device_status_t status);
+    DxrtDeviceInfoWithStatus(int id, dxrt_device_info_t info, dxrt_device_status_t status, dxrt_dev_info_t devInfo);
 };
 DXRT_API std::ostream& operator<<(std::ostream& os, const DxrtDeviceInfoWithStatus& d);
 

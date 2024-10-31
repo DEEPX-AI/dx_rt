@@ -35,6 +35,10 @@
 #include <assert.h>
 #include <numeric>
 #include "dxrt/gen.h"
+#include <mutex>
+#if __cplusplus >= 201402L
+#include <shared_mutex>
+#endif
 
 #if DEBUG_DXRT
 #define LOG_DBG(x) std::cout<<"[DXRT] "<< x << std::endl;
@@ -43,8 +47,16 @@
 #endif
 #define LOG_DXRT     std::cout<<"[DXRT]["<< __func__ << "] "
 #define LOG_DXRT_DBG if(DEBUG_DXRT) std::cout<<"[DXRT]["<< __func__ << "] " 
-
 #define LOG_DXRT_ERR(x) std::cout<<"[DXRT][Error] "<< x << std::endl;
+
+#define LOG_DXRT_S        std::cout<<"[DXRT_SVC]["<< __func__ << "] "
+#define LOG_DXRT_S_DBG    if(DEBUG_DXRT) std::cout<<"[DXRT_SVC]["<< __func__ << "] " 
+#define LOG_DXRT_S_ERR(x) std::cout<<"[DXRT_SVC][Error] "<< x << std::endl;
+
+#define LOG_DXRT_I        std::cout<<"[DXRT_IPC]["<< __func__ << "] "
+#define LOG_DXRT_I_DBG    if(DEBUG_DXRT) std::cout<<"[DXRT_IPC]["<< __func__ << "] " 
+#define LOG_DXRT_I_ERR(x) std::cout<<"[DXRT_IPC][Error] "<< x << std::endl;
+
 #define DXRT_STR(a) __DXRT_STR(a)
 #define __DXRT_STR(a) #a
 #define QUOTE_VALUE(val) DXRT_STR(val) << ": " << val
@@ -103,4 +115,16 @@ T vectorProduct(const std::vector<T>& v)
 {
     return accumulate(v.begin(), v.end(), 1, std::multiplies<T>());
 }
+
+#if __cplusplus >= 201402L // C++14 이상
+    using SharedMutex = std::shared_timed_mutex;
+    using SharedLock = std::shared_lock<std::shared_timed_mutex>;
+    using UniqueLock = std::unique_lock<std::shared_timed_mutex>;
+#else // C++11
+    using SharedMutex = std::mutex; // std::mutex를 대체로 사용
+    using SharedLock = std::unique_lock<std::mutex>; // 쓰기 잠금으로 대체
+    using UniqueLock = std::unique_lock<std::mutex>;
+#endif
+
+
 } // namespace dxrt

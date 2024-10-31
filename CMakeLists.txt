@@ -77,6 +77,12 @@ else()
 # add_compile_definitions(USE_ORT)
 endif()
 
+if(USE_SERVICE)
+    set(USE_SERVICE_DEFINE "#define USE_SERVICE")
+else()
+    set(USE_SERVICE_DEFINE "")
+endif()
+
 #if(MSVC)
     #include_directories("C:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared")
 #endif()
