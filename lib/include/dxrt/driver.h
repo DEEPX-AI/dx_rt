@@ -20,9 +20,11 @@ typedef enum {
     ERR_NPU0_HANG = 1,
     ERR_NPU1_HANG,
     ERR_NPU2_HANG,
+    ERR_NPU_BUS,
     ERR_PCIE_DMA_CH0_FAIL = 100,
     ERR_PCIE_DMA_CH1_FAIL,
     ERR_PCIE_DMA_CH2_FAIL,
+    ERR_DEVICE_ERR       = 1000,
 } dxrt_error_t;
 
 typedef enum _npu_priority_op {
@@ -50,6 +52,53 @@ typedef enum _npu_bound_op {
     N_BOUND_INF_MAX,
 } npu_bound_op;
 
+typedef struct {
+    uint32_t err_code;
+
+    /* Version */
+    uint32_t fw_ver;
+    uint32_t rt_driver_version;
+    uint32_t pcie_driver_version;
+    uint32_t reserved_ver[4];
+
+    /* Npu information */
+    uint32_t npu_id;
+    uint64_t base_axi;
+    uint32_t base_rmap;
+    uint32_t base_weight;
+    uint32_t base_in;
+    uint32_t base_out;
+    uint32_t cmd_num;
+    uint32_t last_cmd;
+    uint32_t busy;
+    uint32_t abnormal_cnt;
+    uint32_t irq_status;
+    uint32_t dma_err;
+    uint32_t reserved_npu[10];
+
+    /* System infomation power / temperature, etc,,,, */
+    uint32_t temperature[20];
+    uint32_t npu_voltage[4];
+    uint32_t npu_freq[4];
+    uint32_t reserved_sys[10];
+
+    /* PCIe information */
+    uint8_t  bus;
+    uint8_t  dev;
+    uint8_t  func;
+    uint8_t  reserved;
+    int      speed; /* GEN1, GEN2...*/
+    int      width; /* 1, 2, 4 */
+    uint32_t ltssm;
+    uint32_t dma_rd_ch_sts[4];
+    uint32_t dma_wr_ch_sts[4];
+    uint32_t reserved_pcie[10];
+
+    /* DDR information */
+    uint32_t ddr_temperature[4];
+    uint32_t reserved_ddr[10];
+} dx_pcie_dev_err_t;
+
 typedef struct device_info {
     uint32_t type = 0; /* 0: ACC type, 1: STD type */
     uint32_t variant = 0; /* 100: L1, 101: L2, 102: L3, 103: L4,
@@ -76,6 +125,15 @@ typedef struct _dxrt_meminfo_t {
     uint32_t offset = 0;
     uint32_t size = 0;
 } dxrt_meminfo_t;
+
+typedef struct _dxrt_req_meminfo_t
+{
+    uint64_t data;
+    uint64_t base;
+    uint32_t offset;
+    uint32_t size;
+    uint32_t ch;
+} dxrt_req_meminfo_t;
 
 typedef struct _dxrt_request_t {
     uint32_t  req_id = 0;
@@ -139,28 +197,30 @@ typedef struct {
     uint32_t data[1000] = {0,};
 } dxrt_device_message_t;
 typedef enum {
-    DXRT_CMD_IDENTIFY_DEVICE = 0, /* Sub-command */
-    DXRT_CMD_GET_STATUS,
-    DXRT_CMD_RESET,
-    DXRT_CMD_UPDATE_CONFIG,
-    DXRT_CMD_UPDATE_FIRMWARE,
-    DXRT_CMD_GET_LOG,
-    DXRT_CMD_DUMP,
-    DXRT_CMD_WRITE_MEM,
-    DXRT_CMD_READ_MEM,
-    DXRT_CMD_CPU_CACHE_FLUSH,
-    DXRT_CMD_SOC_CUSTOM,
+    DXRT_CMD_IDENTIFY_DEVICE    = 0, /* Sub-command */
+    DXRT_CMD_GET_STATUS         ,
+    DXRT_CMD_RESET              ,
+    DXRT_CMD_UPDATE_CONFIG      ,
+    DXRT_CMD_UPDATE_FIRMWARE    , /* Sub-command */
+    DXRT_CMD_GET_LOG            ,
+    DXRT_CMD_DUMP               ,
+    DXRT_CMD_WRITE_MEM          ,
+    DXRT_CMD_READ_MEM           ,
+    DXRT_CMD_CPU_CACHE_FLUSH    ,
+    DXRT_CMD_SOC_CUSTOM         ,
     DXRT_CMD_WRITE_INPUT_DMA_CH0,
     DXRT_CMD_WRITE_INPUT_DMA_CH1,
     DXRT_CMD_WRITE_INPUT_DMA_CH2,
     DXRT_CMD_READ_OUTPUT_DMA_CH0,
     DXRT_CMD_READ_OUTPUT_DMA_CH1,
     DXRT_CMD_READ_OUTPUT_DMA_CH2,
-    DXRT_CMD_TERMINATE,
-    DXRT_CMD_ERROR,
-    DXRT_CMD_DRV_INFO, /* Sub-command */
-    DXRT_CMD_SCHEDULE, /* Sub-command */
-    DXRT_CMD_UPLOAD_FIRMWARE,
+    DXRT_CMD_TERMINATE          ,
+    DXRT_CMD_ERROR              ,
+    DXRT_CMD_DRV_INFO           , /* Sub-command */
+    DXRT_CMD_SCHEDULE           , /* Sub-command */
+    DXRT_CMD_UPLOAD_FIRMWARE    ,
+    DXRT_CMD_NPU_RUN_REQ        ,
+    DXRT_CMD_NPU_RUN_RESP       ,
     DXRT_CMD_MAX,
 } dxrt_cmd_t;
 
@@ -194,9 +254,9 @@ typedef enum device_interface
 
 /* CMD : DXRT_CMD_UPDATE_FIRMWARE */
 typedef enum {
-    FWUPDATE_ONLY      = 0,
-    FWUPDATE_DEV_RESET = 1 << 1,
-    FWUPDATE_FORCE     = 1 << 2,
+    FWUPDATE_ONLY        = 0,
+    FWUPDATE_DEV_UNRESET = 1 << 1,
+    FWUPDATE_FORCE       = 1 << 2,
 } dxrt_fwupdate_sub_cmd_t;
 
 #define DXRT_IOCTL_MAGIC     'D'
@@ -224,6 +284,7 @@ typedef struct
 
 extern DXRT_API std::vector<std::pair<int, std::string>> ioctlTable;
 extern DXRT_API std::string ErrTable(dxrt_error_t error);
+DXRT_API std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_err_t& error);
 DXRT_API std::ostream& operator<<(std::ostream&, const dxrt_error_t&);
 DXRT_API std::ostream& operator<<(std::ostream&, const dxrt_meminfo_t&);
 DXRT_API std::ostream& operator<<(std::ostream&, const dxrt_request_t&);

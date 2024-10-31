@@ -15,7 +15,7 @@
 
 namespace dxrt {
 class Buffer;
-class Worker;
+class CpuHandleWorker;
 struct DXRT_API CpuHandle
 {
     CpuHandle(void* data_, int64_t size_, std::string name_);
@@ -51,7 +51,7 @@ struct DXRT_API CpuHandle
     void Start();
     void Run(RequestPtr req);
     void Terminate(void);
-    std::shared_ptr<Worker> _worker=nullptr;
+    std::shared_ptr<CpuHandleWorker> _worker=nullptr;
     friend DXRT_API std::ostream& operator<<(std::ostream&, const CpuHandle&);
 };
 } /* namespace dxrt */

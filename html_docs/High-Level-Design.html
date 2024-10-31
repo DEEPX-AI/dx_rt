@@ -668,31 +668,32 @@
 - memory management for inference<br>
 - real-time inference job scheduling based on optimized NPU/CPU interaction  </p>
 <p>Before running <code>InferenceEngine</code>, <code>InferenceOption</code> should be established, which describes what device to use, how much resources to use.<br>
-Also, example applications provide typical pre/post-processing attached to OpenCV for NN inference.<br>
-<img alt="image" src="/assets/images/overview.jpg"></p>
+Also, example applications provide typical pre/post-processing attached to OpenCV for NN inference.  </p>
+<p><img alt="image" src="/assets/images/overview.jpg"></p>
 <h2 id="static&gt;_architecture">Static Architecture<a class="headerlink" href="#static&gt;_architecture" title="Permanent link">¶</a></h2>
-<p>DXRT Software stack is partitioned to 3 layers.</p>
+<p>DXRT Software stack is partitioned to 4 layers.</p>
 <ul>
-<li>NN API layer is designed to provide pulic inference APIs, tensor processing APIs to user's application SW.  </li>
-<li>Library layer is designed for actual implementation of runtime framework in userspace, and partitioned to various C++ classes that abstracts resources for inference. It also plays an important role in exchanging data related to inference with device drivers.  </li>
-<li>Device driver layer is responsible for communicating with firmware, managing inference, and HW-dependent implementation of NPU or PCIe functions (Device driver repository will be split from DXRT in future).<br>
-<img alt="image" src="/assets/images/static_architecture.jpg"></li>
+<li>The NN API layer is designed to provide public inference APIs, tensor processing APIs for user applications, and Python APIs.</li>
+<li>The Library layer is designed for actual implementation of runtime framework in userspace, and partitioned to various C++ classes that abstracts resources for inference. It also plays an important role in exchanging data related to inference with device drivers and service.</li>
+<li>The Service layer is designed to support multiple processes and multiple devices, and is configured to communicate with each process to allocate inference to the most suitable device.</li>
+<li>The Device driver layer is responsible for communicating with firmware, managing inference, and HW-dependent implementation of NPU or PCIe functions (Device driver repository will be split from DXRT in future).  </li>
 </ul>
+<p><img alt="image" src="/assets/images/static_architecture.jpg"></p>
 <h2 id="inference&gt;_concept">Inference Concept<a class="headerlink" href="#inference&gt;_concept" title="Permanent link">¶</a></h2>
 <p>In point of high-level view, <code>InferenceEngine</code> abstracts all the steps of inference.<br>
 When <code>InferenceEngine</code> is created, compiled model is loaded to one <code>Model</code>, which is partitioned and converted to graph of <code>Task</code>. <code>Task</code> represents NN operations information, and describes where(NPU or CPU) should it be done.<br>
 Model parameters for each task will be written to proper device memory, and required memory allocation in both side(host, device) will be done automatically.<br>
 Then, tensors are created based on the model parameters, and attached to each tasks. So, <code>Worker</code> instances will execute the task graph asynchronously internally. As a result, selected <code>Device</code> or <code>CpuHandle</code> by <code>Worker</code> will perform NN computations(if needed, memory write/read operations of tensors will be occured).  </p>
 <h2 id="compiler&gt;_interface">Compiler Interface<a class="headerlink" href="#compiler&gt;_interface" title="Permanent link">¶</a></h2>
-<p>Compiled model consists of NPU task, and CPU task parameters as followings.
-<img alt="image" src="/assets/images/inference_concept.jpg"></p>
+<p>Compiled model consists of NPU task, and CPU task parameters as followings.  </p>
+<p><img alt="image" src="/assets/images/inference_concept.jpg"></p>
 <h2 id="device&gt;_allocation">Device Allocation<a class="headerlink" href="#device&gt;_allocation" title="Permanent link">¶</a></h2>
 <p><code>Worker</code> will allocate real-time available device for each requested task.  </p>
 <h2 id="memory&gt;_allocation&gt;_for&gt;_deepx&gt;_devices">Memory Allocation for DEEPX devices<a class="headerlink" href="#memory&gt;_allocation&gt;_for&gt;_deepx&gt;_devices" title="Permanent link">¶</a></h2>
 <p>When the InferenceEngine was created, memory class allocation was required on the system. 
 In case of accelerator mode, each NPU memory and host memory is managed separately by the memory class allocator. NPU-side memory is divided into the feature area and the model area. The feature area is allocated for input and output data, and the model area is allocated for the compiled model. In host-side memory, the input feature is provided by the caller, and the output as inference result is managed by the buffer class. 
-In case of standalone mode, contiguous reserved memory is used for the NPU data interface by Linux CMA (Contiguous Memory Allocator).
-<img alt="image" src="/assets/images/memory_allocation.jpg"></p></div>
+In case of standalone mode, contiguous reserved memory is used for the NPU data interface by Linux CMA (Contiguous Memory Allocator).  </p>
+<p><img alt="image" src="/assets/images/memory_allocation.jpg"></p></div>
 
 
 

@@ -9,6 +9,7 @@
 #include "dxrt/cpu_handle.h"
 #include "dxrt/profiler.h"
 #include "dxrt/util.h"
+#include "dxrt/buffer.h"
 
 using namespace std;
 
@@ -189,6 +190,62 @@ void TaskData::set_from_cpu(std::shared_ptr<CpuHandle> cpuHandle)
     {
         _outputTensors.emplace_back(Tensor(_outputNames[i], _outputShape[i], _outputDataTypes[i], nullptr));
     }
+}
+Tensors TaskData::inputs(void* ptr, uint64_t phyAddr)
+{
+    if (ptr == nullptr)
+    {
+        return _inputTensors;
+    }
+    else
+    {
+        Tensors ret(_inputTensors);
+        int i = 0;
+        for (auto &t : ret)
+        {
+            t.data() = static_cast<void*>(static_cast<uint8_t*>(ptr) + _inputOffsets[i]);
+            t.phy_addr() = phyAddr + _inputOffsets[i];
+            i++;
+        }
+        return ret;
+    }
+    return _inputTensors;
+}
+
+Tensors TaskData::outputs(void* ptr, uint64_t phyAddr)
+{
+    if (ptr == nullptr)
+    {
+        return _outputTensors;
+    }
+    else
+    {
+        Tensors ret(_outputTensors);
+        int i = 0;
+        for (auto &t : ret)
+        {
+            t.data() = static_cast<void*>(static_cast<uint8_t*>(ptr) + _outputOffsets[i]);
+            t.phy_addr() = phyAddr + _outputOffsets[i];
+            i++;
+        }
+        return ret;
+    }
+    return _outputTensors;
+}
+void TaskData::SetOutputBuffer(int size)
+{
+    LOG_DXRT_DBG << "Task "<< _id <<" Output Buffer Size : " << size << std::endl;
+    _taskOutputBuffer = make_shared<Buffer>(size);
+}
+shared_ptr<Buffer> TaskData::OutputBuffer()
+{
+    return _taskOutputBuffer;
+}
+void TaskData::ClearOutputBuffer()
+{
+    //LOG_VALUE(_taskOutputBuffer.use_count());
+    _taskOutputBuffer.reset();
+
 }
 
 }  // namespace dxrt

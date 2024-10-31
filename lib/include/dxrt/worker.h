@@ -3,13 +3,16 @@
 
 #pragma once
 
-#include "dxrt/common.h"
-#include "dxrt/profiler.h"
+#include <signal.h>
 #include <mutex>
 #include <atomic>
-#include <signal.h>
 #include <thread>
 #include <condition_variable>
+#include <memory>
+#include <string>
+#include <array>
+#include "dxrt/common.h"
+#include "dxrt/profiler.h"
 
 namespace dxrt {
 class Tensor;
@@ -17,6 +20,9 @@ class Task;
 class Device;
 class Request;
 struct CpuHandle;
+
+using std::shared_ptr;
+using std::string;
 
 class DXRT_API Worker
 {
@@ -30,27 +36,77 @@ public:
     };
     Worker(std::string name_, Type type_, int numThreads = 1, Device *device_ = nullptr, CpuHandle *cpuHandle_ = nullptr);
     Worker();
-    ~Worker();
+    virtual ~Worker();
     static std::shared_ptr<Worker> Create(std::string name_, Type type_, int numThreads = 1, Device *device_ = nullptr, CpuHandle *cpuHandle_ = nullptr);
-    int request(std::shared_ptr<Request> req);
-    int load(){ std::unique_lock<std::mutex> lk(_lock); return _queue.size();}
     void Stop();
+protected:
+    const std::string& getName() const {return _name;}
+    Device *_device = nullptr;
+    CpuHandle *_cpuHandle = nullptr;
+    std::mutex _lock;
+    std::condition_variable _cv;
+    std::atomic<bool> _stop {false};
+    int _debugData = 0;
+    void InitializeThread();
+
+
+    virtual void ThreadWork(int id) = 0;
 private:
+    void DoThread(int id);
     std::string _name;
     Type _type;
     int _queueMaxSize = 1000;
-    int _debugData = 0;
-    std::queue<std::shared_ptr<Request>> _queue;
-    std::mutex _lock;
-    std::condition_variable _cv;
+
+    //std::queue<std::shared_ptr<Request>> _queue;
+
     std::vector<std::thread> _threads;
-    std::atomic<bool> _stop {false};
-    void DeviceInputThread(int id);
-    void DeviceOutputThread(int id);
-    void DeviceErrorThread();
-    void CpuHandleThread();
-    Device *_device = nullptr;
-    CpuHandle *_cpuHandle = nullptr;
 };
 
+class DeviceInputWorker : public Worker
+{
+public:
+    DeviceInputWorker(string name_, int numThreads, Device *device_);
+    virtual ~DeviceInputWorker();
+    static shared_ptr<DeviceInputWorker> Create(string name_, int numThreads, Device *device_);
+    int request(int requestId);
+    size_t load(){ std::unique_lock<std::mutex> lk(_lock); return _queue.size();}
+    void signalToWorker();
+private:
+    std::queue<int> _queue;
+    void ThreadWork(int id) override;
+    std::condition_variable _cv;
+};
+class DeviceOutputWorker : public Worker
+{
+public:
+    DeviceOutputWorker(string name_, int numThreads, Device *device_);
+    virtual ~DeviceOutputWorker();
+    static shared_ptr<DeviceOutputWorker> Create(string name_, int numThreads, Device *device_);
+private:
+    void ThreadWork(int id) override;
+
+
+};
+class DeviceErrorWorker : public Worker
+{
+public:
+    DeviceErrorWorker(string name_, Device *device_);
+    virtual ~DeviceErrorWorker();
+    static shared_ptr<DeviceErrorWorker> Create(string name_, Device *device_);
+
+private:
+    void ThreadWork(int id) override;
+};
+class CpuHandleWorker : public Worker
+{
+public:
+    CpuHandleWorker(string name_, int numThreads, CpuHandle *cpuHandle_);
+    virtual ~CpuHandleWorker();
+    static shared_ptr<CpuHandleWorker> Create(string name_, int numThreads, CpuHandle *cpuHandle_);
+    int request(std::shared_ptr<Request> req);
+
+private:
+    std::queue<std::shared_ptr<Request>> _queue;
+    void ThreadWork(int id) override;
+};
 } // namespace dxrt

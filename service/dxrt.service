@@ -1,0 +1,10 @@
+[Unit]
+Description=DX-RT Service
+
+[Service]
+ExecStart=/.../dx_rt/bin/dxrtd
+WorkingDirectory=/.../dx_rt/bin/
+#Restart=on-failure
+Restart=off
+
+
