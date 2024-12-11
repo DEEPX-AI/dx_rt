@@ -23,9 +23,9 @@ bool debug_all_output = false;
 std::mutex InferenceJob::_sTensorsMapLock;
 std::mutex InferenceJob::_sRequestsLock;
 std::mutex InferenceJob::_sInferenceJobsLock;
-std::mutex InferenceJob::_sLoadLock;
+
 std::atomic<int> InferenceJob::_sNextInferenceJobId = {0};
-std::atomic<int> InferenceJob::_load = {0};
+
 
 // static functions
 void InferenceJob::InitInferenceJob()
@@ -43,20 +43,13 @@ std::shared_ptr<InferenceJob> InferenceJob::Pick()
     int id;
     {
         std::unique_lock<std::mutex> lk(_sInferenceJobsLock);
-        while(1)
+        while (true)
         {
-            if(_load < JOB_ASYNC_LOAD)
-            {
-                id = _sNextInferenceJobId++;
-                if (_sNextInferenceJobId >= INFERENCE_ID_MAX_VALUE)
-                    _sNextInferenceJobId = 0;
-                break;
-            }
+            id = _sNextInferenceJobId++;
+            if (_sNextInferenceJobId >= INFERENCE_ID_MAX_VALUE)
+                _sNextInferenceJobId = 0;
+            break;
         }
-    }
-    {
-        std::unique_lock<std::mutex> lk(_sLoadLock);
-        ++_load;
     }
     ObjectsPool* instance = ObjectsPool::GetInstance();
     InferenceJobPtr jobRef = instance->GetInferenceJobById(id);
@@ -74,7 +67,7 @@ void InferenceJob::onRequestComplete(RequestPtr req)
         std::unique_lock<std::mutex> lk(_sTensorsMapLock);
         for (Tensor& output : req->outputs()) {
             auto name = output.name();
-            
+
             _tensors.insert(make_pair(name, output));
         }
         _doneCount++;
@@ -99,7 +92,7 @@ void InferenceJob::onRequestComplete(RequestPtr req)
                     auto it = _tensors.find(required.name());
                     if (it == _tensors.end())
                     {
-                        cout<<"["<<thisTask->name()<<"] task require "<<required.name() << " tensor, it is not found yet"<<endl;
+                        cout << "["<<thisTask->name()<<"] task require "<<required.name() << " tensor, it is not found yet"<<endl;
                         allPrepared = false;
                         break;
                     }
@@ -118,7 +111,7 @@ void InferenceJob::onRequestComplete(RequestPtr req)
                 //auto nextReq = Request::Create(nextTask.get(), std::move(nexts), {}, _userArg);
                 auto nextReq = Request::Create(nextTask.get(), nexts, {}, _userArg, _jobId);
                 nextReq->setCallback(onRequestCompleteFunction());  // on each request complete, do next request or complete whole inference
-                if(nextTask->nexts().empty())
+                if (nextTask->nexts().empty())
                 {
                     nextReq->getData()->output_ptr = _outputPtr;
                 }
@@ -206,10 +199,6 @@ void InferenceJob::onAllRequestComplete()
         {
             req->Reset();
         }
-    }
-    {
-        std::unique_lock<std::mutex> lk(_sLoadLock);
-        _load--;
     }
     _requests.clear();
     _status = Request::Status::REQ_DONE;

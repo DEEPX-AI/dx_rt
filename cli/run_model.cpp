@@ -104,8 +104,8 @@ int main(int argc, char *argv[])
         (  "m, model", "Model file (.dxnn)" , cxxopts::value<string>(modelFile) )
         (  "i, input", "Input data file", cxxopts::value<string>(inputFile) )
         (  "o, output", "Output data file", cxxopts::value<string>(outputFile)->default_value("output.bin") )
-        (  "b, benchmark", "Perform benchmark test", cxxopts::value<bool>(benchmark)->default_value("false") )
-        (  "s, single", "Perform single NPU test", cxxopts::value<bool>(single)->default_value("false") )
+        (  "b, benchmark", "Perform a benchmark test (Maximum throughput)", cxxopts::value<bool>(benchmark)->default_value("false") )
+        (  "s, single", "Perform a single run test (Sequential single-input inference on a single-core)", cxxopts::value<bool>(single)->default_value("false") )
         (  "n, npu",
             "NPU bounding (default:0)\n"
             " - Bounding value 0 : inference with all NPU\n"

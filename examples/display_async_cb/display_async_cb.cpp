@@ -127,6 +127,10 @@ static const int DATA_POOL_SIZE = 100;
 // total display count
 static int gTotalDisplayCount = 0;
 
+// mutex lock for Callback
+static std::mutex gCBMutexA;
+static std::mutex gCBMutexB;
+
 
 static void postProcessing(const DataBuffer* outputA, const DataBuffer* outputB)
 {
@@ -158,6 +162,8 @@ static int displayThreadFunc(int loopCount)
 // invoke this function asynchronously after the inference is completed
 static int onInferenceCallbackFunc_A(dxrt::TensorPtrs &outputs, void *userArg)
 {
+    std::lock_guard<std::mutex> guard(gCBMutexA);
+
     // the outputs are guaranteed to be valid only within this callback function
     // processing this callback functions as quickly as possible is beneficial 
     // for improving inference performance
@@ -184,6 +190,8 @@ static int onInferenceCallbackFunc_A(dxrt::TensorPtrs &outputs, void *userArg)
 // invoke this function asynchronously after the inference is completed
 static int onInferenceCallbackFunc_B(dxrt::TensorPtrs &outputs, void *userArg)
 {
+    std::lock_guard<std::mutex> guard(gCBMutexB);
+
     // the outputs are guaranteed to be valid only within this callback function
     // processing this callback functions as quickly as possible is beneficial 
     // for improving inference performance

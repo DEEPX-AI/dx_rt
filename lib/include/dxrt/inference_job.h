@@ -87,10 +87,8 @@ class InferenceJob
    static std::mutex _sInferenceJobsMapLock;
    static std::mutex _sTensorsMapLock;
    static std::mutex _sRequestsLock;
-   static std::mutex _sLoadLock;
 
    static std::atomic<int> _sNextInferenceJobId;
-   static std::atomic<int> _load;
 };
 
 using InferenceJobPtr = std::shared_ptr<InferenceJob>;

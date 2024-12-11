@@ -10,10 +10,13 @@
 
 static std::atomic<int> gCallbackCnt = {0};
 static ConcurrentQueue<int> gResultQueue(1);
+static std::mutex gCBMutex;
 
 // invoke this function asynchronously after the inference is completed
 static int onInferenceCallbackFunc(dxrt::TensorPtrs &outputs, void *userArg)
 {
+    std::lock_guard<std::mutex> guard(gCBMutex);
+    
     // user data type casting
     std::pair<int, int>* user_data = reinterpret_cast<std::pair<int, int>*>(userArg);
 
