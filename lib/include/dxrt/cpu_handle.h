@@ -45,7 +45,9 @@ struct DXRT_API CpuHandle
     std::vector<uint64_t> _outputOffsets;
     std::vector<uint64_t> _inputSizes;
     std::vector<uint64_t> _outputSizes;
-    std::shared_ptr<Buffer> _buffer;
+    //std::shared_ptr<Buffer> _buffer;
+    void* _cpuTaskOutputBufferPtr;
+    void* _cpuTaskInputBufferPtr;
 
     int InferenceRequest(RequestPtr req);
     void Start();

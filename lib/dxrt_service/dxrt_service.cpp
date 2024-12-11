@@ -10,10 +10,12 @@
 #include "../include/dxrt/ipc_wrapper/ipc_client_wrapper.h"
 #include <atomic>
 #include <thread>
+#include <future>
+#include <unordered_set>
+
 #include "service_device.h"
 #include "scheduler_service.h"
 #include "service_error.h"
-
 
 void die_check_thread();
 
@@ -23,6 +25,8 @@ class DxrtService
 private:
     void dequeueAllClientMessageQueue(long msgType);
     std::shared_ptr<dxrt::DxrtServiceErr> _srvErr;
+    std::mutex _deviceMutex;
+    std::vector<bool> _devErrSts;
 
 public:
     void Process(dxrt::IPCClientMessage& clientMessage);
@@ -31,7 +35,9 @@ public:
     void onCompleteInference(const dxrt::dxrt_response_t& response, int deviceId);
     void ErrorBroadCastToClient(dxrt::dxrt_server_err_t err, uint32_t errCode);
 
-    void handle_process_die();
+    void InitDevice(int devId, dxrt::npu_bound_op bound);
+    long ClearDevice(int procId);
+    void handle_process_die(DxrtService *service);
     void die_check_thread();
 
     dxrt::IPCServerWrapper _ipcServerWrapper;
@@ -39,6 +45,8 @@ public:
     SchedulerService _scheduler;
 
     std::set<pid_t> _pid_set;
+    /* process id / device id / bounding option */
+    std::unordered_map<int, std::unordered_map<int, std::unordered_set<int>>> _devInfo;
 };
 
 DxrtService::DxrtService(std::vector<std::shared_ptr<dxrt::ServiceDevice> > devices_)
@@ -52,6 +60,7 @@ DxrtService::DxrtService(std::vector<std::shared_ptr<dxrt::ServiceDevice> > devi
         device->SetCallback([id, this](const dxrt::dxrt_response_t& resp_) {
             _scheduler.FinishJobs(id, resp_);
         });
+        _devErrSts.emplace_back(false);
     }
     LOG_DXRT_S << "Initialized Devices count=" << _devices.size() << std::endl;
 
@@ -173,19 +182,22 @@ void DxrtService::Process(dxrt::IPCClientMessage& clientMessage)
 
             return;
         }
-        case dxrt::REQUEST_CODE::INF_STOP_REQUEST: {
-            LOG_DXRT_S << "Receive Stop command" << endl;
-            _scheduler.StopScheduler(clientMessage.pid);
+        case dxrt::REQUEST_CODE::DEVICE_INIT: {
+            int deviceId = clientMessage.deviceId;
+            int bound = clientMessage.data;
+            if (_devErrSts[deviceId])
+                ErrorBroadCastToClient(dxrt::dxrt_server_err_t::S_ERR_NEED_DEV_RECOVERY, 0);
 
-            // serverMessage.code = dxrt::RESPONSE_CODE::INF_STOP_REQUEST_RESP;
-            // serverMessage.data = 1;
-            // break;
+            {
+                std::lock_guard<std::mutex> lock(_deviceMutex);
+                _devInfo[clientMessage.pid][deviceId].insert(bound);
+            }
+            InitDevice(deviceId, static_cast<dxrt::npu_bound_op>(bound));
             return;
         }
-        case dxrt::REQUEST_CODE::INF_STOP_END_REQUEST: {
-            LOG_DXRT_S << "Receive Stop End command" << endl;
-            _scheduler.StartScheduler();
-            return;
+        case dxrt::REQUEST_CODE::DEVICE_RESET: {
+            int deviceId = clientMessage.deviceId;
+            _devErrSts[deviceId] = false;
         }
         case dxrt::REQUEST_CODE::INFERENCE_COMPLETED: {
             return;
@@ -224,7 +236,91 @@ void DxrtService::dequeueAllClientMessageQueue(long msgType)
     clientWrapper.Close(); // close
 }
 
-void DxrtService::handle_process_die()
+void DxrtService::InitDevice(int devId, dxrt::npu_bound_op bound)
+{
+    int ret;
+    /* TODO - Send init command to driver to clear internal logic */
+    LOG_DXRT_S << "DevId : " << devId << ", add bound : " << bound << endl;
+    ret = _devices[devId]->BoundOption(dxrt::DX_SCHED_ADD, static_cast<dxrt::npu_bound_op>(bound));
+    if (ret != 0)
+    {
+        ErrorBroadCastToClient(dxrt::dxrt_server_err_t::S_ERR_SERVICE_DEV_BOUND_ERR, ret);
+    }
+    DXRT_ASSERT(ret==0, "failed to apply bound option to device");
+}
+
+#define DXRT_S_DEV_CLR_TIMEOUT_MS     (600)
+#define DXRT_S_DEV_CLR_TIMEOUT_CNT    (3)
+long DxrtService::ClearDevice(int procId)
+{
+    int ret;
+    try {
+        std::lock_guard<std::mutex> lock(_deviceMutex);
+        const std::chrono::milliseconds timeout(DXRT_S_DEV_CLR_TIMEOUT_MS);
+        auto lastLoadCheckTime = std::chrono::steady_clock::now();
+        int cnt = 0;
+        int prevLoad = _scheduler.GetProcLoad(procId);
+
+        while (true)
+        {
+            int currLoad = _scheduler.GetProcLoad(procId);
+            if (currLoad == 0) break;
+
+            auto currentTime = std::chrono::steady_clock::now();
+            if (currentTime - lastLoadCheckTime >= timeout)
+            {
+                lastLoadCheckTime = currentTime;
+                if (currLoad == prevLoad)
+                {
+                    LOG_DXRT_S_ERR("Timeout reached during process termination (" + std::to_string(cnt) + ")");
+                    _scheduler.ClearAllLoad();
+                    _devErrSts[0] = true; /* TODO - will be considered device id*/
+                    break;
+                } else {
+                    if (++cnt > DXRT_S_DEV_CLR_TIMEOUT_CNT)
+                    {
+                        LOG_DXRT_S_ERR("Overall timeout reached.(" + std::to_string(cnt) + ")");
+                        _scheduler.ClearAllLoad();
+                        break;
+                    }
+                    else
+                    {
+                        cnt = 0;
+                        prevLoad = currLoad;
+                    }
+                }
+            }
+        }
+
+        {
+            for (const auto& dev : _devInfo[procId])
+            {
+                int devId = dev.first;
+                const unordered_set<int>& bounds = dev.second;
+                for (int bound : bounds)
+                {
+                    LOG_DXRT_S << "DevId : " << devId << ", delete bound : " << bound << endl;
+                    ret = _devices[devId]->BoundOption(dxrt::DX_SCHED_DELETE, static_cast<dxrt::npu_bound_op>(bound));
+                    if (ret != 0)
+                    {
+                        LOG_DXRT_S_ERR("failed to apply bound option to device");
+                        return 2;
+                    }
+                }
+
+            }
+            _devInfo[procId].clear();
+            _devInfo.erase(procId);
+        }
+        return 0;
+    } catch (const std::exception& e) {
+        std::string str = std::string("Exception occurred: ") + e.what();
+        LOG_DXRT_S_ERR(str);
+        return 999;
+    }
+}
+
+void DxrtService::handle_process_die(DxrtService *service)
 {
 
     for (auto it = _pid_set.begin(); it != _pid_set.end(); )
@@ -236,11 +332,28 @@ void DxrtService::handle_process_die()
             ++it;
         } else {
             if (errno == ESRCH) {
-                //std::cout << "Process " << pid << " has terminated. Cleaning up resources." << std::endl;
+                // std::cout << "Process(" << pid << ") has terminated. Cleaning up resources." << std::endl;
+                _scheduler.StopScheduler(pid);
                 dequeueAllClientMessageQueue(pid);
                 dxrt::MemoryService::DeallocateAllDevice(pid);
                 _scheduler.cleanDiedProcess(pid);
                 it = _pid_set.erase(it);
+                {
+                    std::future<long> result = std::async(std::launch::async, &DxrtService::ClearDevice, service, pid);
+                    long errCode = result.get();
+                    _scheduler.StartScheduler(pid);
+                    _scheduler.ClearProcLoad(pid);
+                    if (errCode != 0)
+                    {
+                        if (errCode == 1)
+                            ErrorBroadCastToClient(dxrt::dxrt_server_err_t::S_ERR_SERVICE_TERMINATION, errCode);
+                        if (errCode == 2)
+                            ErrorBroadCastToClient(dxrt::dxrt_server_err_t::S_ERR_SERVICE_DEV_BOUND_ERR, errCode);
+                        else
+                            ErrorBroadCastToClient(dxrt::dxrt_server_err_t::S_ERR_SERVICE_UNKNOWN_ERR, errCode);
+                        DXRT_ASSERT(false, "failed device termination");
+                    }
+                }
             } else if (errno == EPERM) {
                 ++it;
             } else {
@@ -258,7 +371,7 @@ void DxrtService::die_check_thread()
     while (true)
     {
         sleep(1);
-        handle_process_die();
+        handle_process_die(this);
     }
 }
 

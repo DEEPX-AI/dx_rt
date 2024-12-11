@@ -2,6 +2,8 @@
 #include "dxrt/datatype.h"
 #include "dxrt/model.h"
 #include "dxrt/inference_engine.h"
+#include "dxrt/exception/exception.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -68,12 +70,22 @@ static string dataFormatTable[] =
 ModelDataBase LoadModelParam(string file)
 {
     ModelDataBase param;
-    string rmapStr;
+    LoadModelParam(param, file);
 
-    DXRT_ASSERT(
-        (fileExists(file) && getExtension(file)=="dxnn"), 
-        "Invalid model path : " + file
-    );
+    return param;
+}
+
+string LoadModelParam(ModelDataBase& param, string file)
+{
+    //ModelDataBase param;
+    string rmapStr;
+    string modelCompileType;
+    //DXRT_ASSERT(
+    //    (fileExists(file) && getExtension(file)=="dxnn"), 
+    //    "Invalid model path : " + file
+    //);
+    if ( !fileExists(file) || getExtension(file) != "dxnn" )
+        throw FileNotFoundException(EXCEPTION_MESSAGE("Invalid model path : " + file));
     
     int fileSize = getFileSize(file);
     vector<char> vbuf(fileSize, 'a');
@@ -87,20 +99,25 @@ ModelDataBase LoadModelParam(string file)
     fclose(fp);
 
     // Parse Binary Data Info. from Model File
-    param.deepx_binary = LoadBinaryInfo(buf, fileSize);
+    //param.deepx_binary = LoadBinaryInfo(buf, fileSize);
+    LoadBinaryInfo(param.deepx_binary, buf, fileSize);
 
     // Parse Graph Info.
-    param.deepx_graph = LoadGraphInfo(param);
+    //param.deepx_graph = LoadGraphInfo(param);
+    LoadGraphInfo(param.deepx_graph, param);
 
     // Parse RMAP Info.
-    param.deepx_rmap = LoadRmapInfo(param);
+    //param.deepx_rmap = LoadRmapInfo(param);
+    modelCompileType = LoadRmapInfo(param.deepx_rmap, param);
 
-    return param;
+    //return param;
+    return modelCompileType;
 }
 
-deepx_binaryinfo::BinaryInfoDatabase LoadBinaryInfo(char *buffer, int fileSize)
+//deepx_binaryinfo::BinaryInfoDatabase LoadBinaryInfo(char *buffer, int fileSize)
+int LoadBinaryInfo(deepx_binaryinfo::BinaryInfoDatabase& param, char *buffer, int fileSize)
 {
-    deepx_binaryinfo::BinaryInfoDatabase param;
+    //deepx_binaryinfo::BinaryInfoDatabase param;
     Document document;
     std::ignore = fileSize;
 
@@ -118,7 +135,8 @@ deepx_binaryinfo::BinaryInfoDatabase LoadBinaryInfo(char *buffer, int fileSize)
     verInfo = static_cast<int>(buffer[4]);
     cout << "DXNN Model Ver. : " << verInfo << endl;
 
-    DXRT_ASSERT(verInfo >= 6, "No support for dxnn versions below 6.");
+    //DXRT_ASSERT(verInfo >= 6, "No support for dxnn versions below 6.");
+    if ( verInfo < 6 ) throw ModelPasrsingException(EXCEPTION_MESSAGE("No support for dxnn versions below 6"));
     sizeInfo = 8192;
 
     headerInfo = string(buffer+offset,sizeInfo-offset);
@@ -286,12 +304,14 @@ deepx_binaryinfo::BinaryInfoDatabase LoadBinaryInfo(char *buffer, int fileSize)
         memcpy(param.bitmatch_mask(i)._buffer.data(), buffer + (offset + param.bitmatch_mask(i).offset()), param.bitmatch_mask(i).size());
     }
 
-    return param;
+    //return param;
+    return 0;
 }
 
-deepx_graphinfo::GraphInfoDatabase LoadGraphInfo(ModelDataBase data)
+//deepx_graphinfo::GraphInfoDatabase LoadGraphInfo(ModelDataBase data)
+int LoadGraphInfo(deepx_graphinfo::GraphInfoDatabase& param, ModelDataBase& data)
 {
-    deepx_graphinfo::GraphInfoDatabase param;
+    //deepx_graphinfo::GraphInfoDatabase param;
     Document document;
     string graphInfoBuffer;
 
@@ -304,7 +324,8 @@ deepx_graphinfo::GraphInfoDatabase LoadGraphInfo(ModelDataBase data)
     if (document.HasParseError()) {
         std::cerr << "No graphinfo (" << document.GetParseError() << ")" << std::endl;
         // exit(-1);
-        return param;
+        //return param;
+        return -1;
     }
     // PrintJson(document);
     if (document.HasMember("graphs") && document["graphs"].IsArray()) {
@@ -316,7 +337,8 @@ deepx_graphinfo::GraphInfoDatabase LoadGraphInfo(ModelDataBase data)
                 graph.name() = graphObj["name"].GetString();
             if (graphObj.HasMember("type") && graphObj["type"].IsString())
                 graph.type() = graphObj["type"].GetString();
-
+            if (graphObj.HasMember("output_type") && graphObj["output_type"].IsString())
+                graph.output_type() = graphObj["output_type"].GetString();
             // [field]-"inputs"
             if (graphObj.HasMember("inputs") && graphObj["inputs"].IsObject()) {
                 const Value& inputsObj = graphObj["inputs"];
@@ -358,21 +380,33 @@ deepx_graphinfo::GraphInfoDatabase LoadGraphInfo(ModelDataBase data)
             param.m_graph().push_back(graph);
         }
     }
-    
+    if (document.HasMember("origin_input") && document["origin_input"].IsArray()) {
+        const Value& originInputArray = document["origin_input"];
+        for (SizeType i = 0; i < originInputArray.Size(); i++)
+            param.origin_input().push_back(originInputArray[i].GetString());
+    } 
+    if (document.HasMember("origin_output") && document["origin_output"].IsArray()) {
+        const Value& originOutputArray = document["origin_output"];
+        for (SizeType i = 0; i < originOutputArray.Size(); i++)
+            param.origin_output().push_back(originOutputArray[i].GetString());
+    } 
     // [field]-"toposort order"
     if (document.HasMember("toposort_order") && document["toposort_order"].IsArray()) {
         const Value& toposortOrderArray = document["toposort_order"];
         for (SizeType i = 0; i < toposortOrderArray.Size(); i++)
             param.topoSort_order().push_back(toposortOrderArray[i].GetString());
     }
-    return param;
+    //return param;
+    return 0;
 }
 
-deepx_rmapinfo::rmapInfoDatabase LoadRmapInfo(ModelDataBase data)
+//deepx_rmapinfo::rmapInfoDatabase LoadRmapInfo(ModelDataBase data)
+string LoadRmapInfo(deepx_rmapinfo::rmapInfoDatabase& param, ModelDataBase& data)
 {
-    deepx_rmapinfo::rmapInfoDatabase param;
+    //deepx_rmapinfo::rmapInfoDatabase param;
     Document document;
     string rmapBuffer;
+    string modelCompileType;
 
     for (size_t i = 0; i < data.deepx_binary.rmap_info().size(); i++)
     {
@@ -537,6 +571,7 @@ deepx_rmapinfo::rmapInfoDatabase LoadRmapInfo(ModelDataBase data)
 
         // [field]-"layers"
         if (document.HasMember("layers") && document["layers"].IsObject()) {
+            modelCompileType = "DEBUG";
             const Value& layersObj = document["layers"];
             if (layersObj.HasMember("layer") && layersObj["layer"].IsArray()) {
                 const Value& layerArr = layersObj["layer"];
@@ -631,9 +666,14 @@ deepx_rmapinfo::rmapInfoDatabase LoadRmapInfo(ModelDataBase data)
                 }
             }
         }
+        else
+        {
+            modelCompileType = "RELEASE";
+        }
         param.m_rmap().push_back(regMap);
     }
-    return param;
+    //return param;
+    return modelCompileType;
 }
 
 ostream& operator<<(ostream& os, const ModelDataBase& m)

@@ -26,6 +26,7 @@
 #include "dxrt/profiler.h"
 #include "dxrt/util.h"
 #include "dxrt/worker.h"
+#include "dxrt/device.h"
 
 #ifdef USE_ORT
 #include <onnxruntime_cxx_api.h>
@@ -199,11 +200,15 @@ void CpuHandle::Run(RequestPtr req)
 {
     LOG_DXRT_DBG << "CpuHandleRun:" << req->id() << std::endl;
     auto task = req->task();
+    TASK_FLOW_START("["+to_string(req->job_id())+"]"+task->name());
+    
     if(req->inputs().empty())
     {
-        req->inputs() = task->inputs( _buffer->Get(task->input_size()) );
+        //req->inputs() = task->inputs( _buffer->Get(task->input_size()) );
+        req->inputs() = task->inputs(req->task()->GetInputBuffer());
     }
-    req->outputs() = task->outputs( _buffer->Get(task->output_size()) );
+    //req->outputs() = task->outputs( _buffer->Get(task->output_size()) );
+    req->outputs() = task->outputs(req->getData()->output_ptr);
 
     vector<Ort::Value> inputTensors, outputTensors;
     Ort::MemoryInfo memoryInfo = 
@@ -211,31 +216,17 @@ void CpuHandle::Run(RequestPtr req)
             OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault
         );
 
-    auto &input_index = task->input_index();
     LOG_DXRT_DBG << task->id() << " - _numInputs : " << std::to_string(_numInputs) << std::endl;
-
-    if (!task->is_head() && task->prevs().size() == 1) {
+    if (!task->is_head() && task->prevs().size() == 1) 
+    {
         int prevTaskId = req->task()->prevs().front()->id();
         LOG_DXRT_DBG << std::to_string(prevTaskId) << std::endl;
-        auto idxs = input_index[prevTaskId];
-        for (int i = 0; i < _numInputs; i++) {
-            int idx = idxs[i];
-            LOG_DXRT_DBG << "CpuHandle : " << req->inputs()[idx].name() << " / i : " << std::to_string(i) << " idx : " << std::to_string(idx) << std::endl;
-            LOG_DXRT_DBG << "_inputShape" << std::endl;
-            int acc = 4;
-            for (int64_t &element : _inputShape[i]) {
-                LOG_DXRT_DBG << element << " ";
-                acc *= element;
-            }
-            LOG_DXRT_DBG << "_inputSizes : " << std::to_string(_inputSizes[i]) << std::endl;
-            LOG_DXRT_DBG << "_inputDataTypesOrg : " << std::to_string(_inputDataTypesOrg[i]) << std::endl;
-        }
-        for (int i = 0; i < _numInputs; i++) {
-            int idx = idxs[i];
+        for (int i = 0; i < _numInputs; i++) 
+        {
             inputTensors.emplace_back(
                 Ort::Value::CreateTensor(
                     memoryInfo,
-                    req->inputs()[idx].data(),
+                    req->inputs()[i].data(),
                     _inputSizes[i],
                     _inputShape[i].data(),
                     _inputShape[i].size(),
@@ -243,30 +234,29 @@ void CpuHandle::Run(RequestPtr req)
                 )
             );
         }
-    } else if (!task->is_head() && task->prevs().size() > 1) {
+    } 
+    else if (!task->is_head() && task->prevs().size() > 1) 
+    {
         LOG_DXRT_DBG << "prev task size : " << task->prevs().size() << std::endl;
-        int idx = 0;
-        for (auto &name : task->input_name_order()) {
-            for (int i = 0; i < _numInputs; i++) {
-                if (req->inputs()[i].name() == name) {
-                    LOG_DXRT_DBG << "- - - name : " << name << " idx : " << idx << " i : " << i << std::endl;
-                    inputTensors.emplace_back(
-                        Ort::Value::CreateTensor(
-                            memoryInfo,
-                            req->inputs()[i].data(),
-                            _inputSizes[idx],
-                            _inputShape[idx].data(),
-                            _inputShape[idx].size(),
-                            (ONNXTensorElementDataType)_inputDataTypesOrg[idx]
-                        )
-                    );
-                }
-            }
-            idx++;
+        for (int i = 0; i < _numInputs; i++) 
+        {
+            inputTensors.emplace_back(
+                Ort::Value::CreateTensor(
+                    memoryInfo,
+                    req->inputs()[i].data(),
+                    _inputSizes[i],
+                    _inputShape[i].data(),
+                    _inputShape[i].size(),
+                    (ONNXTensorElementDataType)_inputDataTypesOrg[i]
+                )
+            );
         }
-    } else {
+    } 
+    else 
+    {
         LOG_DXRT_DBG << " task is head, _numInputs :" << _numInputs << std::endl;
-        for (int i = 0; i < _numInputs; i++) {
+        for (int i = 0; i < _numInputs; i++) 
+        {
             LOG_DXRT_DBG << "CpuHandle : " << req->inputs()[i].name() << " / i : " << std::to_string(i) << std::endl;
             LOG_DXRT_DBG << "_inputShape" << std::endl;
             int acc = 4;
@@ -304,7 +294,6 @@ void CpuHandle::Run(RequestPtr req)
             )
         );
     }
-
     LOG_DXRT_DBG << "session run start : " << req->id() << std::endl;
     _session->Run(Ort::RunOptions{nullptr},
                   _inputNamesChar.data(), inputTensors.data(), inputTensors.size(),
@@ -319,7 +308,7 @@ void CpuHandle::Terminate()
 }
 void CpuHandle::Start()
 {
-    _buffer = make_shared<Buffer>(4*(_inputSize + _outputSize));
+    //_buffer = make_shared<Buffer>((_inputSize + _outputSize)*DXRT_ASYNC_LOAD_THRE*2);
     _worker = CpuHandleWorker::Create(_name, 1, this);
 }
 

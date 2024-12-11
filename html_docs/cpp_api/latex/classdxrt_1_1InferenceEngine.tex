@@ -18,6 +18,8 @@ int \mbox{\hyperlink{classdxrt_1_1InferenceEngine_af3006c9a7183f7e42d1528aa8a6fe
 \begin{DoxyCompactList}\small\item\em Non-\/blocking call to request asynchronous inference by input pointer, and get request ID from inference engine. \end{DoxyCompactList}\item 
 float \mbox{\hyperlink{classdxrt_1_1InferenceEngine_ab0c6629f048341d62bfa3a400c90e827}{Run\+Bench\+Mark}} (int num, void $\ast$input\+Ptr=nullptr)
 \begin{DoxyCompactList}\small\item\em run benchmark with loop n times \end{DoxyCompactList}\item 
+Tensor\+Ptrs \mbox{\hyperlink{classdxrt_1_1InferenceEngine_aef4c9502a5d5a9d256d3899391376aba}{Validate\+Device}} (void $\ast$input\+Ptr, int device\+Id=0)
+\begin{DoxyCompactList}\small\item\em Validate inference of a specific N\+PU device connected to the host. This function runs a validation process using the provided input data on the specified N\+PU device. It can be used to ensure that the N\+PU device is operational and can process inference tasks correctly. \end{DoxyCompactList}\item 
 void \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a3d3fc75faa79470d9a3bdbdc61561a3a}{Register\+Call\+Back}} (std\+::function$<$ int(Tensor\+Ptrs \&\mbox{\hyperlink{classdxrt_1_1InferenceEngine_a0893b724d6eed939556f1315ce05829d}{outputs}}, void $\ast$user\+Arg)$>$ callback\+Func)
 \begin{DoxyCompactList}\small\item\em Register user callback function to be called by inference completion. \end{DoxyCompactList}\item 
 Tensor\+Ptrs \mbox{\hyperlink{classdxrt_1_1InferenceEngine_ac9375d94db868748a7c3d072c846897b}{Wait}} (int req\+Id)
@@ -37,7 +39,11 @@ std\+::vector$<$ string $>$ \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a22087
 int \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a990ca720e7f8a28ac5394206eb6f9491}{latency}} ()
 \begin{DoxyCompactList}\small\item\em Get recent latency. \end{DoxyCompactList}\item 
 uint32\+\_\+t \mbox{\hyperlink{classdxrt_1_1InferenceEngine_aad2f3b616e0e996b66ef7df37dc16a85}{inference\+\_\+time}} ()
-\begin{DoxyCompactList}\small\item\em Get recent inference time. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\begin{DoxyCompactList}\small\item\em Get recent inference time. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a0b38cd5001ec327cbdc5b00a7143d0e2}{get\+\_\+num\+\_\+tails}} ()
+\begin{DoxyCompactList}\small\item\em Returns the number of tail tasks in the model. \end{DoxyCompactList}\item 
+string \mbox{\hyperlink{classdxrt_1_1InferenceEngine_adb7b0c6f4a8411823d7eaed57cedd36d}{get\+\_\+compile\+\_\+type}} ()
+\begin{DoxyCompactList}\small\item\em Returns complie type of the model. \end{DoxyCompactList}\end{DoxyCompactItemize}
 
 
 \doxysubsection{Detailed Description}
@@ -60,7 +66,33 @@ After user loads compiled model to \mbox{\hyperlink{classdxrt_1_1InferenceEngine
  
 
 \doxysubsection{Member Function Documentation}
-\mbox{\Hypertarget{classdxrt_1_1InferenceEngine_aad2f3b616e0e996b66ef7df37dc16a85}\label{classdxrt_1_1InferenceEngine_aad2f3b616e0e996b66ef7df37dc16a85}} 
+\mbox{\Hypertarget{classdxrt_1_1InferenceEngine_adb7b0c6f4a8411823d7eaed57cedd36d}\label{classdxrt_1_1InferenceEngine_adb7b0c6f4a8411823d7eaed57cedd36d}} 
+\index{dxrt::InferenceEngine@{dxrt::InferenceEngine}!get\_compile\_type@{get\_compile\_type}}
+\index{get\_compile\_type@{get\_compile\_type}!dxrt::InferenceEngine@{dxrt::InferenceEngine}}
+\doxysubsubsection{\texorpdfstring{get\_compile\_type()}{get\_compile\_type()}}
+{\footnotesize\ttfamily string dxrt\+::\+Inference\+Engine\+::get\+\_\+compile\+\_\+type (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Returns complie type of the model. 
+
+\begin{DoxyReturn}{Returns}
+The complie type of the model. 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1InferenceEngine_a0b38cd5001ec327cbdc5b00a7143d0e2}\label{classdxrt_1_1InferenceEngine_a0b38cd5001ec327cbdc5b00a7143d0e2}} 
+\index{dxrt::InferenceEngine@{dxrt::InferenceEngine}!get\_num\_tails@{get\_num\_tails}}
+\index{get\_num\_tails@{get\_num\_tails}!dxrt::InferenceEngine@{dxrt::InferenceEngine}}
+\doxysubsubsection{\texorpdfstring{get\_num\_tails()}{get\_num\_tails()}}
+{\footnotesize\ttfamily int dxrt\+::\+Inference\+Engine\+::get\+\_\+num\+\_\+tails (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Returns the number of tail tasks in the model. 
+
+\begin{DoxyReturn}{Returns}
+The number of tasks that have no subsequent tasks.
+\end{DoxyReturn}
+Tail tasks are those which do not have any tasks following them in the model\textquotesingle{}s task chain. This function provides the count of such tail tasks. \mbox{\Hypertarget{classdxrt_1_1InferenceEngine_aad2f3b616e0e996b66ef7df37dc16a85}\label{classdxrt_1_1InferenceEngine_aad2f3b616e0e996b66ef7df37dc16a85}} 
 \index{dxrt::InferenceEngine@{dxrt::InferenceEngine}!inference\_time@{inference\_time}}
 \index{inference\_time@{inference\_time}!dxrt::InferenceEngine@{dxrt::InferenceEngine}}
 \doxysubsubsection{\texorpdfstring{inference\_time()}{inference\_time()}}
@@ -278,6 +310,26 @@ Get model task order.
 
 \begin{DoxyReturn}{Returns}
 task order 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1InferenceEngine_aef4c9502a5d5a9d256d3899391376aba}\label{classdxrt_1_1InferenceEngine_aef4c9502a5d5a9d256d3899391376aba}} 
+\index{dxrt::InferenceEngine@{dxrt::InferenceEngine}!ValidateDevice@{ValidateDevice}}
+\index{ValidateDevice@{ValidateDevice}!dxrt::InferenceEngine@{dxrt::InferenceEngine}}
+\doxysubsubsection{\texorpdfstring{ValidateDevice()}{ValidateDevice()}}
+{\footnotesize\ttfamily Tensor\+Ptrs dxrt\+::\+Inference\+Engine\+::\+Validate\+Device (\begin{DoxyParamCaption}\item[{void $\ast$}]{input\+Ptr,  }\item[{int}]{device\+Id = {\ttfamily 0} }\end{DoxyParamCaption})}
+
+
+
+Validate inference of a specific N\+PU device connected to the host. This function runs a validation process using the provided input data on the specified N\+PU device. It can be used to ensure that the N\+PU device is operational and can process inference tasks correctly. 
+
+
+\begin{DoxyParams}[1]{Parameters}
+\mbox{\texttt{ in}}  & {\em input\+Ptr} & Pointer to the input data used for validation. \\
+\hline
+\mbox{\texttt{ in}}  & {\em device\+Id} & ID of the N\+PU device to validate. Default is 0 (first device). \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+Output tensors as a vector of smart pointer instances, representing the validation results. 
 \end{DoxyReturn}
 \mbox{\Hypertarget{classdxrt_1_1InferenceEngine_ac9375d94db868748a7c3d072c846897b}\label{classdxrt_1_1InferenceEngine_ac9375d94db868748a7c3d072c846897b}} 
 \index{dxrt::InferenceEngine@{dxrt::InferenceEngine}!Wait@{Wait}}

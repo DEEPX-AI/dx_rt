@@ -11,6 +11,7 @@
 #include "dxrt/model.h"
 #include "dxrt/task_data.h"
 #include "dxrt/inference_timer.h"
+#include "dxrt/fixed_size_buffer.h"
 #include <atomic>
 #include <unordered_map>
 #include <map>
@@ -70,8 +71,11 @@ public:
     TaskPtr &next();
     TaskPtrs &prevs();
     TaskPtrs &nexts();
+    void set_head();
+    void set_tail();
     bool &is_head();
     bool &is_tail();
+    bool &is_PPU();
     bool &is_argmax();
     std::function<int(TensorPtrs&, void*)> callback();
     void PushLatency(int latency);
@@ -81,6 +85,13 @@ public:
     int &complete_cnt();
     void SetInferenceEngineTimer(InferenceTimer* ie);
     void SetOutputBuffer(int size);
+    void SetInputBuffer(int size);
+    void* GetOutputBuffer();
+    void* GetInputBuffer();
+    void FreeOutputBuffer(void* ptr);
+    void FreeInputBuffer(void* ptr);
+    void ClearOutputBuffer();   
+    void ClearInputBuffer();
 
     TaskData* getData() {return &_taskData;}
     friend DXRT_API std::ostream& operator<<(std::ostream&, const Task&);
@@ -90,7 +101,7 @@ private:
     TaskData _taskData;
 
     std::string _onnxFile = "";
-    std::vector<std::shared_ptr<Device>> _devices;
+    std::vector<int> _device_ids;
 
     std::vector< std::vector<uint8_t> > _data;
 
@@ -112,6 +123,9 @@ private:
     std::shared_ptr<CpuHandle> _cpuHandle;
     InferenceTimer _inferenceTimer;
     InferenceTimer* _ie;
+    std::shared_ptr<FixedSizeBuffer> _taskOutputBuffer;
+    std::shared_ptr<FixedSizeBuffer> _taskInputBuffer;
+
 
     int _completeCnt = 1;
     int _boundOp = 0;

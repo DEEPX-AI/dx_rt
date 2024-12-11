@@ -50,13 +50,19 @@ public:
     uint64_t size();
     void SignalScheduller(int deviceId, const dxrt_request_acc_t& req);
     void SignalEndJobs(int deviceId);
+    void SignalDeviceInit(int deviceId, npu_bound_op bound);
+    void SignalDeviceReset(int deviceId);
+
 private:
     void mpConnect();
     void mpConnect_once_wrapper();
 
     std::once_flag _connectFlag;
     std::mutex _lock;
+
+    // IPC
     dxrt::IPCClientWrapper ipcClientWrapper;
+    dxrt::IPCClientWrapper ipcClientWrapperSync;
 
 
 };

@@ -1,7 +1,7 @@
 // Copyright (c) 2024 DEEPX Corporation. All rights reserved.
 // Licensed under the MIT License.
 
-#include "dxrt/driver_adapter/mock_driver_adapter.hpp"
+#include "dxrt/driver_adapter/mock_driver_adapter.h"
 
 using namespace dxrt;
 

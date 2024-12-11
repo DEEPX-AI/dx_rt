@@ -25,19 +25,6 @@ void Worker::InitializeThread()
         _threads[i] = std::thread(&dxrt::Worker::DoThread, this, i);
     }
     LOG_DXRT_DBG << _name << " created." << endl;
-    {
-        const char* env = getenv("DXRT_DEBUG_DATA");
-        if (env)
-        {
-            try {
-                _debugData = std::stoi(env);
-            } catch (const std::invalid_argument& e) {
-                std::cerr << "Environment variable DXRT_DEBUG_DATA is invalid: " << e.what() << endl;
-            } catch (const std::out_of_range& e) {
-                std::cerr << "Environment variable DXRT_DEBUG_DATA is out of range: " << e.what() << endl;
-            }
-        }
-    }
 }
 Worker::Worker()
 {
@@ -48,6 +35,7 @@ Worker::~Worker()
     Stop();
     LOG_DXRT_DBG << "Destroying " << _name << endl;
     for (size_t i = 0; i < _threads.size(); i++)
+        // _threads[i].detach();
         _threads[i].detach();
     LOG_DXRT_DBG << "Destroying " << _name << " done, " << _threads.size() << endl;
     _threads.clear();

@@ -22,7 +22,7 @@ using namespace dxrt;
 
 
 IPCMessageQueueClientLinux::IPCMessageQueueClientLinux(long msgType)
-: _usrData(nullptr), _msgType(msgType)
+: _usrData(nullptr), _msgType(msgType), _receiveCB(nullptr)
 {
     LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux::Constructor (msgType=" << msgType << ")" << std::endl;
 }
@@ -39,6 +39,9 @@ IPCMessageQueueClientLinux::~IPCMessageQueueClientLinux()
 // Intitialize IPC
 int32_t IPCMessageQueueClientLinux::Initialize()
 {
+    // review
+    //std::lock_guard<std::mutex> lock(_funcLock);
+
     //LOG_DXRT_DBG << "IPCMessageQueueClientLinux::Initialize" << std::endl;
     LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux::Initialize" << std::endl;
 
@@ -46,29 +49,46 @@ int32_t IPCMessageQueueClientLinux::Initialize()
 }
 //std::mutex IPCMessageQueueClientLinux::_lock;
 
-static std::atomic<int> seq_increment = {1};
+//static std::atomic<int> seq_increment = {1};
 int32_t IPCMessageQueueClientLinux::SendToServer(IPCServerMessage& outServerMessage, IPCClientMessage& clientMessage)
 {
-    std::lock_guard<std::mutex> lock(_funcLock);
+    //std::lock_guard<std::mutex> lock(_funcLock);
 
-    std::unique_lock<std::mutex> lk(_futureLock);
-    int seq_id = seq_increment++;
-    _waitingCall[seq_id] = std::make_shared<std::promise<IPCServerMessage> >();
-    //LOG_DXRT_I_DBG << "set future "<< _waitingCall << "\n";
-    DXRT_ASSERT(_waitingCall[seq_id] != nullptr, "_waitingcall make failed");
-    auto future = _waitingCall[seq_id]->get_future();
-    lk.unlock();
-    clientMessage.seqId = seq_id;
-    SendToServer(clientMessage);
-    //LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux: sent client message\n";
-    outServerMessage = future.get();
-    //LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux: future end of waiting\n";
+    if ( _receiveCB == nullptr )
+    {
+        clientMessage.seqId = 0; //seq_increment++; // review 
+        SendToServer(clientMessage);
+        ReceiveFromServer(outServerMessage);
+    }
+    else 
+    {
+
+        /*std::unique_lock<std::mutex> lk(_futureLock);
+        int seq_id = seq_increment++;
+        _waitingCall[seq_id] = std::make_shared<std::promise<IPCServerMessage> >();
+        //LOG_DXRT_I_DBG << "set future "<< _waitingCall << "\n";
+        DXRT_ASSERT(_waitingCall[seq_id] != nullptr, "_waitingcall make failed");
+        auto future = _waitingCall[seq_id]->get_future();
+        lk.unlock();
+        clientMessage.seqId = seq_id;
+        SendToServer(clientMessage);
+        //LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux: sent client message\n";
+        outServerMessage = future.get();
+        //LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux: future end of waiting\n";
+        */
+       // if there is a callback, this function does not work
+       return -1;
+
+    }
 
     return 0;
 }
 
 int32_t IPCMessageQueueClientLinux::SendToServer(IPCClientMessage& clientMessage)
 {
+    // review
+    std::lock_guard<std::mutex> lock(_funcLock);
+
     LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux::SendToServer" << std::endl;
 
     IPCMessageQueueLinux::Message mq_message;
@@ -99,15 +119,27 @@ int32_t IPCMessageQueueClientLinux::ReceiveFromServer(IPCServerMessage& serverMe
 // register receive message callback function
 int32_t IPCMessageQueueClientLinux::RegisterReceiveCB(std::function<int32_t(IPCServerMessage&,void*)> receiveCB, void* usrData)
 {
+    // review
+    //std::lock_guard<std::mutex> lock(_funcLock);
         
     if ( _threadRunning )
     {
+
         _threadRunning = false;
-        /*if ( _thread.joinable() )
+
+        IPCServerMessage serverMessage;
+        serverMessage.code = dxrt::RESPONSE_CODE::CLOSE;
+        serverMessage.msgType = _msgType;
+        IPCMessageQueueLinux::Message mq_message;
+        mq_message.msgType = serverMessage.msgType;
+        memcpy(mq_message.data, &serverMessage, sizeof(serverMessage));
+        _messageQueue.Send(mq_message, sizeof(serverMessage));
+        
+        if ( _thread.joinable() )
         {
             _thread.join();
-        }*/
-        _thread.detach();
+        }
+        //_thread.detach();
 
         _receiveCB = nullptr;
         LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux: Detached Callback Thread" << std::endl;
@@ -132,7 +164,9 @@ int32_t IPCMessageQueueClientLinux::RegisterReceiveCB(std::function<int32_t(IPCS
 // close the connection
 int32_t IPCMessageQueueClientLinux::Close()
 {
-    
+    // review
+    //std::lock_guard<std::mutex> lock(_funcLock);
+
     if ( _threadRunning )
     {
         RegisterReceiveCB(nullptr, nullptr);
@@ -155,19 +189,10 @@ void IPCMessageQueueClientLinux::ThreadFunc(IPCMessageQueueClientLinux* mqClient
             LOG_DXRT_I_DBG << "Thread Running by " << serverMessage.code << std::endl;
             if ( mqClient->_receiveCB != nullptr )
             {
-                int result = mqClient->_receiveCB(serverMessage, mqClient->_usrData);
-                int seq_id = serverMessage.seqId;
-                if (result == 234)
-                {
-                    std::unique_lock<std::mutex> lk(mqClient->_futureLock);
+                mqClient->_receiveCB(serverMessage, mqClient->_usrData);
 
-                    //LOG_DXRT_I_DBG << "Future unlock "<< mqClient->_waitingCall << "\n";
-                    mqClient->_waitingCall[seq_id]->set_value(serverMessage);
-                    {
-                        mqClient->_waitingCall.erase(seq_id);
-                    }
-                    //LOG_DXRT_I_DBG << "Future received\n";
-                }
+                if ( serverMessage.code == dxrt::RESPONSE_CODE::CLOSE ) break;
+
             }
         } else {
             LOG_DXRT_I_ERR("ReceiveFromServer fail");

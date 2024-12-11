@@ -90,6 +90,9 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:ab0c6629f048341d62bfa3a400c90e827"><td class="memItemLeft" align="right" valign="top">float&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#ab0c6629f048341d62bfa3a400c90e827">RunBenchMark</a> (int num, void *inputPtr=nullptr)</td></tr>
 <tr class="memdesc:ab0c6629f048341d62bfa3a400c90e827"><td class="mdescLeft">&#160;</td><td class="mdescRight">run benchmark with loop n times  <a href="classdxrt_1_1InferenceEngine.html#ab0c6629f048341d62bfa3a400c90e827">More...</a><br /></td></tr>
 <tr class="separator:ab0c6629f048341d62bfa3a400c90e827"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aef4c9502a5d5a9d256d3899391376aba"><td class="memItemLeft" align="right" valign="top">TensorPtrs&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#aef4c9502a5d5a9d256d3899391376aba">ValidateDevice</a> (void *inputPtr, int deviceId=0)</td></tr>
+<tr class="memdesc:aef4c9502a5d5a9d256d3899391376aba"><td class="mdescLeft">&#160;</td><td class="mdescRight">Validate inference of a specific NPU device connected to the host. This function runs a validation process using the provided input data on the specified NPU device. It can be used to ensure that the NPU device is operational and can process inference tasks correctly.  <a href="classdxrt_1_1InferenceEngine.html#aef4c9502a5d5a9d256d3899391376aba">More...</a><br /></td></tr>
+<tr class="separator:aef4c9502a5d5a9d256d3899391376aba"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3d3fc75faa79470d9a3bdbdc61561a3a"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a3d3fc75faa79470d9a3bdbdc61561a3a">RegisterCallBack</a> (std::function&lt; int(TensorPtrs &amp;<a class="el" href="classdxrt_1_1InferenceEngine.html#a0893b724d6eed939556f1315ce05829d">outputs</a>, void *userArg)&gt; callbackFunc)</td></tr>
 <tr class="memdesc:a3d3fc75faa79470d9a3bdbdc61561a3a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register user callback function to be called by inference completion.  <a href="classdxrt_1_1InferenceEngine.html#a3d3fc75faa79470d9a3bdbdc61561a3a">More...</a><br /></td></tr>
 <tr class="separator:a3d3fc75faa79470d9a3bdbdc61561a3a"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -120,6 +123,12 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:aad2f3b616e0e996b66ef7df37dc16a85"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#aad2f3b616e0e996b66ef7df37dc16a85">inference_time</a> ()</td></tr>
 <tr class="memdesc:aad2f3b616e0e996b66ef7df37dc16a85"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get recent inference time.  <a href="classdxrt_1_1InferenceEngine.html#aad2f3b616e0e996b66ef7df37dc16a85">More...</a><br /></td></tr>
 <tr class="separator:aad2f3b616e0e996b66ef7df37dc16a85"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0b38cd5001ec327cbdc5b00a7143d0e2"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a0b38cd5001ec327cbdc5b00a7143d0e2">get_num_tails</a> ()</td></tr>
+<tr class="memdesc:a0b38cd5001ec327cbdc5b00a7143d0e2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns the number of tail tasks in the model.  <a href="classdxrt_1_1InferenceEngine.html#a0b38cd5001ec327cbdc5b00a7143d0e2">More...</a><br /></td></tr>
+<tr class="separator:a0b38cd5001ec327cbdc5b00a7143d0e2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:adb7b0c6f4a8411823d7eaed57cedd36d"><td class="memItemLeft" align="right" valign="top">string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#adb7b0c6f4a8411823d7eaed57cedd36d">get_compile_type</a> ()</td></tr>
+<tr class="memdesc:adb7b0c6f4a8411823d7eaed57cedd36d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns complie type of the model.  <a href="classdxrt_1_1InferenceEngine.html#adb7b0c6f4a8411823d7eaed57cedd36d">More...</a><br /></td></tr>
+<tr class="separator:adb7b0c6f4a8411823d7eaed57cedd36d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>This class abstracts runtime inference executor for user's compiled model. </p>
@@ -132,6 +141,47 @@ Public Member Functions</h2></td></tr>
 <div class="line">option.<a class="code" href="structdxrt_1_1InferenceOption.html#ae98837ff566fe2b089a5b1bf07feb48c">devices</a> = {0,1,3};  <span class="comment">//use only 0,1,3 device</span></div>
 <div class="line"><span class="keyword">auto</span> ie = <a class="code" href="classdxrt_1_1InferenceEngine.html">dxrt::InferenceEngine</a>(modelPath, option);</div>
 </div><!-- fragment --> </div><h2 class="groupheader">Member Function Documentation</h2>
+<a id="adb7b0c6f4a8411823d7eaed57cedd36d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#adb7b0c6f4a8411823d7eaed57cedd36d">&#9670;&nbsp;</a></span>get_compile_type()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">string dxrt::InferenceEngine::get_compile_type </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Returns complie type of the model. </p>
+<dl class="section return"><dt>Returns</dt><dd>The complie type of the model. </dd></dl>
+
+</div>
+</div>
+<a id="a0b38cd5001ec327cbdc5b00a7143d0e2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0b38cd5001ec327cbdc5b00a7143d0e2">&#9670;&nbsp;</a></span>get_num_tails()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int dxrt::InferenceEngine::get_num_tails </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Returns the number of tail tasks in the model. </p>
+<dl class="section return"><dt>Returns</dt><dd>The number of tasks that have no subsequent tasks.</dd></dl>
+<p>Tail tasks are those which do not have any tasks following them in the model's task chain. This function provides the count of such tail tasks. </p>
+
+</div>
+</div>
 <a id="aad2f3b616e0e996b66ef7df37dc16a85"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#aad2f3b616e0e996b66ef7df37dc16a85">&#9670;&nbsp;</a></span>inference_time()</h2>
 
@@ -496,6 +546,44 @@ if ptr and phyAddr is given, outputs tensors that contains output addresses </dd
 
 </div>
 </div>
+<a id="aef4c9502a5d5a9d256d3899391376aba"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aef4c9502a5d5a9d256d3899391376aba">&#9670;&nbsp;</a></span>ValidateDevice()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">TensorPtrs dxrt::InferenceEngine::ValidateDevice </td>
+          <td>(</td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>inputPtr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>deviceId</em> = <code>0</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Validate inference of a specific NPU device connected to the host. This function runs a validation process using the provided input data on the specified NPU device. It can be used to ensure that the NPU device is operational and can process inference tasks correctly. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">inputPtr</td><td>Pointer to the input data used for validation. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">deviceId</td><td>ID of the NPU device to validate. Default is 0 (first device). </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>Output tensors as a vector of smart pointer instances, representing the validation results. </dd></dl>
+
+</div>
+</div>
 <a id="ac9375d94db868748a7c3d072c846897b"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ac9375d94db868748a7c3d072c846897b">&#9670;&nbsp;</a></span>Wait()</h2>
 
@@ -525,7 +613,7 @@ if ptr and phyAddr is given, outputs tensors that contains output addresses </dd
 </div>
 </div><!-- contents -->
 <div class="ttc" id="astructdxrt_1_1InferenceOption_html"><div class="ttname"><a href="structdxrt_1_1InferenceOption.html">dxrt::InferenceOption</a></div><div class="ttdoc">This struct specifies inference options applied to dxrt::InferenceEngine.</div><div class="ttdef"><b>Definition:</b> inference_option.h:14</div></div>
-<div class="ttc" id="astructdxrt_1_1InferenceOption_html_ae98837ff566fe2b089a5b1bf07feb48c"><div class="ttname"><a href="structdxrt_1_1InferenceOption.html#ae98837ff566fe2b089a5b1bf07feb48c">dxrt::InferenceOption::devices</a></div><div class="ttdeci">std::vector&lt; int &gt; devices</div><div class="ttdoc">device ID list to use</div><div class="ttdef"><b>Definition:</b> inference_option.h:19</div></div>
+<div class="ttc" id="astructdxrt_1_1InferenceOption_html_ae98837ff566fe2b089a5b1bf07feb48c"><div class="ttname"><a href="structdxrt_1_1InferenceOption.html#ae98837ff566fe2b089a5b1bf07feb48c">dxrt::InferenceOption::devices</a></div><div class="ttdeci">std::vector&lt; int &gt; devices</div><div class="ttdoc">device ID list to use</div><div class="ttdef"><b>Definition:</b> inference_option.h:26</div></div>
 <div class="ttc" id="aclassdxrt_1_1InferenceEngine_html_a0893b724d6eed939556f1315ce05829d"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html#a0893b724d6eed939556f1315ce05829d">dxrt::InferenceEngine::outputs</a></div><div class="ttdeci">Tensors outputs(void *ptr=nullptr, uint64_t phyAddr=0)</div><div class="ttdoc">Get output tensor.</div></div>
 <div class="ttc" id="aclassdxrt_1_1InferenceEngine_html"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html">dxrt::InferenceEngine</a></div><div class="ttdoc">This class abstracts runtime inference executor for user's compiled model.</div><div class="ttdef"><b>Definition:</b> inference_engine.h:50</div></div>
 <!-- start footer part -->

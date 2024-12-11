@@ -13,8 +13,9 @@
 #include "dxrt/driver.h"
 #include "dxrt/device_struct.h"
 #include "dxrt/worker.h"
-#include "dxrt/driver_adapter/driver_adapter.hpp"
+#include "dxrt/driver_adapter/driver_adapter.h"
 #include "dxrt/task.h"
+#include "dxrt/npu_memory_cache.h"
 
 #define DXRT_ASYNC_LOAD_THRE    (5)
 
@@ -87,8 +88,10 @@ public:
     TensorPtrs Validate(RequestPtr req, bool skipInference = false);
     int Release(TaskData *task);
     int Response(dxrt_response_t &response);
+    int Write(dxrt_meminfo_t &, int ch);
     int Write(dxrt_meminfo_t &);
     int Read(dxrt_meminfo_t &);
+    int Read(dxrt_meminfo_t &, int ch);
     int Wait();
     void Identify(int id_, SkipMode skip = NONE, uint32_t subCmd = 0);
     void SetSubMode(uint32_t cmd) { _subCmd = cmd; }
@@ -115,7 +118,12 @@ public:
     dxrt_request_t* peekInferenceStd(int requestId);
     void popInferenceStruct(int requestId);
     void signalToWorker(int channel);
-
+    void signalToDevice(npu_bound_op boundOp);
+    void Deallocate_npuBuf(int64_t addr, int taskId);
+#ifdef USE_SERVICE
+    void SignalToService(dxrt_request_acc_t* npu_inference_acc);
+    void ProcessResponseFromService(const dxrt_response_t& resp);
+#endif
 protected:
     int _id = 0;
     DeviceType _type = DeviceType::ACC_TYPE; /* 0: ACC type, 1: STD type */
@@ -157,7 +165,7 @@ protected:
     std::unordered_map<int, dxrt_request_acc_t> _ongoingRequestsAcc;
     std::shared_ptr<DeviceInputWorker> _inputWorker = nullptr;
     std::shared_ptr<DeviceOutputWorker> _outputWorker = nullptr;
-    std::shared_ptr<DeviceErrorWorker> _errorWorker = nullptr;
+    std::shared_ptr<DeviceEventWorker> _eventWorker = nullptr;
     //std::shared_ptr<Buffer> _buffer = nullptr;
     std::shared_ptr<DriverAdapter> _driverAdapter;
     std::atomic<int> _readChannel = {0};
@@ -168,6 +176,11 @@ protected:
     int InferenceRequest_ACC(RequestData* req, npu_bound_op boundOp);
 
     static std::shared_ptr<MultiprocessMemory> _sMulti_mems;
+    bool _isBoundOptionSet = false;
+    npu_bound_op _setBoundOption;
+
+    NpuMemoryCacheManager _npuMemoryCacheManager;
+    std::mutex _npuInferenceLock;
 
 };
 
@@ -176,5 +189,5 @@ extern DXRT_API std::vector<std::shared_ptr<Device>> CheckDevices(SkipMode skip 
 extern DXRT_API void WaitDeviceResponses(std::vector<std::shared_ptr<Device>> &devices_); // temp.
 DXRT_API std::ostream& operator<<(std::ostream&, const dxrt_device_status_t&);
 DXRT_API std::ostream& operator<<(std::ostream& os, const dxrt_device_info_t& info);
-
+DXRT_API std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_ntfy_throt_t& notify);
 } // namespace dxrt

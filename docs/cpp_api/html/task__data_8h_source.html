@@ -111,42 +111,39 @@ $(function() {
 <div class="line"><a name="l00039"></a><span class="lineno">   39</span>&#160;    <span class="keywordtype">int</span> input_size()<span class="keyword"> const </span>{<span class="keywordflow">return</span> _inputSize;}</div>
 <div class="line"><a name="l00040"></a><span class="lineno">   40</span>&#160;    <span class="keywordtype">int</span> output_size()<span class="keyword"> const </span>{<span class="keywordflow">return</span> _outputSize;}</div>
 <div class="line"><a name="l00041"></a><span class="lineno">   41</span>&#160; </div>
-<div class="line"><a name="l00042"></a><span class="lineno">   42</span>&#160;    <span class="keywordtype">void</span> SetOutputBuffer(<span class="keywordtype">int</span> size);</div>
-<div class="line"><a name="l00043"></a><span class="lineno">   43</span>&#160;    std::shared_ptr&lt;Buffer&gt; OutputBuffer();</div>
-<div class="line"><a name="l00044"></a><span class="lineno">   44</span>&#160;    <span class="keywordtype">void</span> ClearOutputBuffer();</div>
-<div class="line"><a name="l00045"></a><span class="lineno">   45</span>&#160; </div>
-<div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160; <span class="keyword">public</span>:  <span class="comment">// TODO(ykpark): make private</span></div>
-<div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160;    <span class="keywordtype">int</span> _id;</div>
-<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;    std::string _name = <span class="stringliteral">&quot;EMPTY&quot;</span>;</div>
-<div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160;    Processor _processor = Processor::NONE_PROCESSOR;</div>
+<div class="line"><a name="l00042"></a><span class="lineno">   42</span>&#160; <span class="keyword">public</span>:  <span class="comment">// TODO(ykpark): make private</span></div>
+<div class="line"><a name="l00043"></a><span class="lineno">   43</span>&#160;    <span class="keywordtype">int</span> _id;</div>
+<div class="line"><a name="l00044"></a><span class="lineno">   44</span>&#160;    std::string _name = <span class="stringliteral">&quot;EMPTY&quot;</span>;</div>
+<div class="line"><a name="l00045"></a><span class="lineno">   45</span>&#160;    Processor _processor = Processor::NONE_PROCESSOR;</div>
+<div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160; </div>
+<div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160;    std::vector&lt;rmapinfo&gt; _infos;</div>
+<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160; </div>
+<div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160;    std::vector&lt;dxrt_model_t&gt; _npuModel;</div>
 <div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160; </div>
-<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;    std::vector&lt;rmapinfo&gt; _infos;</div>
-<div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160; </div>
-<div class="line"><a name="l00053"></a><span class="lineno">   53</span>&#160;    std::vector&lt;dxrt_model_t&gt; _npuModel;</div>
-<div class="line"><a name="l00054"></a><span class="lineno">   54</span>&#160; </div>
-<div class="line"><a name="l00055"></a><span class="lineno">   55</span>&#160;    uint64_t _memUsage = 0;</div>
-<div class="line"><a name="l00056"></a><span class="lineno">   56</span>&#160;    uint32_t _inputSize = 0;</div>
-<div class="line"><a name="l00057"></a><span class="lineno">   57</span>&#160;    uint32_t _outputSize = 0;</div>
-<div class="line"><a name="l00058"></a><span class="lineno">   58</span>&#160;    uint32_t _outputMemSize = 0;</div>
-<div class="line"><a name="l00059"></a><span class="lineno">   59</span>&#160;    std::vector&lt;DataType&gt; _inputDataTypes;</div>
-<div class="line"><a name="l00060"></a><span class="lineno">   60</span>&#160;    std::vector&lt;DataType&gt; _outputDataTypes;</div>
-<div class="line"><a name="l00061"></a><span class="lineno">   61</span>&#160;    <span class="keywordtype">int</span> _numInputs = 1;</div>
-<div class="line"><a name="l00062"></a><span class="lineno">   62</span>&#160;    <span class="keywordtype">int</span> _numOutputs;</div>
-<div class="line"><a name="l00063"></a><span class="lineno">   63</span>&#160;    std::vector&lt;std::string&gt; _inputNames;</div>
-<div class="line"><a name="l00064"></a><span class="lineno">   64</span>&#160;    std::vector&lt;std::string&gt; _outputNames;</div>
-<div class="line"><a name="l00065"></a><span class="lineno">   65</span>&#160;    std::vector&lt;std::vector&lt;int64_t&gt;&gt; _inputShape;</div>
-<div class="line"><a name="l00066"></a><span class="lineno">   66</span>&#160;    std::vector&lt;std::vector&lt;int64_t&gt;&gt; _outputShape;</div>
-<div class="line"><a name="l00067"></a><span class="lineno">   67</span>&#160;    std::vector&lt;uint64_t&gt; _inputOffsets = {0};</div>
-<div class="line"><a name="l00068"></a><span class="lineno">   68</span>&#160;    std::vector&lt;uint64_t&gt; _outputOffsets;</div>
-<div class="line"><a name="l00069"></a><span class="lineno">   69</span>&#160;    std::shared_ptr&lt;Buffer&gt; _taskOutputBuffer=<span class="keyword">nullptr</span>;</div>
-<div class="line"><a name="l00070"></a><span class="lineno">   70</span>&#160; </div>
-<div class="line"><a name="l00071"></a><span class="lineno">   71</span>&#160;    Tensors _inputTensors;</div>
-<div class="line"><a name="l00072"></a><span class="lineno">   72</span>&#160;    Tensors _outputTensors;</div>
+<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;    uint64_t _memUsage = 0;</div>
+<div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160;    uint32_t _inputSize = 0;</div>
+<div class="line"><a name="l00053"></a><span class="lineno">   53</span>&#160;    uint32_t _outputSize = 0;</div>
+<div class="line"><a name="l00054"></a><span class="lineno">   54</span>&#160;    uint32_t _outputMemSize = 0;</div>
+<div class="line"><a name="l00055"></a><span class="lineno">   55</span>&#160;    std::vector&lt;DataType&gt; _inputDataTypes;</div>
+<div class="line"><a name="l00056"></a><span class="lineno">   56</span>&#160;    std::vector&lt;DataType&gt; _outputDataTypes;</div>
+<div class="line"><a name="l00057"></a><span class="lineno">   57</span>&#160;    <span class="keywordtype">int</span> _numInputs = 1;</div>
+<div class="line"><a name="l00058"></a><span class="lineno">   58</span>&#160;    <span class="keywordtype">int</span> _numOutputs;</div>
+<div class="line"><a name="l00059"></a><span class="lineno">   59</span>&#160;    std::vector&lt;std::string&gt; _inputNames;</div>
+<div class="line"><a name="l00060"></a><span class="lineno">   60</span>&#160;    std::vector&lt;std::string&gt; _outputNames;</div>
+<div class="line"><a name="l00061"></a><span class="lineno">   61</span>&#160;    std::vector&lt;std::vector&lt;int64_t&gt;&gt; _inputShape;</div>
+<div class="line"><a name="l00062"></a><span class="lineno">   62</span>&#160;    std::vector&lt;std::vector&lt;int64_t&gt;&gt; _outputShape;</div>
+<div class="line"><a name="l00063"></a><span class="lineno">   63</span>&#160;    std::vector&lt;uint64_t&gt; _inputOffsets = {0};</div>
+<div class="line"><a name="l00064"></a><span class="lineno">   64</span>&#160;    std::vector&lt;uint64_t&gt; _outputOffsets;</div>
+<div class="line"><a name="l00065"></a><span class="lineno">   65</span>&#160;    <span class="comment">//std::shared_ptr&lt;Buffer&gt; _taskOutputBuffer=nullptr;</span></div>
+<div class="line"><a name="l00066"></a><span class="lineno">   66</span>&#160;    </div>
+<div class="line"><a name="l00067"></a><span class="lineno">   67</span>&#160;    Tensors _inputTensors;</div>
+<div class="line"><a name="l00068"></a><span class="lineno">   68</span>&#160;    Tensors _outputTensors;</div>
+<div class="line"><a name="l00069"></a><span class="lineno">   69</span>&#160; </div>
+<div class="line"><a name="l00070"></a><span class="lineno">   70</span>&#160;    <span class="keywordtype">bool</span> _isArgMax = <span class="keyword">false</span>;</div>
+<div class="line"><a name="l00071"></a><span class="lineno">   71</span>&#160;    <span class="keywordtype">bool</span> _isPPU = <span class="keyword">false</span>;</div>
+<div class="line"><a name="l00072"></a><span class="lineno">   72</span>&#160;};</div>
 <div class="line"><a name="l00073"></a><span class="lineno">   73</span>&#160; </div>
-<div class="line"><a name="l00074"></a><span class="lineno">   74</span>&#160;    <span class="keywordtype">bool</span> _isArgMax = <span class="keyword">false</span>;</div>
-<div class="line"><a name="l00075"></a><span class="lineno">   75</span>&#160;};</div>
-<div class="line"><a name="l00076"></a><span class="lineno">   76</span>&#160; </div>
-<div class="line"><a name="l00077"></a><span class="lineno">   77</span>&#160;}  <span class="comment">// namespace dxrt</span></div>
+<div class="line"><a name="l00074"></a><span class="lineno">   74</span>&#160;}  <span class="comment">// namespace dxrt</span></div>
 </div><!-- fragment --></div><!-- contents -->
 <div class="ttc" id="anamespacedxrt_html"><div class="ttname"><a href="namespacedxrt.html">dxrt</a></div><div class="ttdoc">DXRT C++ APIs are provided in this namespace.</div><div class="ttdef"><b>Definition:</b> buffer.h:8</div></div>
 <!-- start footer part -->

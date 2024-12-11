@@ -27,7 +27,7 @@ print(x.shape)  # (1, 3, 640, 640)
 
 # Run model
 # out = sess.run(None, {sess.get_inputs()[0].name: x})[0]
-out = ie.run(x)
+out = ie.Run(x)
 out = out[0]
 print(out.shape)  # (1, 25200, 21)
 out = out[0]
