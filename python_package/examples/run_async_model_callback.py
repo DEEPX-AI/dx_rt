@@ -63,13 +63,13 @@ if __name__ == "__main__":
         input_data = [np.zeros(input_size, dtype=np.uint8)]
 
     # Register callback function
-    ie.register_callback(callback_with_args)
+    ie.RegisterCallBack(callback_with_args)
 
     start_time = time.time()
 
     # Run inference for the number of loops specified
     for loop in range(args.loops):
-        req_id = ie.run_async(input_data, user_arg=loop)
+        req_id = ie.RunAsync(input_data, user_arg=loop)
         print(f"[{req_id}] Inference request #{req_id} submitted with user_arg({loop})")
         result_queue.put(req_id)
 

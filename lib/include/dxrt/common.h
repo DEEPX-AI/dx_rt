@@ -45,6 +45,17 @@
 #else
 #define LOG_DBG(x)
 #endif
+
+#if SHOW_TASK_FLOW
+#define TASK_FLOW(x) std::cout<<"[TASK_FLOW] "<< x <<std::endl;
+#define TASK_FLOW_START(x) std::cout<<"[TASK_FLOW] "<< x << " START" <<std::endl;
+#define TASK_FLOW_FINISH(x) std::cout<<"[TASK_FLOW] "<< x << " FINISH" <<std::endl;
+#else
+#define TASK_FLOW(x)
+#define TASK_FLOW_START(x)
+#define TASK_FLOW_FINISH(x)
+#endif
+
 #define LOG_DXRT     std::cout<<"[DXRT]["<< __func__ << "] "
 #define LOG_DXRT_DBG if(DEBUG_DXRT) std::cout<<"[DXRT]["<< __func__ << "] " 
 #define LOG_DXRT_ERR(x) std::cout<<"[DXRT][Error] "<< x << std::endl;

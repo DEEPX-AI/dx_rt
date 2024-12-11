@@ -27,68 +27,74 @@ int main(int argc, char *argv[])
         ("p, dump", "Dump device internals to a file", cxxopts::value<string>() )
         ("l, fwlog", "Extract firmware logs to a file", cxxopts::value<string>() )
         ("h, help", "Print usage");
-
-    auto cmd = options.parse(argc, argv);
-    if (cmd.count("help"))
-    {
-        cout << "DXRT " DXRT_VERSION << endl;
-        cout << options.help() << endl;
-        exit(0);
+    try{
+        auto cmd = options.parse(argc, argv);
+        if (cmd.count("help"))
+        {
+            cout << "DXRT " DXRT_VERSION << endl;
+            cout << options.help() << endl;
+            exit(0);
+        }
+        else if (cmd.count("status"))
+        {
+            dxrt::DeviceStatusCLICommand cli(cmd);
+            cli.Run();
+        }
+        else if (cmd.count("info"))
+        {
+            dxrt::DeviceInfoCLICommand cli(cmd);
+            cli.Run();
+        }
+        else if (cmd.count("monitor"))
+        {
+            dxrt::DeviceStatusMonitor cli(cmd);
+            cli.Run();
+        }
+        else if (cmd.count("reset"))
+        {
+            dxrt::DeviceResetCommand cli(cmd);
+            cli.Run();
+        }
+        else if (cmd.count("fwupdate"))
+        {
+            dxrt::FWUpdateCommand cli(cmd);
+            cli.Run();
+        }
+        else if (cmd.count("fwupload"))
+        {
+            dxrt::FWUploadCommand cli(cmd);
+            cli.Run();
+        }
+        else if (cmd.count("fwversion"))
+        {
+            dxrt::FWVersionCommand cli(cmd);
+            cli.Run();
+        }
+        else if (cmd.count("dump"))
+        {
+            dxrt::DeviceDumpCommand cli(cmd);
+            cli.Run();
+        }
+        else if (cmd.count("fwconfig"))
+        {
+            dxrt::FWConfigCommand cli(cmd);
+            cli.Run();
+        }
+        else if (cmd.count("fwconfig_json"))
+        {
+            dxrt::FWConfigCommandJson cli(cmd);
+            cli.Run();
+        }
+        else if (cmd.count("fwlog"))
+        {
+            dxrt::FWLogCommand cli(cmd);
+            cli.Run();
+        }
+        return 0;
     }
-    else if (cmd.count("status"))
+    catch(cxxopts::exceptions::exception& e)
     {
-        dxrt::DeviceStatusCLICommand cli(cmd);
-        cli.Run();
-    }
-    else if (cmd.count("info"))
-    {
-        dxrt::DeviceInfoCLICommand cli(cmd);
-        cli.Run();
-    }
-    else if (cmd.count("monitor"))
-    {
-        dxrt::DeviceStatusMonitor cli(cmd);
-        cli.Run();
-    }
-    else if (cmd.count("reset"))
-    {
-        dxrt::DeviceResetCommand cli(cmd);
-        cli.Run();
-    }
-    else if (cmd.count("fwupdate"))
-    {
-        dxrt::FWUpdateCommand cli(cmd);
-        cli.Run();
-    }
-    else if (cmd.count("fwupload"))
-    {
-        dxrt::FWUploadCommand cli(cmd);
-        cli.Run();
-    }
-    else if (cmd.count("fwversion"))
-    {
-        dxrt::FWVersionCommand cli(cmd);
-        cli.Run();
-    }
-    else if (cmd.count("dump"))
-    {
-        dxrt::DeviceDumpCommand cli(cmd);
-        cli.Run();
-    }
-    else if (cmd.count("fwconfig"))
-    {
-        dxrt::FWConfigCommand cli(cmd);
-        cli.Run();
-    }
-    else if (cmd.count("fwconfig_json"))
-    {
-        dxrt::FWConfigCommandJson cli(cmd);
-        cli.Run();
-    }
-    else if (cmd.count("fwlog"))
-    {
-        dxrt::FWLogCommand cli(cmd);
-        cli.Run();
+        cout << e.what() << endl;
     }
     return 0;
 }

@@ -30,15 +30,19 @@ public:
     void SetErrorCallback(std::function<void(dxrt::dxrt_server_err_t, uint32_t)> f);
     void cleanDiedProcess(int pid);
     void StopScheduler(int procId);
-    void StartScheduler();
+    void StartScheduler(int procId);
+    int GetProcLoad(int procId);
+    void ClearAllLoad();
+    void ClearProcLoad(int procId);
 
 private:
     virtual void schedule(int deviceId);
-    std::atomic<int> _stop {false};
+    std::vector<int> _procId;
 
     std::queue<std::pair<int, int> > _queue;
     std::vector<std::queue<std::pair<int, int> > > _device_queues;
     std::vector<std::atomic<int> > _loads;
+    std::map<int,std::atomic<int>> _loadsProc;
     std::map<int,std::map<int, dxrt::dxrt_request_acc_t>> _map;
     std::mutex _lock;
     std::vector<std::shared_ptr<dxrt::ServiceDevice>> _devices;

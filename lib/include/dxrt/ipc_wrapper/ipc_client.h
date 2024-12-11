@@ -15,7 +15,7 @@
 namespace dxrt 
 {
 
-    class IPCClient
+    class DXRT_API IPCClient
     {
 
     public:

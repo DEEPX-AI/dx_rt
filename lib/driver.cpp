@@ -30,6 +30,8 @@ map<int,string> errTable = {
     {dxrt::dxrt_error_t::ERR_PCIE_DMA_CH0_FAIL, "PCIe-DMA Fail in ch0"},
     {dxrt::dxrt_error_t::ERR_PCIE_DMA_CH1_FAIL, "PCIe-DMA Fail in ch1"},
     {dxrt::dxrt_error_t::ERR_PCIE_DMA_CH2_FAIL, "PCIe-DMA Fail in ch2"},
+    {dxrt::dxrt_error_t::ERR_LPDDR_DED_WR, "LPDDR Link-ECC Write Error"},
+    {dxrt::dxrt_error_t::ERR_LPDDR_DED_RD, "LPDDR Link-ECC Read Error"},
 };
 
 std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_err_t& error) {
@@ -98,6 +100,33 @@ std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_err_t& error) {
     os << "* PCIe Information (" << "Gen" << error.speed << " X" << error.width << ", " << pcieBDF << ")" << endl;
     os << "  - LTSSM State    : " << error.ltssm << endl;
     os << "==========================================================================================" << endl;
+
+    // Print LPDDR information
+    os << "* LPDDR Information (" << "LPDDR" << error.ddr_type << " , Frequency: " << error.ddr_freq << "MHz)" << endl;
+    os << "  - LPDDR double bit error occured ch : ";
+    for (int ddr_ch = 0; ddr_ch < 4; ddr_ch++) {
+        if (error.ddr_dbe_ch & (1 << ddr_ch))
+            os << "CH" << ddr_ch << ", ";
+    }
+    os << endl;
+
+    os << "  - LPDDR MR Register Info ch[0, 1, 2, 3] : [";
+    for (int ddr_ch = 0; ddr_ch < 4; ddr_ch++) {
+        os << error.ddr_mr_reg[ddr_ch] << ", ";
+    }
+    os << "]" << endl;
+    os << "==========================================================================================" << endl;
+
+    os << "************************************************************************" << endl;
+    os << " * Error occurred! Please follow the steps below to recover the device." << endl;
+    os << " * Refer to the user guide if additional help is needed." << endl;
+    os << endl;
+    os << " Step 1: Reset the device using dxrt-cli" << endl;
+    os << "         > dxrt-cli -r 0" << endl;
+    os << " Step 2: Retry the inference using run_model" << endl;
+    os << "         > run_model -m [model.dxnn]" << endl;
+    os << " ** If the error persists, please contact DeepX support for assistance." << endl;
+    os << "************************************************************************" << endl;
 
     return os;
 }
@@ -186,6 +215,25 @@ std::ostream& operator<<(std::ostream& os, const dxrt_device_info_t& info)
 #endif
         << string(info.fw_info)
         << dec;
+    return os;
+}
+std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_ntfy_throt_t& notify) {
+    if (notify.ntfy_code == NTFY_EMERGENCY_BLOCK || notify.ntfy_code == NTFY_EMERGENCY_RELEASE) {
+        os  << "[Emergency] NPU@" << notify.npu_id
+            << ":: " << (notify.ntfy_code == NTFY_EMERGENCY_BLOCK ? "BLOCKED" : "RELEASED")
+            << " temperature:: " << notify.throt_temper << "\'C";
+    }
+    else if (notify.ntfy_code == NTFY_EMERGENCY_WARN) {
+        os  << "[Emergency] NPU@" << notify.npu_id
+            << ":: " << "Warning - Temperature has reached the Emergency Point "
+            << "(" << notify.throt_temper << ")\'C";
+    }
+    else {
+        os << "[Throttling] NPU@" << notify.npu_id
+           << " voltage:: " << notify.throt_voltage[0] / 1000 << "mV -> " << notify.throt_voltage[1] / 1000 << "mV"
+           << " frequency:: " << notify.throt_freq[0] << "mhz -> " << notify.throt_freq[1] << "mhz"
+           << " temperature:: " << notify.throt_temper << "\'C";
+    }
     return os;
 }
 

@@ -21,21 +21,6 @@ using namespace std;
 namespace dxrt {
 
 #ifdef __linux__
-static void abnormalExitHandler(int signo)
-{
-    signal(signo, SIG_IGN);
-    cout << "Signal caught(" << signo << "). Cleaning Task " << exceptionHandler.GetTasks().size() << endl;
-    cout << "Please wait until termination..." << endl;
-    exceptionHandler.SendStopCmdToServer();
-    for (auto &task : exceptionHandler.GetTasks()) {
-        if (task) {
-            static_cast<Task *>(task)->~Task();
-        }
-    }
-    exceptionHandler.SendStopEndCmdToServer();
-    exceptionHandler.GetTasks().clear();
-    exit(signo);
-}
 static void signalHandler(int signo)
 {
 #ifdef DXRT_SHOW_STACKTRACE_ON_HANDLER
@@ -116,50 +101,12 @@ LONG WINAPI windows_exception_handler(EXCEPTION_POINTERS* ExceptionInfo)
 }
 #endif 
 
-void ExceptionHandler::SendStopCmdToServer(void)
-{
-    dxrt::IPCClientMessage clientMessage;
-    dxrt::IPCServerMessage serverMessage;
-    {
-        clientMessage.code = dxrt::REQUEST_CODE::INF_STOP_REQUEST;
-        clientMessage.deviceId = 0xFF;
-        clientMessage.data = 0;
-        clientMessage.pid = getpid();
-
-        ipcClientWrapper.SendToServer(clientMessage);
-    }
-    {
-        // ipcClientWrapper.ReceiveFromServer(serverMessage);
-        // if (serverMessage.code == dxrt::RESPONSE_CODE::INF_STOP_REQUEST_RESP) {
-        //     cout << "Ok got it" << endl;
-        // }
-        // cout << "Response code : " << serverMessage.code << endl;
-        sleep(2);
-    }
-}
-
-void ExceptionHandler::SendStopEndCmdToServer(void)
-{
-    dxrt::IPCClientMessage clientMessage;
-    {
-        clientMessage.code = dxrt::REQUEST_CODE::INF_STOP_END_REQUEST;
-        clientMessage.deviceId = 0xFF;
-        clientMessage.data = 0;
-        clientMessage.pid = getpid();
-
-        ipcClientWrapper.SendToServer(clientMessage);
-    }
-}
-
 ExceptionHandler::ExceptionHandler()
-: ipcClientWrapper(dxrt::IPC_TYPE::MESSAE_QUEUE, getpid())
 {
 #ifdef __linux__
     signal(SIGSEGV, signalHandler);
     signal(SIGBUS,  signalHandler);
     signal(SIGABRT, signalHandler);
-    signal(SIGINT,  abnormalExitHandler);
-    signal(SIGTSTP, abnormalExitHandler);
 #elif _WIN32
     SetUnhandledExceptionFilter(windows_exception_handler);
 #endif

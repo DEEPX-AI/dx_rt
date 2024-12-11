@@ -10,6 +10,7 @@
 #include "dxrt/driver.h"
 #include "rapidjson/document.h"
 #include "rapidjson/istreamwrapper.h"
+#include "dxrt/objects_pool.h"
 
 using namespace std;
 using namespace rapidjson;

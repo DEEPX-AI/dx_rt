@@ -53,55 +53,52 @@ if __name__ == "__main__":
     print("\n------------------------------------------\n")
 
     input_data_list = [[np.zeros(input_size, dtype=np.uint8)],[np.zeros(input_size, dtype=np.uint8)]]
-
     
-    outputs = ie.run(input_data_list[0])
-    print(f"run() => outputs[0].shape : {outputs[0].shape}")
+    req_id = ie.RunAsync(input_data_list[0], user_arg=0)
+    outputs = ie.Wait(req_id)  
+    print(f"RunAsync() => Wait() => outputs[0].shape : {outputs[0].shape}")
+    print("\n------------------------------------------\n")
+
+    outputs = ie.Run(input_data_list[0])
+    print(f"Run() => outputs[0].shape : {outputs[0].shape}")
     print("\n------------------------------------------\n")
     
-    outputs = ie.validate_device(input_data_list[0], 0)
+    fps = ie.RunBenchMark()
+    print(f"benchmaRunBenchMarkrk() => fps : {fps}")
+    print("\n------------------------------------------\n")
+
+    outputs = ie.ValidateDevice(input_data_list[0], 0)
     print(outputs)
-    print(f"validate_device() => outputs[0].shape : {outputs[0].shape}")
+    print(f"ValidateDevice() => outputs[0].shape : {outputs[0].shape}")
     print("\n------------------------------------------\n")
     
-    
-    fps = ie.benchmark()
-    print(f"benchmark() => fps : {fps}")
+
+    ie.RegisterCallBack(callback_with_args)
+
+    req_id = ie.RunAsync(input_data_list[0], user_arg=0)
+    result_queue.put(req_id)
+    result_queue.join()
+    print(f"RunAsync(), RegisterCallBack(), req_id : {req_id}")
     print("\n------------------------------------------\n")
 
-    req_id = ie.run_async(input_data_list[0], user_arg=0)
-    outputs = ie.wait(req_id)  
-    print(f"wait() => outputs[0].shape : {outputs[0].shape}")
+    mask = ie.bitmatch_mask(0)  
+    print(f"bitmatch_mask() => mask.shape : {mask.shape}")
     print("\n------------------------------------------\n")
 
-    mask = ie.get_bitmatch_mask(0)  
-    print(f"get_bitmatch_mask() => mask.shape : {mask.shape}")
-    print("\n------------------------------------------\n")
-
-    outputs = ie.arun_batch(input_data_list[0], 5)
-    print(f"arun_batch() => outputs[0][0].shape : {outputs[0][0].shape}")
-    print("\n------------------------------------------\n")
-
-    task_order = ie.get_task_order()
-    print(f"get_task_order() => task_order : {task_order}")
+    task_order = ie.task_order()
+    print(f"task_order() => task_order : {task_order}")
     print("\n------------------------------------------\n")
 
     outputs = ie.get_outputs()
-    print(f"run() => the number of outputs : {len(outputs)}, outputs[0].shape : {outputs[0][0].shape}")
+    print(f"runAsync() => the number of outputs : {len(outputs)}, outputs[0].shape : {outputs[0][0].shape}")
     print("\n------------------------------------------\n")
     
     latency = ie.latency()
     print(f"latency() => latency : {latency}")
     print("\n------------------------------------------\n")
 
-    inf_time = ie.inf_time()
-    print(f"inf_time() => inf_time : {inf_time}")
+    inf_time = ie.inference_time()
+    print(f"inf_time() => inference_time : {inf_time}")
     print("\n------------------------------------------\n")
 
-    ie.register_callback(callback_with_args)
-
-    req_id = ie.run_async(input_data_list[0], user_arg=0)
-    result_queue.put(req_id)
-    result_queue.join()
-    print(f"run_async(), register_callback(), req_id : {req_id}")
-    print("\n------------------------------------------\n")
+    exit(0)

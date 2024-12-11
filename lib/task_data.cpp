@@ -52,6 +52,8 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_)
             {
                 shapes[3] = GetAlign(shapes[3]);
             }
+            else if (shapes.size()>4) 
+                throw std::out_of_range("Invalid tensor shape ( > 4D)");
             _outputShape.emplace_back(shapes);
             _outputOffsets.emplace_back(info.outputs().outputlist().output(i).memory().offset()
                 - info.outputs().outputlist().output(0).memory().offset());
@@ -132,13 +134,15 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_)
                 dataType += info.outputs().outputlist().output(0).format();
                 dataType -= deepx_rmapinfo::DataFormat::PPU_YOLO;
                 _outputTensors.emplace_back(
-                    Tensor(_outputNames[i], _outputShape[i], static_cast<DataType>(dataType), nullptr)
+                    Tensor(_outputNames[i], {128*1024/GetDataSize_Datatype(static_cast<DataType>(dataType))}, static_cast<DataType>(dataType), nullptr)
+                    //Tensor(_outputNames[i], _outputShape[i], static_cast<DataType>(dataType), nullptr)
                 );
                 model.last_output_offset = model.output_all_size;
                 model.last_output_size = 128*1024;
                 model.output_all_size += 128*1024;
                 _outputSize = 128*1024;
             }
+            _isPPU = true;
         }
         if (_infos.size() > 1)
         {
@@ -232,20 +236,4 @@ Tensors TaskData::outputs(void* ptr, uint64_t phyAddr)
     }
     return _outputTensors;
 }
-void TaskData::SetOutputBuffer(int size)
-{
-    LOG_DXRT_DBG << "Task "<< _id <<" Output Buffer Size : " << size << std::endl;
-    _taskOutputBuffer = make_shared<Buffer>(size);
-}
-shared_ptr<Buffer> TaskData::OutputBuffer()
-{
-    return _taskOutputBuffer;
-}
-void TaskData::ClearOutputBuffer()
-{
-    //LOG_VALUE(_taskOutputBuffer.use_count());
-    _taskOutputBuffer.reset();
-
-}
-
 }  // namespace dxrt

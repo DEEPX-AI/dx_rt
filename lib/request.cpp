@@ -6,6 +6,7 @@
 #include "dxrt/task.h"
 #include "dxrt/inference_engine.h"
 #include "dxrt/profiler.h"
+#include "dxrt/objects_pool.h"
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -16,27 +17,28 @@ using namespace std;
 namespace dxrt
 {
 
-int Request::_nextId = REQUEST_ID_INIT_VALUE;
-std::mutex Request::_idLock;
-// unordered_map<int, Request> Request::_requestMap;
-// unordered_map<int, RequestPtr> Request::_requestMap;
-// Request _requestMapArr[REQUEST_ID_MAX_VALUE+1];
-vector<RequestPtr> Request::_requestMap;
-std::mutex Request::_mapLock;
 
 Request::Request(void)
 {
+    _data.requestId = 0;
     LOG_DXRT_DBG << getData()->requestId << endl;
 }
+Request::Request(int id)
+{
+    _data.requestId = id;
+    _data.inputs = {};
+    _data.outputs = {};
+    _timePoint = make_shared<TimePoint>();
+
+    //LOG_DXRT_DBG << getData()->requestId << endl;
+}
+
 Request::Request(Task *task_, Tensors &inputs_, Tensors &outputs_)
 : _task(task_)
 {
-    unique_lock<mutex> lk(_idLock);
-    _data.requestId = _nextId++;
+
     _data.inputs = inputs_;
     _data.outputs = outputs_;
-    if(_nextId>REQUEST_ID_MAX_VALUE) _nextId = REQUEST_ID_INIT_VALUE;
-    lk.unlock();
     _timePoint = make_shared<TimePoint>();
 }
 Request::~Request()
@@ -47,21 +49,11 @@ Request::~Request()
 
 void Request::Init()
 {
-    LOG_DXRT_DBG << endl;
-    if(_requestMap.empty())
-    {
-        for(int i=0;i<REQUEST_ID_MAX_VALUE;i++)
-        {
-            unique_lock<mutex> lk(_mapLock);
-            Tensors emptyTensors{};
-            RequestPtr request = make_shared<Request>(nullptr, emptyTensors, emptyTensors);
-            _requestMap.emplace_back(request);
-        }
-        _nextId = REQUEST_ID_INIT_VALUE;
-    }
+    //LOG_DXRT_DBG << endl;
+
 }
 
-RequestPtr Request::Create(Task *task_, Tensors inputs_, Tensors outputs_, void *userArg)
+RequestPtr Request::Create(Task *task_, Tensors inputs_, Tensors outputs_, void *userArg, int jobId)
 {
     RequestPtr req = Request::Pick();
     req->_task = task_;
@@ -74,25 +66,14 @@ RequestPtr Request::Create(Task *task_, Tensors inputs_, Tensors outputs_, void 
     req->latency() = 0;
     req->inference_time() = 0;
     req->complete_cnt() = 0;
-    req->_requestorName == "";
-
-    const char* env = getenv("DXRT_DEBUG_DATA");
-    if (env)
-    {
-        try {
-            req->_debugEnv = std::stoi(env);
-            Device::_sNpuValidateOpt = true;
-
-        } catch (const std::invalid_argument& e) {
-            std::cerr << "Environment variable DXRT_DEBUG_DATA is invalid: " << e.what() << endl;
-        } catch (const std::out_of_range& e) {
-            std::cerr << "Environment variable DXRT_DEBUG_DATA is out of range: " << e.what() << endl;
-        }
-    }
+    req->_requestorName = "";
+    req->_data.jobId = jobId;
+    req->_data.output_ptr = nullptr;
 
     return req;
 }
-RequestPtr Request::Create(Task *task_, void *input, void *output, void *userArg)
+
+RequestPtr Request::Create(Task *task_, void *input, void *output, void *userArg, int jobId)
 {
     RequestPtr req = Request::Pick();
     req->_task = task_;
@@ -111,72 +92,34 @@ RequestPtr Request::Create(Task *task_, void *input, void *output, void *userArg
     req->latency() = 0;
     req->inference_time() = 0;
     req->complete_cnt() = 0;
-    req->_requestorName == "";
-
-    const char* env = getenv("DXRT_DEBUG_DATA");
-    if (env)
-    {
-        try {
-            req->_debugEnv = std::stoi(env);
-            Device::_sNpuValidateOpt = true;
-
-        } catch (const std::invalid_argument& e) {
-            std::cerr << "Environment variable DXRT_DEBUG_DATA is invalid: " << e.what() << endl;
-        } catch (const std::out_of_range& e) {
-            std::cerr << "Environment variable DXRT_DEBUG_DATA is out of range: " << e.what() << endl;
-        }
-    }
+    req->_requestorName = "";
+    req->_data.jobId = jobId;
+    req->_data.output_ptr = nullptr;
 
     return req;
 }
 RequestPtr Request::GetById(int id)
 {
-    LOG_DXRT_DBG << id << endl;
-    return _requestMap[ id - REQUEST_ID_INIT_VALUE ];
+    ObjectsPool* instance = ObjectsPool::GetInstance();
+    return instance->GetRequestById(id);
 }
 RequestPtr Request::Pick()
 {
-#if 0
-    while(1)
-    {
-        for(auto &request:_requestMap)
-        {
-            if(request->status()!=Request::Status::REQ_BUSY)
-            {
-                LOG_DXRT_DBG << "pick request " << request->id() << endl;
-                return request;
-            }
-        }
-    }
-#else
-    int id;
-    {
-        unique_lock<mutex> lk(_idLock);
-        id = _nextId++;
-        if(_nextId>REQUEST_ID_MAX_VALUE) _nextId = REQUEST_ID_INIT_VALUE;
-    }
-    return GetById(id);
-#endif
+    ObjectsPool* instance = ObjectsPool::GetInstance();
+    return instance->PickRequest();
 }
 void Request::ShowAll()
 {
-    LOG_DXRT_DBG << _requestMap.size() << endl;
-    for(auto &request : _requestMap)
+    LOG_DXRT_DBG << REQUEST_ID_MAX_VALUE << endl;
+    for (int i = 0; i < REQUEST_ID_MAX_VALUE; i++)
     {
+        RequestPtr request = GetById(i);
         cout << dec << "(" << request.use_count() << ") " << *request << endl;
     }
 }
 void Request::Clear()
 {
     LOG_DXRT_DBG << endl;
-    {
-        unique_lock<mutex> lk(_mapLock);
-        _requestMap.clear();
-    }
-    {
-        unique_lock<mutex> lk(_idLock);
-        _nextId = REQUEST_ID_INIT_VALUE;
-    }
 }
 void Request::SaveTaskStats(Task *task)
 {
@@ -188,12 +131,13 @@ void Request::SaveTaskStats(Task *task)
     stats.id = task->id();
     stats.latency_us = 0;
     stats.inference_time_us = 0;
-    for(auto &req:_requestMap)
-    {        
-        if(req->task()==task)
+    for (int i = 0; i < REQUEST_ID_MAX_VALUE; i++)
+    {
+        RequestPtr req = GetById(i);
+        if (req->task() == task)
         {
             cnt++;
-            if(req->latency_valid())
+            if (req->latency_valid())
             {
                 stats.latency_data.emplace_back(req->latency());
             }
@@ -267,7 +211,10 @@ int Request::id() const
 {
     return _data.requestId;
 }
-
+int Request::job_id() const
+{
+    return _data.jobId;
+}
 TaskData* Request::taskData()
 {
     return _data.taskData;
@@ -358,10 +305,6 @@ bool &Request::validate_device()
 int16_t &Request::model_type()
 {
     return _modelType;
-}
-int Request::debug_env()
-{
-    return _debugEnv;
 }
 void Request::setNpuInferenceAcc(dxrt_request_acc_t npuInferenceAcc)
 {

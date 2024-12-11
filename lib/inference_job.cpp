@@ -7,6 +7,9 @@
 #include "dxrt/tensor.h"
 #include "dxrt/inference_job.h"
 #include "dxrt/inference_engine.h"
+#include "dxrt/exception/exception.h"
+#include "dxrt/objects_pool.h"
+
 #include <future>
 #include <memory>
 #include <unordered_map>
@@ -17,64 +20,71 @@ namespace dxrt
 
 bool debug_all_output = false;
 
-
-std::mutex InferenceJob::_sInferenceJobsMapLock;
+std::mutex InferenceJob::_sTensorsMapLock;
+std::mutex InferenceJob::_sRequestsLock;
 std::mutex InferenceJob::_sInferenceJobsLock;
+std::mutex InferenceJob::_sLoadLock;
 std::atomic<int> InferenceJob::_sNextInferenceJobId = {0};
-std::vector<std::shared_ptr<InferenceJob> > InferenceJob::_sInferenceJobs;
-
+std::atomic<int> InferenceJob::_load = {0};
 
 // static functions
 void InferenceJob::InitInferenceJob()
 {
-    std::unique_lock<std::mutex> lk(_sInferenceJobsMapLock);
-    if (_sInferenceJobs.empty())
-    {
-        for (int i = 0; i < INFERENCE_ID_MAX_VALUE; i++)
-        {
-            _sInferenceJobs.push_back(make_shared<InferenceJob>(i));
-        }
-    }
 }
 
-std::shared_ptr<InferenceJob>& InferenceJob::GetById(int id)
+std::shared_ptr<InferenceJob> InferenceJob::GetById(int id)
 {
-    return _sInferenceJobs[id];
+    ObjectsPool* instance = ObjectsPool::GetInstance();
+    return instance->GetInferenceJobById(id);
 }
 
-std::shared_ptr<InferenceJob>& InferenceJob::Pick()
+std::shared_ptr<InferenceJob> InferenceJob::Pick()
 {
     int id;
     {
         std::unique_lock<std::mutex> lk(_sInferenceJobsLock);
-        id = _sNextInferenceJobId++;
-        if (_sNextInferenceJobId >= INFERENCE_ID_MAX_VALUE)
-            _sNextInferenceJobId = 0;
-
+        while(1)
+        {
+            if(_load < JOB_ASYNC_LOAD)
+            {
+                id = _sNextInferenceJobId++;
+                if (_sNextInferenceJobId >= INFERENCE_ID_MAX_VALUE)
+                    _sNextInferenceJobId = 0;
+                break;
+            }
+        }
     }
-
-    std::shared_ptr<InferenceJob> &jobRef = InferenceJob::GetById(id);
+    {
+        std::unique_lock<std::mutex> lk(_sLoadLock);
+        ++_load;
+    }
+    ObjectsPool* instance = ObjectsPool::GetInstance();
+    InferenceJobPtr jobRef = instance->GetInferenceJobById(id);
     jobRef->Clear();
     return jobRef;
 }
 // static functions
 
 
-
 void InferenceJob::onRequestComplete(RequestPtr req)
 {
+    bool allRequestComplete = false;
     Task* thisTask = req->task();
-    for (Tensor& output : req->outputs())
     {
-        auto names = output.name();
-        _tensors.insert(make_pair(names, output));
+        std::unique_lock<std::mutex> lk(_sTensorsMapLock);
+        for (Tensor& output : req->outputs()) {
+            auto name = output.name();
+            
+            _tensors.insert(make_pair(name, output));
+        }
+        _doneCount++;
+        if (_doneCount == _outputCount)
+            allRequestComplete = true;
+        _latency += req->latency();
+        _infTime += req->inference_time();
     }
-    _doneCount++;
-    _latency += req->latency();
-    _infTime += req->inference_time();
 
-
-    if (thisTask->nexts().empty() == false)
+    if (thisTask->is_tail() == false)
     {
         for (auto& nextTask : thisTask->nexts())
         {
@@ -84,50 +94,71 @@ void InferenceJob::onRequestComplete(RequestPtr req)
 
             for (auto& required : required_tensors)
             {
-                auto it = _tensors.find(required.name());
-                if (it == _tensors.end())
                 {
-                    allPrepared = false;
-                    break;
-                }
-                else
-                {
-                    nexts.push_back(it->second);
+                    std::unique_lock<std::mutex> lk(_sTensorsMapLock);
+                    auto it = _tensors.find(required.name());
+                    if (it == _tensors.end())
+                    {
+                        cout<<"["<<thisTask->name()<<"] task require "<<required.name() << " tensor, it is not found yet"<<endl;
+                        allPrepared = false;
+                        break;
+                    }
+                    else
+                    {
+                        nexts.push_back(it->second);
+                    }
                 }
             }
             if (allPrepared)
             {
-                DXRT_ASSERT(nextTask.get() != nullptr, "nexttask null");
+                //DXRT_ASSERT(nextTask.get() != nullptr, "nexttask null");
+                if ( nextTask.get() == nullptr )
+                    throw InvalidOperationException(EXCEPTION_MESSAGE("next task is null"));
+
                 //auto nextReq = Request::Create(nextTask.get(), std::move(nexts), {}, _userArg);
-                auto nextReq = Request::Create(nextTask.get(), nexts, {}, _userArg);
+                auto nextReq = Request::Create(nextTask.get(), nexts, {}, _userArg, _jobId);
                 nextReq->setCallback(onRequestCompleteFunction());  // on each request complete, do next request or complete whole inference
+                if(nextTask->nexts().empty())
+                {
+                    nextReq->getData()->output_ptr = _outputPtr;
+                }
                 nextReq->SetStatus(Request::Status::REQ_BUSY);
                 nextReq->requestor_name() = req->task()->name();
-                _requests.push_back(req);
+                {
+                    std::unique_lock<std::mutex> lk(_sRequestsLock);
+                    _requests.push_back(nextReq);
+                }
+                TASK_FLOW_START("["+to_string(_jobId)+"]"+nextTask->name()+"");
                 nextTask->InferenceRequest(nextReq);
             }
         }
     }
     else
     {
-        // check all outputs complete
-        if (_doneCount == _outputCount)
+        if (allRequestComplete)
         {
-           onAllRequestComplate();
+           onAllRequestComplete();
         }
     }
+    TASK_FLOW_FINISH("["+to_string(_jobId)+"]"+thisTask->name());
 }
 
 InferenceJob::InferenceJob(int id) noexcept
 {
-    //std::unique_lock<std::mutex> lk(_inferenceJobsLock);
     _jobId = id;
 }
 
-void InferenceJob::onAllRequestComplate()
+void InferenceJob::onAllRequestComplete()
 {
+    TASK_FLOW("["+to_string(_jobId)+"] ALL COMPLETE ~ ")
     _inferenceEnginePtr->PushLatency(latency());
     _inferenceEnginePtr->PushInferenceTime(inference_time());
+
+    if(_storeResult)
+    {
+        setReturnOutputs();
+    }
+
     if (_infEngCallback !=nullptr)
     {
         LOG_DXRT_DBG << "task callback" << endl;
@@ -141,8 +172,9 @@ void InferenceJob::onAllRequestComplate()
                         make_shared<Tensor>(it.second));
                 }
                 _infEngCallback(ret, _userArg, _jobId);  // callback registered by inference_engine
+                freeAllOutputBuffer();
+                freeAllInputBuffer();
             });
-            
         }
         else
         {
@@ -155,15 +187,32 @@ void InferenceJob::onAllRequestComplate()
                         make_shared<Tensor>(_tensors.find(name)->second));
                 }
                 _infEngCallback(ret, _userArg, _jobId);  // callback registered by inference_engine
+                freeAllOutputBuffer();
+                freeAllInputBuffer();
+
             });
         }
     }
+    else
+    {
+        freeAllOutputBuffer();
+        freeAllInputBuffer();
+    }
 
-    _status = Request::Status::REQ_DONE;
     for (auto it : _requests)
     {
-        it->Reset();
+        RequestPtr req = it.lock();
+        if (req)
+        {
+            req->Reset();
+        }
     }
+    {
+        std::unique_lock<std::mutex> lk(_sLoadLock);
+        _load--;
+    }
+    _requests.clear();
+    _status = Request::Status::REQ_DONE;
 }
 
 void InferenceJob::SetInferenceJob(std::vector<std::shared_ptr<Task>>& tasks_, std::shared_ptr<Task> head_)
@@ -173,14 +222,13 @@ void InferenceJob::SetInferenceJob(std::vector<std::shared_ptr<Task>>& tasks_, s
     _latency = 0;
     _infTime = 0;
 
-
-    _tasks.clear();
+    //_tasks.clear();
     _outputs.clear();
 
     _outputCount = tasks_.size();
     for (std::shared_ptr<Task>& it :  tasks_)
     {
-        int taskId = it->id();
+        //int taskId = it->id();
         if (it->nexts().empty())
         {
             for (auto output : it->outputs())
@@ -189,11 +237,9 @@ void InferenceJob::SetInferenceJob(std::vector<std::shared_ptr<Task>>& tasks_, s
             }
         }
         //_tasks.emplace(taskId, std::move(it));
-        _tasks.emplace(taskId, it);
+        //_tasks.emplace(taskId, it);
     }
 }
-
-
 
 std::function<void(RequestPtr)> InferenceJob::onRequestCompleteFunction()
 {
@@ -204,33 +250,74 @@ std::function<void(RequestPtr)> InferenceJob::onRequestCompleteFunction()
 
 int InferenceJob::startJob(void *inputPtr, void *userArg, void *outputPtr)
 {
-    RequestPtr req = Request::Create(_headTask.get(), inputPtr, outputPtr, userArg);
+    TaskPtr task = _headTask.lock();
+    if(!task)
+    {
+        return -1;
+    }
+    RequestPtr req = Request::Create(task.get(), inputPtr, outputPtr, userArg, _jobId);
     _status = Request::Status::REQ_BUSY;
     _userArg = userArg;
     req->requestor_name() = "";
     req->SetStatus(Request::Status::REQ_BUSY);
     req->setCallback(onRequestCompleteFunction());  // on each request complete, do next request or complete whole inference
     _requests.push_back(req);
+    _outputPtr = outputPtr;
+    if(_headTask.lock()->nexts().empty())
+    {
+        req->getData()->output_ptr = _outputPtr;
+    }
+    else
+        req->getData()->output_ptr = nullptr;
     req->task()->InferenceRequest(req);
     return _jobId;
 }
 
-TensorPtrs InferenceJob::getOutput()
+
+void InferenceJob::setReturnOutputs()
 {
     TensorPtrs ret;
 
+    int output_size_increment = 0;
     for (auto &name : _outputs)
     {
+        auto output = _tensors.find(name)->second;
+        int output_size = output.elem_size();
+
+        for(int size: output.shape())
+        {
+            output_size *= size;
+        }
+        shared_ptr<vector<uint8_t> > memory = make_shared<vector<uint8_t> >(output_size);
+        memcpy(memory->data(), output.data(),output_size);
+        shared_ptr<Tensor> ptr =  std::shared_ptr<Tensor>(new Tensor(_tensors.find(name)->second,memory->data()),
+            [memory](Tensor* p){
+                delete p;
+                memory->clear();
+            });
+
         ret.emplace_back(
             make_shared<Tensor>(_tensors.find(name)->second));
+        output_size_increment += output_size;
     }
-    return ret;
+    _returnOutputs = ret;
+}
+
+TensorPtrs InferenceJob::getOutput()
+{
+    return std::move(_returnOutputs);
+}
+
+void InferenceJob::SetStoreReault(bool storeResult)
+{ 
+    _storeResult = storeResult;
 }
 
 void InferenceJob::setInferenceEngineInterface(InferenceTimer* ptr)
 {
     _inferenceEnginePtr = ptr;
 }
+
 void InferenceJob::setCallBack(std::function<int(TensorPtrs &outputs, void *userArg, int jobId)> func)
 {
     _infEngCallback = func;
@@ -238,20 +325,21 @@ void InferenceJob::setCallBack(std::function<int(TensorPtrs &outputs, void *user
 
 void InferenceJob::Clear()
 {
-    _requests.clear();
+    //_requests.clear();
     _tensors.clear();
-    _tasks.clear();
-    _head = nullptr;
-    _headTask = nullptr;
+    //_tasks.clear();
+    //_head.reset();
+    //_headTask.reset();
     _status = Request::Status::REQ_IDLE;
     _outputCount = {0};
     _doneCount = {0};
-    _outputs.clear();
+    //_outputs.clear();
     _userArg = nullptr;
     _latency = 0;
     _infTime = 0;
     _inferenceEnginePtr = nullptr;
     _infEngCallback = nullptr;
+    _outputPtr = nullptr;
 }
 
 InferenceJob::~InferenceJob()
@@ -259,4 +347,29 @@ InferenceJob::~InferenceJob()
     Clear();
 }
 
+void InferenceJob::freeAllOutputBuffer()
+{
+    for (auto& req_weak_ptr :  _requests)
+    {
+        RequestPtr req = req_weak_ptr.lock();
+        if (req)
+        {
+            if((_outputPtr == nullptr) || (req->task()->is_tail()==false))
+            {
+                req->task()->FreeOutputBuffer(req->output_ptr());
+            }
+        }
+    }
+}
+void InferenceJob::freeAllInputBuffer()
+{
+    for (auto& req_weak_ptr :  _requests)
+    {
+        RequestPtr req = req_weak_ptr.lock();
+        if (req && req->task()->processor()==Processor::CPU)
+        {
+            req->task()->FreeInputBuffer(req->output_ptr());
+        }
+    }
+}
 }  // namespace dxrt
