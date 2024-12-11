@@ -775,11 +775,15 @@ You can easily prepare an input buffer with minimal effort with the code below.<
 </code></pre></div>
 Guides for connecting the inference engine to various image sources are provided in dx-app and dx-demo, along with preprocessing examples.  
 <h3 id="4&gt;_inference">4. Inference<a class="headerlink" href="#4&gt;_inference" title="Permanent link">¶</a></h3>
-<p>Run inference engine. <code>outputs</code> is a vector of shared_ptr of <code>dxrt::Tensor</code> returned from <code>dxrt::InferenceEngine::Run()</code>.
+<h4 id="41&gt;_run&gt;_sync">4.1 Run (Sync)<a class="headerlink" href="#41&gt;_run&gt;_sync" title="Permanent link">¶</a></h4>
+<p>Run inference engine. <code>outputs</code> is a vector of shared_ptr of <code>dxrt::Tensor</code> returned from <code>dxrt::InferenceEngine::Run()</code>.<br>
 </p><div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>auto outputs = ie.Run(inputBuf.data());
 </code></pre></div>
-If you want to perform inference in a non-blocking way, you can call <code>dxrt::InferenceEngine::RunAsync</code> as follows.<br>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>auto jobId = ie.RunAsync(inputBuf.data());
+The <code>dxrt::InferenceEngine::Run()</code> is designed to use a single NPU core. To utilize multiple cores simultaneously, you need to use <code>dxrt::InferenceEngine::RunAsync</code> or threads. Please refer to the following diagram.  
+<p><img alt="inference_basic_r1" src="/assets/images/run_sync.jpg">  </p>
+<h4 id="42&gt;_runasync">4.2 RunAsync<a class="headerlink" href="#42&gt;_runasync" title="Permanent link">¶</a></h4>
+<p>If you want to perform inference in a non-blocking way, you can call <code>dxrt::InferenceEngine::RunAsync</code> as follows.<br>
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>auto jobId = ie.RunAsync(inputBuf.data());
 </code></pre></div>
 Non-blocking API issues a request ID, and you can wait for the request to complete.<br>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>auto outputs = ie.Wait(jobId);
@@ -794,7 +798,8 @@ If you don't want to wait to run your application efficiently, you can pipeline 
 <a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    };
 <a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>ie.RegisterCallBack(postProcCallBack);
 </code></pre></div>
-For more detailed information, please check the API document.  
+<p><img alt="inference_basic_r1" src="/assets/images/run_async.jpg">  </p>
+<p>For more detailed information, please check the API document.  </p>
 <h3 id="5&gt;_process&gt;_output&gt;_tensors">5. Process output tensors<a class="headerlink" href="#5&gt;_process&gt;_output&gt;_tensors" title="Permanent link">¶</a></h3>
 <p>Since inference is done, process output tensors using <code>Tensor</code> APIs and custom post-processing logic.<br>
 You can find templates and example code in dx-app, dx-demo to help you post-process smoothly.<br>

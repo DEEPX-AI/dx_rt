@@ -31,7 +31,7 @@ def wait_for_requests(ie):
     while not result_queue.empty():
         try:
             req_id = result_queue.get(timeout=5) 
-            outputs = ie.wait(req_id)  
+            outputs = ie.Wait(req_id)  
             print(f"[{req_id}] Inference request #{req_id} completed")
             result_queue.task_done()
         except queue.Empty:
@@ -69,7 +69,7 @@ if __name__ == "__main__":
 
     # Run inference for the number of loops specified
     for loop in range(args.loops):
-        req_id = ie.run_async(input_data, user_arg=loop)
+        req_id = ie.RunAsync(input_data, user_arg=loop)
         print(f"[{req_id}] Inference request #{req_id} submitted")
         result_queue.put(req_id)
 

@@ -48,7 +48,9 @@ int ParseModel(string file)
     std::vector<TaskData> dataList;
 
     string name = getAbsolutePath(file);
-    dxrt::ModelDataBase modelData = LoadModelParam(file);
+    //dxrt::ModelDataBase modelData = LoadModelParam(file);
+    dxrt::ModelDataBase modelData;
+    LoadModelParam(modelData, file);
     std::vector<std::string> taskOrder = modelData.deepx_graph.topoSort_order();
 
     if (taskOrder.empty())

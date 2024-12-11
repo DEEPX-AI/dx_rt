@@ -39,10 +39,6 @@ class TaskData
     int input_size() const {return _inputSize;}
     int output_size() const {return _outputSize;}
 
-    void SetOutputBuffer(int size);
-    std::shared_ptr<Buffer> OutputBuffer();
-    void ClearOutputBuffer();
-
  public:  // TODO(ykpark): make private
     int _id;
     std::string _name = "EMPTY";
@@ -66,12 +62,13 @@ class TaskData
     std::vector<std::vector<int64_t>> _outputShape;
     std::vector<uint64_t> _inputOffsets = {0};
     std::vector<uint64_t> _outputOffsets;
-    std::shared_ptr<Buffer> _taskOutputBuffer=nullptr;
-
+    //std::shared_ptr<Buffer> _taskOutputBuffer=nullptr;
+    
     Tensors _inputTensors;
     Tensors _outputTensors;
 
     bool _isArgMax = false;
+    bool _isPPU = false;
 };
 
 }  // namespace dxrt

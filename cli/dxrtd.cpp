@@ -12,6 +12,7 @@ int main(int argc, char* argv[])
 #ifdef USE_SERVICE
     return dxrt_service_main();
 #else
-    DXRT_ASSERT(false, "USE_SERVICE is not set, so dxrt_service will not work");
+    std::cout <<  "USE_SERVICE is not set, so dxrt_service will not work" << std::endl;
+    return -1;
 #endif
 }

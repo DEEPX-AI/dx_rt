@@ -34,10 +34,10 @@
 #include "dxrt/common.h"
 #include "dxrt/driver.h"
 #include "dxrt/device_struct.h"
-#include "dxrt/driver_adapter/driver_adapter.hpp"
+#include "dxrt/driver_adapter/driver_adapter.h"
 
 #include "dxrt/profiler.h"
-#include "dxrt/driver_adapter/linux_driver_adapter.hpp"
+#include "dxrt/driver_adapter/linux_driver_adapter.h"
 
 
 
@@ -247,7 +247,10 @@ int ServiceDevice::WaitThread(int ids)
     return 0;
 }
 
-
+int ServiceDevice::BoundOption(dxrt_sche_sub_cmd_t subCmd, npu_bound_op boundOp)
+{
+    return Process(dxrt::dxrt_cmd_t::DXRT_CMD_SCHEDULE, reinterpret_cast<void*>(&boundOp), sizeof(dxrt_sche_sub_cmd_t), subCmd);
+}
 
 void ServiceDevice::SetCallback(std::function<void(const dxrt_response_t&)> f)
 {

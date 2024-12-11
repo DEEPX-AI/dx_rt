@@ -342,4 +342,15 @@ ostream& operator<<(ostream& os, const Processor& processor)
     return os;
 }
 
+void DisplayCountdown(int seconds, string str)
+{
+    cout.sync_with_stdio(false);
+    while (seconds > 0) {
+        cout << "\r" << str << "(" << seconds << " seconds remaining) " << flush;
+        sleep(1);
+        --seconds;
+    }
+    cout << endl;
+}
+
 } // namespace dxrt

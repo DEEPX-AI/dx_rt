@@ -117,16 +117,18 @@ $(function() {
 <div class="line"><a name="l00045"></a><span class="lineno">   45</span>&#160;    std::vector&lt;uint64_t&gt; _outputOffsets;</div>
 <div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160;    std::vector&lt;uint64_t&gt; _inputSizes;</div>
 <div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160;    std::vector&lt;uint64_t&gt; _outputSizes;</div>
-<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;    std::shared_ptr&lt;Buffer&gt; _buffer;</div>
-<div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160; </div>
-<div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160;    <span class="keywordtype">int</span> InferenceRequest(RequestPtr req);</div>
-<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;    <span class="keywordtype">void</span> Start();</div>
-<div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160;    <span class="keywordtype">void</span> Run(RequestPtr req);</div>
-<div class="line"><a name="l00053"></a><span class="lineno">   53</span>&#160;    <span class="keywordtype">void</span> Terminate(<span class="keywordtype">void</span>);</div>
-<div class="line"><a name="l00054"></a><span class="lineno">   54</span>&#160;    std::shared_ptr&lt;CpuHandleWorker&gt; _worker=<span class="keyword">nullptr</span>;</div>
-<div class="line"><a name="l00055"></a><span class="lineno">   55</span>&#160;    <span class="keyword">friend</span> DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> CpuHandle&amp;);</div>
-<div class="line"><a name="l00056"></a><span class="lineno">   56</span>&#160;};</div>
-<div class="line"><a name="l00057"></a><span class="lineno">   57</span>&#160;} <span class="comment">/* namespace dxrt */</span></div>
+<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;    <span class="comment">//std::shared_ptr&lt;Buffer&gt; _buffer;</span></div>
+<div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160;    <span class="keywordtype">void</span>* _cpuTaskOutputBufferPtr;</div>
+<div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160;    <span class="keywordtype">void</span>* _cpuTaskInputBufferPtr;</div>
+<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160; </div>
+<div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160;    <span class="keywordtype">int</span> InferenceRequest(RequestPtr req);</div>
+<div class="line"><a name="l00053"></a><span class="lineno">   53</span>&#160;    <span class="keywordtype">void</span> Start();</div>
+<div class="line"><a name="l00054"></a><span class="lineno">   54</span>&#160;    <span class="keywordtype">void</span> Run(RequestPtr req);</div>
+<div class="line"><a name="l00055"></a><span class="lineno">   55</span>&#160;    <span class="keywordtype">void</span> Terminate(<span class="keywordtype">void</span>);</div>
+<div class="line"><a name="l00056"></a><span class="lineno">   56</span>&#160;    std::shared_ptr&lt;CpuHandleWorker&gt; _worker=<span class="keyword">nullptr</span>;</div>
+<div class="line"><a name="l00057"></a><span class="lineno">   57</span>&#160;    <span class="keyword">friend</span> DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> CpuHandle&amp;);</div>
+<div class="line"><a name="l00058"></a><span class="lineno">   58</span>&#160;};</div>
+<div class="line"><a name="l00059"></a><span class="lineno">   59</span>&#160;} <span class="comment">/* namespace dxrt */</span></div>
 </div><!-- fragment --></div><!-- contents -->
 <div class="ttc" id="anamespacedxrt_html"><div class="ttname"><a href="namespacedxrt.html">dxrt</a></div><div class="ttdoc">DXRT C++ APIs are provided in this namespace.</div><div class="ttdef"><b>Definition:</b> buffer.h:8</div></div>
 <!-- start footer part -->

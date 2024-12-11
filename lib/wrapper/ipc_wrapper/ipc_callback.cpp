@@ -140,11 +140,12 @@ int ipc_callBack(IPCServerMessage& outResponseServerMessage, void* usrData)
         case RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH0:
         case RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH1:
         case RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH2:
-            std::async(launch::async, [&outResponseServerMessage, usrData]()
             {
-                ipc_callBack_inference_message(outResponseServerMessage, usrData);
+#ifdef USE_SERVICE
+                DevicePtr devicePtr = CheckDevices()[outResponseServerMessage.deviceId];
+                devicePtr->ProcessResponseFromService(outResponseServerMessage.npu_resp);
+#endif
             }
-            );
             
             break;
         case RESPONSE_CODE::ERROR_REPORT: {
@@ -174,21 +175,20 @@ int ipc_callBack_inference_message(IPCServerMessage& outResponseServerMessage, v
     auto req = Request::GetById(reqId);
     DevicePtr devicePtr = CheckDevices()[outResponseServerMessage.deviceId];
     dxrt_request_acc_t* request_acc = devicePtr->peekInferenceAcc(reqId);
-    int debugData = req->debug_env();
 
     LOG_DXRT_I_DBG << "request arrived:" << reqId << endl;
     if (request_acc != nullptr)
     {
         dxrt_meminfo_t output = request_acc->output;
         DXRT_ASSERT(devicePtr->Read(output) == 0, "Failed to read output");
-        if (debugData == 1)
+        if (DEBUG_DATA == 1)
         {
             dxrt::TensorPtrs outputs = devicePtr->Validate(req, true);
             if (outputs.empty() == false){
                 DataDumpBin(req->taskData()->name() + "_output.bin", outputs);
             }
         }
-        else if (debugData > 1)
+        else if (DEBUG_DATA > 1)
         {
             DataDumpBin(req->taskData()->name() + "_output.bin", req->outputs());
         }
@@ -196,7 +196,7 @@ int ipc_callBack_inference_message(IPCServerMessage& outResponseServerMessage, v
         {
             //LOG_VALUE(resp.argmax);
             *(static_cast<uint16_t *>(req->outputs().front().data())) = resp.argmax;
-            if (debugData > 0)
+            if (DEBUG_DATA > 0)
                 DataDumpBin(req->taskData()->name() + "_output.argmax.bin", req->outputs());
         }
         else if (req->model_type() == 2)
@@ -204,7 +204,7 @@ int ipc_callBack_inference_message(IPCServerMessage& outResponseServerMessage, v
             //LOG_VALUE(resp.ppu_filter_num);
             vector<int64_t> shape{resp.ppu_filter_num};
             req->outputs().front().shape() = shape;
-            if (debugData > 0)
+            if (DEBUG_DATA > 0)
                 DataDumpBin(req->taskData()->name() + "_output.ppu.bin", req->outputs());
         }
 

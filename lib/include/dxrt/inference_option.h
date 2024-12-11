@@ -13,13 +13,23 @@ enum DXRT_API InferenceMode;
 */
 struct DXRT_API InferenceOption
 {
+    enum BOUND_OPTION {
+        NPU_ALL = 0,
+        NPU_0,
+        NPU_1, 
+        NPU_2
+    };
+
     /** @brief device ID list to use 
      * @details make a list which contains list of device ID to use. if it is empty(or use default value), then all devices are used.
      */
     std::vector<int> devices = {};///< list of device ID to use (it is empty by default, then all devices are used.)
     // TODO : add data format
-    std::uint32_t    boundOption = 0;
+    uint32_t    boundOption = BOUND_OPTION::NPU_ALL;
+
 };
+
+
 
 DXRT_API std::ostream& operator<<(std::ostream&, const InferenceOption&);
 

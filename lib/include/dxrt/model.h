@@ -77,6 +77,7 @@ namespace deepx_graphinfo {
     struct DXRT_API GraphBindingDatabase {
         string &name() { return _name; }
         string &type() { return _type; }
+        string &output_type() { return _output_type; }
         vector<KeyValueInfo> &inputs()  { return _inputs; }
         KeyValueInfo &inputs(int i)     { return _inputs[i]; }
         vector<KeyValueInfo> &outputs() { return _outputs; }
@@ -84,6 +85,7 @@ namespace deepx_graphinfo {
 
         string _name;
         string _type;
+        string _output_type;
         vector<KeyValueInfo> _inputs;
         vector<KeyValueInfo> _outputs;
         
@@ -92,9 +94,13 @@ namespace deepx_graphinfo {
     struct DXRT_API GraphInfoDatabase {
         vector<GraphBindingDatabase> &m_graph() { return _m_graph; }
         GraphBindingDatabase &m_graph(int i)    { return _m_graph[i]; }
+        vector<string> &origin_input()        { return _origin_input; }
+        vector<string> &origin_output()        { return _origin_output; }
         vector<string> &topoSort_order()        { return _topoSort_order; }
 
         vector<GraphBindingDatabase> _m_graph;    
+        vector<string> _origin_input;    
+        vector<string> _origin_output;    
         vector<string> _topoSort_order;    
     };
 } /* namespace deepx_graphinfo */
@@ -375,8 +381,12 @@ DXRT_API std::ostream& operator<<(std::ostream&, const ModelDataBase&);
 */
 DXRT_API int ParseModel(std::string file);
 DXRT_API ModelDataBase LoadModelParam(std::string file);
-DXRT_API deepx_graphinfo::GraphInfoDatabase LoadGraphInfo(ModelDataBase data);
-DXRT_API deepx_binaryinfo::BinaryInfoDatabase LoadBinaryInfo(char *buffer, int fileSize);
-DXRT_API deepx_rmapinfo::rmapInfoDatabase LoadRmapInfo(ModelDataBase data);
+DXRT_API string LoadModelParam(ModelDataBase& modelDB, std::string file);
+//DXRT_API deepx_graphinfo::GraphInfoDatabase LoadGraphInfo(ModelDataBase data);
+DXRT_API int LoadGraphInfo(deepx_graphinfo::GraphInfoDatabase& graphInfo, ModelDataBase& data);
+//DXRT_API deepx_binaryinfo::BinaryInfoDatabase LoadBinaryInfo(char *buffer, int fileSize);
+DXRT_API int LoadBinaryInfo(deepx_binaryinfo::BinaryInfoDatabase& binInfo,char *buffer, int fileSize);
+//DXRT_API deepx_rmapinfo::rmapInfoDatabase LoadRmapInfo(ModelDataBase data);
+DXRT_API string LoadRmapInfo(deepx_rmapinfo::rmapInfoDatabase& rampInfo, ModelDataBase& data);
 bool isSupporterModelVersion(const string& vers);
 }

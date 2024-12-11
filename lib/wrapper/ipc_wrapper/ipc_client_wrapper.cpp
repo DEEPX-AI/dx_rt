@@ -10,6 +10,8 @@
 
 using namespace dxrt;
 
+const long IPCClientWrapper::MAX_PID = 0x20000000; // default max pid value
+
 namespace dxrt{
     int ipc_callBack(dxrt::IPCServerMessage& outResponseServerMessage, void* usrData);
 }
@@ -45,14 +47,18 @@ IPCClientWrapper::~IPCClientWrapper()
 }
 
 // Intitialize IPC
-int32_t IPCClientWrapper::Initialize()
+int32_t IPCClientWrapper::Initialize(bool enableInternalCB)
 {
 
     int32_t ret = _ipcClient->Initialize();
-    if (ret == 0)
+
+    if ( enableInternalCB ) 
     {
-        RegisterReceiveCB(ipc_callBack, nullptr);
-    }
+        if (ret == 0)
+        {
+            RegisterReceiveCB(ipc_callBack, nullptr);
+        }
+    } // register internal callback
     return ret;
 }
 //std::mutex sendLock;

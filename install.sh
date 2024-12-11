@@ -80,9 +80,9 @@ function install_onnx()
         test $(mkdir $DX_SRC_DIR/util)
         cd $DX_SRC_DIR/util
         test $(sudo rm -r $DX_SRC_DIR/util/onnxruntime_$target_arch)
-        wget https://github.com/microsoft/onnxruntime/releases/download/v1.18.1/onnxruntime-linux-$onnxruntime_arch-1.18.1.tgz
+        wget https://github.com/microsoft/onnxruntime/releases/download/v1.18.0/onnxruntime-linux-$onnxruntime_arch-1.18.0.tgz
         mkdir onnxruntime_$target_arch
-        tar -zxvf onnxruntime-linux-$onnxruntime_arch-1.18.1.tgz -C onnxruntime_$target_arch --strip-components=1 
+        tar -zxvf onnxruntime-linux-$onnxruntime_arch-1.18.0.tgz -C onnxruntime_$target_arch --strip-components=1 
         if [ $(uname -m) != "$target_arch" ]; then
             if [ $(uname -m) == "aarch64" ] && [ $target_arch == "aarch64" ]; then  
                 sudo cp -a onnxruntime_$target_arch/* /usr/local/

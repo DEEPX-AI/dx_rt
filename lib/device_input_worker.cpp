@@ -28,9 +28,8 @@ int DeviceInputWorker::request(int requestId)
 {
     unique_lock<mutex> lk(_lock);
     _queue.push(requestId);
-#ifndef USE_SERVICE
-        signalToWorker();
-#endif
+    signalToWorker();
+
     return 0;
 }
 
@@ -73,15 +72,19 @@ void DeviceInputWorker::ThreadWork(int id)
             auto inferenceAcc = _device->peekInferenceAcc(requestId);
             inferenceAcc->dma_ch = id;
             // cout << inferenceAcc << endl; // for debug.
+            _device->Write(inferenceAcc->input, id);
+#ifdef USE_SERVICE
+            std::ignore = ret;
+            _device->SignalToService(inferenceAcc);
+        
+#else
+       
             while (true)
             {
-                // cout << inferenceAcc.req_id << endl;
-                _device->Write(inferenceAcc->input);
-
-                ret = _device->Process(cmd, inferenceAcc);
+                 ret = _device->Process(cmd, inferenceAcc);
                 if (ret == 0 || _stop)
                 {
-                    if (_debugData > 0)
+                    if (DEBUG_DATA > 0)
                     {
                         RequestPtr req = Request::GetById(requestId);
                         DataDumpBin(req->taskData()->name() + "_input.bin", req->inputs());
@@ -94,6 +97,8 @@ void DeviceInputWorker::ThreadWork(int id)
                     inferenceAcc->input.data = 0;
                 }
             }
+#endif
+            
 #ifdef WORKER_USE_PROFILER
             profiler.End(threadName);
 #endif

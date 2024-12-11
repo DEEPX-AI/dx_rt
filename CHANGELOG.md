@@ -1,4 +1,20 @@
 # Changelog
+## v2.6.0 / 2024-12-10
+### Changed
+- Modify inference load control
+- onnxruntime minimum version : v1.18.0
+- Update python version : v1.0.0
+- Drvier and Firmware versions
+  - RT Drvier  >= v1.3.0
+  - PCIe Driver  >= v1.2.0
+  - Firmware  >= v1.5.9
+### Fixed
+- Fixed a problem that did not work when using user memory in conjunction with the inference engine
+- Fix profiler momory corruption issue
+- Fix multi-device performance issue
+### Added
+- Add NPU memory caching
+
 ## v2.1.0 / 2024-10-31
 ### Changed
 - run_model async mode as default  

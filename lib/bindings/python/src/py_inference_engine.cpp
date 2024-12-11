@@ -67,37 +67,110 @@ string pyGetFormatDescriptor(DataType dtype)
     return pyFormatDescriptorTable[dtype];
 }
 
-vector<py::array> pyRunEngine(InferenceEngine &ie, const vector<py::array> &inputs)
-{
-    vector<py::array> result;
-    auto outputs = ie.Run(inputs.front().request().ptr);
-    // DataDumpBin("input.bin.rt", inputs.front().request().ptr, ie.input_size());
-    // DataDumpBin("output.bin.rt", outputs.front()->GetData(), ie.output_size());
-    for(auto &output : outputs)
-    {
-        auto dtype = output->type();
-        if (dtype == DataType::BBOX || dtype == DataType::FACE || dtype == DataType::POSE) {
-            std::vector<int64_t> shape;
-            std::vector<ssize_t> strides;
-            int outputCnt = outputs.front()->shape()[0];
-            if (outputCnt == 0) {
-                shape = {0};
-                strides = {1}; 
-            } else if (dtype == DataType::BBOX) {
-                shape = {outputCnt, static_cast<int64_t>(sizeof(DeviceBoundingBox_t))};
-                strides = {shape[1], 1};
-            } else if (dtype == DataType::FACE) {
-                shape = {outputCnt, static_cast<int64_t>(sizeof(DeviceFace_t))};
-                strides = {shape[1], 1};
-            } else if (dtype == DataType::POSE) {
-                shape = {outputCnt, static_cast<int64_t>(sizeof(DevicePose_t))};
-                strides = {shape[1], 1};
+void convertToPyArray(const TensorPtr& output, DataType dtype, std::vector<py::array>& result) {
+    if (dtype == DataType::BBOX || dtype == DataType::FACE || dtype == DataType::POSE) {
+        std::vector<int64_t> shape;
+        std::vector<ssize_t> strides;
+        int outputCnt = output->shape()[0];
+        
+        if (outputCnt == 0) {
+            shape = {0};
+            strides = {1};
+        } else {
+            switch(dtype) {
+                case DataType::BBOX:
+                    shape = {outputCnt, static_cast<int64_t>(sizeof(DeviceBoundingBox_t))};
+                    break;
+                case DataType::FACE:
+                    shape = {outputCnt, static_cast<int64_t>(sizeof(DeviceFace_t))};
+                    break;
+                case DataType::POSE:
+                    shape = {outputCnt, static_cast<int64_t>(sizeof(DevicePose_t))};
+                    break;
+                default:
+                    throw std::runtime_error("Unexpected dtype in device output conversion");
             }
+            strides = {shape[1], 1};
+        }
 
+        result.emplace_back(
+            py::array(
+                py::buffer_info(
+                    output->data(),
+                    1,  // itemsize
+                    pyGetFormatDescriptor(dtype),
+                    shape.size(),
+                    shape,
+                    strides
+                )
+            )
+        );
+    }
+    else {
+        auto shape = output->shape();
+        auto elemSize = output->elem_size();
+        
+        auto strides = py::detail::c_strides(shape, elemSize);
+        
+        result.emplace_back(
+            py::array(
+                py::buffer_info(
+                    output->data(),
+                    elemSize,
+                    pyGetFormatDescriptor(dtype),
+                    shape.size(),
+                    shape,
+                    strides
+                )
+            )
+        );
+    }
+}
+
+void convertToPyArrayWithCopy(const TensorPtr& output, DataType dtype, std::vector<py::array>& result) {
+    //py::gil_scoped_acquire acquire_gil;
+    if (dtype == DataType::BBOX || dtype == DataType::FACE || dtype == DataType::POSE) {
+        std::vector<int64_t> shape;
+        std::vector<ssize_t> strides;
+        int outputCnt = output->shape()[0];
+        size_t buffer_size = 0;
+        
+        if (outputCnt == 0) {
+            shape = {0};
+            strides = {1};
+            buffer_size = 1;
+        } else {
+            switch(dtype) {
+                case DataType::BBOX:
+                    shape = {outputCnt, static_cast<int64_t>(sizeof(DeviceBoundingBox_t))};
+                    buffer_size = outputCnt * sizeof(DeviceBoundingBox_t);
+                    break;
+                case DataType::FACE:
+                    shape = {outputCnt, static_cast<int64_t>(sizeof(DeviceFace_t))};
+                    buffer_size = outputCnt * sizeof(DeviceFace_t);
+                    break;
+                case DataType::POSE:
+                    shape = {outputCnt, static_cast<int64_t>(sizeof(DevicePose_t))};
+                    buffer_size = outputCnt * sizeof(DevicePose_t);
+                    break;
+                default:
+                    throw std::runtime_error("Unexpected dtype in device output conversion");
+            }
+            strides = {shape[1], 1};
+        }
+        
+        void* buffer_data = malloc(buffer_size);
+        if (!buffer_data) {
+            throw std::runtime_error("Failed to allocate memory for output conversion");
+        }
+        
+        try {
+            memcpy(buffer_data, output->data(), buffer_size);
+            
             result.emplace_back(
                 py::array(
                     py::buffer_info(
-                        output->data(),
+                        buffer_data,
                         1,
                         pyGetFormatDescriptor(dtype),
                         shape.size(),
@@ -107,22 +180,58 @@ vector<py::array> pyRunEngine(InferenceEngine &ie, const vector<py::array> &inpu
                 )
             );
         }
-        else{
-            auto shape = output->shape();
+        catch (...) {
+            free(buffer_data);
+            throw;
+        }
+    }
+    else {
+        auto shape = output->shape();
+        auto elemSize = output->elem_size();
+        
+        size_t buffer_size = elemSize;
+        for (const auto& dim : shape) {
+            buffer_size *= dim;
+        }
+        
+        void* buffer_data = malloc(buffer_size);
+        if (!buffer_data) {
+            throw std::runtime_error("Failed to allocate memory for output conversion");
+        }
+        
+        try {
+            memcpy(buffer_data, output->data(), buffer_size);
+            
+            // Create Python array using buffer protocol
             result.emplace_back(
                 py::array(
                     py::buffer_info(
-                        output->data(),
-                        output->elem_size(),
+                        buffer_data,
+                        elemSize,
                         pyGetFormatDescriptor(dtype),
                         shape.size(),
                         shape,
-                        py::detail::c_strides(shape, output->elem_size()) // TODO : Prebuild this vector in inference engine
+                        py::detail::c_strides(shape, elemSize)
                     )
                 )
             );
         }
-        // for(int i=0;i<10;i++) cout << *((float*)output->data() + i) << endl;
+        catch (...) {
+            free(buffer_data);
+            throw;
+        }
+    }
+}
+
+vector<py::array> pyRunEngine(InferenceEngine &ie, const vector<py::array> &inputs)
+{
+    py::gil_scoped_acquire gil;
+    vector<py::array> result;
+    auto outputs = ie.Run(inputs.front().request().ptr);
+    for(auto &output : outputs)
+    {
+        auto dtype = output->type();
+        convertToPyArray(output, dtype, result);  
     }
     return result;
 }
@@ -145,7 +254,6 @@ int pyRunAsyncEngine(InferenceEngine &ie, const vector<py::array> &inputs, py::o
         return ie.RunAsync(inputPtr, static_cast<void*>(wrapper), nullptr);
     }
     
-
 }
 
 void pyRegisterCallBack(InferenceEngine &ie, const py::function &pyCallback) {
@@ -154,61 +262,15 @@ void pyRegisterCallBack(InferenceEngine &ie, const py::function &pyCallback) {
         try {
             std::vector<py::array> result;
             
-            for(auto &output : outputs)
             {
-                auto dtype = output->type();
-                if (dtype == DataType::BBOX || dtype == DataType::FACE || dtype == DataType::POSE) {
-                    std::vector<int64_t> shape;
-                    std::vector<ssize_t> strides;
-                    int outputCnt = outputs.front()->shape()[0];
-                    if (outputCnt == 0) {
-                        shape = {0};
-                        strides = {1}; 
-                    } else if (dtype == DataType::BBOX) {
-                        shape = {outputCnt, static_cast<int64_t>(sizeof(DeviceBoundingBox_t))};
-                        strides = {shape[1], 1};
-                    } else if (dtype == DataType::FACE) {
-                        shape = {outputCnt, static_cast<int64_t>(sizeof(DeviceFace_t))};
-                        strides = {shape[1], 1};
-                    } else if (dtype == DataType::POSE) {
-                        shape = {outputCnt, static_cast<int64_t>(sizeof(DevicePose_t))};
-                        strides = {shape[1], 1};
-                    }
-
-                    result.emplace_back(
-                        py::array(
-                            py::buffer_info(
-                                output->data(),
-                                1,
-                                pyGetFormatDescriptor(dtype),
-                                shape.size(),
-                                shape,
-                                strides
-                            )
-                        )
-                    );
+                for(auto &output : outputs) {
+                    
+                    auto dtype = output->type();
+                    convertToPyArray(output, dtype, result);  
                 }
-                else{
-                    auto shape = output->shape();
-                    result.emplace_back(
-                        py::array(
-                            py::buffer_info(
-                                output->data(),
-                                output->elem_size(),
-                                pyGetFormatDescriptor(dtype),
-                                shape.size(),
-                                shape,
-                                py::detail::c_strides(shape, output->elem_size()) // TODO : Prebuild this vector in inference engine
-                            )
-                        )
-                    );
-                }
-                //for(int i=0;i<10;i++) cout << *((float*)output->data() + i) << endl;
             }
             UserArgWrapper* wrapper = static_cast<UserArgWrapper*>(userArg);
             pyCallback(result, wrapper->pyObj);
-            
-            delete wrapper;
             
             return 0;
         }
@@ -230,60 +292,11 @@ vector<py::array> pyWait(InferenceEngine &ie, int reqId) {
     try{
         py::gil_scoped_acquire gil;
         std::vector<py::array> result;
-        
         for(auto &output : outputs)
         {
             auto dtype = output->type();
-            if (dtype == DataType::BBOX || dtype == DataType::FACE || dtype == DataType::POSE) {
-                std::vector<int64_t> shape;
-                std::vector<ssize_t> strides;
-                int outputCnt = outputs.front()->shape()[0];
-                if (outputCnt == 0) {
-                    shape = {0};
-                    strides = {1}; 
-                } else if (dtype == DataType::BBOX) {
-                    shape = {outputCnt, static_cast<int64_t>(sizeof(DeviceBoundingBox_t))};
-                    strides = {shape[1], 1};
-                } else if (dtype == DataType::FACE) {
-                    shape = {outputCnt, static_cast<int64_t>(sizeof(DeviceFace_t))};
-                    strides = {shape[1], 1};
-                } else if (dtype == DataType::POSE) {
-                    shape = {outputCnt, static_cast<int64_t>(sizeof(DevicePose_t))};
-                    strides = {shape[1], 1};
-                }
-
-                result.emplace_back(
-                    py::array(
-                        py::buffer_info(
-                            output->data(),
-                            1,
-                            pyGetFormatDescriptor(dtype),
-                            shape.size(),
-                            shape,
-                            strides
-                        )
-                    )
-                );
-            }
-            else{
-                auto shape = output->shape();
-                result.emplace_back(
-                    py::array(
-                        py::buffer_info(
-                            output->data(),
-                            output->elem_size(),
-                            pyGetFormatDescriptor(dtype),
-                            shape.size(),
-                            shape,
-                            py::detail::c_strides(shape, output->elem_size()) // TODO : Prebuild this vector in inference engine
-                        )
-                    )
-                );
-            }
-            //for(int i=0;i<10;i++) cout << *((float*)output->data() + i) << endl;
+            convertToPyArray(output, dtype, result);  
         }
-
-        
         return result;      
     }
     catch (const std::exception &e) {
@@ -296,107 +309,11 @@ vector<py::array> pyWait(InferenceEngine &ie, int reqId) {
     }
 
 }
-std::vector<std::vector<py::array>> pyBatchRunAsync(InferenceEngine &ie, const std::vector<py::array> &inputs, int repeat)
-{
-    std::vector<std::vector<py::array>> results(inputs.size() * repeat); // Preallocate result vector
-    std::atomic<int> callBackCnt(0);
-    std::mutex mtx;
-    std::condition_variable cv;
-
-    ie.RegisterCallBack([&](dxrt::TensorPtrs &outputs, void *arg) -> int {
-        int index = *reinterpret_cast<int*>(arg);
-        std::cout << "Callback for index: " << index << std::endl;
-
-        std::vector<py::array> result; 
-        for(auto &output : outputs)
-        {
-            auto dtype = output->type();
-            if (dtype == DataType::BBOX || dtype == DataType::FACE || dtype == DataType::POSE) {
-                std::vector<int64_t> shape;
-                std::vector<ssize_t> strides;
-                int outputCnt = outputs.front()->shape()[0];
-                //cout << "outputCnt : "<< outputCnt<<endl;
-                if (outputCnt == 0) {
-                    shape = {0};
-                    strides = {1}; 
-                } else if (dtype == DataType::BBOX) {
-                    shape = {outputCnt, static_cast<int64_t>(sizeof(DeviceBoundingBox_t))};
-                    strides = {shape[1], 1};
-                } else if (dtype == DataType::FACE) {
-                    shape = {outputCnt, static_cast<int64_t>(sizeof(DeviceFace_t))};
-                    strides = {shape[1], 1};
-                } else if (dtype == DataType::POSE) {
-                    shape = {outputCnt, static_cast<int64_t>(sizeof(DevicePose_t))};
-                    strides = {shape[1], 1};
-                }
-
-                result.emplace_back(
-                    py::array(
-                        py::buffer_info(
-                            output->data(),
-                            1,
-                            pyGetFormatDescriptor(dtype),
-                            shape.size(),
-                            shape,
-                            strides
-                        )
-                    )
-                );
-            }
-            else{
-                auto shape = output->shape();
-                result.emplace_back(
-                    py::array(
-                        py::buffer_info(
-                            output->data(),
-                            output->elem_size(),
-                            pyGetFormatDescriptor(dtype),
-                            shape.size(),
-                            shape,
-                            py::detail::c_strides(shape, output->elem_size()) // TODO : Prebuild this vector in inference engine
-                        )
-                    )
-                );
-            }
-            // for(int i=0;i<10;i++) cout << *((float*)output->data() + i) << endl;
-        }
-        {
-            std::lock_guard<std::mutex> lock(mtx);
-            results[index] = std::move(result);
-        }
-        callBackCnt.fetch_add(1);
-        cv.notify_one();
-        delete reinterpret_cast<int*>(arg);
-        return 0;
-    });
-
-    std::vector<int> requests;
-    for (int i = 0; i < repeat; ++i)
-    {
-        for (size_t j = 0; j < inputs.size(); ++j)
-        {
-            int* index = new int(i * inputs.size() + j);
-            requests.emplace_back(ie.RunAsync(inputs[j].request().ptr, index));
-            std::cout << "Started request for index: " << *index << " j : "<< j << std::endl;
-        }
-    }
-
-    {
-        std::unique_lock<std::mutex> lock(mtx);
-        cv.wait(lock, [&] { return static_cast<uint32_t>(callBackCnt.load()) >= inputs.size() * repeat; });
-    }
-
-    std::cout << "All callbacks completed." << std::endl;
-
-    return results;
-}
 
 vector<py::array> pyValidateDevice(InferenceEngine &ie, const vector<py::array> &inputs, int deviceId)
 {
     vector<py::array> result;
     auto outputs = ie.ValidateDevice(inputs.front().request().ptr, deviceId);
-    // DataDumpBin("input.bin.rt", inputs.front().request().ptr, ie.input_size());
-    // DataDumpBin("output.bin.rt", outputs.front()->GetData(), ie.output_size());
     for(auto &output:outputs)
     {
         auto shape = output->shape();
@@ -443,69 +360,18 @@ vector<string> pyGetTaskOrder(InferenceEngine &ie)
 vector<vector<py::array>> pyGetOutputs(InferenceEngine &ie)
 {
     vector<vector<py::array>> results;
-    auto outputsVector = ie.GetOutputs();
+    auto outputsVector = ie.get_outputs();
     for(auto &outputs:outputsVector){
         vector<py::array> result;
         for(auto &output : outputs)
         {
             auto dtype = output->type();
-            cout<<"dtype : "<< dtype<<endl;
-            if (dtype == DataType::BBOX || dtype == DataType::FACE || dtype == DataType::POSE) {
-                std::vector<int64_t> shape;
-                std::vector<ssize_t> strides;
-                int outputCnt = outputs.front()->shape()[0];
-                cout<<"outputCnt : "<< outputCnt<<endl;
-
-                if (outputCnt == 0) {
-                    shape = {0};
-                    strides = {1}; 
-                } else if (dtype == DataType::BBOX) {
-                    shape = {outputCnt, static_cast<int64_t>(sizeof(DeviceBoundingBox_t))};
-                    strides = {shape[1], 1};
-                } else if (dtype == DataType::FACE) {
-                    shape = {outputCnt, static_cast<int64_t>(sizeof(DeviceFace_t))};
-                    strides = {shape[1], 1};
-                } else if (dtype == DataType::POSE) {
-                    shape = {outputCnt, static_cast<int64_t>(sizeof(DevicePose_t))};
-                    strides = {shape[1], 1};
-                }
-                cout<<"shape : "<< shape[0]<<endl;
-
-                result.emplace_back(
-                    py::array(
-                        py::buffer_info(
-                            output->data(),
-                            1,
-                            pyGetFormatDescriptor(dtype),
-                            shape.size(),
-                            shape,
-                            strides
-                        )
-                    )
-                );
-            }
-            else{
-                auto shape = output->shape();
-                result.emplace_back(
-                    py::array(
-                        py::buffer_info(
-                            output->data(),
-                            output->elem_size(),
-                            pyGetFormatDescriptor(dtype),
-                            shape.size(),
-                            shape,
-                            py::detail::c_strides(shape, output->elem_size()) // TODO : Prebuild this vector in inference engine
-                        )
-                    )
-                );
-            }
-            //for(int i=0;i<10;i++) cout << *((float*)output->data() + i) << endl;
+            convertToPyArray(output, dtype, result);  
         }
         results.emplace_back(result);
     }
     return results;
 }
-
 
 PYBIND11_MODULE(_pydxrt, m) {
     py::class_<InferenceEngine>(m, "InferenceEngine")
@@ -516,13 +382,13 @@ PYBIND11_MODULE(_pydxrt, m) {
         .def("latency", &InferenceEngine::latency)
         .def("inf_time", &InferenceEngine::inference_time)
         .def("bitmatch_mask", &InferenceEngine::bitmatch_mask)
+        .def("get_num_tails", &InferenceEngine::get_num_tails)
+        .def("get_compile_type", &InferenceEngine::get_compile_type)
         .def("register_callback", &pyRegisterCallBack)
         ;
-    //m.def("cleanup_userarg", &pyCleanupUserArg);
     m.def("run_engine", &pyRunEngine);
     m.def("run_async_engine", &pyRunAsyncEngine);
     m.def("wait", &pyWait);
-    m.def("batch_run_async", &pyBatchRunAsync);
     m.def("validate_device", &pyValidateDevice);
     m.def("parse_model", &ParseModel);
     m.def("input_dtype", &pyGetInputDataType);

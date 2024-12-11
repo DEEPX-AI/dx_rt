@@ -13,7 +13,7 @@
 #include "dxrt/driver.h"
 #include "dxrt/device_struct.h"
 #include "dxrt/worker.h"
-#include "dxrt/driver_adapter/driver_adapter.hpp"
+#include "dxrt/driver_adapter/driver_adapter.h"
 #include "dxrt/util.h"
 #include "dxrt/common.h"
 #include "dxrt/device.h"
@@ -27,8 +27,7 @@
 #include "dxrt/device_version.h"
 #include "dxrt/fw.h"
 #include "dxrt/multiprocess_memory.h"
-#include "dxrt/driver_adapter/linux_driver_adapter.hpp"
-
+#include "dxrt/driver_adapter/linux_driver_adapter.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -101,6 +100,7 @@ class DXRT_API ServiceDevice
     void Identify(int id_, SkipMode skip = NONE, uint32_t subCmd = 0);
     void SetSubMode(uint32_t cmd) { _subCmd = cmd; }
     void Terminate();
+    int BoundOption(dxrt_sche_sub_cmd_t subCmd, npu_bound_op boundOp);
 
     void CallBack();
 

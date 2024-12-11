@@ -1,11 +1,11 @@
 Metadata-Version: 2.1
 Name: dx-engine
-Version: 0.0.1
+Version: 1.0.0
 Summary: Python wrapper class for dx_rt
-Home-page: https://github.com/KOMOSYS/dx_rt.git
+Home-page: https://gh.deepx.ai/deepx/dx_rt.git
 Author: Jangmin Son
 Author-email: jangmin@deepx.co.kr
-Project-URL: Bug Tracker, https://github.com/KOMOSYS/dx_rt/issues
+Project-URL: Bug Tracker, https://gh.deepx.ai/deepx/dx_rt/issues
 Classifier: Programming Language :: Python :: 3
 Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: OS Independent

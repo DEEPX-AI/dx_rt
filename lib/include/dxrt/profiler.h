@@ -105,4 +105,7 @@ private:
     std::map<std::string, int> idx;  ///< next array index to save data
     std::mutex _lock;
 };
+
+extern uint8_t DEBUG_DATA;
+
 } // namespace dxrt

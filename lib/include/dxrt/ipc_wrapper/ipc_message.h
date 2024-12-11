@@ -34,6 +34,8 @@ namespace dxrt
         GET_MEMORY = 1,             //set msg to size
         FREE_MEMORY = 2,            //set msg to value returned by GET_MEMORY
         GET_MEMORY_FOR_MODEL = 3, //memory from backwards;
+        DEVICE_INIT = 4,
+        DEVICE_RESET = 5,
 
         MEMORY_ALLOCATION_AND_TRANSFER_MODEL = 100,
         COMPLETE_TRANSFER_MODEL = 101,
@@ -43,8 +45,6 @@ namespace dxrt
         COMPLETE_TRNASFER_OUTPUT = 105,
         REQUEST_SCHEDULE_INFERENCE = 301,
         INFERENCE_COMPLETED = 302,
-        INF_STOP_REQUEST = 900,
-        INF_STOP_END_REQUEST = 901,
         CLOSE = 1001
     };
     std::ostream& operator<< (std::ostream& os, REQUEST_CODE code);
@@ -56,7 +56,6 @@ namespace dxrt
         DO_SCHEDULED_INFERENCE_CH0 = 400,
         DO_SCHEDULED_INFERENCE_CH1 = 401,
         DO_SCHEDULED_INFERENCE_CH2 = 402,
-        INF_STOP_REQUEST_RESP = 800,
         ERROR_REPORT = 900,
         CLOSE = 1001,
         INVALID_REQUEST_CODE = 1234,

@@ -13,7 +13,7 @@
 namespace dxrt 
 {
 
-    class IPCServerWrapper 
+    class DXRT_API IPCServerWrapper 
     {
 
     private:
