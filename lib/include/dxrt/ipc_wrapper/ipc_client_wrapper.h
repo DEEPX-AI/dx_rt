@@ -16,8 +16,10 @@
 namespace dxrt 
 {
 
-    class IPCClientWrapper 
+    class DXRT_API IPCClientWrapper 
     {
+    public:
+        static const long MAX_PID;
 
     private:
         std::shared_ptr<IPCClient> _ipcClient;
@@ -28,7 +30,7 @@ namespace dxrt
         virtual ~IPCClientWrapper();
 
         // Intitialize IPC
-        int32_t Initialize();
+        int32_t Initialize(bool enableInternalCB = true);
 
         // Send message to server
         int32_t SendToServer(IPCClientMessage& clientMessage);

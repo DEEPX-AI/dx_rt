@@ -25,7 +25,7 @@ static void cleanup(int signal) {
     unlink(IPCClientLinux::SOCKET_NAME);
     //LOG_DXRT_DBG << "cleanup\n";
     LOG_DXRT_DBG << "cleanup" << std::endl;
-    exit(0);  // 정상 종료
+    std::exit(0);  // normal exit
 }
 
 static void setup_signal_handlers() {

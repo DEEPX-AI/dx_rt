@@ -15,7 +15,7 @@
 namespace dxrt 
 {
 
-    class IPCServer
+    class DXRT_API IPCServer
     {
 
     public:

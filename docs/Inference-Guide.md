@@ -31,10 +31,16 @@ vector<uint8_t> inputBuf(ie.input_size(), 0);
 ```
 Guides for connecting the inference engine to various image sources are provided in dx-app and dx-demo, along with preprocessing examples.  
 ### 4. Inference
-Run inference engine. `outputs` is a vector of shared_ptr of `dxrt::Tensor` returned from `dxrt::InferenceEngine::Run()`.
+#### 4.1 Run (Sync)
+Run inference engine. `outputs` is a vector of shared_ptr of `dxrt::Tensor` returned from `dxrt::InferenceEngine::Run()`.  
 ```
 auto outputs = ie.Run(inputBuf.data());
 ```
+The `dxrt::InferenceEngine::Run()` is designed to use a single NPU core. To utilize multiple cores simultaneously, you need to use `dxrt::InferenceEngine::RunAsync` or threads. Please refer to the following diagram.  
+  
+![inference_basic_r1](/assets/images/run_sync.jpg)  
+
+#### 4.2 RunAsync
 If you want to perform inference in a non-blocking way, you can call `dxrt::InferenceEngine::RunAsync` as follows.  
 ```
 auto jobId = ie.RunAsync(inputBuf.data());
@@ -54,7 +60,11 @@ std::function<int(vector<shared_ptr<dxrt::Tensor>>, void*)> postProcCallBack = \
     };
 ie.RegisterCallBack(postProcCallBack);
 ```
+
+![inference_basic_r1](/assets/images/run_async.jpg)  
+  
 For more detailed information, please check the API document.  
+  
 ### 5. Process output tensors
 Since inference is done, process output tensors using `Tensor` APIs and custom post-processing logic.  
 You can find templates and example code in dx-app, dx-demo to help you post-process smoothly.  

@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 
 #include "dxrt/circular_buffer.h"
+#include "dxrt/exception/exception.h"
 
 using namespace std;
 
@@ -33,7 +34,8 @@ template <typename T>
 T CircularBuffer<T>::Pop()
 {
     unique_lock<mutex> lk(_lock);
-    DXRT_ASSERT(_count>0, "circular buffer is empty.");
+    //DXRT_ASSERT(_count>0, "circular buffer is empty.");
+    if ( _count <= 0 ) throw InvalidOperationException(EXCEPTION_MESSAGE("circular buffer is empty"));
     T item = _buf[_tail];
     _tail = (_tail +1)%_size;
     --_count;
@@ -44,7 +46,8 @@ template <typename T>
 T CircularBuffer<T>::Get()
 {
     unique_lock<mutex> lk(_lock);
-    DXRT_ASSERT(_count>0, "circular buffer is empty.");
+    //DXRT_ASSERT(_count>0, "circular buffer is empty.");
+    if ( _count <= 0 ) throw InvalidOperationException(EXCEPTION_MESSAGE("circular buffer is empty"));
     T item = _buf[(_head - 1 + _size)%_size];
     return item;
 }

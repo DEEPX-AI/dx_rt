@@ -4,6 +4,7 @@
 #include "dxrt/common.h"
 #include "dxrt/tensor.h"
 #include "dxrt/util.h"
+#include "dxrt/exception/exception.h"
 
 using namespace std;
 
@@ -12,20 +13,20 @@ namespace dxrt {
 Tensor::Tensor(string name_, std::vector<int64_t> shape_, DataType type_, void *data_)
 : _name(name_), _shape(shape_), _type(type_), _data(data_)
 {
-    LOG_DXRT_DBG << "1: " << _name << ", " << this << endl;
     _elemSize = GetDataSize_Datatype(static_cast<DataType>(_type));
-    if(_shape.size()>=4)
-        _inc = _elemSize*( 64*( _shape[3]/64) + (int)(((_shape[3]%64)>0) ? 64 : 0) );
+    //if(_shape.size()>=4)
+    //    _inc = _elemSize*( 64*( _shape[3]/64) + (int)(((_shape[3]%64)>0) ? 64 : 0) );
+    if(_shape.size()==4)
+        _inc = _elemSize*_shape[3];
 }
 Tensor::Tensor(const Tensor &tensor_, void *data_)
 :_name(tensor_._name), _shape(tensor_._shape), _type(tensor_._type), _phyAddr(tensor_._phyAddr), _inc(tensor_._inc), _elemSize(tensor_._elemSize)
 {
-    LOG_DXRT_DBG << "2: " << _name << ", " << this << endl;
     _data = (data_==nullptr) ? tensor_._data : data_;
 }
 Tensor::~Tensor()
 {
-    LOG_DXRT_DBG << this << endl;
+    // LOG_DXRT_DBG << this << endl;
     // LOG_DXRT_DBG << _name << endl;
 }
 string &Tensor::name()
@@ -54,6 +55,9 @@ uint32_t &Tensor::elem_size()
 }
 void* Tensor::data(int h, int w, int c)
 {
+    if (h < 0 || h >= _shape[1] || w < 0 || w >= _shape[2] || c < 0 || c >= _shape[3]) {
+        throw std::out_of_range("Invalid tensor indices");
+    }
     uint8_t *ptr = static_cast<uint8_t*>(_data) + h*_shape[2]*_inc + w*_inc + _elemSize*c;
     return static_cast<void*>(ptr);
 }
@@ -73,9 +77,15 @@ ostream& operator<<(ostream& os, const Tensor& tensor)
 
 void DataDumpBin(std::string filename, std::vector<std::shared_ptr<dxrt::Tensor>> tensors)
 {
-    DXRT_ASSERT(!filename.empty(), string(__func__)+": filename is empty");
+    //DXRT_ASSERT(!filename.empty(), string(__func__)+": filename is empty");
+    if ( filename.empty() ) 
+        throw InvalidArgumentException(EXCEPTION_MESSAGE("filename is empty"));
+
     ofstream out(filename, ios::binary);
-    DXRT_ASSERT(out.is_open(), "Failed to open " + filename);        
+    // DXRT_ASSERT(out.is_open(), "Failed to open " + filename);        
+    if ( !out.is_open() ) 
+        throw  InvalidOperationException(EXCEPTION_MESSAGE("Failed to open " + filename));        
+
     for(auto &tensor:tensors)
     {
         // cout << "dump " << tensor->name() << " to " << filename << endl;
@@ -87,9 +97,16 @@ void DataDumpBin(std::string filename, std::vector<std::shared_ptr<dxrt::Tensor>
 }
 void DataDumpBin(std::string filename, std::vector<Tensor> tensors)
 {
-    DXRT_ASSERT(!filename.empty(), string(__func__)+": filename is empty");
+    // DXRT_ASSERT(!filename.empty(), string(__func__)+": filename is empty");
+    if ( filename.empty() )
+        throw InvalidArgumentException(EXCEPTION_MESSAGE("filename is empty"));
+
+
     ofstream out(filename, ios::binary);
-    DXRT_ASSERT(out.is_open(), "Failed to open " + filename);        
+    //DXRT_ASSERT(out.is_open(), "Failed to open " + filename);    
+    if ( !out.is_open() )
+        throw InvalidArgumentException(EXCEPTION_MESSAGE("Failed to open " + filename));
+
     for(auto &tensor:tensors)
     {
         uint8_t *bytes = reinterpret_cast<uint8_t*>(tensor.data());

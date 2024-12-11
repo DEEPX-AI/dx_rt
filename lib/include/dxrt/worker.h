@@ -13,6 +13,7 @@
 #include <array>
 #include "dxrt/common.h"
 #include "dxrt/profiler.h"
+#include "dxrt/driver.h"
 
 namespace dxrt {
 class Tensor;
@@ -31,7 +32,7 @@ public:
     {
         DEVICE_INPUT,
         DEVICE_OUTPUT,
-        DEVICE_ERROR,
+        DEVICE_EVENT,
         CPU_HANDLE,
     };
     Worker(std::string name_, Type type_, int numThreads = 1, Device *device_ = nullptr, CpuHandle *cpuHandle_ = nullptr);
@@ -46,7 +47,6 @@ protected:
     std::mutex _lock;
     std::condition_variable _cv;
     std::atomic<bool> _stop {false};
-    int _debugData = 0;
     void InitializeThread();
 
 
@@ -82,17 +82,23 @@ public:
     DeviceOutputWorker(string name_, int numThreads, Device *device_);
     virtual ~DeviceOutputWorker();
     static shared_ptr<DeviceOutputWorker> Create(string name_, int numThreads, Device *device_);
+#ifdef USE_SERVICE
+    void PushWork(const dxrt_response_t& resp);
+#endif
 private:
     void ThreadWork(int id) override;
-
+#ifdef USE_SERVICE
+    std::queue<dxrt_response_t> _queue;
+    std::condition_variable _cv;
+#endif
 
 };
-class DeviceErrorWorker : public Worker
+class DeviceEventWorker : public Worker
 {
 public:
-    DeviceErrorWorker(string name_, Device *device_);
-    virtual ~DeviceErrorWorker();
-    static shared_ptr<DeviceErrorWorker> Create(string name_, Device *device_);
+    DeviceEventWorker(string name_, Device *device_);
+    virtual ~DeviceEventWorker();
+    static shared_ptr<DeviceEventWorker> Create(string name_, Device *device_);
 
 private:
     void ThreadWork(int id) override;

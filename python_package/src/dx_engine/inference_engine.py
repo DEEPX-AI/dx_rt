@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Any
 import ctypes
 
 import numpy as np
@@ -22,7 +22,7 @@ class InferenceEngine:
         self.inference_option = inference_option
         self.engine = C.InferenceEngine(model_path)
 
-    def run(self, input_feed_list: List[np.ndarray]) -> List[np.ndarray]:
+    def Run(self, input_feed_list: List[np.ndarray]) -> List[np.ndarray]:
         """Return Normal Inference Result.
 
         Args:
@@ -31,10 +31,23 @@ class InferenceEngine:
         Returns:
             List[np.ndarray]
         """
-        # self.check_inputs(input_feed_list) # TODO - Will be uncommented after pybind complete
         return C.run_engine(self.engine, input_feed_list)
+    
+    def RunAsync(self, input_feed_list: List[np.ndarray], user_arg) -> int:
+        """Run inference asynchronously."""
+        user_arg_capsule = ctypes.py_object(user_arg)
+        reqId = C.run_async_engine(self.engine, input_feed_list, user_arg_capsule)
+        return reqId
+    
+    def RunBenchMark(self, loop_cnt=30) -> float:
+        """Retrun Benchmark result.
 
-    def validate_device(self, input_feed_list: List[np.ndarray], device_id=0) -> List[np.ndarray]:
+        Returns:
+            float: fps
+        """
+        return self.engine.benchmark(loop_cnt)
+    
+    def ValidateDevice(self, input_feed_list: List[np.ndarray], device_id=0) -> List[np.ndarray]:
         """Return Device validation run result.
 
         Args:
@@ -43,20 +56,17 @@ class InferenceEngine:
         Returns:
             List[np.ndarray]
         """
-        # self.check_inputs(input_feed_list) # TODO - Will be uncommented after pybind complete
         return C.validate_device(self.engine, input_feed_list, device_id)
 
-    def benchmark(self, loop_cnt=30) -> float:
-        """Retrun Benchmark result.
+    def RegisterCallBack(self, callback) -> None:
+        """Register user callback function to be called by inference completion."""
+        if not callable(callback):
+            raise TypeError("Expected a callable function for the callback")
+        self.engine.register_callback(callback) 
 
-        Returns:
-            float: fps
-        """
-        return self.engine.benchmark(loop_cnt)
-    
-    def arun_batch(self, input_feed_list: List[np.ndarray], repeat: int) -> List[np.ndarray]:
-        """Return Asynchronous Batch Inference Result."""
-        return C.batch_run_async(self.engine, input_feed_list,repeat)
+    def Wait(self, reqId) -> None:
+        """Wait for asynchronous operations to complete."""
+        return C.wait(self.engine,reqId)
 
     def input_size(self) -> List[int]:
         """Get engine's input size."""
@@ -68,90 +78,39 @@ class InferenceEngine:
 
     def input_dtype(self) -> List[str]:
         """Get required input data-type as string"""
-        # return self.engine.get_output_size()
         return C.input_dtype(self.engine)
 
     def output_dtype(self) -> List[str]:
         """Get required output data-type as string"""
-        # return self.engine.get_output_size()
         return C.output_dtype(self.engine)
 
-    def summary(self) -> str:
-        """Concatenated List of attribute's label and data."""
-        raise_not_implemented_error()  # TODO
-        return self.engine.summary()
-
-    def get_bitmatch_mask(self, index=0) -> np.ndarray:
-        """Get bit match mask array in single file"""
-        mask_list = np.array(self.engine.bitmatch_mask(index), dtype=np.uint8)
-        mask = np.unpackbits(mask_list, bitorder="little")
-        return mask
-    
-    def run_async(self, input_feed_list: List[np.ndarray], user_arg) -> int:
-        """Run inference asynchronously."""
-        user_arg_capsule = ctypes.py_object(user_arg)
-        reqId = C.run_async_engine(self.engine, input_feed_list, user_arg_capsule)
-        return reqId
-    
-    def register_callback(self, callback) -> None:
-        """Register user callback function to be called by inference completion."""
-        if not callable(callback):
-            raise TypeError("Expected a callable function for the callback")
-        self.engine.register_callback(callback) 
-
-    def wait(self, reqId) -> None:
-        """Wait for asynchronous operations to complete."""
-        return C.wait(self.engine,reqId)
-
-    def get_task_order(self) -> np.ndarray:
+    def task_order(self) -> np.ndarray:
         """Get task order array in single file"""
         task_order = np.array(C.task_order(self.engine))
         return task_order
+
+    def latency(self):
+        return self.engine.latency()
+
+    def inference_time(self):
+        return self.engine.inf_time()
     
     def get_outputs(self) -> List[List[np.ndarray]]:
-        """Get the outputs from the inference engine.
+        """Get outputs from all tasks in order.
 
         Returns:
             List[List[np.ndarray]]: List of outputs, each output is a list of numpy arrays.
         """
         return C.get_outputs(self.engine)
+
+    def bitmatch_mask(self, index=0) -> np.ndarray:
+        """Get bit match mask array in single file"""
+        mask_list = np.array(self.engine.bitmatch_mask(index), dtype=np.uint8)
+        mask = np.unpackbits(mask_list, bitorder="little")
+        return mask
+
+    def get_num_tails(self):
+        return self.engine.get_num_tails()
     
-    def check_inputs(self, input_feed_list: List[np.ndarray]) -> None:
-        """Check input if it is valid inputs.
-
-            Check list
-                1. Check if given len(input) are same as len(required_input).
-                2. Check if given input's dtype are exact same as required inputs.
-
-        Args:
-            input_feed_list (List[np.ndarray]):
-        """
-        raise_not_implemented_error()  # TODO
-        self._check_input_dtype(input_feed_list)
-        self._check_input_length(input_feed_list)
-
-    def _check_input_dtype(self, input_feed_list: List[np.ndarray]) -> None:
-        """Compare input's data type with required data type.
-
-        Args:
-            input_feed_list (List[np.ndarray]): List of Numpy array.
-
-        Raises:
-            TypeError: Raise Error if given input's data type is differ from required dtype.
-        """
-        raise_not_implemented_error()  # TODO
-        for required_input_dtype, actual_input in zip(self.input_dtype(), input_feed_list):
-            actual_input_dtype = actual_input.dtype
-            if NumpyDataTypeMapper[required_input_dtype] != actual_input_dtype:
-                raise TypeError(f"Required {required_input_dtype} but {actual_input_dtype} was given")
-
-    def _check_input_length(self, input_feed_list: List[np.ndarray]):
-        raise_not_implemented_error()  # TODO
-        if len(self.input_size()) == len(input_feed_list):
-            raise ValueError(f"Required {len(self.input_size())} inputs but {len(input_feed_list)} is(are) given.")
-
-    def latency(self):
-        return self.engine.latency()
-
-    def inf_time(self):
-        return self.engine.inf_time()
+    def get_compile_type(self):
+        return self.engine.get_compile_type()

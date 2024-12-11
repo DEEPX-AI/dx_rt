@@ -81,7 +81,7 @@ int32_t IPCMessageQueueLinux::Send(const Message& message, size_t size)
 {
     if ( _msgId >= 0 )
     {
-        //std::cout << "[IPCMessageQueueLinux] Send" << std::endl;
+        // std::cout << "[IPCMessageQueueLinux] Send:" << _msgId << ", " << message.msgType << std::endl;
 
         // send except message type
         if ( msgsnd(_msgId, &message, size, 0) == -1 )
@@ -103,7 +103,7 @@ int32_t IPCMessageQueueLinux::Receive(Message& message, size_t size, long msgTyp
 {
     if ( _msgId >= 0 )
     {
-        //std::cout << "[IPCMessageQueueLinux] Receive" << std::endl;
+        // std::cout << "[IPCMessageQueueLinux] Receive : " << _msgId << ", " << msgType << std::endl;
 
         // receive except message type
         if ( msgrcv(_msgId, &message, size, msgType, 0) == -1 )

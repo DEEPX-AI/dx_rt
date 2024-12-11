@@ -39,22 +39,22 @@ Profiler::~Profiler()
         Show();
 #endif
     }
-    timePoints.clear();
-    idx.clear();
+    //timePoints.clear();
+    //idx.clear();
 }
 
-void Profiler::Add(const string &x)
-{
-    LOG_DXRT_DBG << x << endl;    
-    if(timePoints.find(x)==timePoints.end())
+void Profiler::Add(const string &x) {
+    LOG_DXRT_DBG << x << endl;
+    
+    unique_lock<mutex> lk(_lock);
+    if (timePoints.find(x) == timePoints.end())
     {
-        unique_lock<mutex> lk(_lock);
-        timePoints.insert( make_pair(x, vector<TimePoint>(numSamples)) );        
+        timePoints.insert(make_pair(x, vector<TimePoint>(numSamples + 1)));
     }
-    if(idx.find(x)==idx.end())
+
+    if (idx.find(x) == idx.end()) 
     {
-        unique_lock<mutex> lk(_lock);
-        idx.insert( make_pair(x, -1) );
+        idx.insert(make_pair(x, -1));
     }
 }
 void Profiler::AddTimePoint(const string &x, TimePointPtr tp)
@@ -66,28 +66,27 @@ void Profiler::AddTimePoint(const string &x, TimePointPtr tp)
     if(idx.at(x)>=numSamples) idx.at(x) = 0;
     timePoints.at(x)[idx.at(x)] = *tp;
 }
-void Profiler::Start(const string &x)
-{
-    LOG_DXRT_DBG << x << endl;    
+void Profiler::Start(const string &x) {
+    LOG_DXRT_DBG << x << endl;
     Add(x);
-    if(timePoints.empty()) return;
+    unique_lock<mutex> lk(_lock);
+    if (timePoints.empty()) return;
     ++(idx.at(x));
-    if(idx.at(x)>=numSamples) idx.at(x) = 0;
+    if (idx.at(x) >= numSamples) idx.at(x) = 0;
     timePoints.at(x)[idx.at(x)].start = ProfilerClock::now();
 }
 
-void Profiler::End(const string &x)
-{
+void Profiler::End(const string &x) {
     LOG_DXRT_DBG << x << endl;
-    if(timePoints.empty()) return;
-    if(timePoints.find(x)!=timePoints.end())
+    unique_lock<mutex> lk(_lock);
+    if (timePoints.empty()) return;
+    if (timePoints.find(x) != timePoints.end())
     {
-        if(idx.find(x)==idx.end())
+        if (idx.find(x) == idx.end())
         {
             cout << "error..." << x << endl;
             return;
         }
-        // cout << idx.at(x) << endl;
         timePoints.at(x)[idx.at(x)].end = ProfilerClock::now();
     }
 }
@@ -232,5 +231,6 @@ void Profiler::Save(const string &filename)
         std::cerr << "Failed to open output file" << std::endl;
     }
 }
+uint8_t DEBUG_DATA = 0;
 
 } // namespace dxrt

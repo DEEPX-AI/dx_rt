@@ -85,6 +85,16 @@ public:
      * @return average fps
      */
     float RunBenchMark(int num, void* inputPtr=nullptr);
+    /** 
+     * @brief Validate inference of a specific NPU device connected to the host.
+     * This function runs a validation process using the provided input data on the specified NPU device.
+     * It can be used to ensure that the NPU device is operational and can process inference tasks correctly.
+     * 
+     * @param[in] inputPtr Pointer to the input data used for validation.
+     * @param[in] deviceId ID of the NPU device to validate. Default is 0 (first device).
+     * @return Output tensors as a vector of smart pointer instances, representing the validation results.
+     * 
+     */
     TensorPtrs ValidateDevice(void *inputPtr, int deviceId=0);
     /** @brief Register user callback function to be called by inference completion.
      * @param[in] callbackFunc Function which is called when inference is complete, it gets outputs and user_arg ptr
@@ -114,7 +124,6 @@ public:
      *  @return if ptr and phyAddr is given, outputs tensors that contains output addresses
      */
     Tensors outputs(void *ptr=nullptr, uint64_t phyAddr=0);
-    Tensors outputs(int devId);
     /** @brief Get total size of input tensors 
      *  @return input size of one inference in bytes
      */
@@ -139,24 +148,39 @@ public:
      * @return inference time (microseconds)
      */
     uint32_t inference_time();
-    vector<TensorPtrs> GetOutputs();
+    vector<TensorPtrs> get_outputs();
     vector<uint8_t> bitmatch_mask(int index);
+    /** 
+     * @brief Returns the number of tail tasks in the model.
+     * @return The number of tasks that have no subsequent tasks.
+     * 
+     * Tail tasks are those which do not have any tasks following them in the model's task chain.
+     * This function provides the count of such tail tasks.
+     */
+    int get_num_tails();
+    /** 
+     * @brief Returns complie type of the model.
+     * @return The complie type of the model.
+     */
+    string get_compile_type();    
     friend DXRT_API std::ostream& operator<<(std::ostream&, const InferenceEngine&);
 private:
     std::string _modelFile;
     std::string _modelDir;
     std::string _name;
+    std::string _modelCompileType;
     ModelDataBase _modelData;
     std::vector<uint8_t> _maskBuf;
     std::map<std::string, deepx_graphinfo::GraphBindingDatabase> _graphMap;
     InferenceOption _option;
     std::vector<std::shared_ptr<Task>> _tasks; // to be changed to complex graph
     std::shared_ptr<Task> _head;
-    std::shared_ptr<Task> _tail;
+    std::vector<std::shared_ptr<Task>> _tails;
     int _numTails;
     std::map<std::string, std::shared_ptr<Task>> _taskMap;
     InferenceTimer _inferenceTimer;
     std::vector<string> _taskOrder;
+    std::vector<string> _lastOutputOrder; 
 
     std::function<int(TensorPtrs &outputs, void *userArg)> _userCallback;
     std::vector<bool> _occupiedInferenceJobs;

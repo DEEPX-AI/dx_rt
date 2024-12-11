@@ -12,7 +12,7 @@
 #include "dxrt/common.h"
 #include "dxrt/driver.h"
 #include "dxrt/device_struct.h"
-#include "dxrt/driver_adapter/linux_driver_adapter.hpp"
+#include "dxrt/driver_adapter/linux_driver_adapter.h"
 
 namespace dxrt {
 

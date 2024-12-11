@@ -1,6 +1,6 @@
 macro(get_pybind11)
   if(NOT EXISTS "${CMAKE_SOURCE_DIR}/extern/pybind11")
-    execute_process(COMMAND git clone --branch v2.10.0 https://github.com/pybind/pybind11.git ${CMAKE_SOURCE_DIR}/${PYBIND_TARGET_DIR})
+    execute_process(COMMAND git clone --branch v2.12 https://github.com/pybind/pybind11.git ${CMAKE_SOURCE_DIR}/${PYBIND_TARGET_DIR})
   endif()
 endmacro(get_pybind11)
 

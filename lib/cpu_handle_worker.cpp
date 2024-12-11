@@ -50,14 +50,16 @@ void CpuHandleWorker::ThreadWork(int id)
             break;
         }
         auto req = _queue.front();
+        TASK_FLOW("["+to_string(req->job_id())+"] cpu worker wakeup")
+
         _queue.pop();
         lk.unlock();
-        if (_debugData > 0)
+        if (DEBUG_DATA > 0)
         {
             DataDumpBin(req->task()->name() + "_input.bin", req->inputs());
         }
         _cpuHandle->Run(req);
-        if (_debugData > 0)
+        if (DEBUG_DATA > 0)
         {
             DataDumpBin(req->task()->name() + "_output.bin", req->outputs());
             DataDumpBin(req->task()->name() + "_output_done.bin", &loopCnt, 1);
@@ -69,6 +71,7 @@ void CpuHandleWorker::ThreadWork(int id)
 
 int CpuHandleWorker::request(std::shared_ptr<Request> req)
 {
+    TASK_FLOW("["+to_string(req->job_id())+"] cpu worker request")
     unique_lock<mutex> lk(_lock);
     _queue.push(req);
     _cv.notify_all();

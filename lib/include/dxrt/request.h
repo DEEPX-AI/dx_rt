@@ -20,6 +20,7 @@ class Task;
 class Device;
 class Request;
 using RequestPtr = std::shared_ptr<Request>;
+using RequestWeakPtr = std::weak_ptr<Request>;
 struct TimePoint;
 using TimePointPtr = std::shared_ptr<TimePoint>;
 
@@ -27,9 +28,11 @@ class RequestData
 {
 public:
     int requestId;
+    int jobId;
     Tensors inputs;
     Tensors outputs;
     TaskData* taskData;
+    void* output_ptr;
 };
 
 
@@ -43,11 +46,12 @@ public:
         REQ_DONE,
     };
     Request(void);
+    Request(int id);
     Request(Task *task_, Tensors &inputs_, Tensors &outputs_);
     ~Request(void);
     static void Init();
-    static RequestPtr Create(Task *task_, Tensors inputs_, Tensors outputs_, void *userArg);
-    static RequestPtr Create(Task *task_, void *input, void *output, void *userArg);
+    static RequestPtr Create(Task *task_, Tensors inputs_, Tensors outputs_, void *userArg, int jobId=0);
+    static RequestPtr Create(Task *task_, void *input, void *output, void *userArg, int jobId=0);
     static RequestPtr GetById(int id);
     static RequestPtr Pick();
     static void ShowAll();
@@ -58,6 +62,7 @@ public:
     void NotifyCompletion();
     void CheckTimePoint(int opt);
     int id() const;
+    int job_id() const;
     void Reset();
 
     TaskData* taskData();
@@ -80,7 +85,6 @@ public:
     bool &latency_valid();
     bool &validate_device();
     int16_t &model_type();
-    int debug_env();
 
     void setNpuInferenceAcc(dxrt_request_acc_t npuInferenceAcc);
     void setCallback(std::function<void(RequestPtr)> func);  // works for start next request or complete whole inference
@@ -113,12 +117,8 @@ private:
     int _completeCnt;
     std::mutex _completeCntLock;
     std::function<void(RequestPtr)> _callback;
-    int _debugEnv;
     
-    static int _nextId;
-    static std::mutex _idLock;
-    static std::vector<RequestPtr> _requestMap;
-    static std::mutex _mapLock;
+
 };
 class DXRT_API RequestMap
 {

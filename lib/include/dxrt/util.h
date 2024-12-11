@@ -36,6 +36,8 @@ DXRT_API std::vector<std::string> GetFileList(std::string dir);
 DXRT_API uint64_t GetAlign(uint64_t size);
 DXRT_API void* MemAlloc(size_t size, size_t align=8, int value=0);
 DXRT_API void MemFree(void **p);
+DXRT_API void DisplayCountdown(int seconds, std::string str);
+
 template< typename T >
 std::string int_to_hex( T i )
 {

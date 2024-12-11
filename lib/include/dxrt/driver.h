@@ -16,6 +16,12 @@ namespace dxrt {
 /* RT/driver sync     */
 
 typedef enum {
+    DXRT_EVENT_ERROR,
+    DXRT_EVENT_NOTIFY_THROT,
+    DXRT_EVENT_NUM,
+} dxrt_event_t;
+
+typedef enum {
     ERR_NONE      = 0,
     ERR_NPU0_HANG = 1,
     ERR_NPU1_HANG,
@@ -24,8 +30,23 @@ typedef enum {
     ERR_PCIE_DMA_CH0_FAIL = 100,
     ERR_PCIE_DMA_CH1_FAIL,
     ERR_PCIE_DMA_CH2_FAIL,
+    ERR_LPDDR_DED_WR     = 200,
+    ERR_LPDDR_DED_RD,
     ERR_DEVICE_ERR       = 1000,
 } dxrt_error_t;
+
+typedef enum {
+    NTFY_NONE       = 0,
+    NTFY_THROT_FREQ_DOWN,
+    NTFY_THROT_FREQ_UP,
+    NTFY_THROT_VOLT_DOWN,
+    NTFY_THROT_VOLT_UP,
+    NTFY_EMERGENCY_BLOCK,
+    NTFY_EMERGENCY_RELEASE,
+    NTFY_EMERGENCY_WARN = 300,
+    /* TODO */
+    /* NPU BOUND FOR THROT? */
+} dxrt_notify_throt_t;
 
 typedef enum _npu_priority_op {
     N_PRIORITY_NORMAL = 0,
@@ -95,9 +116,28 @@ typedef struct {
     uint32_t reserved_pcie[10];
 
     /* DDR information */
-    uint32_t ddr_temperature[4];
-    uint32_t reserved_ddr[10];
+    uint32_t ddr_mr_reg[4];
+    uint16_t ddr_freq;
+    uint16_t ddr_type;
+    uint32_t ddr_dbe_ch;
+    uint32_t reserved_ddr[8];
 } dx_pcie_dev_err_t;
+
+typedef struct {
+    uint32_t ntfy_code;
+    uint32_t npu_id;
+    uint32_t throt_voltage[2];      // [0] current, [1] target
+    uint32_t throt_freq[2];         // [0] current, [1] target
+    uint32_t throt_temper;
+} dx_pcie_dev_ntfy_throt_t;
+
+typedef struct {
+    uint32_t event_type;
+    union {
+        dx_pcie_dev_err_t           dx_rt_err;
+        dx_pcie_dev_ntfy_throt_t    dx_rt_ntfy_throt;
+    };
+} dx_pcie_dev_event_t;
 
 typedef struct device_info {
     uint32_t type = 0; /* 0: ACC type, 1: STD type */
@@ -215,7 +255,7 @@ typedef enum {
     DXRT_CMD_READ_OUTPUT_DMA_CH1,
     DXRT_CMD_READ_OUTPUT_DMA_CH2,
     DXRT_CMD_TERMINATE          ,
-    DXRT_CMD_ERROR              ,
+    DXRT_CMD_EVENT              ,
     DXRT_CMD_DRV_INFO           , /* Sub-command */
     DXRT_CMD_SCHEDULE           , /* Sub-command */
     DXRT_CMD_UPLOAD_FIRMWARE    ,

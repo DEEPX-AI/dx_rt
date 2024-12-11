@@ -5,6 +5,7 @@
 #include "scheduler_service.h"
 #include "../include/dxrt/ipc_wrapper/ipc_server_wrapper.h"
 #include "service_error.h"
+#include <algorithm> 
 
 #define DX_RT_SERVICE_SCHED_THRE (10)
 
@@ -26,13 +27,39 @@ void SchedulerService::StopScheduler(int procId)
     std::unique_lock<mutex> lk(_lock);
     _map[procId].clear();
     _map.erase(procId);
-    _stop = true;
+    _procId.emplace_back(procId);
 }
 
-void SchedulerService::StartScheduler()
+void SchedulerService::StartScheduler(int procId)
 {
     std::unique_lock<mutex> lk(_lock);
-    _stop = false;
+    _procId.erase(std::remove(_procId.begin(), _procId.end(), procId), _procId.end());
+}
+
+int SchedulerService::GetProcLoad(int procId)
+{
+    std::unique_lock<mutex> lk(_lock);
+    auto it = _loadsProc.find(procId);
+    if (it != _loadsProc.end()) {
+        return it->second;
+    } else {
+        return 0;
+    }
+}
+
+void SchedulerService::ClearAllLoad()
+{
+    std::unique_lock<mutex> lk(_lock);
+    _loadsProc.clear();
+    std::for_each(_loads.begin(), _loads.end(), [](std::atomic<int>& value) {
+        value.store(0);
+    });
+}
+
+void SchedulerService::ClearProcLoad(int procId)
+{
+    std::unique_lock<mutex> lk(_lock);
+    _loadsProc.erase(procId);
 }
 
 void SchedulerService::AddScheduler(const dxrt::dxrt_request_acc_t& packet_data, int deviceId)
@@ -45,7 +72,8 @@ void SchedulerService::AddScheduler(const dxrt::dxrt_request_acc_t& packet_data,
     //_queue.push(std::make_pair(proc_id, req_id));
     _device_queues[deviceId].push(std::make_pair(proc_id, req_id));
 
-    if (_loads[deviceId] < DX_RT_SERVICE_SCHED_THRE)
+    if ((_loads[deviceId] < DX_RT_SERVICE_SCHED_THRE) &&
+        (std::find(_procId.begin(), _procId.end(), proc_id) == _procId.end()))
         schedule(deviceId);
 }
 
@@ -63,8 +91,8 @@ void SchedulerService::schedule(int deviceId)
     {
         return;
     }
-    if (!_stop)
     {
+        _loadsProc[proc_id]++;
         _loads[deviceId]++;
         // do inference
         dxrt::dxrt_request_acc_t new_req = _map[proc_id][req_id];
@@ -87,14 +115,15 @@ void SchedulerService::FinishJobs(int deviceId, const dxrt::dxrt_response_t& res
 {
     std::unique_lock<mutex> lk(_lock);
 
-    _loads[deviceId]--;
     // get response_data
     dxrt::dxrt_response_t response_to_send = response_data;
     int req_id = response_data.req_id;
     int proc_id = response_data.proc_id;
 
+    _loadsProc[proc_id]--;
+    _loads[deviceId]--;
 
-    LOG_DXRT_S_DBG << deviceId << "," <<proc_id << " 's req " << req_id <<", load: " << _loads[deviceId] << endl;
+    LOG_DXRT_S_DBG << deviceId << "," <<proc_id << " 's req " << req_id <<", load: " << _loads[deviceId] << ", loadsProc" << _loadsProc[proc_id] << endl;
 
     auto it = _map.find(proc_id);
     if (it == _map.end())
@@ -102,7 +131,7 @@ void SchedulerService::FinishJobs(int deviceId, const dxrt::dxrt_response_t& res
 
     it->second.erase(req_id);
 
-    if (!_stop)
+    if (std::find(_procId.begin(), _procId.end(), proc_id) == _procId.end())
     {
         schedule(deviceId);
         _callBack(response_to_send, deviceId);  // send result to client
