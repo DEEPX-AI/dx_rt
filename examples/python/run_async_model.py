@@ -2,11 +2,14 @@ import numpy as np
 import sys
 from dx_engine import InferenceEngine
 
+import threading
 import queue
 from threading import Thread
 
 q = queue.Queue()
 gLoopCount = 0
+
+lock = threading.Lock()
 
 def onInferenceCallbackFunc(outputs, user_arg):
     # the outputs are guaranteed to be valid only within this callback function
@@ -14,22 +17,23 @@ def onInferenceCallbackFunc(outputs, user_arg):
     # for improving inference performance
 
     global gLoopCount
+    with lock:
 
-    # user data type casting
-    index, loop_count = user_arg.value
-  
+        # user data type casting
+        index, loop_count = user_arg.value
+    
 
-    # post processing
-    #postProcessing(outputs);
+        # post processing
+        #postProcessing(outputs);
 
-    # something to do
+        # something to do
 
-    print("Inference output (callback) index=", index)
+        print("Inference output (callback) index=", index)
 
-    gLoopCount += 1
-    if ( gLoopCount == loop_count ) :
-        print("Complete Callback")
-        q.put(0)
+        gLoopCount += 1
+        if ( gLoopCount == loop_count ) :
+            print("Complete Callback")
+            q.put(0)
 
     return 0
 

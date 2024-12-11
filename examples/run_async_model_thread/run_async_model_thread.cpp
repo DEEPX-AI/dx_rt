@@ -14,6 +14,7 @@ static const int THREAD_COUNT = 3;
 static std::vector<std::atomic<bool>> gResultComplete(THREAD_COUNT);
 static std::vector<std::atomic<int>> gResultCount(THREAD_COUNT);
 static ConcurrentQueue<int> gResultQueue(1);
+static std::mutex gCBMutex;
 
 class UserData 
 {
@@ -95,6 +96,8 @@ static int inferenceThreadFunc(dxrt::InferenceEngine& ie, int threadIndex, int l
 // invoke this function asynchronously after the inference is completed
 static int onInferenceCallbackFunc(dxrt::TensorPtrs &outputs, void *userArg)
 {
+     std::lock_guard<std::mutex> guard(gCBMutex);
+
     // the outputs are guaranteed to be valid only within this callback function
     // processing this callback functions as quickly as possible is beneficial 
     // for improving inference performance

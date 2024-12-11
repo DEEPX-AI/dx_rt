@@ -159,16 +159,14 @@ $(function() {
 <div class="line"><a name="l00087"></a><span class="lineno">   87</span>&#160;   <span class="keyword">static</span> std::mutex _sInferenceJobsMapLock;</div>
 <div class="line"><a name="l00088"></a><span class="lineno">   88</span>&#160;   <span class="keyword">static</span> std::mutex _sTensorsMapLock;</div>
 <div class="line"><a name="l00089"></a><span class="lineno">   89</span>&#160;   <span class="keyword">static</span> std::mutex _sRequestsLock;</div>
-<div class="line"><a name="l00090"></a><span class="lineno">   90</span>&#160;   <span class="keyword">static</span> std::mutex _sLoadLock;</div>
-<div class="line"><a name="l00091"></a><span class="lineno">   91</span>&#160; </div>
-<div class="line"><a name="l00092"></a><span class="lineno">   92</span>&#160;   <span class="keyword">static</span> std::atomic&lt;int&gt; _sNextInferenceJobId;</div>
-<div class="line"><a name="l00093"></a><span class="lineno">   93</span>&#160;   <span class="keyword">static</span> std::atomic&lt;int&gt; _load;</div>
-<div class="line"><a name="l00094"></a><span class="lineno">   94</span>&#160;};</div>
+<div class="line"><a name="l00090"></a><span class="lineno">   90</span>&#160; </div>
+<div class="line"><a name="l00091"></a><span class="lineno">   91</span>&#160;   <span class="keyword">static</span> std::atomic&lt;int&gt; _sNextInferenceJobId;</div>
+<div class="line"><a name="l00092"></a><span class="lineno">   92</span>&#160;};</div>
+<div class="line"><a name="l00093"></a><span class="lineno">   93</span>&#160; </div>
+<div class="line"><a name="l00094"></a><span class="lineno">   94</span>&#160;<span class="keyword">using</span> InferenceJobPtr = std::shared_ptr&lt;InferenceJob&gt;;</div>
 <div class="line"><a name="l00095"></a><span class="lineno">   95</span>&#160; </div>
-<div class="line"><a name="l00096"></a><span class="lineno">   96</span>&#160;<span class="keyword">using</span> InferenceJobPtr = std::shared_ptr&lt;InferenceJob&gt;;</div>
-<div class="line"><a name="l00097"></a><span class="lineno">   97</span>&#160; </div>
-<div class="line"><a name="l00098"></a><span class="lineno">   98</span>&#160; </div>
-<div class="line"><a name="l00099"></a><span class="lineno">   99</span>&#160;}  <span class="comment">// namespace dxrt</span></div>
+<div class="line"><a name="l00096"></a><span class="lineno">   96</span>&#160; </div>
+<div class="line"><a name="l00097"></a><span class="lineno">   97</span>&#160;}  <span class="comment">// namespace dxrt</span></div>
 </div><!-- fragment --></div><!-- contents -->
 <div class="ttc" id="anamespacedxrt_html"><div class="ttname"><a href="namespacedxrt.html">dxrt</a></div><div class="ttdoc">DXRT C++ APIs are provided in this namespace.</div><div class="ttdef"><b>Definition:</b> buffer.h:8</div></div>
 <!-- start footer part -->

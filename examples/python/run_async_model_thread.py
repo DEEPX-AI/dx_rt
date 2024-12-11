@@ -9,6 +9,8 @@ THRAD_COUNT = 3
 total_count = 0;
 q = queue.Queue()
 
+lock = threading.Lock()
+
 
 def inferenceThreadFunc(ie, threadIndex, loopCount):
 
@@ -26,31 +28,29 @@ def inferenceThreadFunc(ie, threadIndex, loopCount):
     
     return 0
 
-
-
 def onInferenceCallbackFunc(outputs, user_arg):
     # the outputs are guaranteed to be valid only within this callback function
     # processing this callback functions as quickly as possible is beneficial 
     # for improving inference performance
 
     global total_count
+    with lock:
+        # user data type casting
+        index = user_arg.value[0]
+        loop_count = user_arg.value[1]
+        thread_index = user_arg.value[2]
 
-    # user data type casting
-    index = user_arg.value[0]
-    loop_count = user_arg.value[1]
-    thread_index = user_arg.value[2]
+        # post processing
+        #postProcessing(outputs);
 
-    # post processing
-    #postProcessing(outputs);
+        # something to do
 
-    # something to do
+        total_count += 1
+        print("Inference output (callback) thread-index=", thread_index, "index=", index, "total-count=", total_count)
 
-    total_count += 1
-    print("Inference output (callback) thread-index=", thread_index, "index=", index, "total-count=", total_count)
-
-    if ( total_count ==  loop_count * THRAD_COUNT) :
-        print("Complete Callback")
-        q.put(0)
+        if ( total_count ==  loop_count * THRAD_COUNT) :
+            print("Complete Callback")
+            q.put(0)
 
     return 0
 

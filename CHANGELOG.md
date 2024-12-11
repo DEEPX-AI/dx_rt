@@ -1,4 +1,13 @@
 # Changelog
+## v2.6.1 / 2024-12-11
+### Changed
+- NONE
+### Fixed
+- Fix multi-device performance error
+- Fix issue with running python run_model due to API not being updated.
+### Added
+- NONE
+
 ## v2.6.0 / 2024-12-10
 ### Changed
 - Modify inference load control
