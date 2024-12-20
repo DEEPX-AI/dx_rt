@@ -528,7 +528,7 @@
         
   
   <span class="md-ellipsis">
-    Getting Started
+    Prerequisite
   </span>
   
 
@@ -676,13 +676,11 @@ Following means, <code>#define EXAMPLE_FLAG 1</code> in compile time.<br>
 <p>You can configure DXRT options in cmake/dxrt.cfg.cmake<br>
 <code>USE_ORT</code> : Use ONNX runtime for NN ops that NPU does not support.<br>
 <code>USE_PYTHON</code> : Enable python RT.<br>
-<code>USE_SERVICE</code> : Use service to support multi-process.<br>
-<code>USE_DXRT_TEST</code> : (applicable for only DEEPX-internal version) Build DXRT Unit test. Prebult googletest libraries are linked if this option is <code>ON</code>.  </p>
+<code>USE_SERVICE</code> : Use service to support multi-process.  </p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>option(USE_ORT "Use ONNX Runtime" OFF)
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>option(USE_DXRT_TEST "Use DXRT Unit Test" ON)
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>option(USE_PYTHON "Use Python" OFF)
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>option(USE_SERVICE "Use Service" OFF)
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>option(USE_SHARED_DXRT_LIB "Build for DXRT Shared Library" ON)
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>option(USE_PYTHON "Use Python" OFF)
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>option(USE_SERVICE "Use Service" OFF)
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>option(USE_SHARED_DXRT_LIB "Build for DXRT Shared Library" ON)
 </code></pre></div>
 <h2 id="cross-compile&gt;_setup">Cross-compile Setup<a class="headerlink" href="#cross-compile&gt;_setup" title="Permanent link">¶</a></h2>
 <p>DXRT supports 3 kinds of CPU Architecture - aarch64, riscv64, x86_64.<br>

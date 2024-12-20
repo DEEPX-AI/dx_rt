@@ -1,5 +1,8 @@
 var searchData=
 [
-  ['end_12',['End',['../classdxrt_1_1Profiler.html#ad3168a5bbc2035cef2d63dc04c5b0b24',1,'dxrt::Profiler']]],
-  ['erase_13',['Erase',['../classdxrt_1_1Profiler.html#a866e3e6d0e6cadd4c941bc9c9ad0032a',1,'dxrt::Profiler']]]
+  ['data_6',['data',['../classdxrt_1_1Tensor.html#a199c03999346426d6c70f76ec051a0b2',1,'dxrt::Tensor']]],
+  ['defaultinferenceoption_7',['DefaultInferenceOption',['../namespacedxrt.html#aab5060680ba2f567f47f8868cd8b1f00',1,'dxrt']]],
+  ['devices_8',['devices',['../structdxrt_1_1InferenceOption.html#ae98837ff566fe2b089a5b1bf07feb48c',1,'dxrt::InferenceOption']]],
+  ['dxrt_9',['dxrt',['../namespacedxrt.html',1,'']]],
+  ['dx_20runtime_20api_10',['DX Runtime API',['../index.html',1,'']]]
 ];

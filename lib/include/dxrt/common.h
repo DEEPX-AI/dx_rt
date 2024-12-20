@@ -4,6 +4,25 @@
 #pragma once
 
 #ifdef _WIN32
+    #include <windows.h>
+	typedef int pid_t;
+	#if 0
+	void usleep(int us)
+	{
+		struct timeval tv;
+		tv.tv_sec = 0;
+		tv.tv_usec = us; // micro seconds
+		select(0, NULL, NULL, NULL, &tv); // sleep 10 us
+	}
+	#endif
+	// usleep(us) this_thread::sleep_for(chrono::microseconds(us));
+	#pragma warning(disable : 4244)
+	#pragma warning(disable : 4251)
+	#pragma warning(disable : 4267)
+	#pragma warning(disable : 4312)
+	#pragma warning(disable : 4819)
+	#pragma warning(disable : 4996)
+	#pragma warning(disable : 5208)
     #ifdef DXRT_STATIC
         #define DXRT_API
     #else

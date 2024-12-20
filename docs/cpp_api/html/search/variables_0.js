@@ -1,5 +1,4 @@
 var searchData=
 [
-  ['defaultinferenceoption_80',['DefaultInferenceOption',['../namespacedxrt.html#aab5060680ba2f567f47f8868cd8b1f00',1,'dxrt']]],
-  ['devices_81',['devices',['../structdxrt_1_1InferenceOption.html#ae98837ff566fe2b089a5b1bf07feb48c',1,'dxrt::InferenceOption']]]
+  ['boundoption_77',['boundOption',['../structdxrt_1_1InferenceOption.html#a9fd270a5eeeb1a14ce5f133c16c30d55',1,'dxrt::InferenceOption']]]
 ];

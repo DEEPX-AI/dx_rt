@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['latency_65',['latency',['../classdxrt_1_1InferenceEngine.html#a990ca720e7f8a28ac5394206eb6f9491',1,'dxrt::InferenceEngine']]]
+  ['latency_62',['latency',['../classdxrt_1_1InferenceEngine.html#a990ca720e7f8a28ac5394206eb6f9491',1,'dxrt::InferenceEngine']]]
 ];

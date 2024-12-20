@@ -397,9 +397,9 @@ TensorPtrs InferenceEngine::Run(void *inputPtr, void *userArg, void *outputPtr)
 {
     std::shared_ptr<InferenceJob> infJob = InferenceJob::Pick(); 
 
-    infJob->SetInferenceJob(_tasks, _head);
+    infJob->SetInferenceJob(_tasks, _head, _lastOutputOrder);
     infJob->setInferenceEngineInterface(&_inferenceTimer);
-    infJob->SetStoreReault(true);
+    infJob->SetStoreResult(true);
     infJob->setCallBack([this](TensorPtrs &outputs, void *userArg, int jobId)->int{
         int retval = 0;
         if (_userCallback !=nullptr)
@@ -425,7 +425,7 @@ int InferenceEngine::RunAsync(void *inputPtr, void *userArg, void *outputPtr)
     // return InferenceJob instance from InferenceJob pool (reused)
     std::shared_ptr<InferenceJob> infJob = InferenceJob::Pick(); 
 
-    infJob->SetInferenceJob(_tasks, _head);
+    infJob->SetInferenceJob(_tasks, _head, _lastOutputOrder);
     infJob->setInferenceEngineInterface(&_inferenceTimer);
     infJob->setCallBack([this](TensorPtrs &outputs, void *userArg, int jobId)->int{
         int retval = 0;
@@ -441,7 +441,7 @@ int InferenceEngine::RunAsync(void *inputPtr, void *userArg, void *outputPtr)
     }); // inference engine callback 
     if(_userCallback == nullptr)
     {
-        infJob->SetStoreReault(true);
+        infJob->SetStoreResult(true);
     }
 
     int jobId = infJob->startJob(inputPtr, userArg, outputPtr);

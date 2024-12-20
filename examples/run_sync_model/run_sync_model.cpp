@@ -36,8 +36,8 @@ int main(int argc, char* argv[])
         // create inference engine instance with model
         dxrt::InferenceEngine ie(modelPath);
 
-        // create input data
-        uint8_t input_data[ie.input_size()] = {0, };
+        // create temporary input buffer for example
+        std::vector<uint8_t> inputPtr(ie.input_size(), 0);
 
         auto start = std::chrono::high_resolution_clock::now();
 
@@ -46,7 +46,7 @@ int main(int argc, char* argv[])
         {
             
             // inference synchronously, use one npu core
-            auto outputs = ie.Run(input_data);
+            auto outputs = ie.Run(inputPtr.data());
 
             std::cout << "Inference outputs (" << i << ")" << std::endl;
 
@@ -55,6 +55,10 @@ int main(int argc, char* argv[])
             (void)outputs;
 
         }
+#ifdef __linux__
+#else   // _WIN32
+        delete[] input_data;
+#endif
 
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> duration = end - start;

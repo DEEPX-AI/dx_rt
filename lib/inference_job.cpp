@@ -204,7 +204,7 @@ void InferenceJob::onAllRequestComplete()
     _status = Request::Status::REQ_DONE;
 }
 
-void InferenceJob::SetInferenceJob(std::vector<std::shared_ptr<Task>>& tasks_, std::shared_ptr<Task> head_)
+void InferenceJob::SetInferenceJob(std::vector<std::shared_ptr<Task>>& tasks_, std::shared_ptr<Task> head_, std::vector<string> lastOutputOrder)
 {
     _headTask = head_;
     _doneCount = 0;
@@ -213,13 +213,15 @@ void InferenceJob::SetInferenceJob(std::vector<std::shared_ptr<Task>>& tasks_, s
 
     //_tasks.clear();
     _outputs.clear();
+    _outputs = lastOutputOrder; 
 
     _outputCount = tasks_.size();
     for (std::shared_ptr<Task>& it :  tasks_)
     {
         //int taskId = it->id();
-        if (it->nexts().empty())
+        if (_outputs.empty() && it->nexts().empty())
         {
+            LOG_DXRT<<"Warning : Output order is not set"<<endl;
             for (auto output : it->outputs())
             {
                 _outputs.push_back(output.name());
@@ -297,7 +299,7 @@ TensorPtrs InferenceJob::getOutput()
     return std::move(_returnOutputs);
 }
 
-void InferenceJob::SetStoreReault(bool storeResult)
+void InferenceJob::SetStoreResult(bool storeResult)
 { 
     _storeResult = storeResult;
 }
@@ -338,6 +340,7 @@ InferenceJob::~InferenceJob()
 
 void InferenceJob::freeAllOutputBuffer()
 {
+    std::unique_lock<std::mutex> lk(_sInferenceJobsLock);
     for (auto& req_weak_ptr :  _requests)
     {
         RequestPtr req = req_weak_ptr.lock();
@@ -352,6 +355,7 @@ void InferenceJob::freeAllOutputBuffer()
 }
 void InferenceJob::freeAllInputBuffer()
 {
+    std::unique_lock<std::mutex> lk(_sInferenceJobsLock);
     for (auto& req_weak_ptr :  _requests)
     {
         RequestPtr req = req_weak_ptr.lock();

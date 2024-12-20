@@ -23,6 +23,16 @@
 
 #define NPU_PARAM_FILE "rmap.info"
 
+
+/** 
+ * @mainpage DX Runtime API
+ * 
+ * @subsection intro_sec Introduction
+ * This is the main page of the documentation.  
+ * The DX Runtime API is an API for developing applications using the DX NPU Core.
+ * 
+ */
+
 namespace dxrt {
 using rmapinfo = deepx_rmapinfo::RegisterInfoDatabase;
 struct InferenceOption;
@@ -50,22 +60,38 @@ struct TimePoint;
 class DXRT_API InferenceEngine
 {
 public:
-    InferenceEngine(const std::string &, InferenceOption &option=DefaultInferenceOption);
+    /** @brief Perform the task of loading the model and configuring the NPU to run.
+     * @param[in] modelPath model path
+     * @param[in] option device and npu core options
+     * @code
+     * auto modelPath = "model.dxnn"; // assume compiled model path name is "model.dxnn"
+     * dxrt::InferenceEngine(modelPath) ie(modelPath);
+     * auto outputs = ie.Run();
+     * 
+     * dxrt::InferenceOption op;
+     * op.devices.push_back(0); 
+     * op.boundOption = dxrt::InferenceOption::BOUND_OPTION::NPU_0; // NPU_0 only
+     * dxrt::InferenceEngine ie(modelPath, op);
+     * auto outputs = ie.Run();
+     * @endcode
+     */
+    InferenceEngine(const std::string &modelPath, InferenceOption &option=DefaultInferenceOption);
     ~InferenceEngine(void);
+
     /** @brief Run inference engine using specific input pointer Synchronously
      * @param[in] inputPtr input data pointer to run inference
      * @param[in] userArg user-defined arguments as a void pointer(e.g. original frame data, metadata about input, ... )
      * @param[out] outputPtr pointer to output data, if it is nullptr, output data is stored in buffer inside DXRT.
      * @code
-     * auto modelPath = "model"; // assume compiled model path name is "model"
-     * auto ie = dxrt::InferenceEngine(modelPath);
+     * auto modelPath = "model.dxnn"; // assume compiled model path name is "model.dxnn"
+     * dxrt::InferenceEngine ie(modelPath);
      * auto outputs = ie.Run();
      * @endcode
      * @return output tensors as vector of smart pointer instances 
      */
     TensorPtrs Run(void *inputPtr, void *userArg=nullptr, void *outputPtr=nullptr);
     // void Run(Tensors &inputs, Tensors &outputs); /* TODO */
-    /** @brief Non-blocking call to request asynchronous inference by input pointer, and get request ID from inference engine.
+    /** @brief Non-blocking call to request asynchronous inference by input pointer, and get job ID from inference engine.
      * @param[in] inputPtr input data pointer to run inference
      * @param[in] userArg user-defined arguments as a void pointer(e.g. original frame data, metadata about input, ... )
      * @param[out] outputPtr pointer to output data, if it is nullptr, output data area is allocated by DXRT.
@@ -73,10 +99,10 @@ public:
      * auto modelPath = "model"; // assume compiled model path name is "model"
      * dxrt::InferenceOption option;
      * option.devices = {0,1,3};  //use only 0,1,3 device
-     * auto ie = dxrt::InferenceEngine(modelPath, option);
+     * dxrt::InferenceEngine ie(modelPath, option);
      * auto outputs = ie.Run();
      * @endcode
-     * @return request id that can be used to wait() function 
+     * @return job id that can be used to wait() function 
      */
     int RunAsync(void *inputPtr, void *userArg=nullptr, void *outputPtr=nullptr);
     /** @brief run benchmark with loop n times
@@ -104,10 +130,10 @@ public:
     void RegisterCallBack(std::function<int(TensorPtrs& outputs, void* userArg)> callbackFunc);
 
     /** @brief Wait until an request is complete and returns output
-     * @param[in] reqId request Id returned by RunAsync()
+     * @param[in] jobId job Id returned by RunAsync()
      * @return output tensors as vector of smart pointer instances 
      */
-    TensorPtrs Wait(int reqId);
+    TensorPtrs Wait(int jobId);
 
     /** @brief Get input tensor
      *  @param[in] ptr pointer to virtual address
@@ -159,8 +185,8 @@ public:
      */
     int get_num_tails();
     /** 
-     * @brief Returns complie type of the model.
-     * @return The complie type of the model.
+     * @brief Returns the compile type of the model.
+     * @return The compile type of the model.
      */
     string get_compile_type();    
     friend DXRT_API std::ostream& operator<<(std::ostream&, const InferenceEngine&);

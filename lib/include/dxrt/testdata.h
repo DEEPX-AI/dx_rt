@@ -10,9 +10,11 @@
 */
 namespace dxrt {
 
+/// @cond
 /** \brief model test data information
  * \headerfile "dxrt/dxrt_api.h"
 */
+/// @endcond
 struct DXRT_API TestData
 {
     TestData(int id_, std::string inputFile_, std::vector<std::string> refOutputFile_, std::string outputFile_, 

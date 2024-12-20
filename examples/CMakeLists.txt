@@ -1,4 +1,3 @@
-add_subdirectory(display_async_cb)
 add_subdirectory(display_async_wait)
 add_subdirectory(display_async_pipe)
 add_subdirectory(run_async_model)

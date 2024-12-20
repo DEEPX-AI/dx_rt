@@ -20,7 +20,7 @@
     
     
       
-        <title>Getting Started - DXRT SDK Documents</title>
+        <title>Prerequisite - DXRT SDK Documents</title>
       
     
     
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Getting Started
+              Prerequisite
             
           </span>
         </div>
@@ -434,113 +434,18 @@
       <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
       
       
+        
       
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  <span class="md-ellipsis">
-    Getting Started
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
       
       <a href="Getting-Started.html" class="md-nav__link md-nav__link--active">
         
   
   <span class="md-ellipsis">
-    Getting Started
+    Prerequisite
   </span>
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#prerequisite" class="md-nav__link">
-    <span class="md-ellipsis">
-      Prerequisite
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#0>_build" class="md-nav__link">
-    <span class="md-ellipsis">
-      0. Build
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="0. Build">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#non-cross-compile>_case" class="md-nav__link">
-    <span class="md-ellipsis">
-      non-cross-compile case
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#cross-compile>_case" class="md-nav__link">
-    <span class="md-ellipsis">
-      cross-compile case
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#1>_prepare>_a>_model" class="md-nav__link">
-    <span class="md-ellipsis">
-      1. Prepare a model
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#2>_run>_simple>_cli>_to>_device" class="md-nav__link">
-    <span class="md-ellipsis">
-      2. Run simple CLI to device
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#3>_run>_simple>_benchmark>_with>_the>_model" class="md-nav__link">
-    <span class="md-ellipsis">
-      3. Run simple benchmark with the model
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
       
     </li>
   
@@ -674,29 +579,27 @@
                   
 
 
-  <h1>Getting Started</h1>
-
-<div><h2 id="prerequisite">Prerequisite<a class="headerlink" href="#prerequisite" title="Permanent link">¶</a></h2>
+<div><h1 id="prerequisite">Prerequisite<a class="headerlink" href="#prerequisite" title="Permanent link">¶</a></h1>
 <p>To proceed with the details below, installation must first be completed.<br>
 Ensure that the necessary dependencies and build tools are installed on the host and target systems.  </p>
-<h2 id="0&gt;_build">0. Build<a class="headerlink" href="#0&gt;_build" title="Permanent link">¶</a></h2>
-<h3 id="non-cross-compile&gt;_case">non-cross-compile case<a class="headerlink" href="#non-cross-compile&gt;_case" title="Permanent link">¶</a></h3>
+<h1 id="0&gt;_build">0. Build<a class="headerlink" href="#0&gt;_build" title="Permanent link">¶</a></h1>
+<h2 id="non-cross-compile&gt;_case">non-cross-compile case<a class="headerlink" href="#non-cross-compile&gt;_case" title="Permanent link">¶</a></h2>
 <p>To build DXRT for the host system, execute the build script with the appropriate installation path.<br>
 It is recommended to set the installation path to a location commonly referenced in the OS, such as <code>/usr/local</code>.<br>
 </p><div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>./build.sh --install /usr/local
 </code></pre></div>
-<h3 id="cross-compile&gt;_case">cross-compile case<a class="headerlink" href="#cross-compile&gt;_case" title="Permanent link">¶</a></h3>
+<h2 id="cross-compile&gt;_case">cross-compile case<a class="headerlink" href="#cross-compile&gt;_case" title="Permanent link">¶</a></h2>
 <p>To cross-compile DXRT for a target system, please refer to <code>Build</code> chapter.<br>
 </p><div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>./build.sh --arch &lt;target_cpu&gt;
 </code></pre></div>
-<h2 id="1&gt;_prepare&gt;_a&gt;_model">1. Prepare a model<a class="headerlink" href="#1&gt;_prepare&gt;_a&gt;_model" title="Permanent link">¶</a></h2>
+<h1 id="1&gt;_prepare&gt;_a&gt;_model">1. Prepare a model<a class="headerlink" href="#1&gt;_prepare&gt;_a&gt;_model" title="Permanent link">¶</a></h1>
 <p>Pick one prebuilt model from ModelZoo.<br>
 Since ModelZoo is still not open, prebuilt model files will be provided separately.<br>
 </p><div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>(You will see the file structure as below )  
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>yolov5s_640
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>└── graph.dxnn
 </code></pre></div>
-<h2 id="2&gt;_run&gt;_simple&gt;_cli&gt;_to&gt;_device">2. Run simple CLI to device<a class="headerlink" href="#2&gt;_run&gt;_simple&gt;_cli&gt;_to&gt;_device" title="Permanent link">¶</a></h2>
+<h1 id="2&gt;_run&gt;_simple&gt;_cli&gt;_to&gt;_device">2. Run simple CLI to device<a class="headerlink" href="#2&gt;_run&gt;_simple&gt;_cli&gt;_to&gt;_device" title="Permanent link">¶</a></h1>
 <p>Check basic device interface as following.
 </p><div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>./bin/dxrt-cli --status
 </code></pre></div>
@@ -710,7 +613,7 @@ Since ModelZoo is still not open, prebuilt model files will be provided separate
 <a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>NPU 1: voltage 750 mV, clock 1000 MHz, temperature 39'C
 <a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>NPU 2: voltage 750 mV, clock 1000 MHz, temperature 39'C
 </code></pre></div>
-<h2 id="3&gt;_run&gt;_simple&gt;_benchmark&gt;_with&gt;_the&gt;_model">3. Run simple benchmark with the model<a class="headerlink" href="#3&gt;_run&gt;_simple&gt;_benchmark&gt;_with&gt;_the&gt;_model" title="Permanent link">¶</a></h2>
+<h1 id="3&gt;_run&gt;_simple&gt;_benchmark&gt;_with&gt;_the&gt;_model">3. Run simple benchmark with the model<a class="headerlink" href="#3&gt;_run&gt;_simple&gt;_benchmark&gt;_with&gt;_the&gt;_model" title="Permanent link">¶</a></h1>
 <p></p><div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>./bin/run_model -m &lt;model directory&gt;
 </code></pre></div>
 If the application completes successfully, you can see detection result as following.<br>

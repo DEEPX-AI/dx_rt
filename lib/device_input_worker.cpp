@@ -72,7 +72,10 @@ void DeviceInputWorker::ThreadWork(int id)
             auto inferenceAcc = _device->peekInferenceAcc(requestId);
             inferenceAcc->dma_ch = id;
             // cout << inferenceAcc << endl; // for debug.
-            _device->Write(inferenceAcc->input, id);
+            if (SKIP_INFERENCE_IO != 1)
+            {
+                _device->Write(inferenceAcc->input, id);
+            }
 #ifdef USE_SERVICE
             std::ignore = ret;
             _device->SignalToService(inferenceAcc);

@@ -31,7 +31,8 @@ class InferenceJob
     InferenceJob(int id) noexcept ;
     ~InferenceJob();
 
-    void SetInferenceJob(std::vector<std::shared_ptr<Task>>& tasks_, std::shared_ptr<Task> head_);
+    void SetInferenceJob(std::vector<std::shared_ptr<Task>>& tasks_, std::shared_ptr<Task> head_, std::vector<string> lastOutputOrder);
+
     void onRequestComplete(RequestPtr req);
 
     int startJob(void *inputPtr, void *userArg, void *outputPtr);
@@ -51,7 +52,7 @@ class InferenceJob
     static std::shared_ptr<InferenceJob> GetById(int id);
     static void InitInferenceJob();
     static std::shared_ptr<InferenceJob> Pick();
-    void SetStoreReault(bool storeResult);
+    void SetStoreResult(bool storeResult);
 
  private:
     std::vector<RequestWeakPtr> _requests;

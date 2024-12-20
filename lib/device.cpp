@@ -680,6 +680,15 @@ int Device::UploadFw(string fwFile, int subCmd)
     return Process(dxrt::dxrt_cmd_t::DXRT_CMD_UPLOAD_FIRMWARE, buf.data(), buf.size(), subCmd);
 }
 
+int Device::UpdateFwConfig(string jsonFile)
+{
+    DXRT_ASSERT(fileExists(jsonFile), jsonFile + " doesn't exist.");
+    vector<uint8_t> buf(getFileSize(jsonFile));
+    DataFromFile(jsonFile, buf.data());
+    Process(dxrt::dxrt_cmd_t::DXRT_CMD_UPDATE_CONFIG_JSON, buf.data(), buf.size());
+    return buf[0];
+}
+
 int64_t Device::Allocate(uint64_t size)
 {
     LOG_DXRT_DBG << "Device " << _id << " allocate: " << showbase << hex << "+" << size << endl;

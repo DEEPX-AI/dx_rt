@@ -1,4 +1,13 @@
 # Changelog
+## v2.6.2 / 2024-12-19
+### Changed
+- NONE
+### Fixed
+- Fix free output buffer locking issue for multi-threaded runAsync
+### Added
+- Modify configuration function for throttling using json
+
+# Changelog
 ## v2.6.1 / 2024-12-11
 ### Changed
 - NONE

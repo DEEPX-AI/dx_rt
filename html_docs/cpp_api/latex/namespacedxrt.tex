@@ -8,8 +8,6 @@ D\+X\+RT C++ A\+P\+Is are provided in this namespace.
 \doxysubsection*{Classes}
 \begin{DoxyCompactItemize}
 \item 
-struct \mbox{\hyperlink{structdxrt_1_1DXRT__API}{D\+X\+R\+T\+\_\+\+A\+PI}}
-\begin{DoxyCompactList}\small\item\em face detection data format from device \end{DoxyCompactList}\item 
 class \mbox{\hyperlink{classdxrt_1_1InferenceEngine}{Inference\+Engine}}
 \begin{DoxyCompactList}\small\item\em This class abstracts runtime inference executor for user\textquotesingle{}s compiled model. \end{DoxyCompactList}\item 
 struct \mbox{\hyperlink{structdxrt_1_1InferenceOption}{Inference\+Option}}
@@ -17,33 +15,22 @@ struct \mbox{\hyperlink{structdxrt_1_1InferenceOption}{Inference\+Option}}
 class \mbox{\hyperlink{classdxrt_1_1Profiler}{Profiler}}
 \begin{DoxyCompactList}\small\item\em This class provides time measurement A\+PI based on timestamp. \end{DoxyCompactList}\item 
 class \mbox{\hyperlink{classdxrt_1_1Tensor}{Tensor}}
-\begin{DoxyCompactList}\small\item\em This class abstracts D\+X\+RT tensor object, which defines data array composed of uniform elements. \end{DoxyCompactList}\item 
-struct \mbox{\hyperlink{structdxrt_1_1TestData}{Test\+Data}}
-\begin{DoxyCompactList}\small\item\em model test data information \end{DoxyCompactList}\end{DoxyCompactItemize}
-\doxysubsection*{Typedefs}
-\begin{DoxyCompactItemize}
-\item 
-\mbox{\Hypertarget{namespacedxrt_ab574f3d576e9116720420cedca3ff9bf}\label{namespacedxrt_ab574f3d576e9116720420cedca3ff9bf}} 
-typedef struct \mbox{\hyperlink{structdxrt_1_1DXRT__API}{dxrt\+::\+D\+X\+R\+T\+\_\+\+A\+PI}} \mbox{\hyperlink{namespacedxrt_ab574f3d576e9116720420cedca3ff9bf}{Device\+Face\+\_\+t}}
-\begin{DoxyCompactList}\small\item\em face detection data format from device \end{DoxyCompactList}\item 
-\mbox{\Hypertarget{namespacedxrt_a97943489f0354a7170736555f596161c}\label{namespacedxrt_a97943489f0354a7170736555f596161c}} 
-typedef struct \mbox{\hyperlink{structdxrt_1_1DXRT__API}{dxrt\+::\+D\+X\+R\+T\+\_\+\+A\+PI}} \mbox{\hyperlink{namespacedxrt_a97943489f0354a7170736555f596161c}{Device\+Pose\+\_\+t}}
-\begin{DoxyCompactList}\small\item\em pose estimation data format from device \end{DoxyCompactList}\end{DoxyCompactItemize}
+\begin{DoxyCompactList}\small\item\em This class abstracts D\+X\+RT tensor object, which defines data array composed of uniform elements. \end{DoxyCompactList}\end{DoxyCompactItemize}
 \doxysubsection*{Functions}
 \begin{DoxyCompactItemize}
 \item 
-\mbox{\hyperlink{structdxrt_1_1DXRT__API}{D\+X\+R\+T\+\_\+\+A\+PI}} int \mbox{\hyperlink{namespacedxrt_a9ccf41f6e21badc40edbb81ddc2b3f5e}{Command\+Line\+Interface}} (Command cmd, std\+::vector$<$ uint32\+\_\+t $>$ vec)
+D\+X\+R\+T\+\_\+\+A\+PI int \mbox{\hyperlink{namespacedxrt_a9ccf41f6e21badc40edbb81ddc2b3f5e}{Command\+Line\+Interface}} (Command cmd, std\+::vector$<$ uint32\+\_\+t $>$ vec)
 \begin{DoxyCompactList}\small\item\em get hardware status (this function is valid only for accelerator devices) \end{DoxyCompactList}\item 
 \mbox{\Hypertarget{namespacedxrt_a789419550b801bbd0fce46cacd3eaa20}\label{namespacedxrt_a789419550b801bbd0fce46cacd3eaa20}} 
-\mbox{\hyperlink{structdxrt_1_1DXRT__API}{D\+X\+R\+T\+\_\+\+A\+PI}} int \mbox{\hyperlink{namespacedxrt_a789419550b801bbd0fce46cacd3eaa20}{Clean\+Mem\+If}} ()
+D\+X\+R\+T\+\_\+\+A\+PI int \mbox{\hyperlink{namespacedxrt_a789419550b801bbd0fce46cacd3eaa20}{Clean\+Mem\+If}} ()
 \begin{DoxyCompactList}\small\item\em C\+PU cache flush A\+PI (Platform-\/dependent) \end{DoxyCompactList}\item 
-\mbox{\hyperlink{structdxrt_1_1DXRT__API}{D\+X\+R\+T\+\_\+\+A\+PI}} int \mbox{\hyperlink{namespacedxrt_a639d891e943841d37650b5775bdfd279}{Parse\+Model}} (std\+::string file)
+D\+X\+R\+T\+\_\+\+A\+PI int \mbox{\hyperlink{namespacedxrt_a639d891e943841d37650b5775bdfd279}{Parse\+Model}} (std\+::string file)
 \begin{DoxyCompactList}\small\item\em parse a model, and show information \end{DoxyCompactList}\end{DoxyCompactItemize}
 \doxysubsection*{Variables}
 \begin{DoxyCompactItemize}
 \item 
 \mbox{\Hypertarget{namespacedxrt_aab5060680ba2f567f47f8868cd8b1f00}\label{namespacedxrt_aab5060680ba2f567f47f8868cd8b1f00}} 
-\mbox{\hyperlink{structdxrt_1_1DXRT__API}{D\+X\+R\+T\+\_\+\+A\+PI}} \mbox{\hyperlink{structdxrt_1_1InferenceOption}{Inference\+Option}} \mbox{\hyperlink{namespacedxrt_aab5060680ba2f567f47f8868cd8b1f00}{Default\+Inference\+Option}}
+D\+X\+R\+T\+\_\+\+A\+PI \mbox{\hyperlink{structdxrt_1_1InferenceOption}{Inference\+Option}} \mbox{\hyperlink{namespacedxrt_aab5060680ba2f567f47f8868cd8b1f00}{Default\+Inference\+Option}}
 \begin{DoxyCompactList}\small\item\em Default inference option. \end{DoxyCompactList}\end{DoxyCompactItemize}
 
 
@@ -57,7 +44,7 @@ D\+X\+RT C++ A\+P\+Is are provided in this namespace.
 \index{dxrt@{dxrt}!CommandLineInterface@{CommandLineInterface}}
 \index{CommandLineInterface@{CommandLineInterface}!dxrt@{dxrt}}
 \doxysubsubsection{\texorpdfstring{CommandLineInterface()}{CommandLineInterface()}}
-{\footnotesize\ttfamily \mbox{\hyperlink{structdxrt_1_1DXRT__API}{D\+X\+R\+T\+\_\+\+A\+PI}} int dxrt\+::\+Command\+Line\+Interface (\begin{DoxyParamCaption}\item[{Command}]{cmd,  }\item[{std\+::vector$<$ uint32\+\_\+t $>$}]{vec }\end{DoxyParamCaption})}
+{\footnotesize\ttfamily D\+X\+R\+T\+\_\+\+A\+PI int dxrt\+::\+Command\+Line\+Interface (\begin{DoxyParamCaption}\item[{Command}]{cmd,  }\item[{std\+::vector$<$ uint32\+\_\+t $>$}]{vec }\end{DoxyParamCaption})}
 
 
 
@@ -70,7 +57,7 @@ return 0 if hardware status is read successfully
 \index{dxrt@{dxrt}!ParseModel@{ParseModel}}
 \index{ParseModel@{ParseModel}!dxrt@{dxrt}}
 \doxysubsubsection{\texorpdfstring{ParseModel()}{ParseModel()}}
-{\footnotesize\ttfamily \mbox{\hyperlink{structdxrt_1_1DXRT__API}{D\+X\+R\+T\+\_\+\+A\+PI}} int dxrt\+::\+Parse\+Model (\begin{DoxyParamCaption}\item[{std\+::string}]{file }\end{DoxyParamCaption})}
+{\footnotesize\ttfamily D\+X\+R\+T\+\_\+\+A\+PI int dxrt\+::\+Parse\+Model (\begin{DoxyParamCaption}\item[{std\+::string}]{file }\end{DoxyParamCaption})}
 
 
 

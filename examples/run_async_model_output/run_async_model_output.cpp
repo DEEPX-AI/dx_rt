@@ -15,7 +15,6 @@ static ConcurrentQueue<std::pair<int, uint8_t*>> gJobIdQueue(32);
 
 static const int BUFFER_POOL_SIZE = 10;
 static std::shared_ptr<SimpleCircularBufferPool<uint8_t>> gOutputBufferPool;
-
 static std::atomic<int> gOutputCount = {0};
 
 // user thread to wait for the completion of inference 
@@ -83,7 +82,7 @@ int main(int argc, char* argv[])
     }
     else
     {
-        std::cout << "[Usage] run_async_model_wait [dxnn-file-path] [loop-count]" << std::endl;
+        std::cout << "[Usage] run_async_model_output [dxnn-file-path] [loop-count]" << std::endl;
         return -1;
     }
 
@@ -99,8 +98,8 @@ int main(int argc, char* argv[])
         // create thread
         auto t1 = std::thread(inferenceThreadFunc, std::ref(ie), loop_count);
 
-        // create input data
-        uint8_t inputPtr[ie.input_size()] = {0, };
+        // create temporary input buffer for example
+        std::vector<uint8_t> inputPtr(ie.input_size(), 0);
 
         auto start = std::chrono::high_resolution_clock::now();
 
@@ -115,7 +114,7 @@ int main(int argc, char* argv[])
             // if device-load >= max-load-value, this function will block
             // provide the output buffer pointer so the user can manage the output directly
             auto pointer = gOutputBufferPool->pointer();
-            auto jobId = ie.RunAsync(inputPtr, nullptr, pointer);
+            auto jobId = ie.RunAsync(inputPtr.data(), nullptr, pointer);
 
             // push jobId in global queue variable
             gJobIdQueue.push(std::pair<int, uint8_t*>(jobId, pointer));

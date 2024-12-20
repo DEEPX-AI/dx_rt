@@ -34,6 +34,29 @@ static string ParseFwUpdateSubCmd(string cmd, uint32_t* subCmd)
     return path;
 }
 
+static void HelpJsonConfig(void)
+{
+    const char* helpMessage = R"(
+{
+    "throttling_table": [
+      { "mhz": 1000, "temper": 65 },
+      { "mhz": 800,  "temper": 70 },
+      { "mhz": 700,  "temper": 75 },
+      { "mhz": 600,  "temper": 80 },
+      { "mhz": 500,  "temper": 85 },
+      { "mhz": 400,  "temper": 90 },
+      { "mhz": 300,  "temper": 93 },
+      { "mhz": 200,  "temper": 95 }
+    ],
+    "throttling_cfg" : {
+        "emergency" : 100,
+        "enable" : 1
+    }
+}
+)";
+    cout << "[Json format example]";
+    cout << helpMessage;
+}
 
 CLICommand::CLICommand(cxxopts::ParseResult &cmd)
 : _cmd(cmd)
@@ -212,112 +235,6 @@ shared_ptr<FwLog> GetFwLog(DevicePtr devicePtr)
     return fwlog;
 }
 
-static void HelpJsonConfig(void)
-{
-    const char* helpMessage = R"(
-{
-    "npu": {
-        "0": {
-            "voltage": 750,
-            "frequency": 1000
-        },
-        "1": {
-            "voltage": 750,
-            "frequency": 1000
-        },
-        "2": {
-            "voltage": 750,
-            "frequency": 1000
-        }
-    },
-    "throttling": {
-        "threshold1": 60,
-        "threshold2": 90,
-        "emergency": 120,
-        "enable": 1
-    }
-}
-)";
-    cout << "[Json format example]";
-    cout << helpMessage;
-}
-
-vector<uint32_t> ParseJsonConfig(const string& fwConfigJson)
-{
-    vector<uint32_t> data;
-
-    ifstream ifs(fwConfigJson);
-    if (!ifs.is_open()) {
-        cerr << "[ERROR] Failed to open file: " << fwConfigJson << endl;
-        HelpJsonConfig();
-        return {};
-    }
-
-    IStreamWrapper isw(ifs);
-    Document doc;
-    doc.ParseStream(isw);
-
-    if (doc.HasParseError()) {
-        cerr << "[ERROR] Failed to parse JSON file: " << fwConfigJson << endl;
-        HelpJsonConfig();
-        return {};
-    }
-
-    if (doc.HasMember("npu")) {
-        const Value& npu = doc["npu"];
-
-        for (int i = 0; i <= 2; i++) {
-            string npuId = to_string(i);
-
-            if (npu.HasMember(npuId.c_str())) {
-                const Value& npuConfig = npu[npuId.c_str()];
-
-                if (npuConfig.HasMember("voltage") && npuConfig.HasMember("frequency")) {
-                    uint32_t voltage = npuConfig["voltage"].GetUint();
-                    uint32_t frequency = npuConfig["frequency"].GetUint();
-                    cout << "npuID[@" << npuId << "]:: voltage - " << voltage << " / freq - " << frequency << endl;
-                    data.push_back(voltage);
-                    data.push_back(frequency);
-                }
-                else {
-                    cerr << "[ERROR] failed to parse JSON: check npu[idx: " << npuId << "[voltage | frequency]" << endl;
-                    return data;
-                }
-            }
-        }
-    }
-    else {
-        return data;
-    }
-
-    if (doc.HasMember("throttling")) {
-        const Value& throtConfig = doc["throttling"];
-
-        if (throtConfig.HasMember("threshold1")
-                && throtConfig.HasMember("threshold2")
-                && throtConfig.HasMember("emergency")
-                && throtConfig.HasMember("enable")) {
-            uint32_t throt1 = throtConfig["threshold1"].GetUint();
-            uint32_t throt2 = throtConfig["threshold2"].GetUint();
-            uint32_t emergency = throtConfig["emergency"].GetUint();
-            uint32_t throtEnable = throtConfig["enable"].GetUint();
-            data.push_back(throt1);
-            data.push_back(throt2);
-            data.push_back(emergency);
-            data.push_back(throtEnable);
-            cout << "npu throttling threshold 1 - " << throt1 << endl;
-            cout << "npu throttling threshold 2 - " << throt2 << endl;
-            cout << "npu emergency threshold - " << emergency << endl;
-            cout << "npu throttling enabled - " << throtEnable << endl;
-        }
-        else {
-            cerr << "[ERROR] failed to parse JSON : check throtting values" << endl;
-            return data;
-        }
-    }
-
-    return data;
-}
 
 DeviceDumpCommand::DeviceDumpCommand(cxxopts::ParseResult &cmd)
 : CLICommand(cmd)
@@ -358,12 +275,15 @@ FWConfigCommandJson::FWConfigCommandJson(cxxopts::ParseResult &cmd)
 void FWConfigCommandJson::doCommand(DevicePtr devicePtr)
 {
     string fwConfigJson = _cmd["fwconfig_json"].as<string>();
-    vector<uint32_t> fwConfig = ParseJsonConfig(fwConfigJson);
+    cout << "    Device " << devicePtr->id() << " update firmware config by " << fwConfigJson;
+    int ret = devicePtr->UpdateFwConfig(fwConfigJson);
 
-    cout << "    Device " << devicePtr->id() << " update firmware config by " << fwConfig.size() << endl;
-
-    if (fwConfig.size() > 0)
-        UpdateFwConfig(devicePtr, fwConfig);
+    if (ret == 0) {
+        cout << " : SUCCESS" << endl;
+    } else {
+        cout << " : FAIL (" << ret << ")" << endl;
+        HelpJsonConfig();
+    }
 }
 
 

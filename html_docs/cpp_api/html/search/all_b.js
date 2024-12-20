@@ -1,6 +1,7 @@
 var searchData=
 [
-  ['save_34',['Save',['../classdxrt_1_1Profiler.html#ae7a4f64cc8dcfea179ab9eb0a8bea8da',1,'dxrt::Profiler']]],
-  ['show_35',['Show',['../classdxrt_1_1Profiler.html#a8b3f38d3b67f15fd530cca295c8a50a8',1,'dxrt::Profiler']]],
-  ['start_36',['Start',['../classdxrt_1_1Profiler.html#aec94050841dbf409644cf73a1647820b',1,'dxrt::Profiler']]]
+  ['registercallback_29',['RegisterCallBack',['../classdxrt_1_1InferenceEngine.html#a3d3fc75faa79470d9a3bdbdc61561a3a',1,'dxrt::InferenceEngine']]],
+  ['run_30',['Run',['../classdxrt_1_1InferenceEngine.html#a88cea5324cbeb436034adb60cf31050f',1,'dxrt::InferenceEngine']]],
+  ['runasync_31',['RunAsync',['../classdxrt_1_1InferenceEngine.html#af3006c9a7183f7e42d1528aa8a6fea24',1,'dxrt::InferenceEngine']]],
+  ['runbenchmark_32',['RunBenchMark',['../classdxrt_1_1InferenceEngine.html#ab0c6629f048341d62bfa3a400c90e827',1,'dxrt::InferenceEngine']]]
 ];

@@ -20,7 +20,7 @@ class Tensor;
 class Task;
 class Device;
 class Request;
-struct CpuHandle;
+class CpuHandle;
 
 using std::shared_ptr;
 using std::string;

@@ -432,7 +432,7 @@
         
   
   <span class="md-ellipsis">
-    Getting Started
+    Prerequisite
   </span>
   
 
@@ -637,36 +637,33 @@
 <div><p>Please find our demo applications implemented based on the Inference Guide.</p>
 <h2 id="parse&gt;_model">Parse Model<a class="headerlink" href="#parse&gt;_model" title="Permanent link">¶</a></h2>
 <p>Parse model, and show detailed model information<br>
-(from <code>app/basic/parse_model.cpp</code>)  </p>
+(from <code>bin/parse_model.cpp</code>)  </p>
 <blockquote>
 <p>-m, --model     model path<br>
  -h, --help      show help<br>
 </p><div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>parse_model -m &lt;model_dir&gt;
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>$./parse_model -m yolov5s
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>modelPath: yolov5s
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>parse non-encryption format.
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>compiler version info : v0.5_transpose, 1.0, 0.0
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>model name : yolov5s_512
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>number of macs : 4096
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>number of layers : 71
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>total memory usage : 34628608 Bytes
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>  - weight param. : 7342592 Bytes
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>  - npu param. : 219648 Bytes
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>  - input : 786432 Bytes
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>  - output : 26279936 Bytes
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>input tensors
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>  type : IM2COL
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>  [0] "INPUT", UINT32, [1, 3, 512, 512, ], 786432 Bytes
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>output tensors
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>  [0] "378", FLOAT, [64, 64, 255, ], 4194304 Bytes
-<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>  [1] "439", FLOAT, [32, 32, 255, ], 1048576 Bytes
-<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>  [2] "500", FLOAT, [16, 16, 255, ], 262144 Bytes
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>$./parse_model -m model.dxnn
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>modelPath: /.../model.dxnn
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>DXNN Model Ver. : 6
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>...
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>[  ] -&gt; npu_0 -&gt; [ ]
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>  inputs
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>     -&gt; npu_0
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>      images
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>  outputs
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    npu_0 -&gt;
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>       ...
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>  Task[0] npu_0, NPU, 117389760 bytes (input 786432, output 131072)
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    inputs
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>      images, UINT8, [1, 512, 512, 3 ], 0
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>    outputs
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>      DX_tensor_5288, BBOX, [UNKNOWN ], 0
 </code></pre></div>
 </blockquote>
 <h2 id="run&gt;_model">Run Model<a class="headerlink" href="#run&gt;_model" title="Permanent link">¶</a></h2>
 <p>Simple model run demo, which measure inference time, and check output data integrity<br>
-(from <code>app/basic/run_model.cpp</code>)  </p>
+(from <code>bin/run_model.cpp</code>)  </p>
 <blockquote>
 <p>-c, --config    config json file<br>
  -m, --model     model path<br>
@@ -677,17 +674,20 @@
  -h, --help      show help<br>
 </p><div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>run_model -m &lt;model_dir&gt; -i &lt;input bin.&gt; -o &lt;output bin.&gt; -r &lt;reference output bin.&gt; -l &lt;number of loops&gt;
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>$ run_model -m /mnt/.../model.dxnn -i /mnt/.../input.bin -l 100
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>-----------------------------------
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>loops : 100
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>-----------------------------------
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>...
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>...
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>-----------------------------------
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>  Inference time : 13.872ms
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>  FPS : 72.0879
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>  Bit match test : SKIP
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>-----------------------------------
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>$ run_model -m /.../model.dxnn -i /.../input.bin -l 100
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>modelFile: /.../model.dxnn
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>inputFile: /.../input.bin
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>outputFile: output.bin
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>benchmark: 0
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>loops: 100
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>Run model target mode : Benchmark Mode
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>============================================================================================
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>* Processing File : /.../input.bin
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>* Output Saved As : output.bin
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>* Benchmark Result(3 Cores)
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>  - FPS : 323.331604
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>============================================================================================
 </code></pre></div>
 </blockquote>
 <h2 id="firmware&gt;_interface&gt;_dxrt-cli&gt;_tool">Firmware Interface DXRT-CLI tool<a class="headerlink" href="#firmware&gt;_interface&gt;_dxrt-cli&gt;_tool" title="Permanent link">¶</a></h2>

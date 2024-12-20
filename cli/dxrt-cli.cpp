@@ -26,6 +26,8 @@ int main(int argc, char *argv[])
         ("g, fwversion", "Get firmware version with deepx firmware file", cxxopts::value<string>())
         ("p, dump", "Dump device internals to a file", cxxopts::value<string>() )
         ("l, fwlog", "Extract firmware logs to a file", cxxopts::value<string>() )
+        ("C, fwconfig_json", "Update firmware settings from [JSON]", cxxopts::value<string>())
+
         ("h, help", "Print usage");
     try{
         auto cmd = options.parse(argc, argv);

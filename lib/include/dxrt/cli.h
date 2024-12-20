@@ -10,12 +10,12 @@
 
 
 namespace dxrt {
-class CLICommand
+class DXRT_API CLICommand
 {
  public:
-    DXRT_API explicit CLICommand(cxxopts::ParseResult &);
-    virtual DXRT_API ~CLICommand();
-    DXRT_API void Run();
+    explicit CLICommand(cxxopts::ParseResult &);
+    virtual ~CLICommand();
+    void Run();
  protected:
     cxxopts::ParseResult _cmd;
     int _deviceId = -1;
@@ -25,42 +25,42 @@ class CLICommand
     virtual void doCommand(DevicePtr devicePtr) = 0;
 };
 
-class DeviceStatusCLICommand : public CLICommand
+class DXRT_API DeviceStatusCLICommand : public CLICommand
 {
  public:
     explicit DeviceStatusCLICommand(cxxopts::ParseResult &);
  private:
     void doCommand(DevicePtr devicePtr) override;
 };
-class DeviceInfoCLICommand : public CLICommand
+class DXRT_API DeviceInfoCLICommand : public CLICommand
 {
  public:
     explicit DeviceInfoCLICommand(cxxopts::ParseResult &);
  private:
     void doCommand(DevicePtr devicePtr) override;
 };
-class DeviceStatusMonitor : public CLICommand
+class DXRT_API DeviceStatusMonitor : public CLICommand
 {
    public:
       explicit DeviceStatusMonitor(cxxopts::ParseResult &);
    private:
       void doCommand(DevicePtr devicePtr) override;
 };
-class FWVersionCommand : public CLICommand
+class DXRT_API FWVersionCommand : public CLICommand
 {
  public:
     explicit FWVersionCommand(cxxopts::ParseResult &);
  private:
     void doCommand(DevicePtr devicePtr) override;
 };
-class DeviceResetCommand : public CLICommand
+class DXRT_API DeviceResetCommand : public CLICommand
 {
  public:
     explicit DeviceResetCommand(cxxopts::ParseResult &);
  private:
     void doCommand(DevicePtr devicePtr) override;
 };
-class FWUpdateCommand : public CLICommand
+class DXRT_API FWUpdateCommand : public CLICommand
 {
  public:
     explicit FWUpdateCommand(cxxopts::ParseResult &);
@@ -70,7 +70,7 @@ class FWUpdateCommand : public CLICommand
     std::string _fwUpdateFile;
 };
 
-class FWUploadCommand : public CLICommand
+class DXRT_API FWUploadCommand : public CLICommand
 {
  public:
     explicit FWUploadCommand(cxxopts::ParseResult &);
@@ -82,7 +82,7 @@ class FWUploadCommand : public CLICommand
 
 
 
-class DeviceDumpCommand : public CLICommand
+class DXRT_API DeviceDumpCommand : public CLICommand
 {
  public:
     explicit DeviceDumpCommand(cxxopts::ParseResult &);
@@ -90,7 +90,7 @@ class DeviceDumpCommand : public CLICommand
     void doCommand(DevicePtr devicePtr) override;
 };
 
-class FWConfigCommand : public CLICommand
+class DXRT_API FWConfigCommand : public CLICommand
 {
  public:
     explicit FWConfigCommand(cxxopts::ParseResult &);
@@ -98,7 +98,7 @@ class FWConfigCommand : public CLICommand
     void doCommand(DevicePtr devicePtr) override;
 };
 
-class FWConfigCommandJson : public CLICommand
+class DXRT_API FWConfigCommandJson : public CLICommand
 {
  public:
     explicit FWConfigCommandJson(cxxopts::ParseResult &);
@@ -106,15 +106,12 @@ class FWConfigCommandJson : public CLICommand
     void doCommand(DevicePtr devicePtr) override;
 };
 
-class FWLogCommand : public CLICommand
+class DXRT_API FWLogCommand : public CLICommand
 {
  public:
     explicit FWLogCommand(cxxopts::ParseResult &);
  private:
     void doCommand(DevicePtr devicePtr) override;
 };
-
-
-
 
 }  // namespace dxrt
