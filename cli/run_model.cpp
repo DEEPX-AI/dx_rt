@@ -4,6 +4,7 @@
 #include "dxrt/dxrt_api.h"
 #include "cxxopts.hpp"
 #include "dxrt/filesys_support.h"
+#include "dxrt/profiler.h"
 
 using namespace std;
 
@@ -99,6 +100,7 @@ int main(int argc, char *argv[])
     int loops = 1;
     int device = -1;
     int targetFps = 0;  // Target FPS
+    bool skip_inference_io = false;
     cxxopts::Options options("run_model", APP_NAME);
     options.add_options()
         (  "m, model", "Model file (.dxnn)" , cxxopts::value<string>(modelFile) )
@@ -118,12 +120,13 @@ int main(int argc, char *argv[])
         (  "l, loops", "Loops to test", cxxopts::value<int>(loops)->default_value("1") )
         (  "d, device", "device to use(blank: all)", cxxopts::value<int>(device)->default_value("-1"))
         (  "f, fps", "Target frames per second", cxxopts::value<int>(targetFps) )
+        (  "skip-io", "Skip Inference I/O(Benchmark mode only)", cxxopts::value<bool>(skip_inference_io)->default_value("false") )
         (  "h, help", "Print usage" )
     ;    
 
     auto cmd = options.parse(argc, argv);
     if(cmd.count("help"))
-    {        
+    {
         cout << options.help() << endl;
         exit(0);
     }
@@ -153,6 +156,24 @@ int main(int argc, char *argv[])
     }
 
     SetRunModelMode(single, targetFps);
+
+    if(skip_inference_io)
+    {
+        if (benchmark == false)
+        {
+            cout << "[ERR] Skip-inference option only for benchmark mode" << endl;
+            return -1;
+        }
+        if (mode != BENCHMARK_MODE)
+        {
+            cout << "[ERR] Skip-inference option only for benchmark mode" << endl;
+            return -1;
+        }
+        dxrt::SKIP_INFERENCE_IO = 1;
+    }
+
+
+
     switch (mode)
     {
         case SINGLE_MODE: {

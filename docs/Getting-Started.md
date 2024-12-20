@@ -1,19 +1,19 @@
-## Prerequisite
+# Prerequisite
 To proceed with the details below, installation must first be completed.  
 Ensure that the necessary dependencies and build tools are installed on the host and target systems.  
-## 0. Build
-### non-cross-compile case
+# 0. Build
+## non-cross-compile case
 To build DXRT for the host system, execute the build script with the appropriate installation path.  
 It is recommended to set the installation path to a location commonly referenced in the OS, such as `/usr/local`.  
 ```
 ./build.sh --install /usr/local
 ```
-### cross-compile case
+## cross-compile case
 To cross-compile DXRT for a target system, please refer to `Build` chapter.  
 ```
 ./build.sh --arch <target_cpu>
 ```
-## 1. Prepare a model
+# 1. Prepare a model
 Pick one prebuilt model from ModelZoo.  
 Since ModelZoo is still not open, prebuilt model files will be provided separately.  
 ```
@@ -21,7 +21,7 @@ Since ModelZoo is still not open, prebuilt model files will be provided separate
 yolov5s_640
 └── graph.dxnn
 ```
-## 2. Run simple CLI to device
+# 2. Run simple CLI to device
 Check basic device interface as following.
 ```
 ./bin/dxrt-cli --status
@@ -37,7 +37,7 @@ NPU 0: voltage 750 mV, clock 1000 MHz, temperature 39'C
 NPU 1: voltage 750 mV, clock 1000 MHz, temperature 39'C
 NPU 2: voltage 750 mV, clock 1000 MHz, temperature 39'C
 ```
-## 3. Run simple benchmark with the model
+# 3. Run simple benchmark with the model
 ```
 ./bin/run_model -m <model directory>
 ```

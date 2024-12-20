@@ -1,5 +1,5 @@
 var searchData=
 [
-  ['parsemodel_28',['ParseModel',['../namespacedxrt.html#a639d891e943841d37650b5775bdfd279',1,'dxrt']]],
-  ['profiler_29',['Profiler',['../classdxrt_1_1Profiler.html',1,'dxrt']]]
+  ['output_5fsize_25',['output_size',['../classdxrt_1_1InferenceEngine.html#a93e1d7b460b7f8656e725ed708de507b',1,'dxrt::InferenceEngine']]],
+  ['outputs_26',['outputs',['../classdxrt_1_1InferenceEngine.html#a0893b724d6eed939556f1315ce05829d',1,'dxrt::InferenceEngine']]]
 ];

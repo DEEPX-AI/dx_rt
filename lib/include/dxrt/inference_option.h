@@ -24,7 +24,10 @@ struct DXRT_API InferenceOption
      * @details make a list which contains list of device ID to use. if it is empty(or use default value), then all devices are used.
      */
     std::vector<int> devices = {};///< list of device ID to use (it is empty by default, then all devices are used.)
-    // TODO : add data format
+
+    /** @brief Select the NPU core inside the device
+     * @details NPU_ALL is an option that uses all NPU cores simultaneously. NPU_0, NPU_1, and NPU_2 are options that allow using only a single NPU core.
+     */
     uint32_t    boundOption = BOUND_OPTION::NPU_ALL;
 
 };

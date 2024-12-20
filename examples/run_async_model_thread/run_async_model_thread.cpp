@@ -11,8 +11,8 @@
 
 
 static const int THREAD_COUNT = 3;
-static std::vector<std::atomic<bool>> gResultComplete(THREAD_COUNT);
-static std::vector<std::atomic<int>> gResultCount(THREAD_COUNT);
+static std::atomic<int> gResultCount = {0};
+static std::atomic<int> gTotalCount = {0};
 static ConcurrentQueue<int> gResultQueue(1);
 static std::mutex gCBMutex;
 
@@ -47,14 +47,12 @@ public:
     }
 };
 
-static int inferenceThreadFunc(dxrt::InferenceEngine& ie, int threadIndex, int loopCount)
+static int inferenceThreadFunc(dxrt::InferenceEngine& ie, std::vector<uint8_t>& inputPtr, int threadIndex, int loopCount)
 {
-    // inference loop
-    for(int i = 0; i < loopCount; ++i)
-    {
-        // input
-        uint8_t inputPtr[ie.input_size()] = {0, };
 
+    // inference loop
+    for(int i = 0; i < loopCount; ++i) 
+    {
         // user argument
         UserData *userData = new UserData();
 
@@ -71,7 +69,7 @@ static int inferenceThreadFunc(dxrt::InferenceEngine& ie, int threadIndex, int l
         {
             // inference asynchronously, use all npu cores
             // if device-load >= max-load-value, this function will block  
-            ie.RunAsync(inputPtr, userData);
+            ie.RunAsync(inputPtr.data(), userData);
         }
         catch(const dxrt::Exception& e)
         {
@@ -83,11 +81,11 @@ static int inferenceThreadFunc(dxrt::InferenceEngine& ie, int threadIndex, int l
             std::cerr << e.what() << std::endl;
             std::exit(-1);
         }
-               
-
         std::cout << "inferenceThreadFunc thread-index=" << threadIndex << " loop-index=" << i << std::endl;
 
     } // for i
+
+    
 
     return 0;
 
@@ -96,7 +94,6 @@ static int inferenceThreadFunc(dxrt::InferenceEngine& ie, int threadIndex, int l
 // invoke this function asynchronously after the inference is completed
 static int onInferenceCallbackFunc(dxrt::TensorPtrs &outputs, void *userArg)
 {
-     std::lock_guard<std::mutex> guard(gCBMutex);
 
     // the outputs are guaranteed to be valid only within this callback function
     // processing this callback functions as quickly as possible is beneficial 
@@ -117,25 +114,17 @@ static int onInferenceCallbackFunc(dxrt::TensorPtrs &outputs, void *userArg)
     (void)outputs;
 
 
-    std::cout << "onInferenceCallbackFunc thread-index=" << thread_index << " loop-index" << loop_index << std::endl;
+    std::cout << "onInferenceCallbackFunc thread-index=" << thread_index << " loop-index=" << loop_index << std::endl;
 
-    // Result count per thread
-    gResultCount[thread_index] ++;
-    
-    // complete of the loop
-    if ( gResultCount[thread_index] == user_data->getLoopCount() )
+
+    // result count
     {
-        gResultComplete[thread_index] = true;
+        // Mutex locks should be properly adjusted 
+        // to ensure that callback functions are thread-safe.
+        std::lock_guard<std::mutex> lock(gCBMutex);
 
-        // check all threads for inference completion
-        int complete_count = 0;
-        for(int i = 0; i < THREAD_COUNT; ++i)
-        {
-            if ( gResultComplete[i] ) complete_count ++;
-        }
-
-        // inference is complete for all threads
-        if ( complete_count == THREAD_COUNT ) gResultQueue.push(0);
+        gResultCount++;
+        if ( gResultCount == gTotalCount ) gResultQueue.push(0);
     }
 
     // delete argument object
@@ -180,15 +169,18 @@ int main(int argc, char* argv[])
     
         auto start = std::chrono::high_resolution_clock::now();
 
+        // create temporary input buffer for example
+        std::vector<uint8_t> inputPtr(ie.input_size(), 0);
+
+        gTotalCount = loop_count * THREAD_COUNT;
+
         // thread vector 
         std::vector<std::thread> thread_array;
+
         for(int i = 0; i < THREAD_COUNT; ++i)
         {
-            gResultComplete[i].store(false);
-            gResultCount[i].store(0);
-
             // create thread
-            thread_array.push_back(std::thread(inferenceThreadFunc, std::ref(ie), i, loop_count));
+            thread_array.push_back(std::thread(inferenceThreadFunc, std::ref(ie), std::ref(inputPtr), i, loop_count));
         }
 
         for(auto &t : thread_array)
@@ -196,16 +188,15 @@ int main(int argc, char* argv[])
             t.join();
         } // for t
 
+
         // wait until all callbacks have been processed
         gResultQueue.pop();
+        
 
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> duration = end - start;
 
-        int total_result_count = 0;
-        for(auto &c : gResultCount) total_result_count += c;
-
-        result = (total_result_count == loop_count * THREAD_COUNT);
+        result = (gResultCount == loop_count * THREAD_COUNT);
 
         double total_time = duration.count();
         double avg_latency = total_time / static_cast<double>(loop_count);
@@ -215,7 +206,7 @@ int main(int argc, char* argv[])
         std::cout << "Total Time: " << total_time << " ms" << std::endl;
         std::cout << "Average Latency: " << avg_latency << " ms" << std::endl;
         std::cout << "FPS: " << fps << " frames/sec" << std::endl;
-        std::cout << "Total count=(" << total_result_count << "/" << loop_count * THREAD_COUNT << ") " 
+        std::cout << "Total count=(" << gResultCount << "/" << loop_count * THREAD_COUNT << ") " 
                 << (result ? "Success" : "Failure") << std::endl;
         std::cout << "-----------------------------------" << std::endl;
 

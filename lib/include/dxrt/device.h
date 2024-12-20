@@ -23,11 +23,7 @@
     #include <poll.h>
 #elif _WIN32
     #include <windows.h>
-    struct pollfd {
-        HANDLE fd;
-        short events;
-        short revents;
-    };
+
 #endif
 
 namespace dxrt {
@@ -76,7 +72,11 @@ public:
     int load();
     void pick();
     int infCnt();
+#ifdef __linux__
     int fd();
+#elif _WIN32
+    HANDLE fd();
+#endif
 
     dxrt_device_info_t info() { return _info;}
     dxrt_device_status_t status();
@@ -101,6 +101,7 @@ public:
     void ResetBuffer(int opt);
     int UpdateFw(std::string fwFile, int subCmd = 0);
     int UploadFw(std::string fwFile, int subCmd = 0);
+    int UpdateFwConfig(std::string jsonFile);
     std::shared_ptr<FwLog> GetFwLog();
     int64_t Allocate(uint64_t size);
     int64_t Allocate(dxrt_request_t &inference);
@@ -130,8 +131,9 @@ protected:
     SkipMode _skip;
     npu_bound_op _boundOp;
     uint32_t _variant;
-    int _devFd = -1;
+    
 #ifdef __linux__
+    int _devFd = -1;
     struct pollfd _devPollFd;
 #elif _WIN32
     HANDLE _devHandle = INVALID_HANDLE_VALUE;

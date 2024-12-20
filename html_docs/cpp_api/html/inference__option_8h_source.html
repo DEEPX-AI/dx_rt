@@ -79,7 +79,7 @@ $(function() {
 <div class="line"><a name="l00007"></a><span class="lineno">    7</span>&#160; </div>
 <div class="line"><a name="l00008"></a><span class="lineno">    8</span>&#160;<span class="keyword">namespace </span><a class="code" href="namespacedxrt.html">dxrt</a> {</div>
 <div class="line"><a name="l00009"></a><span class="lineno">    9</span>&#160;<span class="keyword">enum</span> DXRT_API InferenceMode;</div>
-<div class="line"><a name="l00014"></a><span class="lineno"><a class="line" href="structdxrt_1_1InferenceOption.html">   14</a></span>&#160;<span class="keyword">struct </span><a class="code" href="structdxrt_1_1DXRT__API.html">DXRT_API</a> <a class="code" href="structdxrt_1_1InferenceOption.html">InferenceOption</a></div>
+<div class="line"><a name="l00014"></a><span class="lineno"><a class="line" href="structdxrt_1_1InferenceOption.html">   14</a></span>&#160;<span class="keyword">struct </span>DXRT_API <a class="code" href="structdxrt_1_1InferenceOption.html">InferenceOption</a></div>
 <div class="line"><a name="l00015"></a><span class="lineno">   15</span>&#160;{</div>
 <div class="line"><a name="l00016"></a><span class="lineno">   16</span>&#160;    <span class="keyword">enum</span> BOUND_OPTION {</div>
 <div class="line"><a name="l00017"></a><span class="lineno">   17</span>&#160;        NPU_ALL = 0,</div>
@@ -89,21 +89,20 @@ $(function() {
 <div class="line"><a name="l00021"></a><span class="lineno">   21</span>&#160;    };</div>
 <div class="line"><a name="l00022"></a><span class="lineno">   22</span>&#160; </div>
 <div class="line"><a name="l00026"></a><span class="lineno"><a class="line" href="structdxrt_1_1InferenceOption.html#ae98837ff566fe2b089a5b1bf07feb48c">   26</a></span>&#160;    std::vector&lt;int&gt; devices = {};</div>
-<div class="line"><a name="l00027"></a><span class="lineno">   27</span>&#160;    <span class="comment">// TODO : add data format</span></div>
-<div class="line"><a name="l00028"></a><span class="lineno">   28</span>&#160;    uint32_t    boundOption = BOUND_OPTION::NPU_ALL;</div>
-<div class="line"><a name="l00029"></a><span class="lineno">   29</span>&#160; </div>
-<div class="line"><a name="l00030"></a><span class="lineno">   30</span>&#160;};</div>
-<div class="line"><a name="l00031"></a><span class="lineno">   31</span>&#160; </div>
+<div class="line"><a name="l00027"></a><span class="lineno">   27</span>&#160; </div>
+<div class="line"><a name="l00031"></a><span class="lineno"><a class="line" href="structdxrt_1_1InferenceOption.html#a9fd270a5eeeb1a14ce5f133c16c30d55">   31</a></span>&#160;    uint32_t    boundOption = BOUND_OPTION::NPU_ALL;</div>
 <div class="line"><a name="l00032"></a><span class="lineno">   32</span>&#160; </div>
-<div class="line"><a name="l00033"></a><span class="lineno">   33</span>&#160; </div>
-<div class="line"><a name="l00034"></a><span class="lineno">   34</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> InferenceOption&amp;);</div>
+<div class="line"><a name="l00033"></a><span class="lineno">   33</span>&#160;};</div>
+<div class="line"><a name="l00034"></a><span class="lineno">   34</span>&#160; </div>
 <div class="line"><a name="l00035"></a><span class="lineno">   35</span>&#160; </div>
-<div class="line"><a name="l00038"></a><span class="lineno">   38</span>&#160;<span class="keyword">extern</span> DXRT_API InferenceOption <a class="code" href="namespacedxrt.html#aab5060680ba2f567f47f8868cd8b1f00">DefaultInferenceOption</a>;</div>
-<div class="line"><a name="l00039"></a><span class="lineno">   39</span>&#160; </div>
-<div class="line"><a name="l00040"></a><span class="lineno">   40</span>&#160;} <span class="comment">// namespace dxrt</span></div>
+<div class="line"><a name="l00036"></a><span class="lineno">   36</span>&#160; </div>
+<div class="line"><a name="l00037"></a><span class="lineno">   37</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> <a class="code" href="structdxrt_1_1InferenceOption.html">InferenceOption</a>&amp;);</div>
+<div class="line"><a name="l00038"></a><span class="lineno">   38</span>&#160; </div>
+<div class="line"><a name="l00041"></a><span class="lineno">   41</span>&#160;<span class="keyword">extern</span> DXRT_API <a class="code" href="structdxrt_1_1InferenceOption.html">InferenceOption</a> <a class="code" href="namespacedxrt.html#aab5060680ba2f567f47f8868cd8b1f00">DefaultInferenceOption</a>;</div>
+<div class="line"><a name="l00042"></a><span class="lineno">   42</span>&#160; </div>
+<div class="line"><a name="l00043"></a><span class="lineno">   43</span>&#160;} <span class="comment">// namespace dxrt</span></div>
 </div><!-- fragment --></div><!-- contents -->
 <div class="ttc" id="astructdxrt_1_1InferenceOption_html"><div class="ttname"><a href="structdxrt_1_1InferenceOption.html">dxrt::InferenceOption</a></div><div class="ttdoc">This struct specifies inference options applied to dxrt::InferenceEngine.</div><div class="ttdef"><b>Definition:</b> inference_option.h:14</div></div>
-<div class="ttc" id="astructdxrt_1_1DXRT__API_html"><div class="ttname"><a href="structdxrt_1_1DXRT__API.html">dxrt::DXRT_API</a></div><div class="ttdoc">face detection data format from device</div><div class="ttdef"><b>Definition:</b> command.h:20</div></div>
 <div class="ttc" id="anamespacedxrt_html_aab5060680ba2f567f47f8868cd8b1f00"><div class="ttname"><a href="namespacedxrt.html#aab5060680ba2f567f47f8868cd8b1f00">dxrt::DefaultInferenceOption</a></div><div class="ttdeci">DXRT_API InferenceOption DefaultInferenceOption</div><div class="ttdoc">Default inference option.</div></div>
 <div class="ttc" id="anamespacedxrt_html"><div class="ttname"><a href="namespacedxrt.html">dxrt</a></div><div class="ttdoc">DXRT C++ APIs are provided in this namespace.</div><div class="ttdef"><b>Definition:</b> buffer.h:8</div></div>
 <!-- start footer part -->

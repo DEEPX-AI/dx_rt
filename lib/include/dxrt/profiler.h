@@ -107,5 +107,6 @@ private:
 };
 
 extern uint8_t DEBUG_DATA;
+extern uint8_t SKIP_INFERENCE_IO;
 
 } // namespace dxrt

@@ -2,9 +2,11 @@
 Description=DX-RT Service
 
 [Service]
-ExecStart=/.../dx_rt/bin/dxrtd
-WorkingDirectory=/.../dx_rt/bin/
-#Restart=on-failure
-Restart=off
+ExecStart=/usr/local/bin/dxrtd
+WorkingDirectory=/usr/local/bin/
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
 
 

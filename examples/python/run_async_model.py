@@ -17,6 +17,9 @@ def onInferenceCallbackFunc(outputs, user_arg):
     # for improving inference performance
 
     global gLoopCount
+
+    # Mutex locks should be properly adjusted 
+    # to ensure that callback functions are thread-safe.
     with lock:
 
         # user data type casting

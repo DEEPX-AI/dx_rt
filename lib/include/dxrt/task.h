@@ -32,7 +32,7 @@ struct DXRT_API TaskStats
     std::vector<int> latency_data;
     std::vector<uint32_t> inference_time_data;
 };
-struct CpuHandle;
+class CpuHandle;
 class DXRT_API Task
 {    
 public:

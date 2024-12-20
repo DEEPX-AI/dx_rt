@@ -84,8 +84,8 @@ int main(int argc, char* argv[])
         // create thread
         auto t1 = std::thread(inferenceThreadFunc, std::ref(ie), loop_count);
 
-        // create input data
-        uint8_t inputPtr[ie.input_size()] = {0, };
+        // create temporary input buffer for example
+        std::vector<uint8_t> inputPtr(ie.input_size(), 0);
 
         auto start = std::chrono::high_resolution_clock::now();
 
@@ -97,7 +97,7 @@ int main(int argc, char* argv[])
 
             // inference asynchronously, use all npu cores
             // if device-load >= max-load-value, this function will block
-            auto jobId = ie.RunAsync(inputPtr);
+            auto jobId = ie.RunAsync(inputPtr.data());
 
             // push jobId in global queue variable
             gJobIdQueue.push(jobId);
@@ -107,7 +107,7 @@ int main(int argc, char* argv[])
         } // for i
 
         t1.join();
-        
+
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> duration = end - start;
 

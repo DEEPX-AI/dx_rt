@@ -10,14 +10,17 @@
 #include "dxrt/request.h"
 
 #ifdef USE_ORT
+#ifdef __linux__
 #include <onnxruntime_cxx_api.h>
+#endif
 #endif
 
 namespace dxrt {
 class Buffer;
 class CpuHandleWorker;
-struct DXRT_API CpuHandle
+class DXRT_API CpuHandle
 {
+public:
     CpuHandle(void* data_, int64_t size_, std::string name_);
     ~CpuHandle();
 #ifdef USE_ORT
@@ -25,6 +28,8 @@ struct DXRT_API CpuHandle
     Ort::SessionOptions _sessionOptions;
     std::shared_ptr<Ort::Session> _session;
 #endif
+
+public:
     uint32_t _inputSize = 0;
     uint32_t _outputSize = 0;
     uint32_t _outputMemSize = 0;
@@ -48,12 +53,13 @@ struct DXRT_API CpuHandle
     //std::shared_ptr<Buffer> _buffer;
     void* _cpuTaskOutputBufferPtr;
     void* _cpuTaskInputBufferPtr;
+    std::shared_ptr<CpuHandleWorker> _worker=nullptr;
 
+public:
     int InferenceRequest(RequestPtr req);
     void Start();
     void Run(RequestPtr req);
     void Terminate(void);
-    std::shared_ptr<CpuHandleWorker> _worker=nullptr;
     friend DXRT_API std::ostream& operator<<(std::ostream&, const CpuHandle&);
 };
 } /* namespace dxrt */

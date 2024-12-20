@@ -30,7 +30,7 @@ enum DXRT_API DataType
 DXRT_API std::string DataTypeToString(DataType type);
 DXRT_API std::ostream& operator<<(std::ostream&, const DataType&);
 
-typedef struct DXRT_API {
+typedef struct DXRT_API _DeviceBoundingBox {
 	float x;
 	float y;
 	float w;
@@ -44,10 +44,12 @@ typedef struct DXRT_API {
 	char padding[4];
 } DeviceBoundingBox_t;
 
+/// @cond
 /** \brief face detection data format from device 
  * \headerfile "dxrt/dxrt_api.h"
 */
-typedef struct DXRT_API {
+/// @endcond
+typedef struct DXRT_API _DeviceFace {
 	float x;
 	float y;
 	float w;
@@ -59,10 +61,13 @@ typedef struct DXRT_API {
 	float score;
 	float kpts[5][2];
 } DeviceFace_t;
+
+/// @cond
 /** \brief pose estimation data format from device 
  * \headerfile "dxrt/dxrt_api.h"
 */
-typedef struct DXRT_API {
+/// @endcond
+typedef struct DXRT_API _DevicePose {
 	float x;
 	float y;
 	float w;

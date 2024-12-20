@@ -95,10 +95,6 @@ Task::Task(std::string name_, vector<rmapinfo> rmapInfos_, std::vector<std::vect
     Request::Init();
 }
 
-
-
-
-
 Task::Task()
 : _taskData(nextId, "EMPTY", {})
 {

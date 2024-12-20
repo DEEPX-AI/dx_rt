@@ -84,11 +84,31 @@ Public Attributes</h2></td></tr>
 <tr class="memitem:ae98837ff566fe2b089a5b1bf07feb48c"><td class="memItemLeft" align="right" valign="top">std::vector&lt; int &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structdxrt_1_1InferenceOption.html#ae98837ff566fe2b089a5b1bf07feb48c">devices</a> = {}</td></tr>
 <tr class="memdesc:ae98837ff566fe2b089a5b1bf07feb48c"><td class="mdescLeft">&#160;</td><td class="mdescRight">device ID list to use  <a href="structdxrt_1_1InferenceOption.html#ae98837ff566fe2b089a5b1bf07feb48c">More...</a><br /></td></tr>
 <tr class="separator:ae98837ff566fe2b089a5b1bf07feb48c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9fd270a5eeeb1a14ce5f133c16c30d55"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structdxrt_1_1InferenceOption.html#a9fd270a5eeeb1a14ce5f133c16c30d55">boundOption</a> = BOUND_OPTION::NPU_ALL</td></tr>
+<tr class="memdesc:a9fd270a5eeeb1a14ce5f133c16c30d55"><td class="mdescLeft">&#160;</td><td class="mdescRight">Select the NPU core inside the device.  <a href="structdxrt_1_1InferenceOption.html#a9fd270a5eeeb1a14ce5f133c16c30d55">More...</a><br /></td></tr>
+<tr class="separator:a9fd270a5eeeb1a14ce5f133c16c30d55"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>This struct specifies inference options applied to <a class="el" href="classdxrt_1_1InferenceEngine.html" title="This class abstracts runtime inference executor for user&#39;s compiled model.">dxrt::InferenceEngine</a>. </p>
 <p>User can configure which npu device is used to inference. </p>
 </div><h2 class="groupheader">Member Data Documentation</h2>
+<a id="a9fd270a5eeeb1a14ce5f133c16c30d55"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9fd270a5eeeb1a14ce5f133c16c30d55">&#9670;&nbsp;</a></span>boundOption</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint32_t dxrt::InferenceOption::boundOption = BOUND_OPTION::NPU_ALL</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Select the NPU core inside the device. </p>
+<p>NPU_ALL is an option that uses all NPU cores simultaneously. NPU_0, NPU_1, and NPU_2 are options that allow using only a single NPU core. </p>
+
+</div>
+</div>
 <a id="ae98837ff566fe2b089a5b1bf07feb48c"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ae98837ff566fe2b089a5b1bf07feb48c">&#9670;&nbsp;</a></span>devices</h2>
 

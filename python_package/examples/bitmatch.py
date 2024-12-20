@@ -140,6 +140,12 @@ class BitMatchTester:
         model_files = glob.glob(os.path.join(model_path, "*.dxnn"))
         if not model_files:
             self.log(f"No .dxnn files found in '{model_path}'", 'error')
+            message = (f"{model_path} | NOTFOUND | {0} | "
+                  f"{0} | {task_order} | {ie.get_num_tails()}"
+                  f" | {0} | "
+                  f"{0}")
+            self.log(message)
+            self.model_result_messages.append(message)
             return False
 
         ie = InferenceEngine(model_files[0])
@@ -158,7 +164,7 @@ class BitMatchTester:
                   f" | {0} | "
                   f"{0}")
             self.log(message)
-
+            self.model_result_messages.append(message)
             return False
 
         self._load_data(model_path, ie)
@@ -166,7 +172,13 @@ class BitMatchTester:
         if self.compile_type == "RELEASE" and (ie.output_size() < self.gt_outputs[0]["LAST"].size):
             if self.config.use_ort:
                 self.log(f"The output size is not the same. ({model_files[0]})", 'error')
-                return 0
+                message = (f"{model_path} | OUTSIZE | {0} | "
+                    f"{0} | {task_order} | {ie.get_num_tails()}"
+                    f" | {0} | "
+                    f"{0}")
+                self.log(message)
+                self.model_result_messages.append(message)
+                return False
 
         ie.RegisterCallBack(self.callback_handler)
 
@@ -182,6 +194,12 @@ class BitMatchTester:
             self._run_validation_mode(ie, loops)
         else:
             self.log(f"Unknown Compile Type : {self.compile_type} ('RELEASE' or 'DEBUG')", 'error')
+            message = (f"{model_path} | COMTYPE | {0} | "
+                  f"{0} | {task_order} | {ie.get_num_tails()}"
+                  f" | {0} | "
+                  f"{0}")
+            self.log(message)
+            self.model_result_messages.append(message)
             return False
 
         success = self.stats.pass_count == self.stats.total_count
@@ -399,6 +417,7 @@ def main():
                 })
             test_total_count += tester.stats.total_count
             test_pass_count += tester.stats.pass_count
+        print(f"{len(model_dirs)} models detected")
     elif args.model_path:
         args.model_path = os.path.dirname(args.model_path) + "/"
         if not tester.process_model(args.model_path, args.loops):
@@ -412,7 +431,6 @@ def main():
         test_pass_count += tester.stats.pass_count
 
     tester.log_all_results(test_pass_count, test_total_count, failed_models)
-
     if failed_models:
         exit(1)
     else:

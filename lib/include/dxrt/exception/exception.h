@@ -25,7 +25,7 @@ namespace dxrt {
 
     #define EXCEPTION_MESSAGE(msg) ("\"" + std::string(msg) + "\":" + std::string(__FILE__) + ":" + std::to_string(__LINE__) + ":" + __func__)
 
-    class DXRT_API Exception : public std::exception
+    class DXRT_API Exception //: public std::exception
     {    
 
         std::string _message = "";
@@ -37,7 +37,10 @@ namespace dxrt {
     public:
         Exception(const std::string& msg, ERROR_CODE code);
 
-        virtual const char* what() const noexcept override {
+        //virtual const char* what() const noexcept override {
+        //    return _message.c_str();
+        //}
+        virtual const char* what() const noexcept {
             return _message.c_str();
         }
 

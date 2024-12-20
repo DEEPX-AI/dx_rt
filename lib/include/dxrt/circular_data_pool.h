@@ -6,9 +6,12 @@
 #include <memory>
 #include <mutex>
 #include <vector>
+#include "dxrt/common.h"
 
+
+namespace dxrt {
 template <typename T>
-class CircularDataPool
+class DXRT_API CircularDataPool
 {
     std::vector<std::shared_ptr<T>> _dataPool;
     size_t _headIndex = 0;
@@ -56,3 +59,4 @@ public:
     }
 
 };
+} // namespace dxrt

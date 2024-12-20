@@ -205,7 +205,7 @@ void CpuHandle::Run(RequestPtr req)
     if(req->inputs().empty())
     {
         //req->inputs() = task->inputs( _buffer->Get(task->input_size()) );
-        req->inputs() = task->inputs(req->task()->GetInputBuffer());
+        req->inputs() = task->inputs(task->GetInputBuffer());
     }
     //req->outputs() = task->outputs( _buffer->Get(task->output_size()) );
     req->outputs() = task->outputs(req->getData()->output_ptr);
@@ -219,7 +219,7 @@ void CpuHandle::Run(RequestPtr req)
     LOG_DXRT_DBG << task->id() << " - _numInputs : " << std::to_string(_numInputs) << std::endl;
     if (!task->is_head() && task->prevs().size() == 1) 
     {
-        int prevTaskId = req->task()->prevs().front()->id();
+        int prevTaskId = task->prevs().front()->id();
         LOG_DXRT_DBG << std::to_string(prevTaskId) << std::endl;
         for (int i = 0; i < _numInputs; i++) 
         {
@@ -300,7 +300,7 @@ void CpuHandle::Run(RequestPtr req)
                   _outputNamesChar.data(), outputTensors.data(), outputTensors.size());
     LOG_DXRT_DBG << "session run end : " << req->id() << std::endl;
 
-    req->task()->ProcessResponse(req, nullptr);
+    task->ProcessResponse(req, nullptr);
 }
 void CpuHandle::Terminate()
 {

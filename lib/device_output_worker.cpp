@@ -70,7 +70,10 @@ void DeviceOutputWorker::ThreadWork(int id)
         if (request_acc != nullptr)
         {
             dxrt_meminfo_t output = request_acc->output;
-            DXRT_ASSERT(_device->Read(output, id) == 0, "Failed to read output");
+            if (SKIP_INFERENCE_IO != 1)
+            {
+                DXRT_ASSERT(_device->Read(output, id) == 0, "Failed to read output");
+            }
             
             if (DEBUG_DATA == 1)
             {
@@ -184,7 +187,10 @@ void DeviceOutputWorker::ThreadWork(int id)
                         // LOG_DXRT_DBG << threadName << " : " << id << ", " << reqId << ", " << req->latency() << ", " << response.inf_time << ", " << _device->load() << endl;
                         //output
                         dxrt_meminfo_t output = request_acc->output;
-                        _device->Read(output);
+                        if(SKIP_INFERENCE_IO != 1)
+                        {
+                            _device->Read(output);
+                        }
                         if (DEBUG_DATA == 1)
                         {
                             dxrt::TensorPtrs outputs = _device->Validate(req, true);

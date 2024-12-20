@@ -73,7 +73,7 @@ typedef enum _npu_bound_op {
     N_BOUND_INF_MAX,
 } npu_bound_op;
 
-typedef struct {
+typedef struct _dx_pcie_dev_err {
     uint32_t err_code;
 
     /* Version */
@@ -123,7 +123,7 @@ typedef struct {
     uint32_t reserved_ddr[8];
 } dx_pcie_dev_err_t;
 
-typedef struct {
+typedef struct _dx_pcie_dev_ntfy_throt {
     uint32_t ntfy_code;
     uint32_t npu_id;
     uint32_t throt_voltage[2];      // [0] current, [1] target
@@ -131,7 +131,7 @@ typedef struct {
     uint32_t throt_temper;
 } dx_pcie_dev_ntfy_throt_t;
 
-typedef struct {
+typedef struct _dx_pcie_dev_event {
     uint32_t event_type;
     union {
         dx_pcie_dev_err_t           dx_rt_err;
@@ -223,14 +223,14 @@ typedef struct _dxrt_response_t {
     uint32_t  queue             = 0;
 } dxrt_response_t;
 
-typedef struct
+typedef struct _dxrt_message
 {
     int32_t cmd = 0;
     int32_t sub_cmd = 0;
     void* data = NULL;
     uint32_t size = 0;
 } dxrt_message_t;
-typedef struct {
+typedef struct _dxrt_device_message {
     uint32_t cmd = 0;	/* command */
     uint32_t ack = 0;	/* Response from device */
     uint32_t size = 0;	/* Data Size */
@@ -261,6 +261,7 @@ typedef enum {
     DXRT_CMD_UPLOAD_FIRMWARE    ,
     DXRT_CMD_NPU_RUN_REQ        ,
     DXRT_CMD_NPU_RUN_RESP       ,
+    DXRT_CMD_UPDATE_CONFIG_JSON ,
     DXRT_CMD_MAX,
 } dxrt_cmd_t;
 
@@ -300,15 +301,32 @@ typedef enum {
 } dxrt_fwupdate_sub_cmd_t;
 
 #define DXRT_IOCTL_MAGIC     'D'
+#ifdef _WIN32
+#define DX_NRM_IOCTL(index)						CTL_CODE(FILE_DEVICE_VIDEO, index, METHOD_BUFFERED, FILE_ANY_ACCESS)
+#endif
 typedef enum {
+#ifdef __linux__
     DXRT_IOCTL_MESSAGE = _IOW(DXRT_IOCTL_MAGIC, 0, dxrt_message_t),
     DXRT_IOCTL_DUMMY = _IOW(DXRT_IOCTL_MAGIC, 1, dxrt_message_t),
     DXRT_IOCTL_MAX
+#elif _WIN32
+    DXRT_IOCTL_MESSAGE = DX_NRM_IOCTL(0x001),
+    DXRT_IOCTL_DUMMY = _IOW(DXRT_IOCTL_MAGIC, 1, dxrt_message_t),
+    //IOCTL_DXM1_MAP_CODE			= DX_NRM_IOCTL(0x101),
+    //IOCTL_DXM1_UNMAP_CODE		= DX_NRM_IOCTL(0x102),
+    //IOCTL_DXM1_DMA_EVENT_CODE	= DX_NRM_IOCTL(0x201),
+    //IOCTL_DXM1_MSG_EVENT_CODE	= DX_NRM_IOCTL(0x202),
+    //IOCTL_DXM1_DMA_CH_READ		= DX_NRM_IOCTL(0x301),
+    //IOCTL_DXM1_DMA_CH_WRITE		= DX_NRM_IOCTL(0x302),
+    //IOCTL_DXM1_DMA_MEM_READ		= DX_NRM_IOCTL(0x401),
+    //IOCTL_DXM1_DMA_MEM_WRITE	= DX_NRM_IOCTL(0x402),
+    DXRT_IOCTL_MAX
+#endif
 } dxrt_ioctl_t;
 
 /**********************/
 
-typedef struct
+typedef struct _dxrt_model
 {
     int16_t npu_id;
     int8_t  type; // 0: normal, 1: argmax, 2: ppu
@@ -332,5 +350,9 @@ DXRT_API std::ostream& operator<<(std::ostream&, const dxrt_request_acc_t&);
 DXRT_API std::ostream& operator<<(std::ostream&, const dxrt_response_t&);
 DXRT_API std::ostream& operator<<(std::ostream&, const dxrt_model_t&);
 DXRT_API std::ostream& operator<<(std::ostream&, const dxrt_device_info_t&);
+
+#ifdef _WIN32
+DXRT_API std::string dxrt_cmd_t_str(dxrt::dxrt_cmd_t c);
+#endif // _WIN32
 
 } // namespace dxrt

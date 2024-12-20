@@ -145,7 +145,7 @@ $(function() {
 <div class="line"><a name="l00073"></a><span class="lineno">   73</span>&#160;    N_BOUND_INF_MAX,</div>
 <div class="line"><a name="l00074"></a><span class="lineno">   74</span>&#160;} npu_bound_op;</div>
 <div class="line"><a name="l00075"></a><span class="lineno">   75</span>&#160; </div>
-<div class="line"><a name="l00076"></a><span class="lineno">   76</span>&#160;<span class="keyword">typedef</span> <span class="keyword">struct </span>{</div>
+<div class="line"><a name="l00076"></a><span class="lineno">   76</span>&#160;<span class="keyword">typedef</span> <span class="keyword">struct </span>_dx_pcie_dev_err {</div>
 <div class="line"><a name="l00077"></a><span class="lineno">   77</span>&#160;    uint32_t err_code;</div>
 <div class="line"><a name="l00078"></a><span class="lineno">   78</span>&#160; </div>
 <div class="line"><a name="l00079"></a><span class="lineno">   79</span>&#160;    <span class="comment">/* Version */</span></div>
@@ -195,7 +195,7 @@ $(function() {
 <div class="line"><a name="l00123"></a><span class="lineno">  123</span>&#160;    uint32_t reserved_ddr[8];</div>
 <div class="line"><a name="l00124"></a><span class="lineno">  124</span>&#160;} dx_pcie_dev_err_t;</div>
 <div class="line"><a name="l00125"></a><span class="lineno">  125</span>&#160; </div>
-<div class="line"><a name="l00126"></a><span class="lineno">  126</span>&#160;<span class="keyword">typedef</span> <span class="keyword">struct </span>{</div>
+<div class="line"><a name="l00126"></a><span class="lineno">  126</span>&#160;<span class="keyword">typedef</span> <span class="keyword">struct </span>_dx_pcie_dev_ntfy_throt {</div>
 <div class="line"><a name="l00127"></a><span class="lineno">  127</span>&#160;    uint32_t ntfy_code;</div>
 <div class="line"><a name="l00128"></a><span class="lineno">  128</span>&#160;    uint32_t npu_id;</div>
 <div class="line"><a name="l00129"></a><span class="lineno">  129</span>&#160;    uint32_t throt_voltage[2];      <span class="comment">// [0] current, [1] target</span></div>
@@ -203,7 +203,7 @@ $(function() {
 <div class="line"><a name="l00131"></a><span class="lineno">  131</span>&#160;    uint32_t throt_temper;</div>
 <div class="line"><a name="l00132"></a><span class="lineno">  132</span>&#160;} dx_pcie_dev_ntfy_throt_t;</div>
 <div class="line"><a name="l00133"></a><span class="lineno">  133</span>&#160; </div>
-<div class="line"><a name="l00134"></a><span class="lineno">  134</span>&#160;<span class="keyword">typedef</span> <span class="keyword">struct </span>{</div>
+<div class="line"><a name="l00134"></a><span class="lineno">  134</span>&#160;<span class="keyword">typedef</span> <span class="keyword">struct </span>_dx_pcie_dev_event {</div>
 <div class="line"><a name="l00135"></a><span class="lineno">  135</span>&#160;    uint32_t event_type;</div>
 <div class="line"><a name="l00136"></a><span class="lineno">  136</span>&#160;    <span class="keyword">union </span>{</div>
 <div class="line"><a name="l00137"></a><span class="lineno">  137</span>&#160;        dx_pcie_dev_err_t           dx_rt_err;</div>
@@ -295,14 +295,14 @@ $(function() {
 <div class="line"><a name="l00223"></a><span class="lineno">  223</span>&#160;    uint32_t  queue             = 0;</div>
 <div class="line"><a name="l00224"></a><span class="lineno">  224</span>&#160;} dxrt_response_t;</div>
 <div class="line"><a name="l00225"></a><span class="lineno">  225</span>&#160; </div>
-<div class="line"><a name="l00226"></a><span class="lineno">  226</span>&#160;<span class="keyword">typedef</span> <span class="keyword">struct</span></div>
+<div class="line"><a name="l00226"></a><span class="lineno">  226</span>&#160;<span class="keyword">typedef</span> <span class="keyword">struct </span>_dxrt_message</div>
 <div class="line"><a name="l00227"></a><span class="lineno">  227</span>&#160;{</div>
 <div class="line"><a name="l00228"></a><span class="lineno">  228</span>&#160;    int32_t cmd = 0;</div>
 <div class="line"><a name="l00229"></a><span class="lineno">  229</span>&#160;    int32_t sub_cmd = 0;</div>
 <div class="line"><a name="l00230"></a><span class="lineno">  230</span>&#160;    <span class="keywordtype">void</span>* data = NULL;</div>
 <div class="line"><a name="l00231"></a><span class="lineno">  231</span>&#160;    uint32_t size = 0;</div>
 <div class="line"><a name="l00232"></a><span class="lineno">  232</span>&#160;} dxrt_message_t;</div>
-<div class="line"><a name="l00233"></a><span class="lineno">  233</span>&#160;<span class="keyword">typedef</span> <span class="keyword">struct </span>{</div>
+<div class="line"><a name="l00233"></a><span class="lineno">  233</span>&#160;<span class="keyword">typedef</span> <span class="keyword">struct </span>_dxrt_device_message {</div>
 <div class="line"><a name="l00234"></a><span class="lineno">  234</span>&#160;    uint32_t cmd = 0;   <span class="comment">/* command */</span></div>
 <div class="line"><a name="l00235"></a><span class="lineno">  235</span>&#160;    uint32_t ack = 0;   <span class="comment">/* Response from device */</span></div>
 <div class="line"><a name="l00236"></a><span class="lineno">  236</span>&#160;    uint32_t size = 0;  <span class="comment">/* Data Size */</span></div>
@@ -333,79 +333,101 @@ $(function() {
 <div class="line"><a name="l00261"></a><span class="lineno">  261</span>&#160;    DXRT_CMD_UPLOAD_FIRMWARE    ,</div>
 <div class="line"><a name="l00262"></a><span class="lineno">  262</span>&#160;    DXRT_CMD_NPU_RUN_REQ        ,</div>
 <div class="line"><a name="l00263"></a><span class="lineno">  263</span>&#160;    DXRT_CMD_NPU_RUN_RESP       ,</div>
-<div class="line"><a name="l00264"></a><span class="lineno">  264</span>&#160;    DXRT_CMD_MAX,</div>
-<div class="line"><a name="l00265"></a><span class="lineno">  265</span>&#160;} dxrt_cmd_t;</div>
-<div class="line"><a name="l00266"></a><span class="lineno">  266</span>&#160; </div>
-<div class="line"><a name="l00267"></a><span class="lineno">  267</span>&#160;<span class="comment">/* CMD : DXRT_CMD_IDENTIFY_DEVICE*/</span></div>
-<div class="line"><a name="l00268"></a><span class="lineno">  268</span>&#160;<span class="keyword">typedef</span> <span class="keyword">enum</span> {</div>
-<div class="line"><a name="l00269"></a><span class="lineno">  269</span>&#160;    DX_IDENTIFY_NONE        = 0,</div>
-<div class="line"><a name="l00270"></a><span class="lineno">  270</span>&#160;    DX_IDENTIFY_FWUPLOAD    = 1,</div>
-<div class="line"><a name="l00271"></a><span class="lineno">  271</span>&#160;} dxrt_ident_sub_cmd_t;</div>
-<div class="line"><a name="l00272"></a><span class="lineno">  272</span>&#160; </div>
-<div class="line"><a name="l00273"></a><span class="lineno">  273</span>&#160;<span class="keyword">typedef</span> <span class="keyword">enum</span> {</div>
-<div class="line"><a name="l00274"></a><span class="lineno">  274</span>&#160;    DX_SCHED_ADD    = 1,</div>
-<div class="line"><a name="l00275"></a><span class="lineno">  275</span>&#160;    DX_SCHED_DELETE = 2</div>
-<div class="line"><a name="l00276"></a><span class="lineno">  276</span>&#160;} dxrt_sche_sub_cmd_t;</div>
-<div class="line"><a name="l00277"></a><span class="lineno">  277</span>&#160; </div>
-<div class="line"><a name="l00278"></a><span class="lineno">  278</span>&#160;<span class="keyword">typedef</span> <span class="keyword">enum</span> {</div>
-<div class="line"><a name="l00279"></a><span class="lineno">  279</span>&#160;    DRVINFO_CMD_GET_RT_INFO   = 0,</div>
-<div class="line"><a name="l00280"></a><span class="lineno">  280</span>&#160;    DRVINFO_CMD_GET_PCIE_INFO = 1,</div>
-<div class="line"><a name="l00281"></a><span class="lineno">  281</span>&#160;} dxrt_drvinfo_sub_cmd_t;</div>
-<div class="line"><a name="l00282"></a><span class="lineno">  282</span>&#160; </div>
-<div class="line"><a name="l00283"></a><span class="lineno">  283</span>&#160;<span class="keyword">typedef</span> <span class="keyword">enum</span> device_type</div>
-<div class="line"><a name="l00284"></a><span class="lineno">  284</span>&#160;{</div>
-<div class="line"><a name="l00285"></a><span class="lineno">  285</span>&#160;    DEVICE_TYPE_ACCELERATOR = 0,</div>
-<div class="line"><a name="l00286"></a><span class="lineno">  286</span>&#160;    DEVICE_TYPE_STANDALONE = 1,</div>
-<div class="line"><a name="l00287"></a><span class="lineno">  287</span>&#160;} dxrt_device_type_t;</div>
-<div class="line"><a name="l00288"></a><span class="lineno">  288</span>&#160; </div>
-<div class="line"><a name="l00289"></a><span class="lineno">  289</span>&#160;<span class="keyword">typedef</span> <span class="keyword">enum</span> device_interface</div>
-<div class="line"><a name="l00290"></a><span class="lineno">  290</span>&#160;{</div>
-<div class="line"><a name="l00291"></a><span class="lineno">  291</span>&#160;    DEVICE_INTERFACE_ASIC = 0,</div>
-<div class="line"><a name="l00292"></a><span class="lineno">  292</span>&#160;    DEVICE_INTERFACE_FPGA = 1,</div>
-<div class="line"><a name="l00293"></a><span class="lineno">  293</span>&#160;} dxrt_device_interface_t;</div>
-<div class="line"><a name="l00294"></a><span class="lineno">  294</span>&#160; </div>
-<div class="line"><a name="l00295"></a><span class="lineno">  295</span>&#160;<span class="comment">/* CMD : DXRT_CMD_UPDATE_FIRMWARE */</span></div>
-<div class="line"><a name="l00296"></a><span class="lineno">  296</span>&#160;<span class="keyword">typedef</span> <span class="keyword">enum</span> {</div>
-<div class="line"><a name="l00297"></a><span class="lineno">  297</span>&#160;    FWUPDATE_ONLY        = 0,</div>
-<div class="line"><a name="l00298"></a><span class="lineno">  298</span>&#160;    FWUPDATE_DEV_UNRESET = 1 &lt;&lt; 1,</div>
-<div class="line"><a name="l00299"></a><span class="lineno">  299</span>&#160;    FWUPDATE_FORCE       = 1 &lt;&lt; 2,</div>
-<div class="line"><a name="l00300"></a><span class="lineno">  300</span>&#160;} dxrt_fwupdate_sub_cmd_t;</div>
-<div class="line"><a name="l00301"></a><span class="lineno">  301</span>&#160; </div>
-<div class="line"><a name="l00302"></a><span class="lineno">  302</span>&#160;<span class="preprocessor">#define DXRT_IOCTL_MAGIC     &#39;D&#39;</span></div>
-<div class="line"><a name="l00303"></a><span class="lineno">  303</span>&#160;<span class="keyword">typedef</span> <span class="keyword">enum</span> {</div>
-<div class="line"><a name="l00304"></a><span class="lineno">  304</span>&#160;    DXRT_IOCTL_MESSAGE = _IOW(DXRT_IOCTL_MAGIC, 0, dxrt_message_t),</div>
-<div class="line"><a name="l00305"></a><span class="lineno">  305</span>&#160;    DXRT_IOCTL_DUMMY = _IOW(DXRT_IOCTL_MAGIC, 1, dxrt_message_t),</div>
-<div class="line"><a name="l00306"></a><span class="lineno">  306</span>&#160;    DXRT_IOCTL_MAX</div>
-<div class="line"><a name="l00307"></a><span class="lineno">  307</span>&#160;} dxrt_ioctl_t;</div>
-<div class="line"><a name="l00308"></a><span class="lineno">  308</span>&#160; </div>
-<div class="line"><a name="l00309"></a><span class="lineno">  309</span>&#160;<span class="comment">/**********************/</span></div>
-<div class="line"><a name="l00310"></a><span class="lineno">  310</span>&#160; </div>
-<div class="line"><a name="l00311"></a><span class="lineno">  311</span>&#160;<span class="keyword">typedef</span> <span class="keyword">struct</span></div>
-<div class="line"><a name="l00312"></a><span class="lineno">  312</span>&#160;{</div>
-<div class="line"><a name="l00313"></a><span class="lineno">  313</span>&#160;    int16_t npu_id;</div>
-<div class="line"><a name="l00314"></a><span class="lineno">  314</span>&#160;    int8_t  type; <span class="comment">// 0: normal, 1: argmax, 2: ppu</span></div>
-<div class="line"><a name="l00315"></a><span class="lineno">  315</span>&#160;    int8_t  format;</div>
-<div class="line"><a name="l00316"></a><span class="lineno">  316</span>&#160;    int32_t cmds;</div>
-<div class="line"><a name="l00317"></a><span class="lineno">  317</span>&#160;    dxrt_meminfo_t cmd;</div>
-<div class="line"><a name="l00318"></a><span class="lineno">  318</span>&#160;    dxrt_meminfo_t weight;</div>
-<div class="line"><a name="l00319"></a><span class="lineno">  319</span>&#160;    uint32_t output_all_offset;</div>
-<div class="line"><a name="l00320"></a><span class="lineno">  320</span>&#160;    uint32_t output_all_size;</div>
-<div class="line"><a name="l00321"></a><span class="lineno">  321</span>&#160;    uint32_t last_output_offset;</div>
-<div class="line"><a name="l00322"></a><span class="lineno">  322</span>&#160;    uint32_t last_output_size;</div>
-<div class="line"><a name="l00323"></a><span class="lineno">  323</span>&#160;} dxrt_model_t;</div>
-<div class="line"><a name="l00324"></a><span class="lineno">  324</span>&#160; </div>
-<div class="line"><a name="l00325"></a><span class="lineno">  325</span>&#160;<span class="keyword">extern</span> DXRT_API std::vector&lt;std::pair&lt;int, std::string&gt;&gt; ioctlTable;</div>
-<div class="line"><a name="l00326"></a><span class="lineno">  326</span>&#160;<span class="keyword">extern</span> DXRT_API std::string ErrTable(dxrt_error_t error);</div>
-<div class="line"><a name="l00327"></a><span class="lineno">  327</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp; os, <span class="keyword">const</span> dx_pcie_dev_err_t&amp; error);</div>
-<div class="line"><a name="l00328"></a><span class="lineno">  328</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> dxrt_error_t&amp;);</div>
-<div class="line"><a name="l00329"></a><span class="lineno">  329</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> dxrt_meminfo_t&amp;);</div>
-<div class="line"><a name="l00330"></a><span class="lineno">  330</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> dxrt_request_t&amp;);</div>
-<div class="line"><a name="l00331"></a><span class="lineno">  331</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> dxrt_request_acc_t&amp;);</div>
-<div class="line"><a name="l00332"></a><span class="lineno">  332</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> dxrt_response_t&amp;);</div>
-<div class="line"><a name="l00333"></a><span class="lineno">  333</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> dxrt_model_t&amp;);</div>
-<div class="line"><a name="l00334"></a><span class="lineno">  334</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> dxrt_device_info_t&amp;);</div>
-<div class="line"><a name="l00335"></a><span class="lineno">  335</span>&#160; </div>
-<div class="line"><a name="l00336"></a><span class="lineno">  336</span>&#160;} <span class="comment">// namespace dxrt</span></div>
+<div class="line"><a name="l00264"></a><span class="lineno">  264</span>&#160;    DXRT_CMD_UPDATE_CONFIG_JSON ,</div>
+<div class="line"><a name="l00265"></a><span class="lineno">  265</span>&#160;    DXRT_CMD_MAX,</div>
+<div class="line"><a name="l00266"></a><span class="lineno">  266</span>&#160;} dxrt_cmd_t;</div>
+<div class="line"><a name="l00267"></a><span class="lineno">  267</span>&#160; </div>
+<div class="line"><a name="l00268"></a><span class="lineno">  268</span>&#160;<span class="comment">/* CMD : DXRT_CMD_IDENTIFY_DEVICE*/</span></div>
+<div class="line"><a name="l00269"></a><span class="lineno">  269</span>&#160;<span class="keyword">typedef</span> <span class="keyword">enum</span> {</div>
+<div class="line"><a name="l00270"></a><span class="lineno">  270</span>&#160;    DX_IDENTIFY_NONE        = 0,</div>
+<div class="line"><a name="l00271"></a><span class="lineno">  271</span>&#160;    DX_IDENTIFY_FWUPLOAD    = 1,</div>
+<div class="line"><a name="l00272"></a><span class="lineno">  272</span>&#160;} dxrt_ident_sub_cmd_t;</div>
+<div class="line"><a name="l00273"></a><span class="lineno">  273</span>&#160; </div>
+<div class="line"><a name="l00274"></a><span class="lineno">  274</span>&#160;<span class="keyword">typedef</span> <span class="keyword">enum</span> {</div>
+<div class="line"><a name="l00275"></a><span class="lineno">  275</span>&#160;    DX_SCHED_ADD    = 1,</div>
+<div class="line"><a name="l00276"></a><span class="lineno">  276</span>&#160;    DX_SCHED_DELETE = 2</div>
+<div class="line"><a name="l00277"></a><span class="lineno">  277</span>&#160;} dxrt_sche_sub_cmd_t;</div>
+<div class="line"><a name="l00278"></a><span class="lineno">  278</span>&#160; </div>
+<div class="line"><a name="l00279"></a><span class="lineno">  279</span>&#160;<span class="keyword">typedef</span> <span class="keyword">enum</span> {</div>
+<div class="line"><a name="l00280"></a><span class="lineno">  280</span>&#160;    DRVINFO_CMD_GET_RT_INFO   = 0,</div>
+<div class="line"><a name="l00281"></a><span class="lineno">  281</span>&#160;    DRVINFO_CMD_GET_PCIE_INFO = 1,</div>
+<div class="line"><a name="l00282"></a><span class="lineno">  282</span>&#160;} dxrt_drvinfo_sub_cmd_t;</div>
+<div class="line"><a name="l00283"></a><span class="lineno">  283</span>&#160; </div>
+<div class="line"><a name="l00284"></a><span class="lineno">  284</span>&#160;<span class="keyword">typedef</span> <span class="keyword">enum</span> device_type</div>
+<div class="line"><a name="l00285"></a><span class="lineno">  285</span>&#160;{</div>
+<div class="line"><a name="l00286"></a><span class="lineno">  286</span>&#160;    DEVICE_TYPE_ACCELERATOR = 0,</div>
+<div class="line"><a name="l00287"></a><span class="lineno">  287</span>&#160;    DEVICE_TYPE_STANDALONE = 1,</div>
+<div class="line"><a name="l00288"></a><span class="lineno">  288</span>&#160;} dxrt_device_type_t;</div>
+<div class="line"><a name="l00289"></a><span class="lineno">  289</span>&#160; </div>
+<div class="line"><a name="l00290"></a><span class="lineno">  290</span>&#160;<span class="keyword">typedef</span> <span class="keyword">enum</span> device_interface</div>
+<div class="line"><a name="l00291"></a><span class="lineno">  291</span>&#160;{</div>
+<div class="line"><a name="l00292"></a><span class="lineno">  292</span>&#160;    DEVICE_INTERFACE_ASIC = 0,</div>
+<div class="line"><a name="l00293"></a><span class="lineno">  293</span>&#160;    DEVICE_INTERFACE_FPGA = 1,</div>
+<div class="line"><a name="l00294"></a><span class="lineno">  294</span>&#160;} dxrt_device_interface_t;</div>
+<div class="line"><a name="l00295"></a><span class="lineno">  295</span>&#160; </div>
+<div class="line"><a name="l00296"></a><span class="lineno">  296</span>&#160;<span class="comment">/* CMD : DXRT_CMD_UPDATE_FIRMWARE */</span></div>
+<div class="line"><a name="l00297"></a><span class="lineno">  297</span>&#160;<span class="keyword">typedef</span> <span class="keyword">enum</span> {</div>
+<div class="line"><a name="l00298"></a><span class="lineno">  298</span>&#160;    FWUPDATE_ONLY        = 0,</div>
+<div class="line"><a name="l00299"></a><span class="lineno">  299</span>&#160;    FWUPDATE_DEV_UNRESET = 1 &lt;&lt; 1,</div>
+<div class="line"><a name="l00300"></a><span class="lineno">  300</span>&#160;    FWUPDATE_FORCE       = 1 &lt;&lt; 2,</div>
+<div class="line"><a name="l00301"></a><span class="lineno">  301</span>&#160;} dxrt_fwupdate_sub_cmd_t;</div>
+<div class="line"><a name="l00302"></a><span class="lineno">  302</span>&#160; </div>
+<div class="line"><a name="l00303"></a><span class="lineno">  303</span>&#160;<span class="preprocessor">#define DXRT_IOCTL_MAGIC     &#39;D&#39;</span></div>
+<div class="line"><a name="l00304"></a><span class="lineno">  304</span>&#160;<span class="preprocessor">#ifdef _WIN32</span></div>
+<div class="line"><a name="l00305"></a><span class="lineno">  305</span>&#160;<span class="preprocessor">#define DX_NRM_IOCTL(index)                     CTL_CODE(FILE_DEVICE_VIDEO, index, METHOD_BUFFERED, FILE_ANY_ACCESS)</span></div>
+<div class="line"><a name="l00306"></a><span class="lineno">  306</span>&#160;<span class="preprocessor">#endif</span></div>
+<div class="line"><a name="l00307"></a><span class="lineno">  307</span>&#160;<span class="keyword">typedef</span> <span class="keyword">enum</span> {</div>
+<div class="line"><a name="l00308"></a><span class="lineno">  308</span>&#160;<span class="preprocessor">#ifdef __linux__</span></div>
+<div class="line"><a name="l00309"></a><span class="lineno">  309</span>&#160;    DXRT_IOCTL_MESSAGE = _IOW(DXRT_IOCTL_MAGIC, 0, dxrt_message_t),</div>
+<div class="line"><a name="l00310"></a><span class="lineno">  310</span>&#160;    DXRT_IOCTL_DUMMY = _IOW(DXRT_IOCTL_MAGIC, 1, dxrt_message_t),</div>
+<div class="line"><a name="l00311"></a><span class="lineno">  311</span>&#160;    DXRT_IOCTL_MAX</div>
+<div class="line"><a name="l00312"></a><span class="lineno">  312</span>&#160;<span class="preprocessor">#elif _WIN32</span></div>
+<div class="line"><a name="l00313"></a><span class="lineno">  313</span>&#160;    DXRT_IOCTL_MESSAGE = DX_NRM_IOCTL(0x001),</div>
+<div class="line"><a name="l00314"></a><span class="lineno">  314</span>&#160;    DXRT_IOCTL_DUMMY = _IOW(DXRT_IOCTL_MAGIC, 1, dxrt_message_t),</div>
+<div class="line"><a name="l00315"></a><span class="lineno">  315</span>&#160;    <span class="comment">//IOCTL_DXM1_MAP_CODE           = DX_NRM_IOCTL(0x101),</span></div>
+<div class="line"><a name="l00316"></a><span class="lineno">  316</span>&#160;    <span class="comment">//IOCTL_DXM1_UNMAP_CODE     = DX_NRM_IOCTL(0x102),</span></div>
+<div class="line"><a name="l00317"></a><span class="lineno">  317</span>&#160;    <span class="comment">//IOCTL_DXM1_DMA_EVENT_CODE = DX_NRM_IOCTL(0x201),</span></div>
+<div class="line"><a name="l00318"></a><span class="lineno">  318</span>&#160;    <span class="comment">//IOCTL_DXM1_MSG_EVENT_CODE = DX_NRM_IOCTL(0x202),</span></div>
+<div class="line"><a name="l00319"></a><span class="lineno">  319</span>&#160;    <span class="comment">//IOCTL_DXM1_DMA_CH_READ        = DX_NRM_IOCTL(0x301),</span></div>
+<div class="line"><a name="l00320"></a><span class="lineno">  320</span>&#160;    <span class="comment">//IOCTL_DXM1_DMA_CH_WRITE       = DX_NRM_IOCTL(0x302),</span></div>
+<div class="line"><a name="l00321"></a><span class="lineno">  321</span>&#160;    <span class="comment">//IOCTL_DXM1_DMA_MEM_READ       = DX_NRM_IOCTL(0x401),</span></div>
+<div class="line"><a name="l00322"></a><span class="lineno">  322</span>&#160;    <span class="comment">//IOCTL_DXM1_DMA_MEM_WRITE  = DX_NRM_IOCTL(0x402),</span></div>
+<div class="line"><a name="l00323"></a><span class="lineno">  323</span>&#160;    DXRT_IOCTL_MAX</div>
+<div class="line"><a name="l00324"></a><span class="lineno">  324</span>&#160;<span class="preprocessor">#endif</span></div>
+<div class="line"><a name="l00325"></a><span class="lineno">  325</span>&#160;} dxrt_ioctl_t;</div>
+<div class="line"><a name="l00326"></a><span class="lineno">  326</span>&#160; </div>
+<div class="line"><a name="l00327"></a><span class="lineno">  327</span>&#160;<span class="comment">/**********************/</span></div>
+<div class="line"><a name="l00328"></a><span class="lineno">  328</span>&#160; </div>
+<div class="line"><a name="l00329"></a><span class="lineno">  329</span>&#160;<span class="keyword">typedef</span> <span class="keyword">struct </span>_dxrt_model</div>
+<div class="line"><a name="l00330"></a><span class="lineno">  330</span>&#160;{</div>
+<div class="line"><a name="l00331"></a><span class="lineno">  331</span>&#160;    int16_t npu_id;</div>
+<div class="line"><a name="l00332"></a><span class="lineno">  332</span>&#160;    int8_t  type; <span class="comment">// 0: normal, 1: argmax, 2: ppu</span></div>
+<div class="line"><a name="l00333"></a><span class="lineno">  333</span>&#160;    int8_t  format;</div>
+<div class="line"><a name="l00334"></a><span class="lineno">  334</span>&#160;    int32_t cmds;</div>
+<div class="line"><a name="l00335"></a><span class="lineno">  335</span>&#160;    dxrt_meminfo_t cmd;</div>
+<div class="line"><a name="l00336"></a><span class="lineno">  336</span>&#160;    dxrt_meminfo_t weight;</div>
+<div class="line"><a name="l00337"></a><span class="lineno">  337</span>&#160;    uint32_t output_all_offset;</div>
+<div class="line"><a name="l00338"></a><span class="lineno">  338</span>&#160;    uint32_t output_all_size;</div>
+<div class="line"><a name="l00339"></a><span class="lineno">  339</span>&#160;    uint32_t last_output_offset;</div>
+<div class="line"><a name="l00340"></a><span class="lineno">  340</span>&#160;    uint32_t last_output_size;</div>
+<div class="line"><a name="l00341"></a><span class="lineno">  341</span>&#160;} dxrt_model_t;</div>
+<div class="line"><a name="l00342"></a><span class="lineno">  342</span>&#160; </div>
+<div class="line"><a name="l00343"></a><span class="lineno">  343</span>&#160;<span class="keyword">extern</span> DXRT_API std::vector&lt;std::pair&lt;int, std::string&gt;&gt; ioctlTable;</div>
+<div class="line"><a name="l00344"></a><span class="lineno">  344</span>&#160;<span class="keyword">extern</span> DXRT_API std::string ErrTable(dxrt_error_t error);</div>
+<div class="line"><a name="l00345"></a><span class="lineno">  345</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp; os, <span class="keyword">const</span> dx_pcie_dev_err_t&amp; error);</div>
+<div class="line"><a name="l00346"></a><span class="lineno">  346</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> dxrt_error_t&amp;);</div>
+<div class="line"><a name="l00347"></a><span class="lineno">  347</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> dxrt_meminfo_t&amp;);</div>
+<div class="line"><a name="l00348"></a><span class="lineno">  348</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> dxrt_request_t&amp;);</div>
+<div class="line"><a name="l00349"></a><span class="lineno">  349</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> dxrt_request_acc_t&amp;);</div>
+<div class="line"><a name="l00350"></a><span class="lineno">  350</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> dxrt_response_t&amp;);</div>
+<div class="line"><a name="l00351"></a><span class="lineno">  351</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> dxrt_model_t&amp;);</div>
+<div class="line"><a name="l00352"></a><span class="lineno">  352</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> dxrt_device_info_t&amp;);</div>
+<div class="line"><a name="l00353"></a><span class="lineno">  353</span>&#160; </div>
+<div class="line"><a name="l00354"></a><span class="lineno">  354</span>&#160;<span class="preprocessor">#ifdef _WIN32</span></div>
+<div class="line"><a name="l00355"></a><span class="lineno">  355</span>&#160;DXRT_API std::string dxrt_cmd_t_str(dxrt::dxrt_cmd_t c);</div>
+<div class="line"><a name="l00356"></a><span class="lineno">  356</span>&#160;<span class="preprocessor">#endif // _WIN32</span></div>
+<div class="line"><a name="l00357"></a><span class="lineno">  357</span>&#160; </div>
+<div class="line"><a name="l00358"></a><span class="lineno">  358</span>&#160;} <span class="comment">// namespace dxrt</span></div>
 </div><!-- fragment --></div><!-- contents -->
 <div class="ttc" id="anamespacedxrt_html"><div class="ttname"><a href="namespacedxrt.html">dxrt</a></div><div class="ttdoc">DXRT C++ APIs are provided in this namespace.</div><div class="ttdef"><b>Definition:</b> buffer.h:8</div></div>
 <!-- start footer part -->

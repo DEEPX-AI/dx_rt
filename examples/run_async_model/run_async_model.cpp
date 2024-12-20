@@ -15,8 +15,7 @@ static std::mutex gCBMutex;
 // invoke this function asynchronously after the inference is completed
 static int onInferenceCallbackFunc(dxrt::TensorPtrs &outputs, void *userArg)
 {
-    std::lock_guard<std::mutex> guard(gCBMutex);
-    
+   
     // user data type casting
     std::pair<int, int>* user_data = reinterpret_cast<std::pair<int, int>*>(userArg);
 
@@ -27,16 +26,25 @@ static int onInferenceCallbackFunc(dxrt::TensorPtrs &outputs, void *userArg)
 
     std::cout << "Callback triggered for inference with user_arg(" 
         << user_data->first << ", " << user_data->second << ")" << std::endl;
-    gCallbackCnt ++;
+  
 
-    // end of the loop
-    if ( user_data->second == gCallbackCnt ) // check loop count
     {
-        gResultQueue.push(gCallbackCnt);
+        // Mutex locks should be properly adjusted 
+        // to ensure that callback functions are thread-safe.
+        std::lock_guard<std::mutex> lock(gCBMutex);
+
+        gCallbackCnt ++;
+
+        // end of the loop
+        if ( user_data->second == gCallbackCnt ) // check loop count
+        {
+            gResultQueue.push(gCallbackCnt);
+        }
     }
-    
+
     // delete argument object
     delete user_data;
+
 
     return 0;
 }
@@ -75,8 +83,8 @@ int main(int argc, char* argv[])
         // register call back function
         ie.RegisterCallBack(onInferenceCallbackFunc);
 
-        // create input data
-        uint8_t inputPtr[ie.input_size()] = {0, };
+        // create temporary input buffer for example
+        std::vector<uint8_t> inputPtr(ie.input_size(), 0);
 
         auto start = std::chrono::high_resolution_clock::now();
 
@@ -87,7 +95,7 @@ int main(int argc, char* argv[])
             std::pair<int, int> *userData = new std::pair<int, int>(i, loop_count);
 
             // inference asynchronously, use all npu cores
-            ie.RunAsync(inputPtr, userData);
+            ie.RunAsync(inputPtr.data(), userData);
 
             std::cout << "Inference request submitted with user_arg(" << i << ")" << std::endl;
             

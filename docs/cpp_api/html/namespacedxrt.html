@@ -64,7 +64,6 @@ $(function() {
 <div class="header">
   <div class="summary">
 <a href="#nested-classes">Classes</a> &#124;
-<a href="#typedef-members">Typedefs</a> &#124;
 <a href="#func-members">Functions</a> &#124;
 <a href="#var-members">Variables</a>  </div>
   <div class="headertitle">
@@ -77,9 +76,6 @@ $(function() {
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="nested-classes"></a>
 Classes</h2></td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structdxrt_1_1DXRT__API.html">DXRT_API</a></td></tr>
-<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">face detection data format from device  <a href="structdxrt_1_1DXRT__API.html#details">More...</a><br /></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html">InferenceEngine</a></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">This class abstracts runtime inference executor for user's compiled model.  <a href="classdxrt_1_1InferenceEngine.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -92,38 +88,24 @@ Classes</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1Tensor.html">Tensor</a></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">This class abstracts DXRT tensor object, which defines data array composed of uniform elements.  <a href="classdxrt_1_1Tensor.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structdxrt_1_1TestData.html">TestData</a></td></tr>
-<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">model test data information  <a href="structdxrt_1_1TestData.html#details">More...</a><br /></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="typedef-members"></a>
-Typedefs</h2></td></tr>
-<tr class="memitem:ab574f3d576e9116720420cedca3ff9bf"><td class="memItemLeft" align="right" valign="top"><a id="ab574f3d576e9116720420cedca3ff9bf"></a>
-typedef struct <a class="el" href="structdxrt_1_1DXRT__API.html">dxrt::DXRT_API</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedxrt.html#ab574f3d576e9116720420cedca3ff9bf">DeviceFace_t</a></td></tr>
-<tr class="memdesc:ab574f3d576e9116720420cedca3ff9bf"><td class="mdescLeft">&#160;</td><td class="mdescRight">face detection data format from device <br /></td></tr>
-<tr class="separator:ab574f3d576e9116720420cedca3ff9bf"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a97943489f0354a7170736555f596161c"><td class="memItemLeft" align="right" valign="top"><a id="a97943489f0354a7170736555f596161c"></a>
-typedef struct <a class="el" href="structdxrt_1_1DXRT__API.html">dxrt::DXRT_API</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedxrt.html#a97943489f0354a7170736555f596161c">DevicePose_t</a></td></tr>
-<tr class="memdesc:a97943489f0354a7170736555f596161c"><td class="mdescLeft">&#160;</td><td class="mdescRight">pose estimation data format from device <br /></td></tr>
-<tr class="separator:a97943489f0354a7170736555f596161c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a9ccf41f6e21badc40edbb81ddc2b3f5e"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structdxrt_1_1DXRT__API.html">DXRT_API</a> int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedxrt.html#a9ccf41f6e21badc40edbb81ddc2b3f5e">CommandLineInterface</a> (Command cmd, std::vector&lt; uint32_t &gt; vec)</td></tr>
+<tr class="memitem:a9ccf41f6e21badc40edbb81ddc2b3f5e"><td class="memItemLeft" align="right" valign="top">DXRT_API int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedxrt.html#a9ccf41f6e21badc40edbb81ddc2b3f5e">CommandLineInterface</a> (Command cmd, std::vector&lt; uint32_t &gt; vec)</td></tr>
 <tr class="memdesc:a9ccf41f6e21badc40edbb81ddc2b3f5e"><td class="mdescLeft">&#160;</td><td class="mdescRight">get hardware status (this function is valid only for accelerator devices)  <a href="namespacedxrt.html#a9ccf41f6e21badc40edbb81ddc2b3f5e">More...</a><br /></td></tr>
 <tr class="separator:a9ccf41f6e21badc40edbb81ddc2b3f5e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a789419550b801bbd0fce46cacd3eaa20"><td class="memItemLeft" align="right" valign="top"><a id="a789419550b801bbd0fce46cacd3eaa20"></a>
-<a class="el" href="structdxrt_1_1DXRT__API.html">DXRT_API</a> int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedxrt.html#a789419550b801bbd0fce46cacd3eaa20">CleanMemIf</a> ()</td></tr>
+DXRT_API int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedxrt.html#a789419550b801bbd0fce46cacd3eaa20">CleanMemIf</a> ()</td></tr>
 <tr class="memdesc:a789419550b801bbd0fce46cacd3eaa20"><td class="mdescLeft">&#160;</td><td class="mdescRight">CPU cache flush API (Platform-dependent) <br /></td></tr>
 <tr class="separator:a789419550b801bbd0fce46cacd3eaa20"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a639d891e943841d37650b5775bdfd279"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structdxrt_1_1DXRT__API.html">DXRT_API</a> int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedxrt.html#a639d891e943841d37650b5775bdfd279">ParseModel</a> (std::string file)</td></tr>
+<tr class="memitem:a639d891e943841d37650b5775bdfd279"><td class="memItemLeft" align="right" valign="top">DXRT_API int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedxrt.html#a639d891e943841d37650b5775bdfd279">ParseModel</a> (std::string file)</td></tr>
 <tr class="memdesc:a639d891e943841d37650b5775bdfd279"><td class="mdescLeft">&#160;</td><td class="mdescRight">parse a model, and show information  <a href="namespacedxrt.html#a639d891e943841d37650b5775bdfd279">More...</a><br /></td></tr>
 <tr class="separator:a639d891e943841d37650b5775bdfd279"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="var-members"></a>
 Variables</h2></td></tr>
 <tr class="memitem:aab5060680ba2f567f47f8868cd8b1f00"><td class="memItemLeft" align="right" valign="top"><a id="aab5060680ba2f567f47f8868cd8b1f00"></a>
-<a class="el" href="structdxrt_1_1DXRT__API.html">DXRT_API</a> <a class="el" href="structdxrt_1_1InferenceOption.html">InferenceOption</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedxrt.html#aab5060680ba2f567f47f8868cd8b1f00">DefaultInferenceOption</a></td></tr>
+DXRT_API <a class="el" href="structdxrt_1_1InferenceOption.html">InferenceOption</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedxrt.html#aab5060680ba2f567f47f8868cd8b1f00">DefaultInferenceOption</a></td></tr>
 <tr class="memdesc:aab5060680ba2f567f47f8868cd8b1f00"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default inference option. <br /></td></tr>
 <tr class="separator:aab5060680ba2f567f47f8868cd8b1f00"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -137,7 +119,7 @@ Variables</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname"><a class="el" href="structdxrt_1_1DXRT__API.html">DXRT_API</a> int dxrt::CommandLineInterface </td>
+          <td class="memname">DXRT_API int dxrt::CommandLineInterface </td>
           <td>(</td>
           <td class="paramtype">Command&#160;</td>
           <td class="paramname"><em>cmd</em>, </td>
@@ -168,7 +150,7 @@ Variables</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname"><a class="el" href="structdxrt_1_1DXRT__API.html">DXRT_API</a> int dxrt::ParseModel </td>
+          <td class="memname">DXRT_API int dxrt::ParseModel </td>
           <td>(</td>
           <td class="paramtype">std::string&#160;</td>
           <td class="paramname"><em>file</em></td><td>)</td>

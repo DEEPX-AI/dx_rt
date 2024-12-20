@@ -65,9 +65,24 @@ void* Tensor::data(int h, int w, int c)
 ostream& operator<<(ostream& os, const Tensor& tensor)
 {
     os << dec << tensor._name << ", " << tensor._type << ", [";
-    for(auto &s:tensor._shape) os << s << ", ";
+    for (size_t i = 0; i < tensor._shape.size(); ++i) 
+    {
+        if (tensor._shape[i] == -1) 
+        {
+            os << "UNKNOWN";
+        } 
+        else 
+        {
+            os << tensor._shape[i];
+        }
+
+        if (i < tensor._shape.size() - 1) 
+        {
+            os << ", ";
+        }
+    }
     os << " ], " << hex << tensor._data;
-    if(tensor._phyAddr!=0)
+    if (tensor._phyAddr != 0)
     {
         os << ", " << tensor._phyAddr;
     }

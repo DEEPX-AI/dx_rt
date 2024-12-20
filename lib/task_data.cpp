@@ -134,8 +134,8 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_)
                 dataType += info.outputs().outputlist().output(0).format();
                 dataType -= deepx_rmapinfo::DataFormat::PPU_YOLO;
                 _outputTensors.emplace_back(
-                    Tensor(_outputNames[i], {128*1024/GetDataSize_Datatype(static_cast<DataType>(dataType))}, static_cast<DataType>(dataType), nullptr)
-                    //Tensor(_outputNames[i], _outputShape[i], static_cast<DataType>(dataType), nullptr)
+                    //Tensor(_outputNames[i], {128*1024/GetDataSize_Datatype(static_cast<DataType>(dataType))}, static_cast<DataType>(dataType), nullptr)
+                    Tensor(_outputNames[i], _outputShape[i], static_cast<DataType>(dataType), nullptr)
                 );
                 model.last_output_offset = model.output_all_size;
                 model.last_output_size = 128*1024;

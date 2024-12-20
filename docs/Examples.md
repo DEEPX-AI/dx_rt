@@ -1,36 +1,33 @@
 Please find our demo applications implemented based on the Inference Guide.
 ## Parse Model
 Parse model, and show detailed model information  
-(from `app/basic/parse_model.cpp`)  
+(from `bin/parse_model.cpp`)  
 >  -m, --model     model path  
 >  -h, --help      show help  
 ```
 parse_model -m <model_dir>
 ```
 ```
-$./parse_model -m yolov5s
-modelPath: yolov5s
-parse non-encryption format.
-compiler version info : v0.5_transpose, 1.0, 0.0
-model name : yolov5s_512
-number of macs : 4096
-number of layers : 71
-total memory usage : 34628608 Bytes
-  - weight param. : 7342592 Bytes
-  - npu param. : 219648 Bytes
-  - input : 786432 Bytes
-  - output : 26279936 Bytes
-input tensors
-  type : IM2COL
-  [0] "INPUT", UINT32, [1, 3, 512, 512, ], 786432 Bytes
-output tensors
-  [0] "378", FLOAT, [64, 64, 255, ], 4194304 Bytes
-  [1] "439", FLOAT, [32, 32, 255, ], 1048576 Bytes
-  [2] "500", FLOAT, [16, 16, 255, ], 262144 Bytes
+$./parse_model -m model.dxnn
+modelPath: /.../model.dxnn
+DXNN Model Ver. : 6
+...
+[  ] -> npu_0 -> [ ]
+  inputs
+     -> npu_0
+      images
+  outputs
+    npu_0 ->
+       ...
+  Task[0] npu_0, NPU, 117389760 bytes (input 786432, output 131072)
+    inputs
+      images, UINT8, [1, 512, 512, 3 ], 0
+    outputs
+      DX_tensor_5288, BBOX, [UNKNOWN ], 0
 ```
 ## Run Model
 Simple model run demo, which measure inference time, and check output data integrity  
-(from `app/basic/run_model.cpp`)  
+(from `bin/run_model.cpp`)  
 >  -c, --config    config json file  
 >  -m, --model     model path  
 >  -i, --input     input data file  
@@ -42,17 +39,20 @@ Simple model run demo, which measure inference time, and check output data integ
 run_model -m <model_dir> -i <input bin.> -o <output bin.> -r <reference output bin.> -l <number of loops>
 ```
 ```
-$ run_model -m /mnt/.../model.dxnn -i /mnt/.../input.bin -l 100
------------------------------------
-loops : 100
------------------------------------
-...
-...
------------------------------------
-  Inference time : 13.872ms
-  FPS : 72.0879
-  Bit match test : SKIP
------------------------------------
+$ run_model -m /.../model.dxnn -i /.../input.bin -l 100
+
+modelFile: /.../model.dxnn
+inputFile: /.../input.bin
+outputFile: output.bin
+benchmark: 0
+loops: 100
+Run model target mode : Benchmark Mode
+============================================================================================
+* Processing File : /.../input.bin
+* Output Saved As : output.bin
+* Benchmark Result(3 Cores)
+  - FPS : 323.331604
+============================================================================================
 ```
 ## Firmware Interface DXRT-CLI tool  
 Read device status, and handle them by commandline interface  

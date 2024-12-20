@@ -11,18 +11,15 @@ q = queue.Queue()
 
 lock = threading.Lock()
 
+def inferenceThreadFunc(ie, input, threadIndex, loopCount):
 
-def inferenceThreadFunc(ie, threadIndex, loopCount):
 
-    # input
-    input = [np.zeros(ie.input_size(), dtype=np.uint8)]
-    
     # inference loop
     for i in range(loopCount):
 
         # inference asynchronously, use all npu cores
         # if device-load >= max-load-value, this function will block  
-        ie.RunAsync(input,user_arg = [i, loopCount, threadIndex])
+        ie.RunAsync(input, user_arg = [i, loopCount, threadIndex])
 
         print("inferenceThreadFunc thread-index=", threadIndex, "loop-index=", i)
     
@@ -34,6 +31,9 @@ def onInferenceCallbackFunc(outputs, user_arg):
     # for improving inference performance
 
     global total_count
+
+    # Mutex locks should be properly adjusted 
+    # to ensure that callback functions are thread-safe.
     with lock:
         # user data type casting
         index = user_arg.value[0]
@@ -74,11 +74,13 @@ if __name__ == "__main__":
 
     # register call back function
     ie.RegisterCallBack(onInferenceCallbackFunc)
-
+    
+    # input
+    input = [np.zeros(ie.input_size(), dtype=np.uint8)]
    
-    t1 = threading.Thread(target=inferenceThreadFunc, args=(ie, 0, loop_count))
-    t2 = threading.Thread(target=inferenceThreadFunc, args=(ie, 1, loop_count))
-    t3 = threading.Thread(target=inferenceThreadFunc, args=(ie, 2, loop_count))
+    t1 = threading.Thread(target=inferenceThreadFunc, args=(ie, input, 0, loop_count))
+    t2 = threading.Thread(target=inferenceThreadFunc, args=(ie, input, 1, loop_count))
+    t3 = threading.Thread(target=inferenceThreadFunc, args=(ie, input, 2, loop_count))
 
     # Start and join
     t1.start()

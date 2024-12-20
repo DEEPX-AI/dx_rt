@@ -10,11 +10,9 @@ You can configure DXRT options in cmake/dxrt.cfg.cmake
 `USE_ORT` : Use ONNX runtime for NN ops that NPU does not support.  
 `USE_PYTHON` : Enable python RT.  
 `USE_SERVICE` : Use service to support multi-process.  
-`USE_DXRT_TEST` : (applicable for only DEEPX-internal version) Build DXRT Unit test. Prebult googletest libraries are linked if this option is `ON`.  
 
 ```
 option(USE_ORT "Use ONNX Runtime" OFF)
-option(USE_DXRT_TEST "Use DXRT Unit Test" ON)
 option(USE_PYTHON "Use Python" OFF)
 option(USE_SERVICE "Use Service" OFF)
 option(USE_SHARED_DXRT_LIB "Build for DXRT Shared Library" ON)
