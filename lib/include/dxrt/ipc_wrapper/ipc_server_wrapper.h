@@ -21,8 +21,7 @@ namespace dxrt
 
     public:
 
-        IPCServerWrapper(IPC_TYPE type = IPC_TYPE::SOCKET_SYNC);
-        IPCServerWrapper(uint64_t fd, IPC_TYPE type = IPC_TYPE::SOCKET_SYNC);
+        IPCServerWrapper(IPC_TYPE type = IPC_TYPE::MESSAE_QUEUE);
         virtual ~IPCServerWrapper();
 
         // Intitialize IPC Server

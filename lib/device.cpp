@@ -13,7 +13,12 @@
 #include "dxrt/device_version.h"
 #include "dxrt/fw.h"
 #include "dxrt/multiprocess_memory.h"
+#ifdef __linux__
 #include "dxrt/driver_adapter/linux_driver_adapter.h"
+#else
+#include "dxrt/driver_adapter/windows_driver_adapter.h"
+#endif
+
 #include "dxrt/exception/exception.h"
 #include "dxrt/objects_pool.h"
 
@@ -79,11 +84,7 @@ Device::~Device(void)
             _eventWorker->Stop();
         Terminate();
     }
-#ifdef __linux__
     _driverAdapter = nullptr;
-#elif _WIN32
-    CloseHandle(_devHandle);
-#endif
     LOG_DXRT_DBG << "Device " << _id << " released." << endl;
     if (( _type == DeviceType::STD_TYPE) && (_skip == SkipMode::NONE))
     {
@@ -116,12 +117,17 @@ int Device::infCnt()
     unique_lock<mutex> lk(_lock);
     return _inferenceCnt;
 }
-
+#ifdef __linux__
 int Device::fd()
 {
     return _devFd;
 }
-
+#elif _WIN32
+HANDLE Device::fd()
+{
+    return _devHandle;
+}
+#endif
 dxrt_device_status_t Device::status()
 {
     Process(dxrt::dxrt_cmd_t::DXRT_CMD_GET_STATUS, &_status);
@@ -136,23 +142,7 @@ int Device::Process(dxrt_cmd_t cmd, void *data, uint32_t size, uint32_t sub_cmd)
     if (ret < 0)
         ret = errno*(-1);
 #elif _WIN32
-    DWORD bytesReturned;
-    BOOL success = DeviceIoControl(
-        (HANDLE)_devFd,
-        static_cast<DWORD>(dxrt::dxrt_ioctl_t::DXRT_IOCTL_MESSAGE),
-        &msg,
-        sizeof(msg),
-        NULL,
-        0,
-        &bytesReturned,
-        NULL);
-    if (!success) {
-        ret = GetLastError() * (-1);
-    }
-    else
-    {
-        ret = bytesReturned;
-    }
+    ret = _driverAdapter->IOControl(cmd, data, size, sub_cmd);
 #endif
     return ret;
 }
@@ -236,14 +226,7 @@ int Device::InferenceRequest_STD(RequestData* req, npu_bound_op boundOp)
         // ret = write(_devFd, inference, sizeof(dxrt_request_t));
         ret = _driverAdapter->Write(&inferences[pick], sizeof(dxrt_request_t));
 #elif _WIN32
-        DWORD bytesWritten;
-        BOOL success = WriteFile(_devHandle, &req->npu_inference(), sizeof(dxrt_request_t), &bytesWritten, NULL);
-        if (!success) {
-            ret = -1;
-        }
-        else {
-            ret = bytesWritten;
-        }
+        ret = _driverAdapter->Write(&inferences[pick], sizeof(dxrt_request_t));
 #endif
         LOG_DXRT_DBG << "written " << ret << endl;
     }
@@ -413,13 +396,7 @@ int Device::Response(dxrt_response_t &response)
         return -1;
     }
 #elif _WIN32
-    DWORD bytesRead;
-    BOOL success = ReadFile(_devHandle, &response, sizeof(dxrt_response_t), &bytesRead, NULL);
-    if (!success || bytesRead != sizeof(dxrt_response_t))
-    {
-        return -1;
-    }
-    ret = bytesRead;
+    ret = _driverAdapter->Read(&response, sizeof(dxrt_response_t));
 #endif
     LOG_DXRT_DBG << "Device " << _id << " Response : " << response.req_id << endl;
     return 0;
@@ -492,18 +469,7 @@ int Device::Wait(void)
         return -1;
     }
 #elif _WIN32
-    DWORD waitResult = WaitForSingleObject(_devHandle, DEVICE_POLL_LIMIT_MS);
-    if (waitResult == WAIT_FAILED)
-    {
-        cout << "Error: Device " << _id << " WaitForSingleObject fail." << endl;
-        return -1;
-    }
-    else if (waitResult == WAIT_TIMEOUT)
-    {
-        // Timeout occurred, you might want to handle this case
-        cout << "Warning: Device " << _id << " wait timeout." << endl;
-        return -1;
-    }
+    ret = _driverAdapter->Poll();	// unused in windows
 #endif
     return 0;
 }
@@ -539,15 +505,9 @@ void Device::Identify(int id_, SkipMode skip, uint32_t subCmd)
     _devFd = _driverAdapter->GetFd();
 
 #elif _WIN32
-    _devHandle = CreateFile(_file.c_str(),
-        GENERIC_READ | GENERIC_WRITE,
-        0,
-        NULL,
-        OPEN_EXISTING,
-        FILE_ATTRIBUTE_NORMAL,
-        NULL);
-    if (_devHandle == INVALID_HANDLE_VALUE)
-    {
+    _driverAdapter = make_shared<WindowsDriverAdapter>(_file.c_str());
+    _devHandle = (HANDLE)_driverAdapter->GetFd();
+    if (_devHandle == INVALID_HANDLE_VALUE) {
         cout << "Error: Can't open " << _file << endl;
         return;
     }
@@ -593,13 +553,7 @@ void Device::Identify(int id_, SkipMode skip, uint32_t subCmd)
         _mem = nullptr;
     }
 #elif _WIN32
-    HANDLE fileMapping = CreateFileMapping(_devHandle, NULL, PAGE_READWRITE, 0, _info.mem_size, NULL);
-    void* _mem = nullptr;
-    if (fileMapping != NULL)
-    {
-        _mem = MapViewOfFile(fileMapping, FILE_MAP_ALL_ACCESS, 0, 0, _info.mem_size);
-        CloseHandle(fileMapping);
-    }
+    void* _mem = nullptr;	// unused in windows
 #endif
     _memory = make_shared<Memory>(_info, _mem);
     dxrt_device_info_t featureMemInfo = _info;
@@ -616,12 +570,20 @@ void Device::Identify(int id_, SkipMode skip, uint32_t subCmd)
         if (_type == DeviceType::ACC_TYPE)
         {
             int num_ch = _info.num_dma_ch;
+#ifdef __linux__
             if (_info.interface == DEVICE_INTERFACE_ASIC)
+#elif _WIN32
+            if (_info.interface_value == DEVICE_INTERFACE_ASIC)
+#endif
             {
                 _inputWorker = DeviceInputWorker::Create(_name + "_input", num_ch, this);
                 _outputWorker = DeviceOutputWorker::Create(_name + "_output", num_ch, this);
             }
+#ifdef __linux__
             if (_info.interface == DEVICE_INTERFACE_ASIC)
+#elif _WIN32
+            if (_info.interface_value == DEVICE_INTERFACE_ASIC)
+#endif                
                 _eventWorker = DeviceEventWorker::Create(_name + "event", this);
 
             //_buffer = make_shared<Buffer>(ACC_DEVICE_BUFFER_SIZE);
@@ -886,8 +848,8 @@ int Device::RegisterTask_STD(TaskData* task)
 
             _npuInference[id].emplace_back(inference);
         }
-        DXRT_ASSERT(Write(model.cmd) == 0, "failed to write model parameters");
-        DXRT_ASSERT(Write(model.weight) == 0, "failed to write model parameters");
+        DXRT_ASSERT(Write(model.cmd) == 0, "failed to write model parameters(cmd)");
+        DXRT_ASSERT(Write(model.weight) == 0, "failed to write model parameters(weight)");
         // cout << "write done" << endl;
     }
 
@@ -957,15 +919,23 @@ int Device::RegisterTask_ACC(TaskData* task)
 
         {
 #ifdef USE_SERVICE
-            model.cmd.offset = _sMulti_mems->BackwardAllocate(_id, model.cmd.size);
             model.weight.offset = _sMulti_mems->BackwardAllocate(_id, model.weight.size);
+            model.cmd.offset = _sMulti_mems->BackwardAllocate(_id, model.cmd.size);
             if (model.cmd.offset > model.weight.offset)
+            {
+                uint32_t temp_addr = model.cmd.offset;
                 model.cmd.offset = _sMulti_mems->BackwardAllocate(_id, model.cmd.size);
+                _sMulti_mems->Deallocate(_id, temp_addr);
+            }
 #else
-            model.cmd.offset = _memory->BackwardAllocate(model.cmd.size);
             model.weight.offset = _memory->BackwardAllocate(model.weight.size);
+            model.cmd.offset = _memory->BackwardAllocate(model.cmd.size);
             if (model.cmd.offset > model.weight.offset)
+            {
+                uint32_t temp_addr = model.cmd.offset;
                 model.cmd.offset = _memory->BackwardAllocate(model.cmd.size);
+                _memory->Deallocate(temp_addr);
+            }
 #endif
         }
 

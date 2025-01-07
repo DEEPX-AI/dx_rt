@@ -3,35 +3,53 @@
 
 #pragma once
 
+#ifdef _WIN32 // all or nothing
+
 #include <stdint.h>
 #include <cstdint>
 #include <future>
+#include <mutex>
 
 #include "dxrt/common.h"
 #include "dxrt/driver.h"
 #include "dxrt/device_struct.h"
 #include "../../../include/dxrt/ipc_wrapper/ipc_client.h"
+#include "ipc_pipe_windows.h"
+#include <map>
+#include <set>
 
 namespace dxrt 
 {
-
-    class IPCClientLinux : public IPCClient
+    class IPCPipeClientWindows : public IPCClient
     {
-    public:
-        static const char* SOCKET_NAME;
-
     private:
-        int _socketFd;
-        //int _deviceId;
-        std::shared_ptr<std::promise<IPCServerMessage> >_waitingCall;
+        std::atomic<bool> _stop{ false };
+
+    	IPCPipeWindows _pipe;
+        void* _usrData;
+        long _msgType;
         std::thread _thread;
-        std::atomic<bool> _stop = {false};
+        std::atomic<bool> _threadRunning = {false};
+        //std::atomic<bool> _stop = {false};
         std::function<int32_t(IPCServerMessage&,void*)> _receiveCB;
+        //std::map<int, std::shared_ptr<std::promise<IPCServerMessage> > >_waitingCall;
+        //std::mutex _futureLock;
+        //std::mutex _funcLock;
+
+#if 0
+        std::map<pid_t, HANDLE> _msgType2handle;
+        std::queue<IPCServerMessage> _que;
+        std::condition_variable _queCv;
+        std::mutex _queMt;
 
     public:
+        void enQue(IPCServerMessage& m);
+        int32_t deQue(IPCServerMessage& clientMessage);
+#endif
+    public:
 
-        IPCClientLinux();
-        virtual ~IPCClientLinux();
+        IPCPipeClientWindows(long msgType);
+        virtual ~IPCPipeClientWindows();
 
         // Intitialize IPC
         virtual int32_t Initialize();
@@ -51,7 +69,9 @@ namespace dxrt
         // close the connection
         virtual int32_t Close();
 
-        void threadFunc();
+        static void ThreadFunc(IPCPipeClientWindows* socketClient);
     };
 
 }  // namespace dxrt
+
+#endif

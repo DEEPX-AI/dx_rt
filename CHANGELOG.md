@@ -1,4 +1,14 @@
 # Changelog
+## v2.6.3 / 2025-01-06
+### Changed
+- seperate msg queue for Send To / Receive From
+- merge windows code & modify bitmatch (C++)
+### Fixed
+- fix NPU memory leaks
+### Added
+- NONE
+
+# Changelog
 ## v2.6.2 / 2024-12-19
 ### Changed
 - NONE

@@ -189,6 +189,10 @@ public:
      * @return The compile type of the model.
      */
     string get_compile_type();    
+
+#ifdef _WIN32
+    float RunBenchMarkWindows(int num, void* inputPtr = nullptr);
+#endif // _WIN32
     friend DXRT_API std::ostream& operator<<(std::ostream&, const InferenceEngine&);
 private:
     std::string _modelFile;

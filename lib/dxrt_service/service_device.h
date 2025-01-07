@@ -57,11 +57,7 @@
     #include <poll.h>
 #elif _WIN32
     #include <windows.h>
-    struct pollfd {
-        HANDLE fd;
-        short events;
-        short revents;
-    };
+
 #endif
 
 namespace dxrt {
@@ -72,7 +68,7 @@ class Memory;
 #ifdef __linux__
 class InferenceOption;
 #elif _WIN32
-// TODO: cpu_handle.h������ struct�� ����Ǿ� ����.
+
 struct InferenceOption;
 #endif
 class TaskData;

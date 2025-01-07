@@ -9,6 +9,9 @@
 #include <random>
 #endif
 
+#include <thread>
+#include <chrono>
+
 using namespace std;
 namespace dxrt
 {
@@ -347,7 +350,12 @@ void DisplayCountdown(int seconds, string str)
     cout.sync_with_stdio(false);
     while (seconds > 0) {
         cout << "\r" << str << "(" << seconds << " seconds remaining) " << flush;
-        sleep(1);
+        std::this_thread::sleep_for(chrono::seconds(1));
+//#ifdef __linux__
+//        sleep(1);
+//#elif _WIN32
+//        Sleep(1);
+//#endif
         --seconds;
     }
     cout << endl;

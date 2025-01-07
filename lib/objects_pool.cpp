@@ -33,7 +33,11 @@ void ObjectsPool::makeDeviceList()
         int cnt = 0;
         while (1)
         {
+#ifdef __linux__
             string devFile("/dev/" + string(DEVICE_FILE) + to_string(cnt));
+#elif _WIN32
+            string devFile("\\\\.\\" + string(DEVICE_FILE) + to_string(cnt));
+#endif
             if (fileExists(devFile))
             {
                 if (forceNumDev > 0 && cnt >= forceNumDev)

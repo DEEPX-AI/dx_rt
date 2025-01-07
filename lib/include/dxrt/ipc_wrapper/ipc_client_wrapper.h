@@ -26,7 +26,7 @@ namespace dxrt
 
     public:
 
-        IPCClientWrapper(IPC_TYPE type = IPC_TYPE::SOCKET_SYNC, long msgType = 0);  // msgType only for MessageQueue
+        IPCClientWrapper(IPC_TYPE type = IPC_TYPE::MESSAE_QUEUE, long msgType = 0);  // msgType only for MessageQueue
         virtual ~IPCClientWrapper();
 
         // Intitialize IPC

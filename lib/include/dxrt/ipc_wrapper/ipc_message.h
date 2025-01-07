@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <cstdint>
+#include <map>
 
 #include "dxrt/common.h"
 #include "dxrt/driver.h"
@@ -10,11 +11,20 @@
 namespace dxrt 
 {
     enum class IPC_TYPE : int {
-        SOCKET_SYNC = 1,     // socket sync read/write
-        SOCKET_CB = 2,       // socket read callback & write sync
-        MESSAE_QUEUE = 3,   // message queue (FIFO)
-        MSG_QUEUE = 4       // message queue (POSIX)
+        //SOCKET_SYNC = 1,        // socket sync read/write
+        //SOCKET_CB = 2,          // socket read callback & write sync
+        MESSAE_QUEUE = 3,       // message queue (FIFO)
+        //MSG_QUEUE = 4,          // message queue (POSIX)
+        WIN_PIPE = 5            // windows named pipe
     };
+    IPC_TYPE inline IPCDefaultType()
+    {
+#ifdef __linux__
+    	return IPC_TYPE::MESSAE_QUEUE ;
+#elif _WIN32
+    	return IPC_TYPE::WIN_PIPE ;
+#endif
+    }
 
     enum class MEMORY_REQUEST_CODE : int {
         REGISTESR_PROCESS = 0,      //set msg to pid
@@ -117,16 +127,79 @@ namespace dxrt
 
 #pragma pack(pop)
 
-    inline std::ostream& operator<<(std::ostream& os, const IPCClientMessage& clientMessage)
+    inline DXRT_API std::ostream& operator<<(std::ostream& os, const IPCClientMessage& clientMessage)
     {
         os << "client-message code=" << clientMessage.code;
         return os;
     }
 
-    inline std::ostream& operator<<(std::ostream& os, const IPCServerMessage& serverMessage)
+    inline DXRT_API std::ostream& operator<<(std::ostream& os, const IPCServerMessage& serverMessage)
     {
         os << "server-message code=" << serverMessage.code;
         return os;
     }
+
+    // for tracing
+    inline DXRT_API std::string _s(dxrt::REQUEST_CODE c)
+    {
+        static std::map<dxrt::REQUEST_CODE, std::string> m;
+        if (m.size() == 0) {
+            m[dxrt::REQUEST_CODE::REGISTESR_PROCESS] = "REGISTESR_PROCESS";
+            m[dxrt::REQUEST_CODE::GET_MEMORY] = "GET_MEMORY";
+            m[dxrt::REQUEST_CODE::FREE_MEMORY] = "FREE_MEMORY";
+            m[dxrt::REQUEST_CODE::GET_MEMORY_FOR_MODEL] = "GET_MEMORY_FOR_MODEL";
+            m[dxrt::REQUEST_CODE::DEVICE_INIT] = "DEVICE_INIT";
+            m[dxrt::REQUEST_CODE::DEVICE_RESET] = "DEVICE_RESET";
+
+            m[dxrt::REQUEST_CODE::MEMORY_ALLOCATION_AND_TRANSFER_MODEL] = "MEMORY_ALLOCATION_AND_TRANSFER_MODEL";
+            m[dxrt::REQUEST_CODE::COMPLETE_TRANSFER_MODEL] = "COMPLETE_TRANSFER_MODEL";
+            m[dxrt::REQUEST_CODE::MEMORY_ALLOCATION_INPUT_AND_OUTPUT] = "MEMORY_ALLOCATION_INPUT_AND_OUTPUT";
+            m[dxrt::REQUEST_CODE::TRANSFER_INPUT_AND_RUN] = "TRANSFER_INPUT_AND_RUN";
+            m[dxrt::REQUEST_CODE::COMPLETE_TRANSFER_AND_RUN] = "COMPLETE_TRANSFER_AND_RUN";
+            m[dxrt::REQUEST_CODE::COMPLETE_TRNASFER_OUTPUT] = "COMPLETE_TRNASFER_OUTPUT";
+            m[dxrt::REQUEST_CODE::REQUEST_SCHEDULE_INFERENCE] = "REQUEST_SCHEDULE_INFERENCE";
+            m[dxrt::REQUEST_CODE::INFERENCE_COMPLETED] = "INFERENCE_COMPLETED";
+            m[dxrt::REQUEST_CODE::CLOSE] = "CLOSE";
+        }
+        return m.find(c) == m.end() ? "REQUEST_Unknown" : m[c];
+    }
+    inline DXRT_API std::string _s(dxrt::RESPONSE_CODE c)
+    {
+        static std::map<dxrt::RESPONSE_CODE, std::string> m;
+        if (m.size() == 0) {
+            m[dxrt::RESPONSE_CODE::CONFIRM_MEMORY_ALLOCATION_AND_TRANSFER_MODEL] = "CONFIRM_MEMORY_ALLOCATION_AND_TRANSFER_MODEL";
+            m[dxrt::RESPONSE_CODE::CONFIRM_MEMORY_ALLOCATION] = "CONFIRM_MEMORY_ALLOCATION";
+            m[dxrt::RESPONSE_CODE::CONFIRM_TRANSFER_INPUT_AND_RUN] = "CONFIRM_TRANSFER_INPUT_AND_RUN";
+            m[dxrt::RESPONSE_CODE::CONFIRM_MEMORY_FREE] = "CONFIRM_MEMORY_FREE";
+            m[dxrt::RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH0] = "DO_SCHEDULED_INFERENCE_CH0";
+            m[dxrt::RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH1] = "DO_SCHEDULED_INFERENCE_CH1";
+            m[dxrt::RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH2] = "DO_SCHEDULED_INFERENCE_CH2";
+            m[dxrt::RESPONSE_CODE::ERROR_REPORT] = "ERROR_REPORT";
+            m[dxrt::RESPONSE_CODE::CLOSE] = "CLOSE";
+            m[dxrt::RESPONSE_CODE::INVALID_REQUEST_CODE] = "INVALID_REQUEST_CODE";
+        }
+        return m.find(c) == m.end() ? "RESPONSE_Unknown" : m[c];
+    }
+
+
+#ifdef _WIN32
+    // usage
+	// static auto start = std::chrono::high_resolution_clock::now();
+	// ...
+	// start = durationPrint(start, "IPCPipeWindows::SendOL :");
+    inline DXRT_API std::chrono::steady_clock::time_point durationPrint(std::chrono::steady_clock::time_point start, const char* msg)
+    {
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> duration = end - start;
+        double total_time = duration.count();
+        double avg_latency = total_time / 1;
+        if (avg_latency > 100)
+            std::cout << msg << avg_latency << " ms" << std::endl;
+        return end;
+    }
+
+#endif // _WIN32
+
+
 
 }  // namespace dxrt

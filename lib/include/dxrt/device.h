@@ -49,7 +49,7 @@ class Memory;
 #ifdef __linux__
 class InferenceOption;
 #elif _WIN32
-// TODO: cpu_handle.h������ struct�� ����Ǿ� ����.
+
 struct InferenceOption;
 #endif
 class TaskData;

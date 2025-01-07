@@ -10,12 +10,29 @@
 #include <vector>
 #include <mutex>
 #include <iostream>
+#include <condition_variable>
+#include <memory>
 
 
 
 
 namespace dxrt {
 class Device;
+
+class TaskNpuMemoryCacheManager
+{
+public:
+    TaskNpuMemoryCacheManager(int64_t size, int count, int64_t offset);
+    int64_t getNpuMemoryCache();
+    void returnNpuMemoryCache(int64_t addr);
+    int64_t getOffset();
+    ~TaskNpuMemoryCacheManager();
+private:
+    std::vector<int64_t> _npuMemoryCaches;
+    int64_t _npuMemoryCacheOffset;
+    std::mutex _lock;
+    std::condition_variable _cv;
+};
 
 class NpuMemoryCacheManager
 {
@@ -27,9 +44,8 @@ public:
     int64_t getNpuMemoryCache(int taskId);
     void returnNpuMemoryCache(int taskId, int64_t addr);
 private:
-    std::unordered_map<int, std::vector<int64_t>> _npuMemoryCaches;
-    std::unordered_map<int, int64_t> _npuMemoryCacheOffset;
-    std::mutex _npuMemoryCacheLock;
+    std::unordered_map<int, std::shared_ptr<TaskNpuMemoryCacheManager> > _taskNpuMemoryCaches;
+    SharedMutex _npuMemoryCacheLock;
     Device* _device;
 };
 

@@ -39,7 +39,7 @@ void PrintInfResult(const string& inputFile, const string& outputFile, const str
         lines.push_back("* Output Saved As : " + outputFile);
     }
     //lines.push_back("* Model Used : " + modelFile);
-    if ((bounding > 0 and bounding < 4) or (mode == SINGLE_MODE))
+    if ((bounding > 0 && bounding < 4) || (mode == SINGLE_MODE))
     {
         lines.push_back("* Benchmark Result(1 Core)"); //- NPU" + to_string(bounding-1));
         if (infTimeMs)

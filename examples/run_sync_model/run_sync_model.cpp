@@ -55,10 +55,6 @@ int main(int argc, char* argv[])
             (void)outputs;
 
         }
-#ifdef __linux__
-#else   // _WIN32
-        delete[] input_data;
-#endif
 
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> duration = end - start;

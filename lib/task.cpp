@@ -381,7 +381,12 @@ void* Task::GetOutputBuffer()
 {
     LOG_DXRT_DBG << "Task "<< id() <<" Output Buffer GET " << std::endl;
     while(_taskOutputBuffer->hasBuffer()==false)
-        usleep(100);
+        std::this_thread::sleep_for(chrono::microseconds(100));
+//#ifdef __linux__
+//        usleep(100);
+//#elif _WIN32
+//        this_thread::sleep_for(chrono::microseconds(100));
+//#endif
     void* retval = _taskOutputBuffer->getBuffer();
     return retval;
 }
@@ -390,7 +395,12 @@ void* Task::GetInputBuffer()
     DXRT_ASSERT(processor()==Processor::CPU, "The input buffer is for CPU task only.")
     LOG_DXRT_DBG << "Task "<< id() <<" Input Buffer GET " << std::endl;
     while(_taskInputBuffer->hasBuffer()==false)
-        usleep(100);
+        std::this_thread::sleep_for(chrono::microseconds(100));
+//#ifdef __linux__
+//        usleep(100);
+//#elif _WIN32
+//        this_thread::sleep_for(chrono::microseconds(100));
+//#endif
     void* retval = _taskInputBuffer->getBuffer();
     return retval;
 }

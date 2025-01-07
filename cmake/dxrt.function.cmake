@@ -5,17 +5,22 @@ macro(get_pybind11)
 endmacro(get_pybind11)
 
 macro(add_googletest target)
-  # release 1.12.0
-  include(FetchContent)
-  FetchContent_Declare(
-    googletest
-    # Specify the commit you depend on and update it regularly.
-    URL https://github.com/google/googletest/archive/5376968f6948923e2411081fd9372e71a59d8e77.zip
-  )
-  # For Windows: Prevent overriding the parent project's compiler/linker settings
-  set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-  FetchContent_MakeAvailable(googletest)
-  target_link_libraries(${target} gtest_main)
+  if(MSVC)
+    find_package(GTest CONFIG REQUIRED)
+    target_link_libraries(${target} PUBLIC GTest::gtest GTest::gtest_main GTest::gmock GTest::gmock_main)
+  else()
+    # release 1.12.0
+    include(FetchContent)
+    FetchContent_Declare(
+      googletest
+      # Specify the commit you depend on and update it regularly.
+      URL https://github.com/google/googletest/archive/5376968f6948923e2411081fd9372e71a59d8e77.zip
+    )
+    # For Windows: Prevent overriding the parent project's compiler/linker settings
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googletest)
+    target_link_libraries(${target} gtest_main)
+  endif()
 endmacro(add_googletest)
 
 macro(add_mlperf_loadgen)
@@ -36,7 +41,7 @@ macro(add_dxrt target)
   message("${target} PRIVATE ${ONNXLIB_DIRS}")
   target_link_directories(${target} PRIVATE ${ONNXLIB_DIRS})
   if(MSVC)
-    target_link_libraries(${target} dxrt ${link_libs})
+    target_link_libraries(${target} PUBLIC dxrt ${link_libs})
   else()
     target_link_libraries(${target} dxrt pthread ${link_libs})
   endif()

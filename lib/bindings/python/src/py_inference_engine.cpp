@@ -9,6 +9,12 @@
 
 #include "dxrt/dxrt_api.h"
 
+#ifdef __linux__
+#else
+typedef SSIZE_T ssize_t;
+#endif
+
+
 using namespace std;
 
 namespace dxrt

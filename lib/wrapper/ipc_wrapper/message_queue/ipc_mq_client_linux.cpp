@@ -1,5 +1,6 @@
 // Copyright (c) 2022 DEEPX Corporation. All rights reserved.
 // Licensed under the MIT License.
+#ifdef __linux__ // all or nothing
 
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -44,8 +45,13 @@ int32_t IPCMessageQueueClientLinux::Initialize()
 
     //LOG_DXRT_DBG << "IPCMessageQueueClientLinux::Initialize" << std::endl;
     LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux::Initialize" << std::endl;
+    int ret = _messageQueueToClient.Initialize(_msgType, IPCMessageQueueDirection::TO_CLIENT);
+    if (ret != 0)
+    {
+        return ret;
+    }
+    return _messageQueueToServer.Initialize(_msgType, IPCMessageQueueDirection::TO_SERVER);
 
-    return _messageQueue.Initialize(_msgType);
 }
 //std::mutex IPCMessageQueueClientLinux::_lock;
 
@@ -97,14 +103,14 @@ int32_t IPCMessageQueueClientLinux::SendToServer(IPCClientMessage& clientMessage
     clientMessage.msgType = _msgType;
     memcpy(mq_message.data, &clientMessage, sizeof(clientMessage));
 
-    return _messageQueue.Send(mq_message, sizeof(clientMessage));
+    return _messageQueueToServer.Send(mq_message, sizeof(clientMessage));
 }
 
 int32_t IPCMessageQueueClientLinux::ReceiveFromServer(IPCServerMessage& serverMessage)
 {
     IPCMessageQueueLinux::Message mq_message;
     
-    if ( _messageQueue.Receive(mq_message, sizeof(serverMessage), _msgType) == 0 )
+    if ( _messageQueueToClient.Receive(mq_message, sizeof(serverMessage), _msgType) == 0 )
     {
         memcpy(&serverMessage, mq_message.data, sizeof(serverMessage));
     }
@@ -133,7 +139,7 @@ int32_t IPCMessageQueueClientLinux::RegisterReceiveCB(std::function<int32_t(IPCS
         IPCMessageQueueLinux::Message mq_message;
         mq_message.msgType = serverMessage.msgType;
         memcpy(mq_message.data, &serverMessage, sizeof(serverMessage));
-        _messageQueue.Send(mq_message, sizeof(serverMessage));
+        _messageQueueToClient.Send(mq_message, sizeof(serverMessage));
         
         if ( _thread.joinable() )
         {
@@ -145,7 +151,7 @@ int32_t IPCMessageQueueClientLinux::RegisterReceiveCB(std::function<int32_t(IPCS
         LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux: Detached Callback Thread" << std::endl;
     }
 
-    if ( _messageQueue.IsAvailable() ) 
+    if ( _messageQueueToClient.IsAvailable() ) 
     {
         _receiveCB = receiveCB;
         _usrData = usrData;
@@ -173,7 +179,7 @@ int32_t IPCMessageQueueClientLinux::Close()
     }
 
     LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux::Close" << std::endl;
-    
+
     return 0;
 }
 
@@ -181,19 +187,24 @@ int32_t IPCMessageQueueClientLinux::Close()
 void IPCMessageQueueClientLinux::ThreadFunc(IPCMessageQueueClientLinux* mqClient)
 {
 
-    while(mqClient->_threadRunning)
+    while (mqClient->_threadRunning)
     {
         IPCServerMessage serverMessage;
         serverMessage.msgType = getpid();
         if (mqClient->ReceiveFromServer(serverMessage) != -1) {
             LOG_DXRT_I_DBG << "Thread Running by " << serverMessage.code << std::endl;
-            if ( mqClient->_receiveCB != nullptr )
+            if ( mqClient->_receiveCB == nullptr )
             {
-                mqClient->_receiveCB(serverMessage, mqClient->_usrData);
-
-                if ( serverMessage.code == dxrt::RESPONSE_CODE::CLOSE ) break;
-
+                continue;
             }
+
+            mqClient->_receiveCB(serverMessage, mqClient->_usrData);
+
+            if (serverMessage.code == dxrt::RESPONSE_CODE::CLOSE)
+            {
+                break;
+            }
+
         } else {
             LOG_DXRT_I_ERR("ReceiveFromServer fail");
         }
@@ -202,3 +213,4 @@ void IPCMessageQueueClientLinux::ThreadFunc(IPCMessageQueueClientLinux* mqClient
 
     LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux::Thread Finished" << std::endl;
 }
+#endif // __linux__

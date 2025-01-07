@@ -351,8 +351,6 @@ DXRT_API std::ostream& operator<<(std::ostream&, const dxrt_response_t&);
 DXRT_API std::ostream& operator<<(std::ostream&, const dxrt_model_t&);
 DXRT_API std::ostream& operator<<(std::ostream&, const dxrt_device_info_t&);
 
-#ifdef _WIN32
 DXRT_API std::string dxrt_cmd_t_str(dxrt::dxrt_cmd_t c);
-#endif // _WIN32
 
 } // namespace dxrt

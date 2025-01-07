@@ -6,7 +6,7 @@ import threading
 import queue
 
 THRAD_COUNT = 3
-total_count = 0;
+total_count = 0
 q = queue.Queue()
 
 lock = threading.Lock()

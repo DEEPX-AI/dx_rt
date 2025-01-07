@@ -33,6 +33,7 @@ void* FixedSizeBuffer::getBuffer()
 }
 void FixedSizeBuffer::releaseBuffer(void* ptr)
 {
+    std::unique_lock<std::mutex> lock(_lock);
     _pointers.push_back(ptr);
 }
 bool FixedSizeBuffer::hasBuffer()

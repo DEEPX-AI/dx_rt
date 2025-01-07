@@ -22,8 +22,8 @@ if (MSVC)
     if (USE_SHARED_DXRT_LIB)
         add_library(${target} SHARED ${srcs})
         set_target_properties(${target} PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
-            ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}\\bin"
+            ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}\\lib"
         )
         # Define DLL export macro
         target_compile_definitions(${target} 
@@ -68,12 +68,15 @@ target_include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/include 
 )
 
-if (USE_ORT)
-    target_include_directories(${target} PUBLIC 
-        ${onnxruntime_INCLUDE_DIRS}
-    )
-    target_link_directories(${target} PUBLIC ${ONNXLIB_DIRS})
-    target_link_libraries(${target} PUBLIC ${ONNXLIB_DIRS})
+if (MSVC)
+else()
+    if (USE_ORT)
+        target_include_directories(${target} PUBLIC 
+            ${onnxruntime_INCLUDE_DIRS}
+        )
+        target_link_directories(${target} PUBLIC ${ONNXLIB_DIRS})
+        target_link_libraries(${target} PUBLIC ${ONNXLIB_DIRS})
+    endif()
 endif()
 
 # if (USE_PYTHON)

@@ -92,7 +92,7 @@ void InferenceJob::onRequestComplete(RequestPtr req)
                     auto it = _tensors.find(required.name());
                     if (it == _tensors.end())
                     {
-                        cout << "["<<thisTask->name()<<"] task require "<<required.name() << " tensor, it is not found yet"<<endl;
+                        //cout<<"["<<thisTask->name()<<"] task require "<<required.name() << " tensor, it is not found yet"<<endl;
                         allPrepared = false;
                         break;
                     }

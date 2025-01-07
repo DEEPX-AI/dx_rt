@@ -37,6 +37,9 @@ string dxrt::getCurrentPath()
 string dxrt::getPath(const string& path)
 {
     if(path.length() < 1) return "";
+#ifdef _WIN32
+    return getAbsolutePath(path);
+#endif
     if (path[0] == '/')
         return path;
     else if (path.substr(0, 2) == "./" || path.substr(0, 3) == "../")
@@ -72,14 +75,9 @@ string dxrt::getAbsolutePath(const string& path)
     return absolutePath;
 
 #elif _WIN32
-    // Check if path is already absolute (starts with '\\')
-    if (path[0] == '\\') return path;
-
-    // Buffer to store resolved path
-    char resolvedPath[MAX_PATH];
-    DWORD len = GetFullPathName(path.c_str(), MAX_PATH, resolvedPath, nullptr);
-    if (len == 0) {
-        std::cerr << "Error getting full path: " << GetLastError() << std::endl;
+    char* resolvedPath = _fullpath(NULL, path.c_str(), _MAX_PATH);
+    if (resolvedPath == nullptr)
+    {
         return "";
     }
     string absolutePath(resolvedPath);
@@ -90,12 +88,21 @@ string dxrt::getAbsolutePath(const string& path)
 
 string dxrt::getParentPath(const string& path)
 {
+#ifdef __linux__
     size_t pos = path.find_last_of("/\\");
     if(pos == string::npos) 
     {
         return "";
     }
     return path.substr(0,pos);
+#elif _WIN32
+    size_t pos = path.find_last_of("\\");
+    if (pos == string::npos)
+    {
+        return "";
+    }
+    return path.substr(0, pos);
+#endif
 }
 
 int dxrt::getFileSize(const string& filename)
@@ -111,12 +118,28 @@ int dxrt::getFileSize(const string& filename)
 
 bool dxrt::fileExists(const string& path)
 {
+#ifdef __linux__
     struct stat stat_buf;
     int rc = stat(path.c_str(),&stat_buf);
     if(rc!=0)
     {
         return false;
     }
+#elif _WIN32
+    HANDLE handle = CreateFile(
+        path.c_str(),
+        GENERIC_READ,           // 
+        FILE_SHARE_READ,        // 
+        NULL,                   // 
+        OPEN_EXISTING,          // 
+        FILE_ATTRIBUTE_NORMAL,  // 
+        NULL                    // 
+    );
+    if (handle == INVALID_HANDLE_VALUE) {
+        return false; // 
+    }
+    CloseHandle(handle); // 
+#endif
     return true;
 }
 

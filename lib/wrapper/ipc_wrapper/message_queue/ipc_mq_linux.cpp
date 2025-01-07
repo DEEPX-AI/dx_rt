@@ -1,4 +1,5 @@
 
+#ifdef __linux__ // all or nothing
 
 #include "ipc_mq_linux.h"
 #include "dxrt/common.h"
@@ -24,13 +25,20 @@ IPCMessageQueueLinux::~IPCMessageQueueLinux()
 }
 
 // Intitialize IPC (Message Queue)
-int32_t IPCMessageQueueLinux::Initialize(long msgType)
+int32_t IPCMessageQueueLinux::Initialize(long msgType, IPCMessageQueueDirection direction)
 {
 
     // create key
     key_t key;
     errno = 0;
-    key = ftok("/usr/local/include/dxrt", 42);
+    if (direction == IPCMessageQueueDirection::TO_SERVER)
+    {
+        key = ftok("/usr/local/include/dxrt", 42);
+    }
+    else
+    {
+        key = ftok("/usr/local/include/dxrt", 84);
+    }
     if (errno != 0)
     {
         LOG_DXRT_I_ERR("error ftok" << errno);
@@ -133,3 +141,5 @@ int32_t IPCMessageQueueLinux::Delete()
 
     return 0;
 }
+
+#endif // linux

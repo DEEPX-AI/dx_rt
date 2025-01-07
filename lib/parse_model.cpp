@@ -8,7 +8,9 @@
 #include <stdint.h>
 #include <fcntl.h>
 #include <errno.h>
+#ifdef __linux__
 #include <cxxabi.h>
+#endif
 #include <string>
 #include <iostream>
 #include <vector>
