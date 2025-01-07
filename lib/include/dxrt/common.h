@@ -146,13 +146,13 @@ T vectorProduct(const std::vector<T>& v)
     return accumulate(v.begin(), v.end(), 1, std::multiplies<T>());
 }
 
-#if __cplusplus >= 201402L // C++14 이상
+#if __cplusplus >= 201402L // C++14 or later
     using SharedMutex = std::shared_timed_mutex;
     using SharedLock = std::shared_lock<std::shared_timed_mutex>;
     using UniqueLock = std::unique_lock<std::shared_timed_mutex>;
 #else // C++11
-    using SharedMutex = std::mutex; // std::mutex를 대체로 사용
-    using SharedLock = std::unique_lock<std::mutex>; // 쓰기 잠금으로 대체
+    using SharedMutex = std::mutex; // Use std::mutex as a substitute
+    using SharedLock = std::unique_lock<std::mutex>; // Substitute with a write lock
     using UniqueLock = std::unique_lock<std::mutex>;
 #endif
 

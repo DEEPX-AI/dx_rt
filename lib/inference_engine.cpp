@@ -460,6 +460,9 @@ void InferenceEngine::RegisterCallBack(function<int(TensorPtrs &outputs, void *u
 
 float InferenceEngine::RunBenchMark(int num, void *inputPtr)
 {
+#ifdef _WIN32
+    return RunBenchMarkWindows(num, inputPtr);
+#endif
     float sum = 0.;
     auto& profiler = dxrt::Profiler::GetInstance();
     vector<float> fps;
@@ -504,6 +507,63 @@ float InferenceEngine::RunBenchMark(int num, void *inputPtr)
     return sum / fps.size();
 }
 
+#ifdef _WIN32
+// in windows, verbose mode
+float InferenceEngine::RunBenchMarkWindows(int num, void* inputPtr)
+{
+    float sum = 0.;
+    auto& profiler = dxrt::Profiler::GetInstance();
+    vector<float> fps;
+    int todo = max(10, num);
+
+    std::atomic<int> done_count, i_last;
+    auto callBack = [&done_count, &i_last](TensorPtrs& outputs, void* userArg) -> int {
+        std::ignore = outputs;
+        std::ignore = userArg;
+        // cout << "BenchMark(" << ((int)userArg) << ")" << std::endl;
+        if (true) {
+            if (done_count != ((int)userArg)) {
+                cout << "@@@@@ @@@@@ ";
+            }
+            cout << "BenchMark(done_count:" << done_count << ", " << "i:" << ((int)userArg) << ")" << std::endl;
+        }
+        done_count++; i_last = ((int)userArg);
+        return 0;
+        }; //callback used to count inference
+    RegisterCallBack(callBack);
+    while (todo > 0)
+    {
+        uint64_t infTime = 0;
+        int infCnt = min(todo, REQUEST_ID_MAX_VALUE);
+        done_count = 0; i_last = 0;
+        profiler.Start("benchmark");
+        // profiler.Start("req");
+        for (int i = 0; i < infCnt; i++)
+        {
+            RunAsync(inputPtr, (int*)i);
+        }
+        // profiler.End("req");
+        while (done_count < infCnt)continue;
+        // while (done_count < infCnt || (i_last!=(infCnt-1)) )continue;
+        profiler.End("benchmark");
+        infTime = profiler.Get("benchmark");
+        todo -= infCnt;
+        if (i_last == (infCnt - 1)) todo = 0;
+        //LOG_VALUE(infTime);
+        //LOG_VALUE(infCnt);
+        fps.emplace_back(1000000.0 * infCnt / infTime);
+    }
+    profiler.Erase("benchmark");
+    for (auto& val : fps)
+    {
+        sum += val;
+        //cout << "fps: " << val << endl;
+    }
+    RegisterCallBack(nullptr);
+    return sum / fps.size();
+}
+#endif // _WIN32
+
 TensorPtrs InferenceEngine::ValidateDevice(void *inputPtr, int deviceId)
 {
     Device::_sNpuValidateOpt = true;
@@ -545,7 +605,12 @@ TensorPtrs InferenceEngine::Wait(int jobId)
     std::shared_ptr<InferenceJob> infJob = InferenceJob::GetById(jobId);
     while (infJob->getStatus() == Request::Status::REQ_BUSY)
     {
-        usleep(1);
+        this_thread::sleep_for(chrono::microseconds(1));
+//#ifdef __linux__
+//        usleep(1);
+//#elif _WIN32
+//        this_thread::sleep_for(chrono::microseconds(1));
+//#endif
         continue;
     }
 

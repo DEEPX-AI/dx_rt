@@ -137,7 +137,7 @@ int main(int argc, char* argv[])
     }
     else
     {
-        std::cout << "[Usage] run_async_model_thread [dxnn-file-path] [loop-count]" << std::endl;
+        std::cout << "[Usage] display_async_pipe [dxnn-file-path] [loop-count]" << std::endl;
         return -1;
     }
 

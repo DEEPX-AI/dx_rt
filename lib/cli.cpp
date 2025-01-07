@@ -122,7 +122,12 @@ void DeviceStatusMonitor::doCommand(DevicePtr devicePtr)
 
     while (true) {
         DxrtDeviceInfoWithStatus::getStatusInfo(devicePtr).statusToStream(cout);
-        sleep(delay);
+        std::this_thread::sleep_for(chrono::seconds(delay));
+//#ifdef __linux__
+//        sleep(delay);
+//#elif _WIN32
+//        Sleep(delay*1000);
+//#endif
     }
 }
 

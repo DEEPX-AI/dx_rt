@@ -2,7 +2,9 @@
 #include "../include/dxrt/exception/exception.h"
 
 #include <iostream>
+#ifdef __linux__
 #include <execinfo.h>
+#endif
 #include <cstdlib>
 
 namespace dxrt {
@@ -25,6 +27,7 @@ namespace dxrt {
 
     void Exception::printTrace()
     {
+#ifdef __linux__
         void* buffer[100];
         int nptrs = backtrace(buffer, 100);
         char** symbols = backtrace_symbols(buffer, nptrs);
@@ -33,6 +36,9 @@ namespace dxrt {
             LOG_DXRT_ERR(symbols[i]);
         }
         free(symbols);
+#else
+		// not implemented        
+#endif
     }
 
     

@@ -105,27 +105,7 @@ namespace dxrt {
         ModelPasrsingException(const std::string& msg = "");
 
     };
-
-    class DXRT_API InferenceRequestException : public Exception
-    {
-    public:
-        InferenceRequestException(const std::string& msg = "");
-
-    };
-
-    class DXRT_API InferenceJobException : public Exception
-    {
-    public:
-        InferenceJobException(const std::string& msg = "");
-
-    };
-
-    class DXRT_API InferenceAllocationException : public Exception
-    {
-    public:
-        InferenceAllocationException(const std::string& msg = "");
-
-    };
+    
 
     class DXRT_API ServiceIOException : public Exception
     {

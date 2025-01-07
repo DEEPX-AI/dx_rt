@@ -12,7 +12,11 @@ namespace dxrt
 {
 
     
-
+    enum class IPCMessageQueueDirection
+    {
+        TO_SERVER,
+        TO_CLIENT
+    };
 
     class IPCMessageQueueLinux
     {
@@ -37,7 +41,7 @@ namespace dxrt
         virtual ~IPCMessageQueueLinux();
 
         // Intitialize IPC (Message Queue)
-        int32_t Initialize(long msgType);
+        int32_t Initialize(long msgType, IPCMessageQueueDirection direction);
 
         // send message
         int32_t Send(const Message& message, size_t size);

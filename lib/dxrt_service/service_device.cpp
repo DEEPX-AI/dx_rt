@@ -37,7 +37,11 @@
 #include "dxrt/driver_adapter/driver_adapter.h"
 
 #include "dxrt/profiler.h"
+#ifdef __linux__
 #include "dxrt/driver_adapter/linux_driver_adapter.h"
+#else
+#include "dxrt/driver_adapter/windows_driver_adapter.h"
+#endif
 
 
 
@@ -69,7 +73,24 @@ ServiceDevice::~ServiceDevice(void)
     _thread[2].join();
 }
 
+// #define ServiceDevice_DEBUG
 
+#ifdef ServiceDevice_DEBUG
+// usage
+// static auto start = std::chrono::high_resolution_clock::now();
+// ...
+// start = durationPrint(start, "IPCPipeWindows::SendOL :");
+static std::chrono::steady_clock::time_point durationPrint1(std::chrono::steady_clock::time_point start, const char* msg)
+{
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> duration = end - start;
+    double total_time = duration.count();
+    double avg_latency = total_time / 1;
+    // if (avg_latency > 100)
+        std::cout << msg << avg_latency << " ms" << std::endl;
+    return end;
+}
+#endif
 
 int ServiceDevice::Process(dxrt_cmd_t cmd, void *data, uint32_t size, uint32_t sub_cmd)
 {
@@ -79,12 +100,22 @@ int ServiceDevice::Process(dxrt_cmd_t cmd, void *data, uint32_t size, uint32_t s
     if (ret < 0)
         ret = errno*(-1);
 #elif _WIN32
+#ifdef ServiceDevice_DEBUG
+    cout << dxrt_cmd_t_str(cmd) << std::endl;
+    auto start = std::chrono::high_resolution_clock::now();
+#endif
+    ret = _driverAdapter->IOControl(cmd, data, size, sub_cmd);
+#ifdef ServiceDevice_DEBUG
+    start = durationPrint1(start, (dxrt_cmd_t_str(cmd) + " : ").c_str() );
+#endif
+
+#if 0
     DWORD bytesReturned;
     BOOL success = DeviceIoControl(
         (HANDLE)_devFd,
         static_cast<DWORD>(dxrt::dxrt_ioctl_t::DXRT_IOCTL_MESSAGE),
-        &msg,
-        sizeof(msg),
+        data,
+        size,
         NULL,
         0,
         &bytesReturned,
@@ -96,6 +127,7 @@ int ServiceDevice::Process(dxrt_cmd_t cmd, void *data, uint32_t size, uint32_t s
     {
         ret = bytesReturned;
     }
+#endif
 #endif
     return ret;
 }
@@ -111,15 +143,9 @@ void ServiceDevice::Identify(int id_, dxrt::SkipMode skip, uint32_t subCmd )
     _driverAdapter = make_shared<LinuxDriverAdapter>(_file.c_str());
 
 #elif _WIN32
-    _devHandle = CreateFile(_file.c_str(),
-        GENERIC_READ | GENERIC_WRITE,
-        0,
-        NULL,
-        OPEN_EXISTING,
-        FILE_ATTRIBUTE_NORMAL,
-        NULL);
-    if (_devHandle == INVALID_HANDLE_VALUE)
-    {
+    _driverAdapter = make_shared<WindowsDriverAdapter>(_file.c_str());
+    _devHandle = (HANDLE)_driverAdapter->GetFd();
+    if (_devHandle == INVALID_HANDLE_VALUE) {
         cout << "Error: Can't open " << _file << endl;
         return;
     }
@@ -155,13 +181,7 @@ void ServiceDevice::Identify(int id_, dxrt::SkipMode skip, uint32_t subCmd )
         _mem = nullptr;
     }
 #elif _WIN32
-    HANDLE fileMapping = CreateFileMapping(_devHandle, NULL, PAGE_READWRITE, 0, _info.mem_size, NULL);
-    void* _mem = nullptr;
-    if (fileMapping != NULL)
-    {
-        _mem = MapViewOfFile(fileMapping, FILE_MAP_ALL_ACCESS, 0, 0, _info.mem_size);
-        CloseHandle(fileMapping);
-    }
+    void* _mem = nullptr;	// unused in windows
 #endif
 
     for (uint32_t num = 0; num < _info.num_dma_ch; num++)
@@ -188,6 +208,7 @@ int ServiceDevice::InferenceRequest(dxrt_request_acc_t* req)
 
 int ServiceDevice::WaitThread(int ids)
 {
+    LOG_DXRT_DBG << "@@@ Thread Start : WaitThread(DXRT_CMD_NPU_RUN_RESP)" << std::endl ;
     string threadName = "ServiceDevice::WaitThread()";
     dxrt_cmd_t cmd = // static_cast<dxrt_cmd_t>(static_cast<int>(dxrt::dxrt_cmd_t::DXRT_CMD_READ_OUTPUT_DMA_CH0)+id);
         dxrt::dxrt_cmd_t::DXRT_CMD_NPU_RUN_RESP;
@@ -235,15 +256,30 @@ int ServiceDevice::WaitThread(int ids)
             {
                 pid_t pid = response.proc_id;
 
-                LOG_DXRT_S_DBG << pid << " process "  << response.req_id << " request " << endl;
+#ifdef __linux__
+                // cout << pid << " process " << response.req_id << " request " << endl;    // for debug
+                LOG_DXRT_S_DBG << pid << " process " << response.req_id << " request " << endl;
+                // if (pid > 0)
                 _callBack(response);  // send it to service scheduler
+#elif _WIN32
+                if (pid > 0) {	// in windows, valid process id
+                    // cout << pid << " process " << response.req_id << " request " << endl;    // for debug
+                    LOG_DXRT_S_DBG << pid << " process " << response.req_id << " request " << endl;
+                    // if (pid > 0)
+                    _callBack(response);  // send it to service scheduler
+                }
+#endif // _WIN32
             }
         }
+        //else {
+        //    LOG_DXRT_S_ERR("DXRT_CMD_NPU_RUN_RESP ret !=0");	// for debug
+        //}
         loopCnt++;
 #ifdef WORKER_USE_PROFILER
         profiler.End(threadName);
 #endif
     }
+    //std::cout << "@@@ Thread End : WaitThread(DXRT_CMD_NPU_RUN_RESP)" << std::endl ;
     return 0;
 }
 
@@ -279,7 +315,11 @@ vector<shared_ptr<ServiceDevice>> ServiceDevice::CheckServiceDevices(SkipMode sk
         int cnt = 0;
         while(1)
         {
+#ifdef __linux__
             string devFile("/dev/" + string(DEVICE_FILE) + to_string(cnt));
+#elif _WIN32
+            string devFile("\\\\.\\" + string(DEVICE_FILE) + to_string(cnt));
+#endif
             if(fileExists(devFile))
             {
                 if(forceNumDev>0 && cnt>=forceNumDev) break;

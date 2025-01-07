@@ -1,16 +1,59 @@
+ibdxrt (2.6.2) unstable; urgency=medium
+
+  * Fixed: Fix free output buffer locking issue for multi-threaded runAsync
+  * Added: Modify configuration function for throttling using JSON
+
+ -- taegyunAn <atg@deepx.ai> Thu, 19 Dec 2024 09:00:00 +0900
+
+libdxrt (2.6.1) unstable; urgency=medium
+
+  * Fixed: Fix multi-device performance error
+  * Fixed: Fix issue with running python run_model due to API not being updated.
+
+ -- taegyunAn <atg@deepx.ai> Wed, 11 Dec 2024 09:00:00 +0900
+
+libdxrt (2.6.0) unstable; urgency=medium
+
+  * Changed: Modify inference load control
+  * Changed: onnxruntime minimum version: v1.18.0
+  * Changed: Update python version: v1.0.0
+  * Changed: Driver and Firmware versions:
+    - RT Driver >= v1.3.0
+    - PCIe Driver >= v1.2.0
+    - Firmware >= v1.5.9
+  * Fixed: Fixed a problem that did not work when using user memory in conjunction with the inference engine
+  * Fixed: Fix profiler memory corruption issue
+  * Fixed: Fix multi-device performance issue
+  * Added: Add NPU memory caching
+
+ -- taegyunAn <atg@deepx.ai> Tue, 10 Dec 2024 09:00:00 +0900
+
+libdxrt (2.1.0) unstable; urgency=medium
+
+  * Changed: run_model async mode as default
+  * Changed: Driver and Firmware versions:
+    - RT Driver >= v1.1.0
+    - PCIe Driver >= v1.1.0
+    - Firmware >= v1.5.5
+  * Added: Supports multi-process & multi-device
+    - dxrtd daemon
+  * Added: Supports Python Interface (Run & RunAsync)
+    - Async mode / Batch mode
+  * Added: Device status monitoring function via cli-command
+
+ -- taegyunAn <atg@deepx.ai> Thu, 31 Oct 2024 09:00:00 +0900
+
 libdxrt (2.0.5) unstable; urgency=medium
 
   * refactor: update debian packaging rules, changelog, postinst
 
- -- Koo Bongyu <kbg@deepx.ai>  Tue, 15 Oct 2024 09:00:00 +0900
-
+ -- taegyunAn <atg@deepx.ai> Tue, 15 Oct 2024 09:00:00 +0900
 
 libdxrt (2.0.4) unstable; urgency=medium
 
   * refactor: Implementation of multiple command modes (ioctl)
 
- -- Koo Bongyu <kbg@deepx.ai>  Mon, 14 Oct 2024 09:00:00 +0900
-
+ -- taegyunAn <atg@deepx.ai> Mon, 14 Oct 2024 09:00:00 +0900
 
 libdxrt (2.0.3) unstable; urgency=medium
 
@@ -18,8 +61,7 @@ libdxrt (2.0.3) unstable; urgency=medium
   * Fixed: remove cross compile package for non-x64 environment
   * Added: add firmware upload mode on cli
 
- -- Koo Bongyu <kbg@deepx.ai> Mon, Sep 2319:41:23 2024 +0900
-
+ -- taegyunAn <atg@deepx.ai> Mon, Sep 23 19:41:23 2024 +0900
 
 libdxrt (2.0.2) unstable; urgency=medium
 
@@ -27,11 +69,10 @@ libdxrt (2.0.2) unstable; urgency=medium
   * Fixed: Fix argmax model w/ empty output
   * Added: None
 
- -- Koo Bongyu <kbg@deepx.ai> Mon, Sep 2319:41:23 2024 +0900
-
+ -- taegyunAn <atg@deepx.ai> Mon, Sep 23 19:41:23 2024 +0900
 
 libdxrt (2.0.1) unstable; urgency=medium
 
   * Fix argmax model w/ empty output
 
- -- Koo Bongyu <kbg@deepx.ai>  Wed, 21 Aug 2024 20:00:00 +0900
+ -- taegyunAn <atg@deepx.ai> Wed, 21 Aug 2024 20:00:00 +0900

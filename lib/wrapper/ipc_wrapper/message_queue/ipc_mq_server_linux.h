@@ -21,7 +21,8 @@ namespace dxrt
     {
 
     private:
-        IPCMessageQueueLinux _messageQueue;
+        IPCMessageQueueLinux _messageQueueToServer;
+        IPCMessageQueueLinux _messageQueueToClient;
         void* _usrData;
         std::thread _thread;
         std::atomic<bool> _threadRunning = {false};

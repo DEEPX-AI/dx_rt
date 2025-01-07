@@ -1,7 +1,9 @@
 option(USE_ORT "Use ONNX Runtime" OFF)
 option(USE_DXRT_TEST "Use DXRT Unit Test" ON)
 if(MSVC)
-	option(USE_SHARED_DXRT_LIB "Build for DXRT Shared Library" OFF)
+	option(USE_SHARED_DXRT_LIB "Build for DXRT Shared Library" ON)
+	# Define an option to select between /MT and /MD
+	option(USE_MT "Use /MT (static runtime) instead of /MD (dynamic runtime)" OFF)
 else()
 	option(USE_SHARED_DXRT_LIB "Build for DXRT Shared Library" ON)
 endif()

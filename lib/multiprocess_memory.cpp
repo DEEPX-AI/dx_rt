@@ -7,11 +7,14 @@
 #include "dxrt/ipc_wrapper/ipc_message.h"
 #include "dxrt/exception/exception.h"
 
+#ifdef __linux__
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/wait.h>
-#include <errno.h>
 #include <unistd.h>
+#endif
+
+#include <errno.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -19,8 +22,15 @@
 #include <iostream>
 #include <vector>
 
+#include <chrono>
+#include <thread>
+
+using namespace std;
 
 #define SOCKET_NAME "/tmp/dxrt_memory_socket"
+
+// for debug
+// #define LOG_DXRT_DBG std::cout
 
 namespace dxrt {
 
@@ -29,8 +39,8 @@ using std::mutex;
 
 
 MultiprocessMemory::MultiprocessMemory()
-: ipcClientWrapper(dxrt::IPC_TYPE::MESSAE_QUEUE, getpid()),
-ipcClientWrapperSync(dxrt::IPC_TYPE::MESSAE_QUEUE, getpid() + IPCClientWrapper::MAX_PID)
+: ipcClientWrapper(dxrt::IPCDefaultType(), getpid()),
+ipcClientWrapperSync(dxrt::IPCDefaultType(), getpid() + IPCClientWrapper::MAX_PID)
 {
 }
 int32_t callback(dxrt::IPCServerMessage& msg, void* ptr)
@@ -71,7 +81,14 @@ uint64_t MultiprocessMemory::Allocate(int deviceId, uint64_t required)
         {
             break;
         }
-        sleep(5);
+        std::this_thread::sleep_for(chrono::seconds(2));
+
+//#ifdef __linux__
+        //sleep(2);
+//#elif _WIN32
+//        std::this_thread::sleep_for(chrono::seconds(2));
+//        Sleep(2);
+//#endif
     } while (true);
     LOG_DXRT_DBG << std::hex << serverMessage.data << std::dec << " is allocated from service\n";
     return serverMessage.data;
@@ -97,7 +114,13 @@ uint64_t MultiprocessMemory::BackwardAllocate(int deviceId, uint64_t required)
         {
             break;
         }
-        sleep(5);
+
+        std::this_thread::sleep_for(chrono::seconds(2));
+//#ifdef __linux__
+//        sleep(5);
+//#elif _WIN32
+//        this_thread::sleep_for(chrono::microseconds(50));
+//#endif
     } while (true);
     LOG_DXRT_DBG << std::hex << serverMessage.data << std::dec << " is allocated from service\n";
     return serverMessage.data;

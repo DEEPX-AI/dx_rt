@@ -3,9 +3,11 @@
 // Licensed under the MIT License.
 
 #include "../../include/dxrt/ipc_wrapper/ipc_client_wrapper.h"
-#include "socket_sync/ipc_client_linux.h"
-#include "socket/ipc_socket_client_linux.h"
+#ifdef __linux__
 #include "message_queue/ipc_mq_client_linux.h"
+#elif _WIN32
+#include "windows_pipe/ipc_pipe_client_windows.h"
+#endif
 #include "dxrt/ipc_wrapper/ipc_message.h"
 
 using namespace dxrt;
@@ -19,19 +21,18 @@ namespace dxrt{
 
 IPCClientWrapper::IPCClientWrapper(IPC_TYPE type, long msgType)
 {
-    // implementation for linux
-    if ( type == IPC_TYPE::SOCKET_CB )
-    {
-        _ipcClient = std::make_shared<IPCSocketClientLinux>();
-    }
-    else if ( type == IPC_TYPE::MESSAE_QUEUE )
+#ifdef __linux__
+    if (type == IPC_TYPE::MESSAE_QUEUE)
     {
         _ipcClient = std::make_shared<IPCMessageQueueClientLinux>(msgType);
-    }  
-    else if ( type == IPC_TYPE::SOCKET_SYNC )
-    {
-        _ipcClient = std::make_shared<IPCClientLinux>();
     }
+    
+#elif _WIN32
+    if (type == IPC_TYPE::WIN_PIPE)
+    {
+        _ipcClient = std::make_shared<IPCPipeClientWindows>(msgType);
+    }
+#endif
     else 
     {
         LOG_DXRT_I_ERR("[ERROR] IPCClientWrapper No implementation");

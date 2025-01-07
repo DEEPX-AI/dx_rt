@@ -31,6 +31,7 @@ fi
 # Build the dx_engine Python wheel package
 cd python_package
 ./make_whl.sh
-pip3 install ./dist/dx_engine-0.0.1-py3-none-any.whl $PIP_OPTIONS
+#pip3 install ./dist/dx_engine-0.0.1-py3-none-any.whl $PIP_OPTIONS
+pip install .
 
 exit 0

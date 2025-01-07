@@ -1,6 +1,8 @@
 // Copyright (c) 2022 DEEPX Corporation. All rights reserved.
 // Licensed under the MIT License.
 
+#ifdef _WIN32 // all or nothing
+
 #pragma once
 
 #include <stdint.h>
@@ -12,33 +14,38 @@
 #include "dxrt/driver.h"
 #include "dxrt/device_struct.h"
 #include "../../../include/dxrt/ipc_wrapper/ipc_server.h"
+#include "ipc_pipe_windows.h"
+#include <map>
+#include <set>
 
 namespace dxrt 
 {
 
-    class IPCSocketServerLinux : public IPCServer
+    class IPCPipeServerWindows : public IPCServer
     {
-
     private:
-        int _socketFd;
-        int _epollFd;
-        void* _usrData;
-        fd_set _allFds, _readFds;
-        int _max_sock;
+        std::atomic<bool> _stop{ false };
 
-        std::thread _thread;
-        std::atomic<bool> _threadRunning = {false};
-        std::atomic<bool> _stop = {false};
-        std::function<int32_t(IPCClientMessage&,void*,int32_t)> _receiveCB;
+        IPCPipeWindows _pipe;
+        std::map<pid_t, HANDLE> _msgType2handle;
+        std::queue<IPCClientMessage> _que;
+        std::condition_variable _queCv;
+        std::mutex _queMt;
 
     public:
+        void enQue(IPCClientMessage& m);
+        int32_t deQue(IPCClientMessage& clientMessage);
 
-        IPCSocketServerLinux();
-        IPCSocketServerLinux(uint64_t fd);
-        virtual ~IPCSocketServerLinux();
+    public:
+        void ThreadAtServerMainForListen();
+        void ThreadAtServerByClient(HANDLE hPipe);
 
-        // Intitialize IPC Server
-        // return error code
+    public:
+        IPCPipeServerWindows();
+        IPCPipeServerWindows(uint64_t fd);
+        virtual ~IPCPipeServerWindows();
+
+        // Intitialize IPC Server : return error code
         virtual int32_t Initialize();
 
         // listen
@@ -59,7 +66,9 @@ namespace dxrt
         // Close
         virtual int32_t Close();
 
-        static void ThreadFunc(IPCSocketServerLinux* socketServer);
+        // static void ThreadFunc(IPCPipeServerWindows* socketServer);
     };
 
 }  // namespace dxrt
+
+#endif

@@ -1,6 +1,9 @@
 // Copyright (c) 2022 DEEPX Corporation. All rights reserved.
 // Licensed under the MIT License.
 
+#ifdef __linux__ // all or nothing
+
+
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/poll.h>
@@ -79,3 +82,4 @@ LinuxDriverAdapter::~LinuxDriverAdapter()
 
 }  // namespace dxrt
 
+#endif // __linux__

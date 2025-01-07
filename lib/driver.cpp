@@ -237,4 +237,38 @@ std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_ntfy_throt_t& notif
     return os;
 }
 
+
+DXRT_API std::string dxrt_cmd_t_str(dxrt::dxrt_cmd_t c)
+{
+    static std::map<dxrt::dxrt_cmd_t, std::string> m;
+    if (m.size() == 0) {
+        m[dxrt::dxrt_cmd_t::DXRT_CMD_IDENTIFY_DEVICE] = "DXRT_CMD_IDENTIFY_DEVICE";
+        m[dxrt::dxrt_cmd_t::DXRT_CMD_GET_STATUS] = "DXRT_CMD_GET_STATUS";
+        m[dxrt::dxrt_cmd_t::DXRT_CMD_RESET] = "DXRT_CMD_RESET";
+        m[dxrt::dxrt_cmd_t::DXRT_CMD_UPDATE_CONFIG] = "DXRT_CMD_UPDATE_CONFIG";
+        m[dxrt::dxrt_cmd_t::DXRT_CMD_UPDATE_FIRMWARE] = "DXRT_CMD_UPDATE_FIRMWARE";
+        m[dxrt::dxrt_cmd_t::DXRT_CMD_GET_LOG] = "DXRT_CMD_GET_LOG";
+        m[dxrt::dxrt_cmd_t::DXRT_CMD_DUMP] = "DXRT_CMD_DUMP";
+        m[dxrt::dxrt_cmd_t::DXRT_CMD_WRITE_MEM] = "DXRT_CMD_WRITE_MEM";
+        m[dxrt::dxrt_cmd_t::DXRT_CMD_READ_MEM] = "DXRT_CMD_READ_MEM";
+        m[dxrt::dxrt_cmd_t::DXRT_CMD_CPU_CACHE_FLUSH] = "DXRT_CMD_CPU_CACHE_FLUSH";
+        m[dxrt::dxrt_cmd_t::DXRT_CMD_SOC_CUSTOM] = "DXRT_CMD_SOC_CUSTOM";
+        m[dxrt::dxrt_cmd_t::DXRT_CMD_WRITE_INPUT_DMA_CH0] = "DXRT_CMD_WRITE_INPUT_DMA_CH0";
+        m[dxrt::dxrt_cmd_t::DXRT_CMD_WRITE_INPUT_DMA_CH1] = "DXRT_CMD_WRITE_INPUT_DMA_CH1";
+        m[dxrt::dxrt_cmd_t::DXRT_CMD_WRITE_INPUT_DMA_CH2] = "DXRT_CMD_WRITE_INPUT_DMA_CH2";
+        m[dxrt::dxrt_cmd_t::DXRT_CMD_READ_OUTPUT_DMA_CH0] = "DXRT_CMD_READ_OUTPUT_DMA_CH0";
+        m[dxrt::dxrt_cmd_t::DXRT_CMD_READ_OUTPUT_DMA_CH1] = "DXRT_CMD_READ_OUTPUT_DMA_CH1";
+        m[dxrt::dxrt_cmd_t::DXRT_CMD_READ_OUTPUT_DMA_CH2] = "DXRT_CMD_READ_OUTPUT_DMA_CH2";
+        m[dxrt::dxrt_cmd_t::DXRT_CMD_TERMINATE] = "DXRT_CMD_TERMINATE";
+        m[dxrt::dxrt_cmd_t::DXRT_CMD_EVENT] = "DXRT_CMD_EVENT";
+        m[dxrt::dxrt_cmd_t::DXRT_CMD_DRV_INFO] = "DXRT_CMD_DRV_INFO";
+        m[dxrt::dxrt_cmd_t::DXRT_CMD_SCHEDULE] = "DXRT_CMD_SCHEDULE";
+        m[dxrt::dxrt_cmd_t::DXRT_CMD_UPLOAD_FIRMWARE] = "DXRT_CMD_UPLOAD_FIRMWARE";
+        m[dxrt::dxrt_cmd_t::DXRT_CMD_NPU_RUN_REQ] = "DXRT_CMD_NPU_RUN_REQ";
+        m[dxrt::dxrt_cmd_t::DXRT_CMD_NPU_RUN_RESP] = "DXRT_CMD_NPU_RUN_RESP";
+        m[dxrt::dxrt_cmd_t::DXRT_CMD_MAX] = "DXRT_CMD_MAX";
+    }
+    return m.find(c) == m.end() ? "dxrt_cmd_t_Unknown" : m[c];
+}
+
 } // namespace dxrt

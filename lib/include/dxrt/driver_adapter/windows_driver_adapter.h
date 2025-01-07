@@ -1,29 +1,28 @@
 // Copyright (c) 2022 DEEPX Corporation. All rights reserved.
 // Licensed under the MIT License.
 
-#ifdef __linux__ // all or nothing
-
 #pragma once
+#ifdef _WIN32
 
 #include "driver_adapter.h"
 
 namespace dxrt {
 
-class LinuxDriverAdapter : public DriverAdapter {
+class WindowsDriverAdapter : public DriverAdapter {
  public:
-    explicit LinuxDriverAdapter(const char* fileName);
+    explicit WindowsDriverAdapter(const char* fileName);
     int32_t IOControl(dxrt_cmd_t request, void* data, uint32_t size = 0, uint32_t sub_cmd = 0) override;
     int32_t Write(const void* buffer, uint32_t size) override;
     int32_t Read(void* buffer, uint32_t size) override;
     void* MemoryMap(void *__addr, size_t __len, off_t __offset = 0) override;
     int32_t Poll() override;
-    int GetFd() { return _fd; }
+    int GetFd() { return (int)_fd; }
 
-    ~LinuxDriverAdapter() override;
+    ~WindowsDriverAdapter() override;
  private:
-    int _fd;
+    HANDLE _fd = INVALID_HANDLE_VALUE;
 };
 
 }  // namespace dxrt
 
-#endif // __linux__
+#endif // _WIN32

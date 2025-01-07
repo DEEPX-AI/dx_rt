@@ -29,7 +29,9 @@
 #include "dxrt/device.h"
 
 #ifdef USE_ORT
+#ifdef __linux__
 #include <onnxruntime_cxx_api.h>
+#endif
 #endif
 
 using namespace std;

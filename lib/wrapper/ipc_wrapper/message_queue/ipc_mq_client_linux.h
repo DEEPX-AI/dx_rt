@@ -21,7 +21,8 @@ namespace dxrt
     class IPCMessageQueueClientLinux : public IPCClient
     {
     private:
-        IPCMessageQueueLinux _messageQueue;
+        IPCMessageQueueLinux _messageQueueToServer;
+        IPCMessageQueueLinux _messageQueueToClient;
         void* _usrData;
         long _msgType;
         std::thread _thread;

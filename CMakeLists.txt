@@ -1,14 +1,26 @@
 cmake_minimum_required(VERSION 3.14)
-project(dxrt DESCRIPTION "DEEPX Runtime SDK")
 
-if (MSVC)
-    if (DEFINED ENV{WindowsSdkDir})
-        set(CMAKE_SYSTEM_PREFIX_PATH "$ENV{WindowsSdkDir}")
-    else()
-        set(CMAKE_SYSTEM_PREFIX_PATH "C:/Program Files (x86)/Windows Kits/10")
+if(WIN32)
+    if(NOT DEFINED ONNXRUNTIME_ROOTDIR OR NOT EXISTS ${ONNXRUNTIME_ROOTDIR})
+        set(ONNXRUNTIME_ROOTDIR "C:/DeepX/onnxruntime"
+            CACHE STRING "")
+    endif()
+
+    if(NOT DEFINED onnxruntime_LIB_DIRS OR NOT EXISTS ${onnxruntime_LIB_DIRS})
+        set(onnxruntime_LIB_DIRS "${ONNXRUNTIME_ROOTDIR}/lib"
+            CACHE STRING "")
+    endif()
+
+    if(NOT DEFINED onnxruntime_INCLUDE_DIRS OR NOT EXISTS ${onnxruntime_INCLUDE_DIRS})
+        set(onnxruntime_INCLUDE_DIRS "${ONNXRUNTIME_ROOTDIR}/include"
+            CACHE STRING "")
     endif()
 endif()
 
+project(dxrt DESCRIPTION "DEEPX Runtime SDK")
+
+set(CMAKE_CXX_STANDARD_REQUIRED "ON")
+set(CMAKE_CXX_STANDARD "11")
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/release" CACHE PATH "Default install path" FORCE)
 endif()
@@ -45,7 +57,61 @@ endif()
 
 # global compile options
 if (MSVC)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /DWIN32 /D_WINDOWS /W3 /GR /EHsc")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /DWIN32 /D_WINDOWS /W3 /GR /EHsc")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS")
+    
+    add_compile_options(-D_CRT_SECURE_NO_WARNINGS)
+
     add_definitions(-D_AMD64_ -D_WIN64 -DWIN64)
+
+    # Set the runtime library based on the option
+    if(USE_MT)
+        # Runtime library setting : /MT
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+        # Interface library for runtime setting
+        add_library(runtime_settings INTERFACE)
+        target_compile_options(runtime_settings INTERFACE
+            $<$<CONFIG:Debug>:/MTd>
+            $<$<CONFIG:Release>:/MT>
+        )
+    else()
+        # Runtime library setting : /MD
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:MultiThreadedDebugDLL>")
+
+        # Interface library for runtime setting
+        add_library(runtime_settings INTERFACE)
+        target_compile_options(runtime_settings INTERFACE
+            $<$<CONFIG:Debug>:/MDd>
+            $<$<CONFIG:Release>:/MD>
+        )
+    endif()
+
+    # WIN SDK default setting   
+    set(WINDOWS_SDK_PATH "C:/Program Files (x86)/Windows Kits/10")
+    set(WINDOWS_SDK_VERSION "10.0.22621.0")
+
+    # set windows sdk lib path        
+    set(WINDOWS_SDK_LIB_PATH "${WINDOWS_SDK_PATH}/Lib/${WINDOWS_SDK_VERSION}/um/x64")
+    link_directories(${WINDOWS_SDK_LIB_PATH})
+
+    # set include dir
+    include_directories("${WINDOWS_SDK_PATH}/Include/${WINDOWS_SDK_VERSION}/um")
+    include_directories("${WINDOWS_SDK_PATH}/Include/${WINDOWS_SDK_VERSION}/ucrt")
+
+    # link windows lib
+    link_libraries(
+        kernel32 user32 gdi32 winspool shell32 ole32 oleaut32 uuid comdlg32 advapi32
+    )
+
+    # link Visual C++ runtime lib
+    link_libraries(
+        $<$<CONFIG:Debug>:msvcrtd> 
+        $<$<CONFIG:Release>:msvcrt>
+        $<$<CONFIG:Debug>:msvcprtd> 
+        $<$<CONFIG:Release>:msvcprt>
+    )
 else()
     if (USE_SHARED_DXRT_LIB)
         add_compile_options(-W -Wall -pthread -fstrict-volatile-bitfields -fPIC)
@@ -55,7 +121,7 @@ else()
 endif()
 
 if (ENABLE_DEBUG_INFO)
-    if (NOT MSVC)
+    if (NOT MSVC) 
         add_compile_options(-g -rdynamic)
     endif()
 endif()

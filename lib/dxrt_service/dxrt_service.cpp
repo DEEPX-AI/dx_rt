@@ -16,6 +16,7 @@
 #include "service_device.h"
 #include "scheduler_service.h"
 #include "service_error.h"
+#include <map>
 
 void die_check_thread();
 
@@ -50,7 +51,7 @@ public:
 };
 
 DxrtService::DxrtService(std::vector<std::shared_ptr<dxrt::ServiceDevice> > devices_)
-: _ipcServerWrapper(dxrt::IPC_TYPE::MESSAE_QUEUE), _devices(devices_), _scheduler(devices_)
+: _ipcServerWrapper(dxrt::IPCDefaultType()), _devices(devices_), _scheduler(devices_)
 {
     for (auto& device : _devices)
     {
@@ -121,7 +122,9 @@ void DxrtService::Process(dxrt::IPCClientMessage& clientMessage)
     dxrt::IPCServerMessage serverMessage;
     pid_t pids = clientMessage.pid;
     dxrt::REQUEST_CODE code = clientMessage.code;
-
+    
+    serverMessage.msgType = clientMessage.msgType;
+    LOG_DXRT_S_DBG << "client-message code=" << _s(code).c_str() << endl ;
     switch (code)
     {
         case dxrt::REQUEST_CODE::CLOSE: {
@@ -231,7 +234,7 @@ void DxrtService::onCompleteInference(const dxrt::dxrt_response_t& response, int
 
 void DxrtService::dequeueAllClientMessageQueue(long msgType)
 {
-    dxrt::IPCClientWrapper clientWrapper(dxrt::IPC_TYPE::MESSAE_QUEUE, msgType);
+    dxrt::IPCClientWrapper clientWrapper(dxrt::IPCDefaultType(), msgType);
     clientWrapper.ClearMessages(); // clear remained messages
     clientWrapper.Close(); // close
 }
@@ -322,7 +325,7 @@ long DxrtService::ClearDevice(int procId)
 
 void DxrtService::handle_process_die(DxrtService *service)
 {
-
+#ifdef __linux__
     for (auto it = _pid_set.begin(); it != _pid_set.end(); )
     {
         pid_t pid = *it;
@@ -362,6 +365,9 @@ void DxrtService::handle_process_die(DxrtService *service)
             }
         }
     }
+#elif _WIN32
+	// not implemented
+#endif
 }
 
 void DxrtService::die_check_thread()
@@ -370,23 +376,31 @@ void DxrtService::die_check_thread()
     
     while (true)
     {
-        sleep(1);
+        std::this_thread::sleep_for(chrono::seconds(1));
+//#ifdef __linux__
+//        sleep(1);       
+//#elif _WIN32
+//        Sleep(1000);
+//#endif
         handle_process_die(this);
     }
 }
 
 
-int dxrt_service_main()
+int DXRT_API dxrt_service_main()
 {
     LOG_DXRT_S << "Started dxrtd" << std::endl;
 
     DxrtService service;
-   
+
+#ifdef __linux__
     std::thread th(&DxrtService::die_check_thread, &service);
+#elif _WIN32
+    // not implemented
+#endif
     while (true)
     {
         dxrt::IPCClientMessage clientMessage;
-        
         service._ipcServerWrapper.ReceiveFromClient(clientMessage);
 
         if ( clientMessage.code != dxrt::REQUEST_CODE::CLOSE ) 
@@ -395,7 +409,11 @@ int dxrt_service_main()
         }
 
     }
+#ifdef __linux__
     th.join();
+#elif _WIN32
+    // not implemented
+#endif
     
 
     // singleton cleanup

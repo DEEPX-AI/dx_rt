@@ -1,29 +1,28 @@
 
-
-
 #include "../../include/dxrt/ipc_wrapper/ipc_server_wrapper.h"
-#include "socket_sync/ipc_server_linux.h"
-#include "socket/ipc_socket_server_linux.h"
-#include "message_queue/ipc_mq_server_linux.h"
 
+#ifdef __linux__
+	#include "message_queue/ipc_mq_server_linux.h"
+#elif _WIN32
+	#include "windows_pipe/ipc_pipe_server_windows.h"
+#endif
 
 using namespace dxrt;
 
 
 IPCServerWrapper::IPCServerWrapper(IPC_TYPE type)
 {
-    if ( type == IPC_TYPE::SOCKET_CB ) 
-    {
-        _ipcServer = std::make_shared<IPCSocketServerLinux>();
-    }
-    else if ( type == IPC_TYPE::MESSAE_QUEUE )
+#ifdef __linux__
+    if (type == IPC_TYPE::MESSAE_QUEUE)
     {
         _ipcServer = std::make_shared<IPCMessageQueueServerLinux>();
     }
-    else if ( type == IPC_TYPE::SOCKET_SYNC )
+#elif _WIN32
+    if (type == IPC_TYPE::WIN_PIPE)
     {
-        _ipcServer = std::make_shared<IPCServerLinux>();
+        _ipcServer = std::make_shared<IPCPipeServerWindows>();
     }
+#endif
     else 
     {
         LOG_DXRT_I_ERR("[ERROR] IPCClientWrapper No implementation");
@@ -34,20 +33,6 @@ IPCServerWrapper::IPCServerWrapper(IPC_TYPE type)
 }
 
 
-IPCServerWrapper::IPCServerWrapper(uint64_t fd, IPC_TYPE type)
-{
-    // implementation for linux
-    if ( type == IPC_TYPE::SOCKET_CB )
-    {
-        _ipcServer = std::make_shared<IPCSocketServerLinux>(fd);
-    }
-    else if ( type == IPC_TYPE::SOCKET_SYNC )
-    {
-        _ipcServer = std::make_shared<IPCServerLinux>(fd);
-        //_ipcClient = std::make_shared<IPCClientWindows>(fd);
-    }
-
-}
 
 IPCServerWrapper::~IPCServerWrapper()
 {

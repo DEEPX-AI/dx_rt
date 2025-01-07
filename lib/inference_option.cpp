@@ -9,7 +9,7 @@ using namespace std;
 namespace dxrt
 {
 
-InferenceOption DefaultInferenceOption;
+DXRT_API InferenceOption DefaultInferenceOption;
 
 template <typename T>
 std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
