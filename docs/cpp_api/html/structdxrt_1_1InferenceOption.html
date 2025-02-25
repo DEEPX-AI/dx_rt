@@ -87,6 +87,9 @@ Public Attributes</h2></td></tr>
 <tr class="memitem:a9fd270a5eeeb1a14ce5f133c16c30d55"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structdxrt_1_1InferenceOption.html#a9fd270a5eeeb1a14ce5f133c16c30d55">boundOption</a> = BOUND_OPTION::NPU_ALL</td></tr>
 <tr class="memdesc:a9fd270a5eeeb1a14ce5f133c16c30d55"><td class="mdescLeft">&#160;</td><td class="mdescRight">Select the NPU core inside the device.  <a href="structdxrt_1_1InferenceOption.html#a9fd270a5eeeb1a14ce5f133c16c30d55">More...</a><br /></td></tr>
 <tr class="separator:a9fd270a5eeeb1a14ce5f133c16c30d55"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af1f6772eccc49abdd828bca882966111"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structdxrt_1_1InferenceOption.html#af1f6772eccc49abdd828bca882966111">use_ort</a> = ORT_OPTION_DEFAULT</td></tr>
+<tr class="memdesc:af1f6772eccc49abdd828bca882966111"><td class="mdescLeft">&#160;</td><td class="mdescRight">Select which uses ORT task or not.  <a href="structdxrt_1_1InferenceOption.html#af1f6772eccc49abdd828bca882966111">More...</a><br /></td></tr>
+<tr class="separator:af1f6772eccc49abdd828bca882966111"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>This struct specifies inference options applied to <a class="el" href="classdxrt_1_1InferenceEngine.html" title="This class abstracts runtime inference executor for user&#39;s compiled model.">dxrt::InferenceEngine</a>. </p>
@@ -123,6 +126,23 @@ Public Attributes</h2></td></tr>
 
 <p>device ID list to use </p>
 <p>make a list which contains list of device ID to use. if it is empty(or use default value), then all devices are used. list of device ID to use (it is empty by default, then all devices are used.) </p>
+
+</div>
+</div>
+<a id="af1f6772eccc49abdd828bca882966111"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af1f6772eccc49abdd828bca882966111">&#9670;&nbsp;</a></span>use_ort</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool dxrt::InferenceOption::use_ort = ORT_OPTION_DEFAULT</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Select which uses ORT task or not. </p>
+<p>if this is true, all task will works. if false, only npu task works. </p>
 
 </div>
 </div>

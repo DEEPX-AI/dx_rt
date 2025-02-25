@@ -5,7 +5,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=9"/>
 <meta name="generator" content="Doxygen 1.8.17"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>DXRT: /home/devops/workspace/ghes-actions-runner/worker-01/_work/dx_rt/dx_rt/_internal/lib/include/dxrt/inference_job.h Source File</title>
+<title>DXRT: /home/devops/workspace/ghes-actions-runner/worker-02/_work/dx_rt/dx_rt/_internal/lib/include/dxrt/inference_job.h Source File</title>
 <link href="tabs.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
@@ -149,25 +149,24 @@ $(function() {
 <div class="line"><a name="l00077"></a><span class="lineno">   77</span>&#160;    <span class="keywordtype">bool</span> _storeResult = <span class="keyword">false</span>;</div>
 <div class="line"><a name="l00078"></a><span class="lineno">   78</span>&#160;    TensorPtrs _returnOutputs = {};</div>
 <div class="line"><a name="l00079"></a><span class="lineno">   79</span>&#160;    <span class="keywordtype">void</span> setReturnOutputs();</div>
-<div class="line"><a name="l00080"></a><span class="lineno">   80</span>&#160;    <span class="keywordtype">void</span> freeAllOutputBuffer();</div>
-<div class="line"><a name="l00081"></a><span class="lineno">   81</span>&#160;    <span class="keywordtype">void</span> freeAllInputBuffer();</div>
-<div class="line"><a name="l00082"></a><span class="lineno">   82</span>&#160;    <span class="keywordtype">void</span>* _outputPtr;</div>
-<div class="line"><a name="l00083"></a><span class="lineno">   83</span>&#160;    </div>
-<div class="line"><a name="l00084"></a><span class="lineno">   84</span>&#160; </div>
-<div class="line"><a name="l00085"></a><span class="lineno">   85</span>&#160;   <span class="keyword">static</span> std::vector&lt;std::shared_ptr&lt;InferenceJob&gt; &gt; _sInferenceJobs;</div>
-<div class="line"><a name="l00086"></a><span class="lineno">   86</span>&#160; </div>
-<div class="line"><a name="l00087"></a><span class="lineno">   87</span>&#160;   <span class="keyword">static</span> std::mutex _sInferenceJobsLock;</div>
-<div class="line"><a name="l00088"></a><span class="lineno">   88</span>&#160;   <span class="keyword">static</span> std::mutex _sInferenceJobsMapLock;</div>
-<div class="line"><a name="l00089"></a><span class="lineno">   89</span>&#160;   <span class="keyword">static</span> std::mutex _sTensorsMapLock;</div>
-<div class="line"><a name="l00090"></a><span class="lineno">   90</span>&#160;   <span class="keyword">static</span> std::mutex _sRequestsLock;</div>
-<div class="line"><a name="l00091"></a><span class="lineno">   91</span>&#160; </div>
-<div class="line"><a name="l00092"></a><span class="lineno">   92</span>&#160;   <span class="keyword">static</span> std::atomic&lt;int&gt; _sNextInferenceJobId;</div>
-<div class="line"><a name="l00093"></a><span class="lineno">   93</span>&#160;};</div>
-<div class="line"><a name="l00094"></a><span class="lineno">   94</span>&#160; </div>
-<div class="line"><a name="l00095"></a><span class="lineno">   95</span>&#160;<span class="keyword">using</span> InferenceJobPtr = std::shared_ptr&lt;InferenceJob&gt;;</div>
+<div class="line"><a name="l00080"></a><span class="lineno">   80</span>&#160;    <span class="keywordtype">void</span> ReleaseAllOutputBuffer();</div>
+<div class="line"><a name="l00081"></a><span class="lineno">   81</span>&#160;    <span class="keywordtype">void</span>* _outputPtr;</div>
+<div class="line"><a name="l00082"></a><span class="lineno">   82</span>&#160;    </div>
+<div class="line"><a name="l00083"></a><span class="lineno">   83</span>&#160; </div>
+<div class="line"><a name="l00084"></a><span class="lineno">   84</span>&#160;   <span class="keyword">static</span> std::vector&lt;std::shared_ptr&lt;InferenceJob&gt; &gt; _sInferenceJobs;</div>
+<div class="line"><a name="l00085"></a><span class="lineno">   85</span>&#160; </div>
+<div class="line"><a name="l00086"></a><span class="lineno">   86</span>&#160;   <span class="keyword">static</span> std::mutex _sInferenceJobsLock;</div>
+<div class="line"><a name="l00087"></a><span class="lineno">   87</span>&#160;   <span class="keyword">static</span> std::mutex _sInferenceJobsMapLock;</div>
+<div class="line"><a name="l00088"></a><span class="lineno">   88</span>&#160;   <span class="keyword">static</span> std::mutex _sTensorsMapLock;</div>
+<div class="line"><a name="l00089"></a><span class="lineno">   89</span>&#160;   <span class="keyword">static</span> std::mutex _sRequestsLock;</div>
+<div class="line"><a name="l00090"></a><span class="lineno">   90</span>&#160; </div>
+<div class="line"><a name="l00091"></a><span class="lineno">   91</span>&#160;   <span class="keyword">static</span> std::atomic&lt;int&gt; _sNextInferenceJobId;</div>
+<div class="line"><a name="l00092"></a><span class="lineno">   92</span>&#160;};</div>
+<div class="line"><a name="l00093"></a><span class="lineno">   93</span>&#160; </div>
+<div class="line"><a name="l00094"></a><span class="lineno">   94</span>&#160;<span class="keyword">using</span> InferenceJobPtr = std::shared_ptr&lt;InferenceJob&gt;;</div>
+<div class="line"><a name="l00095"></a><span class="lineno">   95</span>&#160; </div>
 <div class="line"><a name="l00096"></a><span class="lineno">   96</span>&#160; </div>
-<div class="line"><a name="l00097"></a><span class="lineno">   97</span>&#160; </div>
-<div class="line"><a name="l00098"></a><span class="lineno">   98</span>&#160;}  <span class="comment">// namespace dxrt</span></div>
+<div class="line"><a name="l00097"></a><span class="lineno">   97</span>&#160;}  <span class="comment">// namespace dxrt</span></div>
 </div><!-- fragment --></div><!-- contents -->
 <div class="ttc" id="anamespacedxrt_html"><div class="ttname"><a href="namespacedxrt.html">dxrt</a></div><div class="ttdoc">DXRT C++ APIs are provided in this namespace.</div><div class="ttdef"><b>Definition:</b> buffer.h:8</div></div>
 <!-- start footer part -->

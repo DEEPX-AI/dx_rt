@@ -43,14 +43,14 @@ function install_dep()
                 mkdir $DX_SRC_DIR/util
             fi
             cd $DX_SRC_DIR/util
-            if ! test -e $DX_SRC_DIR/util/cmake-$cmake_version.0; then
-                echo " Install CMake v$$cmake_version.0 "
-                wget https://cmake.org/files/v$cmake_version/cmake-$cmake_version.0.tar.gz --no-check-certificate    
-                tar xvf cmake-$cmake_version.0.tar.gz
+            if ! test -e $DX_SRC_DIR/util/cmake-$cmake_version_required.0; then
+                echo " Install CMake v$cmake_version_required.0 "
+                wget https://cmake.org/files/v$cmake_version_required/cmake-$cmake_version_required.0.tar.gz --no-check-certificate    
+                tar xvf cmake-$cmake_version_required.0.tar.gz
             else
                 echo " Already Exist CMake "
             fi
-            cd cmake-$cmake_version.0
+            cd cmake-$cmake_version_required.0
             ./bootstrap --system-curl
             make -j$(nproc)
             sudo make install 
@@ -77,12 +77,12 @@ function install_onnx()
     fi
     if [ "$install_onnx" == true ]; then
         echo " Install ONNX-Runtime API " 
-        test $(mkdir $DX_SRC_DIR/util)
+        mkdir -p $DX_SRC_DIR/util
         cd $DX_SRC_DIR/util
-        test $(sudo rm -r $DX_SRC_DIR/util/onnxruntime_$target_arch)
-        wget https://github.com/microsoft/onnxruntime/releases/download/v1.18.0/onnxruntime-linux-$onnxruntime_arch-1.18.0.tgz
+        rm -rf $DX_SRC_DIR/util/onnxruntime_$target_arch
+        wget https://github.com/microsoft/onnxruntime/releases/download/v1.20.1/onnxruntime-linux-$onnxruntime_arch-1.20.1.tgz
         mkdir onnxruntime_$target_arch
-        tar -zxvf onnxruntime-linux-$onnxruntime_arch-1.18.0.tgz -C onnxruntime_$target_arch --strip-components=1 
+        tar -zxvf onnxruntime-linux-$onnxruntime_arch-1.20.1.tgz -C onnxruntime_$target_arch --strip-components=1 
         if [ $(uname -m) != "$target_arch" ]; then
             if [ $(uname -m) == "aarch64" ] && [ $target_arch == "aarch64" ]; then  
                 sudo cp -a onnxruntime_$target_arch/* /usr/local/

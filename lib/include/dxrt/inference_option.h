@@ -5,6 +5,13 @@
 
 #include "dxrt/common.h"
 
+
+#ifdef USE_ORT
+#define ORT_OPTION_DEFAULT true
+#else
+#define ORT_OPTION_DEFAULT false
+#endif
+
 namespace dxrt {
 enum DXRT_API InferenceMode;
 /** @brief This struct specifies inference options applied to dxrt::InferenceEngine.
@@ -29,6 +36,11 @@ struct DXRT_API InferenceOption
      * @details NPU_ALL is an option that uses all NPU cores simultaneously. NPU_0, NPU_1, and NPU_2 are options that allow using only a single NPU core.
      */
     uint32_t    boundOption = BOUND_OPTION::NPU_ALL;
+    /** @brief Select which uses ORT task or not
+     * @details if this is true, all task will works. if false, only npu task works.
+     */
+
+    bool use_ort = ORT_OPTION_DEFAULT;
 
 };
 

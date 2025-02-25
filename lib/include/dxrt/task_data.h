@@ -10,7 +10,6 @@
 #include "dxrt/tensor.h"
 #include "dxrt/model.h"
 #include "dxrt/driver.h"
-#include "dxrt/buffer.h"
 
 namespace dxrt {
 

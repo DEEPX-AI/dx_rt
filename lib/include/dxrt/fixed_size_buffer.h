@@ -6,6 +6,7 @@
 #include<cstdint>
 #include<vector>
 #include<mutex>
+#include <condition_variable>
 
 
 namespace dxrt {
@@ -25,6 +26,8 @@ class FixedSizeBuffer
     int _count;
     int64_t _size;
     std::mutex _lock;
+    std::condition_variable _cv;
+
 };
 
 

@@ -15,9 +15,11 @@ DXRT_API string DataTypeToString(DataType type)
         case dxrt::DataType::UINT8: return "UINT8";
         case dxrt::DataType::UINT16: return "UINT16";
         case dxrt::DataType::UINT32: return "UINT32";
+        case dxrt::DataType::UINT64: return "UINT64";
         case dxrt::DataType::INT8: return "INT8";
         case dxrt::DataType::INT16: return "INT16";
         case dxrt::DataType::INT32: return "INT32";
+        case dxrt::DataType::INT64: return "INT64";
         case dxrt::DataType::FLOAT: return "FLOAT";
         case dxrt::DataType::BBOX: return "BBOX";
         case dxrt::DataType::FACE: return "FACE";

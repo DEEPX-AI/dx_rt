@@ -110,17 +110,17 @@ int main(int argc, char* argv[])
         dxrt::InferenceEngine ieA(modelPath);
 
         std::cout << "Model-A path=" << modelPath << std::endl;
-        std::cout << "        input-size=" << ieA.input_size() << " output-size=" << ieA.output_size() << std::endl;
+        std::cout << "        input-size=" << ieA.GetInputSize() << " output-size=" << ieA.GetOutputSize() << std::endl;
 
-        gInputBufferPool_A = std::make_shared<SimpleCircularBufferPool<uint8_t>>(BUFFER_POOL_SIZE, ieA.input_size());
+        gInputBufferPool_A = std::make_shared<SimpleCircularBufferPool<uint8_t>>(BUFFER_POOL_SIZE, ieA.GetInputSize());
       
         // create inference engine instance with model
         dxrt::InferenceEngine ieB(modelPath);
 
         std::cout << "Model-B path=" << modelPath << std::endl;
-        std::cout << "        input-size=" << ieB.input_size() << " output-size=" << ieB.output_size() << std::endl;
+        std::cout << "        input-size=" << ieB.GetInputSize() << " output-size=" << ieB.GetOutputSize() << std::endl;
 
-        gInputBufferPool_B = std::make_shared<SimpleCircularBufferPool<uint8_t>>(BUFFER_POOL_SIZE, ieB.input_size());
+        gInputBufferPool_B = std::make_shared<SimpleCircularBufferPool<uint8_t>>(BUFFER_POOL_SIZE, ieB.GetInputSize());
 
         const int W = 512, H = 512, CH = 3;
         gFrameBufferPool = std::make_shared<SimpleCircularBufferPool<uint8_t>>(BUFFER_POOL_SIZE, W*H*CH);

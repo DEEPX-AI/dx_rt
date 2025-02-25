@@ -77,8 +77,7 @@ class InferenceJob
     bool _storeResult = false;
     TensorPtrs _returnOutputs = {};
     void setReturnOutputs();
-    void freeAllOutputBuffer();
-    void freeAllInputBuffer();
+    void ReleaseAllOutputBuffer();
     void* _outputPtr;
     
 

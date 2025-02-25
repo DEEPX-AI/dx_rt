@@ -11,6 +11,7 @@
 #include "dxrt/ipc_wrapper/ipc_message.h"
 #include "dxrt/device.h"
 #include "dxrt/task.h"
+#include "dxrt/request.h"
 #include "service_error.h"
 
 namespace dxrt {
@@ -29,10 +30,6 @@ int codeToChannel(RESPONSE_CODE code)
             return -1;
     }
 }
-
-int ipc_callBack_inference_message(IPCServerMessage& outResponseServerMessage, void* usrData);
-
-
 
 std::ostream& operator<< (std::ostream& os, RESPONSE_CODE code)
 {
@@ -163,67 +160,4 @@ int ipc_callBack(IPCServerMessage& outResponseServerMessage, void* usrData)
     }
     return 0;
 }
-
-int ipc_callBack_inference_message(IPCServerMessage& outResponseServerMessage, void* usrData)
-{
-    (void)usrData;
-
-    //int deviceId = outResponseServerMessage.deviceId;
-
-    dxrt_response_t& resp = outResponseServerMessage.npu_resp;
-    int reqId = resp.req_id;
-    auto req = Request::GetById(reqId);
-    DevicePtr devicePtr = CheckDevices()[outResponseServerMessage.deviceId];
-    dxrt_request_acc_t* request_acc = devicePtr->peekInferenceAcc(reqId);
-
-    LOG_DXRT_I_DBG << "request arrived:" << reqId << endl;
-    if (request_acc != nullptr)
-    {
-        dxrt_meminfo_t output = request_acc->output;
-        DXRT_ASSERT(devicePtr->Read(output) == 0, "Failed to read output");
-        if (DEBUG_DATA == 1)
-        {
-            dxrt::TensorPtrs outputs = devicePtr->Validate(req, true);
-            if (outputs.empty() == false){
-                DataDumpBin(req->taskData()->name() + "_output.bin", outputs);
-            }
-        }
-        else if (DEBUG_DATA > 1)
-        {
-            DataDumpBin(req->taskData()->name() + "_output.bin", req->outputs());
-        }
-        if (req->model_type() == 1)
-        {
-            //LOG_VALUE(resp.argmax);
-            *(static_cast<uint16_t *>(req->outputs().front().data())) = resp.argmax;
-            if (DEBUG_DATA > 0)
-                DataDumpBin(req->taskData()->name() + "_output.argmax.bin", req->outputs());
-        }
-        else if (req->model_type() == 2)
-        {
-            //LOG_VALUE(resp.ppu_filter_num);
-            vector<int64_t> shape{resp.ppu_filter_num};
-            req->outputs().front().shape() = shape;
-            if (DEBUG_DATA > 0)
-                DataDumpBin(req->taskData()->name() + "_output.ppu.bin", req->outputs());
-        }
-
-        devicePtr->CallBack();
-
-        devicePtr->Deallocate(request_acc->input.offset);
-        req->task()->ProcessResponse(req, &resp);
-
-
-        Profiler::GetInstance().End(devicePtr->name());
-        devicePtr->popInferenceStruct(reqId);
-    }
-    else
-    {
-        LOG_DXRT_I_ERR(": Error request acc is NULL");
-        return -1;
-    }
-
-    return 0;
-}
-
 }  // namespace dxrt

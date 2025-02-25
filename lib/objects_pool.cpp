@@ -102,7 +102,7 @@ void ObjectsPool::InitDevices_once(SkipMode skip, uint32_t subCmd)
 
 
 
-shared_ptr<Device> ObjectsPool::PickOneDevice(vector<int> &device_ids)
+shared_ptr<Device> ObjectsPool::PickOneDevice(const vector<int> &device_ids)
 {
 #if 1
     LOG_DXRT_DBG << endl;

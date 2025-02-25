@@ -19,7 +19,7 @@ def inferenceThreadFunc(ie, loopCount):
 
         # waiting for the inference to complete by jobId
         # ownership of the outputs is transferred to the user 
-        outputs = ie.Wait(jobId)
+        outputs = ie.wait(jobId)
 
         # post processing
         # postProcessing(outputs);
@@ -60,7 +60,7 @@ if __name__ == "__main__":
 
     t1.start()
 
-    input = [np.zeros(ie.input_size(), dtype=np.uint8)]
+    input = [np.zeros(ie.get_input_size(), dtype=np.uint8)]
 
     # inference loop
     for i in range(loop_count):
@@ -68,7 +68,7 @@ if __name__ == "__main__":
         
         # inference asynchronously, use all npu cores
         # if device-load >= max-load-value, this function will block  
-        jobId = ie.RunAsync(input, user_arg=0)
+        jobId = ie.run_async(input, user_arg=0)
 
         q.put(jobId)
 

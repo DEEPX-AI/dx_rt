@@ -5,6 +5,7 @@
 #include "dxrt/device.h"
 #include "dxrt/request.h"
 #include "dxrt/task.h"
+#include "dxrt/configuration.h"
 #include <iostream>
 #include <iomanip>
 #include <algorithm>
@@ -26,6 +27,7 @@ namespace dxrt
 Profiler::Profiler()
 {
     LOG_DXRT_DBG << endl;
+    _conf = Configuration::GetInstance();
 }
 Profiler::~Profiler()
 {
@@ -34,10 +36,15 @@ Profiler::~Profiler()
     // cout << "destroy profiler" << endl;
     if(!timePoints.empty())
     {
-        Save("profiler.json");
-#if SHOW_PROFILER_DATA
-        Show();
-#endif
+        if (_conf->GetAttribute(Configuration::ITEM::PROFILER,Configuration::ATTRIBUTE::PROFILER_SAVE_DATA) == "ON")
+        {
+            Save("profiler.json");
+        }
+
+        if (_conf->GetAttribute(Configuration::ITEM::PROFILER,Configuration::ATTRIBUTE::PROFILER_SHOW_DATA) == "ON")
+        {
+            Show();
+        }
     }
     //timePoints.clear();
     //idx.clear();

@@ -68,16 +68,15 @@ target_include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/include 
 )
 
-if (MSVC)
-else()
-    if (USE_ORT)
-        target_include_directories(${target} PUBLIC 
-            ${onnxruntime_INCLUDE_DIRS}
-        )
-        target_link_directories(${target} PUBLIC ${ONNXLIB_DIRS})
-        target_link_libraries(${target} PUBLIC ${ONNXLIB_DIRS})
-    endif()
+
+if (USE_ORT)
+    target_include_directories(${target} PUBLIC 
+        ${onnxruntime_INCLUDE_DIRS}
+    )
+    target_link_directories(${target} PUBLIC ${ONNXLIB_DIRS})
+    target_link_libraries(${target} PUBLIC ${ONNXLIB_DIRS})
 endif()
+
 
 # if (USE_PYTHON)
 #     set_target_properties(${target} PROPERTIES

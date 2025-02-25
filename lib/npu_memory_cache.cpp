@@ -78,7 +78,7 @@ bool NpuMemoryCacheManager::registerMemoryCache(int taskId, int64_t size, int co
         return false;
     }
 }
-void NpuMemoryCacheManager::unRegisterMemorgCache(int taskId)
+void NpuMemoryCacheManager::unRegisterMemoryCache(int taskId)
 {
     UniqueLock lock(_npuMemoryCacheLock);
 

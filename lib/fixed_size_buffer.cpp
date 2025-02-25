@@ -22,22 +22,24 @@ FixedSizeBuffer::FixedSizeBuffer(int64_t size, int buffer_count)
 void* FixedSizeBuffer::getBuffer()
 {
     std::unique_lock<std::mutex> lock(_lock);
+    
+    _cv.wait(lock, [this] { return !_pointers.empty(); });
 
-    if (_pointers.empty())
-    {
-        return nullptr;
-    }
     void* retval = _pointers.back();
     _pointers.pop_back();
     return retval;
 }
+
 void FixedSizeBuffer::releaseBuffer(void* ptr)
 {
     std::unique_lock<std::mutex> lock(_lock);
     _pointers.push_back(ptr);
+    _cv.notify_one(); 
 }
+
 bool FixedSizeBuffer::hasBuffer()
 {
+    std::unique_lock<std::mutex> lock(_lock);
     return _pointers.empty() == false;
 }
 

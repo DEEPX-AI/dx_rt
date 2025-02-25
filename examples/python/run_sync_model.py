@@ -20,7 +20,7 @@ if __name__ == "__main__":
     # create inference engine instance with model
     ie = InferenceEngine(modelPath)
 
-    input = [np.zeros(ie.input_size(), dtype=np.uint8)]
+    input = [np.zeros(ie.get_input_size(), dtype=np.uint8)]
 
     # inference loop
     for i in range(loop_count):
@@ -28,7 +28,7 @@ if __name__ == "__main__":
         # inference synchronously 
         # use only one npu core 
         # ownership of the outputs is transferred to the user 
-        outputs = ie.Run(input)
+        outputs = ie.run(input)
 
         # post processing 
         #postProcessing(outputs)

@@ -28,7 +28,7 @@ constexpr int CHARBUFFER_SIZE = 128;
 
 // internal helper functions
 template<typename T, size_t size>
-constexpr static string map_lookup(const std::array<pair_type, size>& m, T n)
+static string map_lookup(const std::array<pair_type, size>& m, T n)
 {
     int key = static_cast<int>(n);
     for (const auto& pair : m)
@@ -115,6 +115,34 @@ string DxrtDeviceInfoWithStatus::dvfsStateInfoStr() const
     {
         snprintf(buf, CHARBUFFER_SIZE, "dvfs Disabled");
     }
+    return string(buf);
+}
+
+string DxrtDeviceInfoWithStatus::ddrStatusStr(int ch) const
+{
+    char buf[CHARBUFFER_SIZE];
+    uint32_t rm_1, rm_0 = 0, derate = 0;
+
+    switch(_status.ddr_status[ch]) {
+		case 0x01 : rm_1 = 8;             break;
+		case 0x02 : rm_1 = 6;             break;
+		case 0x03 : rm_1 = 4;             break;
+		case 0x04 : rm_1 = 3; rm_0 = 3;   break;
+		case 0x05 : rm_1 = 2; rm_0 = 5;   break;
+		case 0x06 : rm_1 = 2;             break;
+		case 0x07 : rm_1 = 1; rm_0 = 7;   break;
+		case 0x08 : rm_1 = 1; rm_0 = 3;   break;
+		case 0x09 : rm_1 = 1; rm_0 = 0;   break;
+		case 0x0A : rm_1 = 0; rm_0 = 7;   break;
+		case 0x0B : rm_1 = 0; rm_0 = 5;   break;
+		case 0x0C : rm_1 = 0; rm_0 = 25;  break;
+		case 0x0D : rm_1 = 0; rm_0 = 25;  derate = 1; break;
+		case 0x0E : rm_1 = 0; rm_0 = 125; break;
+		case 0x0F : rm_1 = 0; rm_0 = 125; derate = 1; break;
+		default   : rm_1 = 0xF; break;
+    }
+    snprintf(buf, CHARBUFFER_SIZE, "LPDDR CH[%d]: RM: 0x%x(%u.%ux)%s",
+            ch, _status.ddr_status[ch], rm_1, rm_0, (derate ? " with de-rating" : ""));
     return string(buf);
 }
 
@@ -221,6 +249,16 @@ std::ostream&DxrtDeviceInfoWithStatus::statusToStream(std::ostream& os) const
     return os;
 }
 
+std::ostream&DxrtDeviceInfoWithStatus::debugStatusToStream(std::ostream& os) const
+{
+    for (int i = 0; i < 4; i++)
+    {
+        os << ddrStatusStr(i) << endl;
+    }
+    os << "=======================================================" << endl;
+    return os;
+}
+
 string DxrtDeviceInfoWithStatus::getStatusString() const
 {
     std::ostringstream os;
@@ -236,5 +274,33 @@ std::ostream& operator<<(std::ostream& os, const DxrtDeviceInfoWithStatus& d)
     return os;
 }
 
-}  // namespace dxrt
 
+uint32_t DxrtDeviceInfoWithStatus::voltage(int ch) const
+{
+    if ((ch < 0) || (ch >= static_cast<int>(_info.num_dma_ch)))
+    {
+        return 0;
+    }
+    return _status.voltage[ch];
+}
+uint32_t DxrtDeviceInfoWithStatus::clock(int ch) const
+{
+    if ((ch < 0) || (ch >= static_cast<int>(_info.num_dma_ch)))
+    {
+        return 0;
+    }
+    return _status.clock[ch];
+}
+
+int DxrtDeviceInfoWithStatus::temperature(int ch) const
+{
+    if ((ch < 0) || (ch >= static_cast<int>(_info.num_dma_ch)))
+    {
+        return 0;
+    }
+    return _status.temperature[ch];
+}
+
+
+
+}  // namespace dxrt

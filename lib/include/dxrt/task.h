@@ -5,7 +5,7 @@
 
 #include "dxrt/common.h"
 #include "dxrt/tensor.h"
-#include "dxrt/request.h"
+#include "dxrt/request_data.h"
 #include "dxrt/driver.h"
 #include "dxrt/profiler.h"
 #include "dxrt/model.h"
@@ -33,6 +33,10 @@ struct DXRT_API TaskStats
     std::vector<uint32_t> inference_time_data;
 };
 class CpuHandle;
+
+
+class Request;
+using RequestPtr = std::shared_ptr<Request>;
 class DXRT_API Task
 {    
 public:
@@ -46,8 +50,7 @@ public:
     // Tensors Run(Tensors inputs);
     // void Run(Tensors &inputs, Tensors &outputs);
     // RequestPtr InferenceRequest(Tensors inputs, Tensors outputs);
-    int InferenceRequest(RequestPtr req);
-    int ProcessResponse(RequestPtr req, dxrt_response_t *response=nullptr);
+
     void RegisterCallBack(std::function<int(TensorPtrs&, void*)>);
     int Release(void);
     int id();
@@ -67,7 +70,7 @@ public:
     std::vector< rmapinfo > npu_param();
     std::vector< dxrt_model_t > npu_model();
     std::vector< dxrt_request_t > npu_inference(int device);// to be moved to device
-    std::shared_ptr<Buffer> OutputBuffer();
+    
     TaskPtr &next();
     TaskPtrs &prevs();
     TaskPtrs &nexts();
@@ -85,18 +88,17 @@ public:
     int &complete_cnt();
     void SetInferenceEngineTimer(InferenceTimer* ie);
     void SetOutputBuffer(int size);
-    void SetInputBuffer(int size);
     void* GetOutputBuffer();
-    void* GetInputBuffer();
-    void FreeOutputBuffer(void* ptr);
-    void FreeInputBuffer(void* ptr);
-    void ClearOutputBuffer();   
-    void ClearInputBuffer();
+    void ReleaseOutputBuffer(void* ptr);
+    void ClearOutputBuffer();
+
+    const std::vector<int>& getDeviceIds();
+    CpuHandle* getCpuHandle();
+    int getNpuBoundOp();
 
     TaskData* getData() {return &_taskData;}
     friend DXRT_API std::ostream& operator<<(std::ostream&, const Task&);
 private:
-
 
     TaskData _taskData;
 
@@ -124,8 +126,6 @@ private:
     InferenceTimer _inferenceTimer;
     InferenceTimer* _ie;
     std::shared_ptr<FixedSizeBuffer> _taskOutputBuffer;
-    std::shared_ptr<FixedSizeBuffer> _taskInputBuffer;
-
 
     int _completeCnt = 1;
     int _boundOp = 0;

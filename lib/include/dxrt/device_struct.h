@@ -8,6 +8,7 @@ typedef struct DXRT_API device_status
     uint32_t voltage[4];
     uint32_t clock[4];
     uint32_t temperature[4];
+    uint32_t ddr_status[4];
     uint32_t dvfs_enable;
     uint32_t dvfs_maxfreq;
     uint32_t count[4];

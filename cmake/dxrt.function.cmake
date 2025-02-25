@@ -59,3 +59,18 @@ macro(add_target target)
     install(TARGETS ${target} DESTINATION bin)
     install(TARGETS ${target} DESTINATION ${CMAKE_SOURCE_DIR}/bin)
 endmacro(add_target)
+
+macro(add_clangtidy)
+  message(STATUS "clang-tidy not found, installing...")
+  execute_process(
+      COMMAND sudo apt-get install -y clang-tidy
+      RESULT_VARIABLE INSTALL_RESULT
+      OUTPUT_QUIET ERROR_QUIET
+  )
+  find_program(CLANG_TIDY_EXE NAMES "clang-tidy")
+  if(CLANG_TIDY_EXE)
+    message(STATUS "clang-tidy successfully installed!")
+  else()
+    message(FATAL_ERROR "Failed to install clang-tidy")
+  endif()
+endmacro(add_clangtidy)

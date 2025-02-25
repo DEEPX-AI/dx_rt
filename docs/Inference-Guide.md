@@ -26,8 +26,8 @@ auto ie = dxrt::InferenceEngine("yolov5s", &option);
 ### 3. Connect input tensors
 Prepare input buffer(s) to perform infernce on.
 You can easily prepare an input buffer with minimal effort with the code below.  
-```
-vector<uint8_t> inputBuf(ie.input_size(), 0);
+```GetInputSize
+vector<uint8_t> inputBuf(ie.GetInputSize(), 0);
 ```
 Guides for connecting the inference engine to various image sources are provided in dx-app and dx-demo, along with preprocessing examples.  
 ### 4. Inference
@@ -58,7 +58,7 @@ std::function<int(vector<shared_ptr<dxrt::Tensor>>, void*)> postProcCallBack = \
         ... ...
         return 0;
     };
-ie.RegisterCallBack(postProcCallBack);
+ie.RegisterCallback(postProcCallBack);
 ```
 
 ![inference_basic_r1](/assets/images/run_async.jpg)  

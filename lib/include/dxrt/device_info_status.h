@@ -14,18 +14,6 @@ namespace dxrt {
 class Device;
 using DevicePtr = std::shared_ptr<Device>;
 
-#ifdef __linux      // / TODO: Duplicate declaration (dxrt/device_struct.h)
-typedef struct device_status
-{
-    uint32_t voltage[4];
-    uint32_t clock[4];
-    uint32_t temperature[4];
-    uint32_t dvfs_enable;
-    uint32_t dvfs_maxfreq;
-    uint32_t count[4];
-    uint32_t boot_state;
-} dxrt_device_status_t;
-#endif
 
 class DXRT_API DxrtDeviceInfoWithStatus
 {
@@ -93,6 +81,11 @@ class DXRT_API DxrtDeviceInfoWithStatus
      *  @return string contains voltage, clock, temp of device (ex: "NPU 0: voltage 825 mV, clock 800 MHz, temperature 46'C")
      *  
      */
+    std::string ddrStatusStr(int ch) const;
+    /**
+     * @brief LPDDR ch[0, 1, 2, 3] status as a line
+     * @return string contains lpddr channel status (mr register relevant to lpddr temperature)
+     */
     std::string npuStatusStr(int no) const;  // NPU 0: voltage 825 mV, clock 800 MHz, temperature 46'C
     /** @brief a NPU FW version
      *  @return version number as string(ex: 1.2.3)
@@ -101,6 +94,7 @@ class DXRT_API DxrtDeviceInfoWithStatus
 
     std::ostream& infoToStream(std::ostream& os) const;
     std::ostream& statusToStream(std::ostream& os) const;
+    std::ostream& debugStatusToStream(std::ostream& os) const;
     /** @brief get device info (dxrt-cli -i)
      * @return device info string in following format:
      * @verbatim
@@ -123,6 +117,31 @@ class DXRT_API DxrtDeviceInfoWithStatus
 
     const dxrt_device_status_t& status() const{return _status;}
     const dxrt_device_info_t& info() const{return _info;}
+
+    /** @brief return NPU voltage for given NPU
+     *  @return voltage as mV value
+     */
+    uint32_t voltage(int ch) const;
+    /** @brief return NPU clock for given NPU
+     *  @return clock as MHz value
+     */
+    uint32_t clock(int ch) const;
+    /** @brief return NPU temperature for given NPU
+     *  @return temperature as celcious value
+     */
+    int temperature(int ch) const;
+    /** @brief return NPU memory size
+     *  @return memory size as byte
+     */
+    uint64_t memory_size() const { return _info.mem_size; }
+    /** @brief return NPU dma channel count 
+     *  @return NPU dma channel count
+     */
+    uint64_t dma_channel() const { return _info.num_dma_ch;  }
+    /** @brief return NPU memory clock
+     *  @return memory clock as MHz
+     */
+    uint64_t memory_clock() const { return _info.ddr_freq; }
 
  private:
     int _id;

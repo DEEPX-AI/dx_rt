@@ -11,6 +11,7 @@
 #include "dxrt/exception/exception.h"
 #include "dxrt/objects_pool.h"
 #include "dxrt/fixed_size_buffer.h"
+#include "dxrt/configuration.h"
 
 #include <algorithm>
 #include <future>
@@ -60,8 +61,7 @@ Task::Task(std::string name_, vector<rmapinfo> rmapInfos_, std::vector<std::vect
 
         _taskData.set_from_npu(_data);
         LOG_DXRT_DBG << "NPU Task: imported npu parameters" << endl;
-        SetOutputBuffer(devices_.size() * DXRT_ASYNC_LOAD_THRE * 2);
-        //SetOutputBuffer(_taskData.output_size() * DXRT_ASYNC_LOAD_THRE * 2);
+        SetOutputBuffer(devices_.size() * DXRT_ASYNC_LOAD_THRE);
         for (auto device: devices_)
         {
             _device_ids.push_back(device->id());
@@ -74,10 +74,15 @@ Task::Task(std::string name_, vector<rmapinfo> rmapInfos_, std::vector<std::vect
                 throw InvalidModelException(EXCEPTION_MESSAGE("failed to register task"));
 
 #ifdef USE_SERVICE
-            device->signalToDevice(static_cast<npu_bound_op>(_boundOp));
-#else
-            device->BoundOption(DX_SCHED_ADD, static_cast<npu_bound_op>(_boundOp));
+            if (Configuration::GetInstance()->GetEnable(Configuration::ITEM::SERVICE))
+            {
+                device->signalToDevice(static_cast<npu_bound_op>(_boundOp));
+            }
+            else
 #endif
+            {
+                device->BoundOption(DX_SCHED_ADD, static_cast<npu_bound_op>(_boundOp));
+            }
         }
         LOG_DXRT_DBG << "NPU Task created" << endl;
     }
@@ -87,8 +92,7 @@ Task::Task(std::string name_, vector<rmapinfo> rmapInfos_, std::vector<std::vect
         _cpuHandle = make_shared<CpuHandle>(_data.front().data(), _data.front().size(), _taskData._name);
         // cout << *_cpuHandle << endl;
         _taskData.set_from_cpu(_cpuHandle);
-        SetInputBuffer(DXRT_ASYNC_LOAD_THRE * 2);
-        SetOutputBuffer(DXRT_ASYNC_LOAD_THRE * 2);
+        SetOutputBuffer(DXRT_ASYNC_LOAD_THRE);
         _cpuHandle->Start();
         LOG_DXRT_DBG << "CPU Task created" << endl;
     }
@@ -110,70 +114,21 @@ Task::~Task(void)
     for(int device_id: _device_ids)
     {
         auto device = ObjectsPool::GetInstance()->GetDevices(device_id);
-#ifndef USE_SERVICE
-    device->BoundOption(DX_SCHED_DELETE, static_cast<npu_bound_op>(_boundOp));
+#ifdef USE_SERVICE
+    if (Configuration::GetInstance()->GetEnable(Configuration::ITEM::SERVICE))
+        device->signalToDeviceDeInit(static_cast<npu_bound_op>(_boundOp));
+    else
 #endif
+        {
+            device->BoundOption(DX_SCHED_DELETE, static_cast<npu_bound_op>(_boundOp));
+        }
         device->Release(getData());
     }
     // Release();
 
-    LOG_DBG("Task released.");
+    LOG_DXRT_DBG <<" Done"<< endl;
 }
 
-int Task::InferenceRequest(RequestPtr req)
-{
-    LOG_DXRT_DBG << "[" << req->id() << "] " << "- - - - - - - Req " << req->id() << ": "
-        << req->requestor_name() << " -> " << name() << std::endl;
-    TASK_FLOW_START("["+to_string(req->job_id())+"]"+name()+" Inference Reqeust ");
-    if (processor() == Processor::NPU)
-    {
-        LOG_DXRT_DBG << "[" << req->id() << "] " << "N) Req " << req->id() << ": "
-            << req->requestor_name() << " -> " << name() << std::endl;
-        auto device = ObjectsPool::GetInstance()->PickOneDevice(_device_ids);
-        TASK_FLOW("["+to_string(req->job_id())+"]"+name()+" picks device");
-        req->CheckTimePoint(0);
-        req->model_type() = req->taskData()->_npuModel.front().type;
-        if(req->getData()->output_ptr == nullptr)
-        {
-            req->getData()->output_ptr = req->task()->GetOutputBuffer();
-        }
-        device->InferenceRequest(req->getData(), static_cast<npu_bound_op>(_boundOp));
-    }
-    else
-    {
-        LOG_DXRT_DBG << "[" << req->id() << "] " << "C) Req " << req->id() << ": "
-            << req->requestor_name() << " -> " << name() << std::endl;
-        req->CheckTimePoint(0);
-        if(req->getData()->output_ptr == nullptr)
-        {
-            req->getData()->output_ptr = req->task()->GetOutputBuffer();
-        }
-        _cpuHandle->InferenceRequest(req);
-    }
-    return req->id();
-}
-
-int Task::ProcessResponse(RequestPtr req, dxrt_response_t *response)
-{
-
-    req->CheckTimePoint(1);
-    LOG_DXRT_DBG << "[" << req->id() << "] " << "    Response : " << req->id() << ", " << req->requestor_name()<< " -> " << req->task()->name() << ", " << req->latency() << std::endl;
-    _taskData._outputTensors = req->outputs(); 
-    if (req->task()->processor() == Processor::NPU)
-    {
-        req->inference_time() = response->inf_time;
-    }
-    else
-    {
-        req->inference_time() = req->latency();
-    }
-
-    
-    req->task()->PushLatency(req->latency());
-    req->task()->PushInferenceTime(req->inference_time());
-    req->onRequestComplete(req);
-    return 0;
-}
 void Task::RegisterCallBack(function<int(TensorPtrs &outputs, void *userArg)> f)
 {
     LOG_DXRT_DBG << endl;
@@ -371,49 +326,16 @@ void Task::SetOutputBuffer(int size)
     LOG_DXRT_DBG << "Task "<< id() <<" Output Buffer Size : " << size << std::endl;
     _taskOutputBuffer = make_shared<FixedSizeBuffer>(_taskData.output_size(), size);
 }
-void Task::SetInputBuffer(int size)
-{
-    DXRT_ASSERT(processor()==Processor::CPU, "The input buffer is for CPU task only.")
-    LOG_DXRT_DBG << "Task "<< id() <<" Input Buffer Size : " << size << std::endl;
-    _taskInputBuffer = make_shared<FixedSizeBuffer>(_taskData.input_size(), size);
-}
 void* Task::GetOutputBuffer()
 {
-    LOG_DXRT_DBG << "Task "<< id() <<" Output Buffer GET " << std::endl;
-    while(_taskOutputBuffer->hasBuffer()==false)
-        std::this_thread::sleep_for(chrono::microseconds(100));
-//#ifdef __linux__
-//        usleep(100);
-//#elif _WIN32
-//        this_thread::sleep_for(chrono::microseconds(100));
-//#endif
-    void* retval = _taskOutputBuffer->getBuffer();
+    LOG_DXRT_DBG << "Task " << id() << " Output Buffer GET " << std::endl;
+    void* retval = _taskOutputBuffer->getBuffer(); // 조건 변수로 처리
     return retval;
 }
-void* Task::GetInputBuffer()
+void Task::ReleaseOutputBuffer(void* ptr)
 {
-    DXRT_ASSERT(processor()==Processor::CPU, "The input buffer is for CPU task only.")
-    LOG_DXRT_DBG << "Task "<< id() <<" Input Buffer GET " << std::endl;
-    while(_taskInputBuffer->hasBuffer()==false)
-        std::this_thread::sleep_for(chrono::microseconds(100));
-//#ifdef __linux__
-//        usleep(100);
-//#elif _WIN32
-//        this_thread::sleep_for(chrono::microseconds(100));
-//#endif
-    void* retval = _taskInputBuffer->getBuffer();
-    return retval;
-}
-void Task::FreeOutputBuffer(void* ptr)
-{
-    LOG_DXRT_DBG << "Task "<< id() <<" Output Buffer FREE " << std::endl;
+    LOG_DXRT_DBG << "Task "<< id() <<" Output Buffer RELEASE " << std::endl;
     _taskOutputBuffer->releaseBuffer(ptr);
-}
-void Task::FreeInputBuffer(void* ptr)
-{
-    DXRT_ASSERT(processor()==Processor::CPU, "The input buffer is for CPU task only.")
-    LOG_DXRT_DBG << "Task "<< id() <<" Input Buffer FREE " << std::endl;
-    _taskInputBuffer->releaseBuffer(ptr);
 }
 void Task::ClearOutputBuffer()
 {
@@ -421,12 +343,19 @@ void Task::ClearOutputBuffer()
     _taskOutputBuffer = nullptr;
 }
 
-void Task::ClearInputBuffer()
+const std::vector<int>& Task::getDeviceIds()
 {
-    DXRT_ASSERT(processor()==Processor::CPU, "The input buffer is for CPU task only.")
-    LOG_DXRT_DBG << "Task "<< id() <<" Input Buffer CLEAR " << std::endl;
-    _taskInputBuffer = nullptr;
+    return _device_ids;
 }
+CpuHandle* Task::getCpuHandle()
+{
+    return _cpuHandle.get();
+}
+int Task::getNpuBoundOp()
+{
+    return _boundOp;
+}
+
 ostream& operator<<(ostream& os, const Task& task)
 {
     os << dec << "  Task[" << task._taskData._id << "] " << task._taskData._name << ", " << task._taskData._processor

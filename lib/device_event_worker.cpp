@@ -4,6 +4,7 @@
 #include "dxrt/common.h"
 #include "dxrt/worker.h"
 #include "dxrt/device.h"
+#include "dxrt/profiler.h"
 
 namespace dxrt {
 
@@ -15,6 +16,7 @@ DeviceEventWorker::DeviceEventWorker(string name_, Device *device_)
 }
 DeviceEventWorker::~DeviceEventWorker()
 {
+    LOG_DXRT_DBG<<endl;
 }
 shared_ptr<DeviceEventWorker> DeviceEventWorker::Create(string name_, Device *device_)
 {
@@ -29,9 +31,6 @@ void DeviceEventWorker::ThreadWork(int id)
     int loopCnt = 0;  // ret;
     LOG_DXRT_DBG << getName() << " : Entry" << endl;
     // int devId = _device->id();
-#ifdef WORKER_USE_PROFILER
-    auto& profiler = dxrt::Profiler::GetInstance();
-#endif
     dxrt_cmd_t cmd = dxrt::dxrt_cmd_t::DXRT_CMD_EVENT;
     while (true)
     {
@@ -42,7 +41,7 @@ void DeviceEventWorker::ThreadWork(int id)
             break;
         }
         dxrt::dx_pcie_dev_event_t eventInfo;
-        _device->Process(cmd, &eventInfo);
+        _device->Process(cmd, &eventInfo); //Waiting in kernel. (device::terminate())
         // LOG_VALUE((int)errInfo.err_code);
         if (static_cast<dxrt::dxrt_event_t>(eventInfo.event_type)==dxrt::dxrt_event_t::DXRT_EVENT_ERROR) {
             DXRT_ASSERT(static_cast<dxrt::dxrt_error_t>(eventInfo.dx_rt_err.err_code)==dxrt::dxrt_error_t::ERR_NONE, 

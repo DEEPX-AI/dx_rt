@@ -105,12 +105,24 @@ public:
      * @return job id that can be used to wait() function 
      */
     int RunAsync(void *inputPtr, void *userArg=nullptr, void *outputPtr=nullptr);
+    
+    /** 
+     * @deprecated Use RunBenchmark() instead. 
+     * @brief run benchmark with loop n times (Legacy API)
+     * @param[in] num number of inferences
+     * @param[in] inputPtr input data pointer to run inference
+     * @return average fps
+     */
+    [[deprecated("Use RunBenchmark() instead")]]
+    float RunBenchMark(int num, void* inputPtr=nullptr) { return RunBenchmark(num, inputPtr); }
+
     /** @brief run benchmark with loop n times
      * @param[in] num number of inferences
      * @param[in] inputPtr input data pointer to run inference
      * @return average fps
      */
-    float RunBenchMark(int num, void* inputPtr=nullptr);
+    float RunBenchmark(int num, void* inputPtr=nullptr);
+
     /** 
      * @brief Validate inference of a specific NPU device connected to the host.
      * This function runs a validation process using the provided input data on the specified NPU device.
@@ -122,12 +134,23 @@ public:
      * 
      */
     TensorPtrs ValidateDevice(void *inputPtr, int deviceId=0);
+
+    /** 
+     * @deprecated Use RegisterCallback() instead. 
+     * @brief Register user callback function to be called by inference completion. (Legacy API)
+     * @param[in] callbackFunc Function which is called when inference is complete, it gets outputs and user_arg ptr
+     * @param outputs output tensors data
+     * @param userArg userArg given by Run();
+     */
+    [[deprecated("Use RegisterCallback() instead")]]
+    void RegisterCallBack(std::function<int(TensorPtrs& outputs, void* userArg)> callbackFunc) { return RegisterCallback(callbackFunc); }
+
     /** @brief Register user callback function to be called by inference completion.
      * @param[in] callbackFunc Function which is called when inference is complete, it gets outputs and user_arg ptr
      * @param outputs output tensors data
      * @param userArg userArg given by Run();
      */
-    void RegisterCallBack(std::function<int(TensorPtrs& outputs, void* userArg)> callbackFunc);
+    void RegisterCallback(std::function<int(TensorPtrs& outputs, void* userArg)> callbackFunc);
 
     /** @brief Wait until an request is complete and returns output
      * @param[in] jobId job Id returned by RunAsync()
@@ -135,47 +158,224 @@ public:
      */
     TensorPtrs Wait(int jobId);
 
+    /**
+     *  @deprecated Use GetInputs() instead. 
+     *  @brief Get input tensor (Legacy API)
+     *  @param[in] ptr pointer to virtual address
+     *  @param[in] phyAddr pointer to physical address
+     *  @return if ptr is null, input memory area in engine is returned
+     *  @return if ptr and phyAddr is given, inputs tensors that contains output addresses
+     */
+    [[deprecated("Use GetInputs() instead")]]
+    Tensors inputs(void *ptr=nullptr, uint64_t phyAddr=0) { return GetInputs(ptr, phyAddr); }
+    
     /** @brief Get input tensor
      *  @param[in] ptr pointer to virtual address
      *  @param[in] phyAddr pointer to physical address
      *  @return if ptr is null, input memory area in engine is returned
      *  @return if ptr and phyAddr is given, inputs tensors that contains output addresses
      */
-    Tensors inputs(void *ptr=nullptr, uint64_t phyAddr=0);
-    std::vector<Tensors> inputs(int devId);
+    Tensors GetInputs(void *ptr=nullptr, uint64_t phyAddr=0);
+    
+    /** 
+     *  @deprecated Use GetInputs() instead.
+     *  @brief Get input tensor (Legacy API)
+     *  @param[in] devId device id
+     *  @return vector of input tensors
+     */
+    [[deprecated("Use GetInputs() instead")]]
+    std::vector<Tensors> inputs(int devId) { return GetInputs(devId); }
+    
+    /** @brief Get input tensor
+     *  @param[in] devId device id
+     *  @return vector of input tensors
+     */
+    std::vector<Tensors> GetInputs(int devId);
+    
+    /** 
+     *  @deprecated Use GetOutputs() instead.
+     *  @brief Get output tensor (Legacy API)
+     *  @param[in] ptr pointer to virtual address
+     *  @param[in] phyAddr pointer to physical address
+     *  @return if ptr is null, output memory area in engine is returned
+     *  @return if ptr and phyAddr is given, outputs tensors that contains output addresses
+     */
+    [[deprecated("Use GetOutputs() instead")]]
+    Tensors outputs(void *ptr=nullptr, uint64_t phyAddr=0) { return GetOutputs(ptr, phyAddr); }
+
     /** @brief Get output tensor
      *  @param[in] ptr pointer to virtual address
      *  @param[in] phyAddr pointer to physical address
      *  @return if ptr is null, output memory area in engine is returned
      *  @return if ptr and phyAddr is given, outputs tensors that contains output addresses
      */
-    Tensors outputs(void *ptr=nullptr, uint64_t phyAddr=0);
-    /** @brief Get total size of input tensors 
-     *  @return input size of one inference in bytes
+    Tensors GetOutputs(void *ptr=nullptr, uint64_t phyAddr=0);
+    
+    /** 
+     * @deprecated Use GetInputSize() instead.
+     * @brief Get total size of input tensors (Legacy API)
+     * @return Input size of one inference in bytes
      */
-    uint64_t input_size();
-    /** @brief Get total size of output tensors 
-     *  @return output size of one inference in bytes
+    [[deprecated("Use GetInputSize() instead")]]
+    uint64_t input_size() { return GetInputSize(); }
+
+    /** 
+     * @brief Get total size of input tensors
+     * @return Input size of one inference in bytes
      */
-    uint64_t output_size();
-    /** @brief Get model name
+    uint64_t GetInputSize();
+    
+    /** 
+     * @deprecated Use GetOutputSize() instead.
+     * @brief Get total size of output tensors (Legacy API)
+     * @return Output size of one inference in bytes
+     */
+    [[deprecated("Use GetOutputSize() instead")]]
+    uint64_t output_size() { return GetOutputSize(); }
+    
+    /** 
+     * @brief Get total size of output tensors
+     * @return Output size of one inference in bytes
+     */
+    uint64_t GetOutputSize();
+    
+     /** 
+     * @deprecated Use GetModelName() instead.
+     * @brief Get model name (Legacy API)
      * @return model name
      */
-    std::string name();
-    /** @brief Get model task order
+    [[deprecated("Use GetModelName() instead")]]
+    std::string name() { return GetModelName(); }
+
+    /** 
+     * @brief Get model name
+     * @return model name
+     */
+    std::string GetModelName();
+
+    /** 
+     * @deprecated Use GetTaskOrder() instead.
+     * @brief Get model task order (Legacy API)
      * @return task order
      */
-    std::vector<string> task_order();
-    /** @brief Get recent latency
+    [[deprecated("Use GetTaskOrder() instead")]]
+    std::vector<string> task_order() { return GetTaskOrder(); }
+    
+    /** 
+     * @brief Get model task order
+     * @return task order
+     */
+    std::vector<string> GetTaskOrder();
+    
+    /**
+     * @deprecated Use GetLatency() instead. 
+     * @brief Get latest latency (Legacy API)
      * @return latency (microseconds)
      */
-    int latency();
+    [[deprecated("Use GetLatency() instead")]]
+    int latency() { return GetLatency(); }
+
+    /** @brief Get latest latency
+     * @return latency (microseconds)
+     */
+    int GetLatency();    
+
+    /**
+     * @deprecated Use GetNpuInferenceTime() instead.  
+     * @brief Get latest inference time (Legacy API)
+     * @return inference time (microseconds)
+     */
+    [[deprecated("Use GetNpuInferenceTime() instead")]]
+    uint32_t inference_time() { return GetNpuInferenceTime(); }
+    
+    /** @brief Get latest inference time
+     * @return inference time (microseconds)
+     */
+    uint32_t GetNpuInferenceTime();
+    
+    /** @brief Get recent Latency
+     * @return latency (microseconds)
+     */
+    std::vector<int> GetLatencyVector();
+    
     /** @brief Get recent inference time
      * @return inference time (microseconds)
      */
-    uint32_t inference_time();
-    vector<TensorPtrs> get_outputs();
-    vector<uint8_t> bitmatch_mask(int index);
+    std::vector<uint32_t> GetNpuInferenceTimeVector();
+    
+    /** @brief Get latency Mean
+     * @return latency Mean (microseconds)
+     */
+    double GetLatencyMean();
+    
+    /** @brief Get inference time Mean
+     * @return inference time Mean (microseconds)
+     */
+    double GetNpuInferenceTimeMean();
+    
+    /** @brief Get latency Standard Deviation
+     * @return latency Standard Deviation 
+     */
+    double GetLatencyStdDev();
+    
+    /** @brief Get inference time Standard Deviation
+     * @return inference time Standard Deviation 
+     */
+    double GetNpuInferenceTimeStdDev();
+    
+    /** @brief Get latency Count
+     * @return latency Count 
+     */
+    int GetLatencyCnt();
+    
+    /** @brief Get inference time Count
+     * @return inference time Count
+     */
+    int GetNpuInferenceTimeCnt();
+
+    /** 
+     *  @deprecated Use GetAllTaskOutputs() instead.
+     *  @brief Get output tensors of all tasks (Legacy API)
+     *  @return the output of all tasks as a vector of smart pointer instance vectors.  
+     */
+    [[deprecated("Use GetAllTaskOutputs() instead")]]
+    vector<TensorPtrs> get_outputs() { return GetAllTaskOutputs(); }
+
+    /** 
+     *  @brief Get output tensors of all tasks
+     *  @return the output of all Tasks as a vector of smart pointer instance vectors.  
+     */
+    vector<TensorPtrs> GetAllTaskOutputs();
+
+    /** 
+     *  @deprecated Use GetBitmatchMask() instead.
+     *  @internal
+     *  @brief Get bitmatch mask (Legacy API)
+     *  @param[in] index index to npu task (rmap)
+     *  @return bitmatch mask for a given index
+     */
+    [[deprecated("Use GetBitmatchMask() instead")]]
+    vector<uint8_t> bitmatch_mask(int index) { return GetBitmatchMask(index); }
+    
+    /** 
+     *  @internal
+     *  @brief Get bitmatch mask
+     *  @param[in] index index to npu task (rmap)
+     *  @return bitmatch mask for a given index
+     */
+    vector<uint8_t> GetBitmatchMask(int index);
+
+    /** 
+     * @deprecated Use GetNumTailTasks() instead.
+     * @brief Returns the number of tail tasks in the model. (Legacy API)
+     * @return The number of tasks that have no subsequent tasks.
+     * 
+     * Tail tasks are those which do not have any tasks following them in the model's task chain.
+     * This function provides the count of such tail tasks.
+     */
+    [[deprecated("Use GetNumTailTasks() instead")]]
+    int get_num_tails() { return GetNumTailTasks(); }
+
     /** 
      * @brief Returns the number of tail tasks in the model.
      * @return The number of tasks that have no subsequent tasks.
@@ -183,12 +383,35 @@ public:
      * Tail tasks are those which do not have any tasks following them in the model's task chain.
      * This function provides the count of such tail tasks.
      */
-    int get_num_tails();
+    int GetNumTailTasks();
+
+    /** 
+     * @deprecated Use GetCompileType() instead.
+     * @brief Returns the compile type of the model. (Legacy API)
+     * @return The compile type of the model.
+     */
+    [[deprecated("Use GetCompileType() instead")]]
+    string get_compile_type() { return GetCompileType(); }
+    
     /** 
      * @brief Returns the compile type of the model.
      * @return The compile type of the model.
      */
-    string get_compile_type();    
+    string GetCompileType(); 
+
+    /** 
+     * @deprecated Use IsPPU() instead.
+     * @brief Returns whether the model is using PPU. (Legacy API)
+     * @return whether the model is using PPU.
+     */
+    [[deprecated("Use IsPPU() instead")]]
+    bool is_PPU() { return IsPPU(); }
+
+    /** 
+     * @brief Returns whether the model is using PPU.
+     * @return whether the model is using PPU.
+     */
+    bool IsPPU();
 
 #ifdef _WIN32
     float RunBenchMarkWindows(int num, void* inputPtr = nullptr);
@@ -199,6 +422,8 @@ private:
     std::string _modelDir;
     std::string _name;
     std::string _modelCompileType;
+    bool _isPPU = false;
+    
     ModelDataBase _modelData;
     std::vector<uint8_t> _maskBuf;
     std::map<std::string, deepx_graphinfo::GraphBindingDatabase> _graphMap;
@@ -210,7 +435,7 @@ private:
     std::map<std::string, std::shared_ptr<Task>> _taskMap;
     InferenceTimer _inferenceTimer;
     std::vector<string> _taskOrder;
-    std::vector<string> _lastOutputOrder; 
+    std::vector<string> _lastOutputOrder;
 
     std::function<int(TensorPtrs &outputs, void *userArg)> _userCallback;
     std::vector<bool> _occupiedInferenceJobs;

@@ -39,7 +39,7 @@ class NpuMemoryCacheManager
 public:
     NpuMemoryCacheManager(Device* device_);
     bool registerMemoryCache(int taskId, int64_t size, int count);
-    void unRegisterMemorgCache(int taskId);
+    void unRegisterMemoryCache(int taskId);
     bool canGetCache(int taskId);
     int64_t getNpuMemoryCache(int taskId);
     void returnNpuMemoryCache(int taskId, int64_t addr);

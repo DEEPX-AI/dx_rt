@@ -189,6 +189,20 @@ void MultiprocessMemory::SignalDeviceInit(int deviceId, npu_bound_op bound)
     return;
 }
 
+void MultiprocessMemory::SignalDeviceDeInit(int deviceId, npu_bound_op bound)
+{
+    //unique_lock<mutex> _lk(_lock);
+    dxrt::IPCClientMessage clientMessage;
+    LOG_DXRT_DBG << "Dev Id : " << deviceId << "\n";
+    clientMessage.code = dxrt::REQUEST_CODE::DEVICE_DEINIT;
+    clientMessage.deviceId = deviceId;
+    clientMessage.pid = getpid();
+    clientMessage.data = bound;
+
+    ipcClientWrapper.SendToServer(clientMessage);
+    return;
+}
+
 void MultiprocessMemory::SignalDeviceReset(int deviceId)
 {
     //unique_lock<mutex> _lk(_lock);

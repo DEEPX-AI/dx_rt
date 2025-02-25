@@ -26,6 +26,10 @@ public:
     void* &data(); // data pointer
     uint64_t &phy_addr(); // physical address of data
     uint32_t &elem_size();
+    uint64_t size_in_bytes() const {
+        uint64_t num_elements = std::accumulate(_shape.begin(), _shape.end(), 1, std::multiplies<int64_t>());
+        return num_elements * _elemSize;
+    }
     /** \brief Get pointer of specific element by tensor index. (for NHWC data type)
      * \param[in] height height index
      * \param[in] width width index

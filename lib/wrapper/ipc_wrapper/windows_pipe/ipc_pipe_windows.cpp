@@ -11,7 +11,7 @@ using namespace dxrt;
 
 // using namespace std;
 
-#define BUFSIZE 512
+#define BUFSIZE 4096
 
 const char* IPCPipeWindows::PIPE_NAME = "\\\\.\\pipe\\dxrt_service_ipc" ;
 
@@ -190,7 +190,7 @@ void IPCPipeWindows::InitClient()
 void IPCPipeWindows::InitServer()
 {
 	printf("\nPipe Server: before CreateNamedPipe on %s\n", PIPE_NAME);
-	int szBuf = 1024;
+	constexpr int szBuf = 4096;
 	_hPipe = CreateNamedPipe(
 		PIPE_NAME,             		// pipe name
 		FILE_FLAG_OVERLAPPED |

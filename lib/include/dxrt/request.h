@@ -7,6 +7,7 @@
 #include "dxrt/tensor.h"
 #include "dxrt/driver.h"
 #include "dxrt/task_data.h"
+#include "dxrt/request_data.h"
 #include <unordered_map>
 #include <mutex>
 
@@ -17,23 +18,12 @@
 
 namespace dxrt {
 class Task;
-class Device;
+
 class Request;
 using RequestPtr = std::shared_ptr<Request>;
 using RequestWeakPtr = std::weak_ptr<Request>;
 struct TimePoint;
 using TimePointPtr = std::shared_ptr<TimePoint>;
-
-class RequestData
-{
-public:
-    int requestId;
-    int jobId;
-    Tensors inputs;
-    Tensors outputs;
-    TaskData* taskData;
-    void* output_ptr;
-};
 
 
 class DXRT_API Request
@@ -63,6 +53,9 @@ public:
     void CheckTimePoint(int opt);
     int id() const;
     int job_id() const;
+    void set_processed_unit(std::string processedPU, int processedId);
+    std::string processed_pu() const;
+    int processed_id() const;
     void Reset();
 
     TaskData* taskData();
@@ -132,6 +125,9 @@ private:
     std::mutex _lock;
 };
 DXRT_API std::ostream& operator<<(std::ostream&, const Request::Status&);
-//int ProcessResponse(RequestPtr req, dxrt_response_t *response);
+
+
+int InferenceRequest(RequestPtr req);
+int ProcessResponse(RequestPtr req, dxrt_response_t *response=nullptr);
 
 } // namespace dxrt

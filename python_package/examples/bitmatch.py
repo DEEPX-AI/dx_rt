@@ -13,6 +13,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor
+import ctypes
 
 @dataclass
 class TestConfig:
@@ -28,6 +29,12 @@ class TestStatistics:
     total_count: int = 0
     failed_jobs: List[int] = None
     execution_times: List[float] = None
+    latency_mean: float = 0.0
+    latency_stddev: float = 0.0
+    latency_CV: float = 0.0
+    inf_time_mean: float = 0.0
+    inf_time_stddev: float = 0.0
+    inf_time_CV: float = 0.0
 
     def __post_init__(self):
         self.failed_jobs = []
@@ -55,7 +62,7 @@ class BitMatchTester:
             )
 
     def log(self, message: str, level: str = 'info', logskip=False):
-        if self.config.verbose:
+        if self.config.verbose or level == 'error':
             print(f"[{level}] {message}")
         if self.config.log_enabled and not logskip:
             getattr(logging, level)(message)
@@ -96,36 +103,42 @@ class BitMatchTester:
         """
         return "FAIL", ie_output, gt_output
 
-    def _handle_mismatch(self, ie_outputs: np.ndarray, gt_output_masked: np.ndarray, loop_id: int):
-        different_indices = np.where(ie_outputs != gt_output_masked)[0]
-        first_10_diff_indices = different_indices[:10]
-        first_10_diff_values = [(ie_outputs[i], gt_output_masked[i]) 
-                               for i in first_10_diff_indices]
+    def _handle_mismatch(self, ie_outputs_masked: np.ndarray, gt_output_masked: np.ndarray, loop_id: int): 
+        if gt_output_masked.shape != ie_outputs_masked.shape:
+            self.log(f"Size mismatch ie_outputs: {ie_outputs_masked.shape} vs gt_output_masked: {gt_output_masked.shape}")
+            self.stats.failed_jobs.append(loop_id)
+            return 1
+        if len(self.stats.failed_jobs) < 10:
+            different_indices = np.where(ie_outputs_masked != gt_output_masked)[0]
+            first_10_diff_indices = different_indices[:10]
+            first_10_diff_values = [(ie_outputs_masked[i], gt_output_masked[i]) 
+                                for i in first_10_diff_indices]
 
-        self.log(f"Indices of differences (first 10): {first_10_diff_indices}")
-        self.log(f"Total number of differences: {len(different_indices)}")
-        self.log(f"Different values (first 10): {first_10_diff_values}")
+            self.log(f"Indices of differences (first 10): {first_10_diff_indices}")
+            self.log(f"Total number of differences: {len(different_indices)}")
+            self.log(f"Different values (first 10): {first_10_diff_values}")
         self.stats.failed_jobs.append(loop_id)
 
     def callback_handler(self, outputs: List[np.ndarray], user_arg: Any):
         with self.callback_lock:
             loop_id, input_idx = user_arg.value
-            
             if not self.config.batch_mode:
+                self.log(f"loop_id: {loop_id}, input_idx: {input_idx} | Callback called ({hex(id(outputs))} - {hex(outputs[0].ctypes.data)})", logskip=True)
+
                 ie_outputs = np.frombuffer(b''.join(output.tobytes() for output in outputs), dtype=np.int8)
                 gt_output = self.gt_outputs[input_idx]
-                
-                result, ie_outputs, gt_output_masked = self.bitmatch_logic(
+
+                result, ie_outputs_masked, gt_output_masked = self.bitmatch_logic(
                     ie_outputs, gt_output["LAST"], self.masks[0]
                 )
                 
-                self.log(f"loop_id: {loop_id}, input_idx: {input_idx} | Result: {result}", logskip=True)
+                self.log(f"loop_id: {loop_id}, input_idx: {input_idx} | Result: {result} ({hex(id(outputs))} - {hex(outputs[0].ctypes.data)})", logskip=True)
                 
                 self.stats.total_count += 1
                 if result == "PASS":
                     self.stats.pass_count += 1
                 else:
-                    self._handle_mismatch(ie_outputs, gt_output_masked, loop_id)
+                    self._handle_mismatch(ie_outputs_masked, gt_output_masked, loop_id)
                 
                 self.result_queue.get(timeout=5)
                 self.result_queue.task_done()
@@ -141,7 +154,7 @@ class BitMatchTester:
         if not model_files:
             self.log(f"No .dxnn files found in '{model_path}'", 'error')
             message = (f"{model_path} | NOTFOUND | {0} | "
-                  f"{0} | {task_order} | {ie.get_num_tails()}"
+                  f"{0} | - | {0}"
                   f" | {0} | "
                   f"{0}")
             self.log(message)
@@ -150,37 +163,36 @@ class BitMatchTester:
 
         ie = InferenceEngine(model_files[0])
         
-
-        
         self.compile_type = ie.get_compile_type()
         self.log(f"COMPILE TYPE : {self.compile_type}", logskip=True)
-        task_order = ie.task_order()
+        task_order = ie.get_task_order()
         self.config.use_ort = any("cpu" in task for task in task_order)
     
         #For Debug
-        if ie.get_num_tails() > 1 :
+        """
+        if ie.get_num_tail_tasks() > 1 :
             message = (f"{model_path} | MULT | {0} | "
-                  f"{0} | {task_order} | {ie.get_num_tails()}"
+                  f"{0} | {task_order} | {ie.get_num_tail_tasks()}"
                   f" | {0} | "
                   f"{0}")
             self.log(message)
             self.model_result_messages.append(message)
             return False
-
+        """
         self._load_data(model_path, ie)
+        if not ie.is_ppu():
+            if self.compile_type == "RELEASE" and (ie.get_output_size() < self.gt_outputs[0]["LAST"].size):
+                if self.config.use_ort:
+                    self.log(f"The output size is not the same. ({model_files[0]}) - ie.output_size : {ie.get_output_size()}, gt : {self.gt_outputs[0]['LAST'].size}", 'error')
+                    message = (f"{model_path} | OUTSIZE | {0} | "
+                        f"{0} | {task_order} | {ie.get_num_tail_tasks()}"
+                        f" | {0} | "
+                        f"{0}")
+                    self.log(message)
+                    self.model_result_messages.append(message)
+                    return False
 
-        if self.compile_type == "RELEASE" and (ie.output_size() < self.gt_outputs[0]["LAST"].size):
-            if self.config.use_ort:
-                self.log(f"The output size is not the same. ({model_files[0]})", 'error')
-                message = (f"{model_path} | OUTSIZE | {0} | "
-                    f"{0} | {task_order} | {ie.get_num_tails()}"
-                    f" | {0} | "
-                    f"{0}")
-                self.log(message)
-                self.model_result_messages.append(message)
-                return False
-
-        ie.RegisterCallBack(self.callback_handler)
+        ie.register_callback(self.callback_handler)
 
         if self.compile_type == "RELEASE":
             '''
@@ -195,7 +207,7 @@ class BitMatchTester:
         else:
             self.log(f"Unknown Compile Type : {self.compile_type} ('RELEASE' or 'DEBUG')", 'error')
             message = (f"{model_path} | COMTYPE | {0} | "
-                  f"{0} | {task_order} | {ie.get_num_tails()}"
+                  f"{0} | {task_order} | {ie.get_num_tail_tasks()}"
                   f" | {0} | "
                   f"{0}")
             self.log(message)
@@ -203,8 +215,7 @@ class BitMatchTester:
             return False
 
         success = self.stats.pass_count == self.stats.total_count
-        self._log_results(model_path, task_order, ie.get_num_tails())
-        
+        self._log_results(model_path, task_order, ie.get_num_tail_tasks())
         return success
 
     def _load_gt_outputs(self, model_path: str) -> List[Dict[str, np.ndarray]]:
@@ -242,6 +253,7 @@ class BitMatchTester:
                     self.log(f" - {gt_file} (NORMAL) : {data.shape} {data[:10]}", logskip=True)
                     if self.compile_type == "DEBUG" and grouped_outputs[key]["LAST"].size == 0:
                         grouped_outputs[key]["LAST"] = data
+                        self.log(f" - {gt_file} (LAST) : {data.shape} {data[:10]}", logskip=True)
                 else:
                     grouped_outputs[key]["LAST"] = data
                     self.log(f" - {gt_file} (LAST) : {data.shape} {data[:10]}", logskip=True)
@@ -274,7 +286,7 @@ class BitMatchTester:
         if self.compile_type == "RELEASE" and self.config.use_ort:
             self.masks = [np.array([])]
         else:
-            self.masks = [ie.bitmatch_mask(0)]
+            self.masks = [ie.get_bitmatch_mask(0)]
 
     '''
     def _run_batch_mode(self, ie: InferenceEngine, loops: int):
@@ -297,12 +309,36 @@ class BitMatchTester:
             input_idx = np.random.randint(len(self.input_data_list))
             input_data = self.input_data_list[input_idx]
             
-            job_id = ie.RunAsync(input_data, user_arg=(loop, input_idx))
+            job_id = ie.run_async(input_data, user_arg=(loop, input_idx))
             self.log(f"Loop {loop} is requested with input {input_idx}", logskip=True)                
             self.result_queue.put(job_id)
             
         self.result_queue.join()
+        if(len(self.stats.execution_times)>1):
+            print("ERROR execution_times size > 1")
+            exit(1)
         self.stats.execution_times.append((time.time() - start_time)*1000)
+        
+        latency_mean = ie.GetLatencyMean()
+        latency_std = ie.get_latency_std()
+        latency_CV = latency_std/latency_mean
+        
+        inf_time_mean = ie.get_npu_inference_time_mean()
+        inf_time_std = ie.get_npu_inference_time_std()
+        inf_time_CV = inf_time_std/inf_time_mean
+        
+        self.stats.latency_mean = latency_mean
+        self.stats.latency_stddev = latency_std
+        self.stats.latency_CV = latency_CV
+
+        self.stats.inf_time_mean = inf_time_mean
+        self.stats.inf_time_stddev = inf_time_std
+        self.stats.inf_time_CV = inf_time_CV
+        
+        # waiting to datadumpbin in infernce_job 
+        if int(os.environ['DXRT_DEBUG_DATA']) > 0 :
+            print("Waiting to save data")
+            time.sleep(3)
 
     def _run_validation_mode(self, ie: InferenceEngine, loops: int):
         validation_outputs = []
@@ -314,7 +350,7 @@ class BitMatchTester:
             input_idxs.append(input_idx)
             input_data = self.input_data_list[input_idx]
             
-            validation_outputs.append(ie.ValidateDevice(input_data, 0))
+            validation_outputs.append(ie.validate_device(input_data, 0))
         self._process_batch_results(validation_outputs, input_idxs)
         self.stats.execution_times.append((time.time() - start_time)*1000)
 
@@ -322,18 +358,21 @@ class BitMatchTester:
         for idx, outputs in enumerate(batch_outputs):
             input_idx = input_idxs[idx]
             ie_outputs = np.frombuffer(b''.join(output.tobytes() for output in outputs), dtype=np.int8)
+            gt_output = self.gt_outputs[input_idx]
 
-            result, ie_outputs_masked, gt_output_masked = self.bitmatch_logic(
-                                                        ie_outputs, 
-                                                        self.gt_outputs[input_idx]["LAST"],
-                                                        self.masks[0]
-                                                    )
-            if result == "PASS" and self.gt_outputs[input_idx]["PPU"].size > 0 :
-                result, ie_outputs_masked_ppu, gt_output_masked_ppu = self.bitmatch_logic(
-                                                            ie_outputs[-128*1024:-128*1024+self.gt_outputs[input_idx]["PPU"].size], 
-                                                            self.gt_outputs[input_idx]["PPU"],
-                                                            np.array([])
-                                                        )   
+            if gt_output["PPU"].size > 0 :
+                all_mask = np.concatenate([self.masks[0], np.ones(len(gt_output["PPU"]),dtype=np.int8),np.zeros((128*1024 - len(gt_output["PPU"])),dtype=np.int8)])
+                all_gt = np.concatenate([gt_output["LAST"],gt_output["PPU"],np.zeros((128*1024 - len(gt_output["PPU"])),dtype=np.int8)])
+                
+                result, ie_outputs_masked, gt_output_masked = self.bitmatch_logic(
+                    ie_outputs, all_gt, all_mask
+                )
+            else :
+                result, ie_outputs_masked, gt_output_masked = self.bitmatch_logic(
+                                                            ie_outputs, 
+                                                            gt_output["LAST"],
+                                                            self.masks[0]
+                                                        )
 
             self.log(f"Loop {idx} | Input ID: {input_idx} | Result: {result}", logskip=True)
             
@@ -345,55 +384,218 @@ class BitMatchTester:
 
     def _log_results(self, model_path: str, task_order: List[str], num_tails: int):
         result = "PASS" if self.stats.pass_count == self.stats.total_count else "FAIL"
-        latency = np.mean(self.stats.execution_times)
-        message = (f"{model_path} | {result} | {self.stats.pass_count} | "
-                  f"{self.stats.total_count} | {task_order} | {num_tails}"
-                  f" | {latency} | "
-                  f"{self.stats.total_count*1000/latency}")
+        duration = self.stats.execution_times[-1]
+        latency_mean = self.stats.latency_mean
+        latency_std = self.stats.latency_stddev
+        latecny_cv = self.stats.latency_CV
+        inf_time_mean = self.stats.inf_time_mean
+        inf_time_std = self.stats.inf_time_stddev
+        inf_time_cv = self.stats.inf_time_CV
+
+        model_name = model_path.split("/")[-1] 
+        message = (f"{model_path} | {model_name} | {result} | {self.stats.pass_count} | "
+                  f"{self.stats.total_count} | {task_order} | {num_tails} | "
+                  f"{duration:.2f} | "
+                  f"{self.stats.total_count*1000/duration:.2f} | "
+                  f"{latency_mean:.2f} | "
+                  f"{latecny_cv:.2f} | "
+                  f"{latency_std:.2f} | "
+                  f"{inf_time_mean:.2f} | "
+                  f"{inf_time_cv:.2f} | "
+                  f"{inf_time_std:.2f}")
 
         self.model_result_messages.append(message)
         self.log(message)
+        print(message)
+        self.stats.execution_times = []
 
-    def log_all_results(self,test_pass_count, test_total_count, failed_models):
+    def log_all_results(self, test_pass_count, test_total_count, failed_models):
         self.config.verbose = True
-        self.log("========================================================================================")
-        self.log("     MODEL PATH     | RESULT | PASS | TOTAL | TASK ORDER | TAIL | MEAN(ms) | FPS")
-        self.log("----------------------------------------------------------------------------------------")
-        for messeage in self.model_result_messages:
-            self.log(messeage)
-        self.log("========================================================================================")
+        self.log("=" * 120)
+        self.log(" MODEL PATH | MODEL NAME | RESULT | PASS | TOTAL | TASK ORDER | TAIL | DURATION (ms) (Bitmatch incl.) | FPS | LATENCY MEAN (us) | LATENCY CV | LATENCY STD | NPU INF MEAN (us) | NPU INF CV | NPU INF STD |")
+        self.log("-" * 120)
+
+        # model_name 기준으로 결과를 그룹화
+        model_summary = defaultdict(lambda: {
+            "model_path": "",
+            "result": [],
+            "pass_count": 0,
+            "total_count": 0,
+            "task_order": None,
+            "num_tails": None,
+            "dur_sum": 0.0,
+            "fps_sum": 0.0,
+            "latency_mean_sum": 0.0,
+            "latency_cv_sum": 0.0,
+            "latency_std_sum": 0.0,
+            "inf_time_mean_sum": 0.0,
+            "inf_time_cv_sum": 0.0,
+            "inf_time_std_sum": 0.0,
+            "count": 0
+        })
+
+        # 데이터 정리
+        for message in self.model_result_messages:
+            parts = message.split(" | ")  # 각 항목을 분리
+            model_path, model_name, result, pass_count, total_count, task_order, num_tails, dur, fps, l_mean, l_cv, l_std, i_mean, i_cv, i_std = parts
+            
+            pass_count = int(pass_count)
+            total_count = int(total_count)
+            dur = float(dur)
+            fps = float(fps)
+            l_mean = float(l_mean)
+            l_cv = float(l_cv)
+            l_std = float(l_std)
+            i_mean = float(i_mean)
+            i_cv = float(i_cv)
+            i_std = float(i_std)
+
+            model_summary[model_name]["model_path"] = model_path
+            model_summary[model_name]["result"].append(result)
+            model_summary[model_name]["pass_count"] += pass_count
+            model_summary[model_name]["total_count"] += total_count
+            model_summary[model_name]["task_order"] = task_order
+            model_summary[model_name]["num_tails"] = num_tails
+            model_summary[model_name]["dur_sum"] += dur
+            model_summary[model_name]["fps_sum"] += fps
+            model_summary[model_name]["latency_mean_sum"] += l_mean
+            model_summary[model_name]["latency_cv_sum"] += l_cv
+            model_summary[model_name]["latency_std_sum"] += l_std
+            model_summary[model_name]["inf_time_mean_sum"] += i_mean
+            model_summary[model_name]["inf_time_cv_sum"] += i_cv
+            model_summary[model_name]["inf_time_std_sum"] += i_std
+            model_summary[model_name]["count"] += 1
+
+        # 결과 출력
+        for model_name, data in model_summary.items():
+            # RESULT 처리: FAIL/PASS 비율 계산
+            fail_count = data["result"].count("FAIL")
+            pass_count = data["result"].count("PASS")
+            if fail_count == 0:
+                result_summary = "PASS"
+            elif pass_count == 0:
+                result_summary = "FAIL"
+            else:
+                result_summary = f"FAIL {fail_count} / PASS {pass_count}"
+
+            # 평균 계산
+            dur_mean = data["dur_sum"] / data["count"]
+            fps_mean = data["fps_sum"] / data["count"]
+            latency_mean = data["latency_mean_sum"] / data["count"]
+            latency_cv = data["latency_cv_sum"] / data["count"]
+            latency_std = data["latency_std_sum"] / data["count"]
+            inf_time_mean = data["inf_time_mean_sum"] / data["count"]
+            inf_time_cv = data["inf_time_cv_sum"] / data["count"]
+            inf_time_std = data["inf_time_std_sum"] / data["count"]
+
+            # 최종 메시지 출력
+            message = (f"{data['model_path']} | {model_name} | {result_summary} | {data['pass_count']} | {data['total_count']} | "
+                    f"{data['task_order']} | {data['num_tails']} | {dur_mean:.2f} | {fps_mean:.2f} | "
+                    f"{latency_mean:.2f} | {latency_cv:.2f} | {latency_std:.2f} | {inf_time_mean:.2f} | {inf_time_cv:.2f} | {inf_time_std:.2f} |")
+            self.log(message)
+
+        self.log("=" * 110)
         self.log(f"Pass Count: {test_pass_count} / Total Count: {test_total_count}")
 
         if failed_models:
             self.log("Failed Models:")
+            
+            model_summary = defaultdict(lambda: {"fail_count": 0, "total_count": 0, "failed_jobs": []})
+
             for model in failed_models:
-                self.log(f" - Model: {model['model']}")
-                if model['fail_count'] == 0:
-                    self.log(f" - Inference ERROR occurred\n")
+                model_name = model["model"]
+                model_summary[model_name]["fail_count"] += model["fail_count"]
+                model_summary[model_name]["total_count"] += model["total_count"]
+                model_summary[model_name]["failed_jobs"].append(model["failed_jobs"])
+
+            for model_name, data in model_summary.items():
+                #failed_jobs_sorted = sorted(data["failed_jobs"], key=lambda x: x["test_itr"])
+                
+                self.log(f"\n🔹 Model: {model_name}")
+                if data["fail_count"] == 0:
+                    self.log(f"   Inference ERROR occurred\n")
                 else:
-                    self.log(f" - Failures: {model['fail_count']}/{model['total_count']}")
-                    self.log(f" - Failed Jobs: {model['failed_jobs']}\n")
+                    self.log(f"   Failures: {data['fail_count']} / {data['total_count']}")
+                    self.log(f"   Failed Jobs:")
+
+                    prev_itr = None
+                    for itr, job in enumerate(data["failed_jobs"]):
+                        self.log("   " + "-" * 40)
+                        self.log(f"   - Test Itr {itr}: {job}")
+            
+            self.log("\n")
+
         else:
             self.log("All PASS")
 
+'''
+    def log_all_results(self, test_pass_count, test_total_count, failed_models):
+        self.config.verbose = True
+        self.log("=" * 110)
+        self.log("     MODEL PATH     |     MODEL NAME     | RESULT | PASS | TOTAL | TASK ORDER | TAIL | MEAN(ms) | FPS | STD | CV |")
+        self.log("-" * 110)
+        
+        for message in self.model_result_messages:
+            self.log(message)
+        
+        self.log("=" * 110)
+        self.log(f"Pass Count: {test_pass_count} / Total Count: {test_total_count}")
+
+        if failed_models:
+            self.log("Failed Models:")
+            
+            model_summary = defaultdict(lambda: {"fail_count": 0, "total_count": 0, "failed_jobs": []})
+
+            for model in failed_models:
+                model_name = model["model"]
+                model_summary[model_name]["fail_count"] += model["fail_count"]
+                model_summary[model_name]["total_count"] += model["total_count"]
+                model_summary[model_name]["failed_jobs"].extend(model["failed_jobs"])
+
+            for model_name, data in model_summary.items():
+                failed_jobs_sorted = sorted(data["failed_jobs"], key=lambda x: x["test_itr"])
+                
+                self.log(f"\n🔹 Model: {model_name}")
+                if data["fail_count"] == 0:
+                    self.log(f"   Inference ERROR occurred\n")
+                else:
+                    self.log(f"   Failures: {data['fail_count']} / {data['total_count']}")
+                    self.log(f"   Failed Jobs:")
+
+                    prev_itr = None
+                    for job in failed_jobs_sorted:
+                        test_itr = job["test_itr"]
+                        if prev_itr is not None and test_itr != prev_itr:
+                            self.log("   " + "-" * 40)  # 구분선 추가
+                        
+                        self.log(f"   - Test Itr {test_itr}: {job}")
+                        prev_itr = test_itr
+            
+            self.log("\n")
+
+        else:
+            self.log("All PASS")
+'''
 def main():
     parser = argparse.ArgumentParser(description="Bitmatch Test Script")
-    parser.add_argument("--model_path", "-m", type=str, help="Model directory path")
+    parser.add_argument("--model", "-m", type=str, help="Model directory path")
     parser.add_argument("--loops", "-l", type=int, default=1, help="Number of test loops")
     parser.add_argument("--dir", "-d", type=str, help="Directory with model subdirectories")
     parser.add_argument("--batch", "-b", action='store_true', help="Enable batch mode")
-    parser.add_argument("--itr", "-i", type=int, default=1, help="Batch iterations")
+    parser.add_argument("--batch_itr", "-bi", type=int, default=1, help="Batch iterations")
+    parser.add_argument("--test_iteration", "-ti", type=int, default=1, help="Test iterations")
     parser.add_argument("--verbose", "-v", action='store_true', help="Enable verbose output")
     parser.add_argument("--no-logging", action='store_true', help="Disable file logging")
     parser.add_argument("--debug", type=str, required=False, help="RT debug options, 0(defualt): Do not generate RT binaries. / 1: Generate RT binaries for debug. / 2: Generate RT binaries for release.", default="0")
-    
+    parser.add_argument("--model_filter", "-f", type=str, required=False, help="Path to model_filter.txt")  
+
     args = parser.parse_args()
     
     os.environ['DXRT_DEBUG_DATA'] = args.debug
 
     config = TestConfig(
         batch_mode=args.batch,
-        iterations=args.itr,
+        iterations=args.batch_itr,
         verbose=args.verbose,
         log_enabled=not args.no_logging
     )
@@ -404,33 +606,46 @@ def main():
     test_total_count = 0
     test_pass_count = 0 
 
+    if args.model_filter:
+        with open(args.model_filter, "r") as file:
+            filtered_model_names = {line.strip() for line in file.readlines()} 
+ 
+
     if args.dir:
         model_dirs = [d for d in glob.glob(os.path.join(args.dir, "*")) 
                      if os.path.isdir(d)]
-        for model_dir in model_dirs:
-            if not tester.process_model(model_dir, args.loops):
+        if args.model_filter:
+            model_dirs = [d for d in model_dirs if os.path.basename(d) in filtered_model_names] 
+        
+        for test_itr in range(args.test_iteration):
+            for model_dir in model_dirs:
+                if not tester.process_model(model_dir, args.loops):
+                    failed_models.append({
+                        'test_itr' : test_itr,
+                        'model': model_dir,
+                        'total_count': tester.stats.total_count,
+                        'fail_count': tester.stats.total_count - tester.stats.pass_count,
+                        'failed_jobs': tester.stats.failed_jobs
+                    })
+                test_total_count += tester.stats.total_count
+                test_pass_count += tester.stats.pass_count
+        print(f"{len(model_dirs)} models detected")
+    elif args.model:
+        args.model = os.path.dirname(args.model) + "/"
+        for test_itr in range(args.test_iteration):
+            if not tester.process_model(args.model, args.loops):
                 failed_models.append({
-                    'model': model_dir,
+                    'test_itr' : test_itr,
+                    'model': args.model,
                     'total_count': tester.stats.total_count,
                     'fail_count': tester.stats.total_count - tester.stats.pass_count,
                     'failed_jobs': tester.stats.failed_jobs
                 })
             test_total_count += tester.stats.total_count
             test_pass_count += tester.stats.pass_count
-        print(f"{len(model_dirs)} models detected")
-    elif args.model_path:
-        args.model_path = os.path.dirname(args.model_path) + "/"
-        if not tester.process_model(args.model_path, args.loops):
-            failed_models.append({
-                'model': args.model_path,
-                'total_count': tester.stats.total_count,
-                'fail_count': tester.stats.total_count - tester.stats.pass_count,
-                'failed_jobs': tester.stats.failed_jobs
-            })
-        test_total_count += tester.stats.total_count
-        test_pass_count += tester.stats.pass_count
 
     tester.log_all_results(test_pass_count, test_total_count, failed_models)
+
     if failed_models:
         exit(1)
     else:

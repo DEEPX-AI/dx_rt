@@ -45,10 +45,10 @@ if __name__ == "__main__":
 
     # Initialize inference engine
     ie = InferenceEngine(args.model)
-    input_dtype = ie.input_dtype()
-    output_dtype = ie.output_dtype()
-    input_size = ie.input_size()
-    output_size = ie.output_size()
+    input_dtype = ie.get_input_data_type()
+    output_dtype = ie.get_output_data_type()
+    input_size = ie.get_input_size()
+    output_size = ie.get_output_size()
 
     print(f"Input data type: {input_dtype}")
     print(f"Output data type: {output_dtype}")
@@ -63,13 +63,13 @@ if __name__ == "__main__":
         input_data = [np.zeros(input_size, dtype=np.uint8)]
 
     # Register callback function
-    ie.RegisterCallBack(callback_with_args)
+    ie.register_callback(callback_with_args)
 
     start_time = time.time()
 
     # Run inference for the number of loops specified
     for loop in range(args.loops):
-        req_id = ie.RunAsync(input_data, user_arg=loop)
+        req_id = ie.run_async(input_data, user_arg=loop)
         print(f"[{req_id}] Inference request #{req_id} submitted with user_arg({loop})")
         result_queue.put(req_id)
 

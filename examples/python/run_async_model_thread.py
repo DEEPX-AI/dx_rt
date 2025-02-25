@@ -19,7 +19,7 @@ def inferenceThreadFunc(ie, input, threadIndex, loopCount):
 
         # inference asynchronously, use all npu cores
         # if device-load >= max-load-value, this function will block  
-        ie.RunAsync(input, user_arg = [i, loopCount, threadIndex])
+        ie.run_async(input, user_arg = [i, loopCount, threadIndex])
 
         print("inferenceThreadFunc thread-index=", threadIndex, "loop-index=", i)
     
@@ -73,10 +73,10 @@ if __name__ == "__main__":
     ie = InferenceEngine(modelPath)
 
     # register call back function
-    ie.RegisterCallBack(onInferenceCallbackFunc)
+    ie.register_callback(onInferenceCallbackFunc)
     
     # input
-    input = [np.zeros(ie.input_size(), dtype=np.uint8)]
+    input = [np.zeros(ie.get_input_size(), dtype=np.uint8)]
    
     t1 = threading.Thread(target=inferenceThreadFunc, args=(ie, input, 0, loop_count))
     t2 = threading.Thread(target=inferenceThreadFunc, args=(ie, input, 1, loop_count))

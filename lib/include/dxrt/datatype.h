@@ -13,15 +13,15 @@ namespace dxrt {
 enum DXRT_API DataType
 {
     NONE_TYPE = 0,
+	FLOAT,   ///< 32bit float
     UINT8,   ///< 8bit unsigned integer
+	INT8,    ///< 8bit signed integer
     UINT16,  ///< 16it unsigned integer
+	INT16,   ///< 16bit signed integer
+	INT32,   ///< 32bit signed integer
+	INT64,   ///< 64bit signed integer
     UINT32,  ///< 32bit unsigned integer
     UINT64,  ///< 64bit unsigned integer
-    INT8,    ///< 8bit signed integer
-    INT16,   ///< 16bit signed integer
-    INT32,   ///< 32bit signed integer
-    INT64,   ///< 64bit signed integer
-    FLOAT,   ///< 32bit float
     BBOX,   ///< custom structure for bounding boxes from device
     FACE,   ///< custom structure for faces from device
     POSE,   ///< custom structure for poses boxes from device

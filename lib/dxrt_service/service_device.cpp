@@ -95,6 +95,9 @@ static std::chrono::steady_clock::time_point durationPrint1(std::chrono::steady_
 int ServiceDevice::Process(dxrt_cmd_t cmd, void *data, uint32_t size, uint32_t sub_cmd)
 {
     int ret = 0;
+
+    if (cmd == dxrt::dxrt_cmd_t::DXRT_CMD_RECOVERY)
+        LOG_DXRT_S << _id << ": Send recovery command" << endl;
 #ifdef __linux__
     ret = _driverAdapter->IOControl(cmd, data, size, sub_cmd);
     if (ret < 0)
@@ -214,6 +217,9 @@ int ServiceDevice::WaitThread(int ids)
         dxrt::dxrt_cmd_t::DXRT_CMD_NPU_RUN_RESP;
     int loopCnt = 0;
     int ret = 0;
+#ifdef WORKER_USE_PROFILER
+    auto& profiler = dxrt::Profiler::GetInstance();
+#endif
     while (true)
     {
         //LOG_DXRT_DBG << threadName << " : wait" << endl;
@@ -230,7 +236,7 @@ int ServiceDevice::WaitThread(int ids)
         ret = Process(cmd, &response);
         // cout << response << endl; // for debug.
 #ifdef WORKER_USE_PROFILER
-        profiler.End(_device->name());
+        profiler.End(threadName);
 #endif
         if (ret == 0 && !_stop)
         {

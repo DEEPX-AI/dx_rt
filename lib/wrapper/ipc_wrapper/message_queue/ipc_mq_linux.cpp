@@ -33,11 +33,11 @@ int32_t IPCMessageQueueLinux::Initialize(long msgType, IPCMessageQueueDirection 
     errno = 0;
     if (direction == IPCMessageQueueDirection::TO_SERVER)
     {
-        key = ftok("/usr/local/include/dxrt", 42);
+        key = 0x2a020467;
     }
     else
     {
-        key = ftok("/usr/local/include/dxrt", 84);
+        key = 0x54020467;
     }
     if (errno != 0)
     {

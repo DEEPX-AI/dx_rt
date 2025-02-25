@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['wait_76',['Wait',['../classdxrt_1_1InferenceEngine.html#a2c6f130d722950153287d4cf1efd5a5d',1,'dxrt::InferenceEngine']]]
+  ['validatedevice_123',['ValidateDevice',['../classdxrt_1_1InferenceEngine.html#aef4c9502a5d5a9d256d3899391376aba',1,'dxrt::InferenceEngine']]]
 ];
