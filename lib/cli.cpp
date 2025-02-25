@@ -131,6 +131,22 @@ void DeviceStatusMonitor::doCommand(DevicePtr devicePtr)
     }
 }
 
+DeviceMonitorDebug::DeviceMonitorDebug(cxxopts::ParseResult &cmd)
+: CLICommand(cmd)
+{
+    _withDevice = true;
+}
+void DeviceMonitorDebug::doCommand(DevicePtr devicePtr)
+{
+    uint32_t delay = _cmd["monitor_debug"].as<uint32_t>();
+    while (true) {
+        auto deviceStatus = DxrtDeviceInfoWithStatus::getStatusInfo(devicePtr);
+        deviceStatus.statusToStream(cout);
+        deviceStatus.debugStatusToStream(cout);
+        std::this_thread::sleep_for(chrono::seconds(delay));
+    }
+}
+
 DeviceInfoCLICommand::DeviceInfoCLICommand(cxxopts::ParseResult &cmd)
 : CLICommand(cmd)
 {
@@ -289,6 +305,27 @@ void FWConfigCommandJson::doCommand(DevicePtr devicePtr)
         cout << " : FAIL (" << ret << ")" << endl;
         HelpJsonConfig();
     }
+}
+
+DDRTargetCommand::DDRTargetCommand(cxxopts::ParseResult &cmd)
+: CLICommand(cmd)
+{
+    _withDevice = true;
+}
+void DDRTargetCommand::doCommand(DevicePtr devicePtr)
+{
+    uint32_t targetFreq = _cmd["ddrtarget"].as<uint32_t>();
+    vector<uint32_t> supported_freq = {5200, 5400, 5600, 5800, 6000, 6200, 6400};
+
+    if (find(supported_freq.begin(), supported_freq.end(), targetFreq) != supported_freq.end()) {
+        cout << "   Target LPDDR Frequency: " << targetFreq << "Mhz" << endl;
+        devicePtr->UpdateDDRFreq(targetFreq);
+    }
+    else {
+        cout << "ERROR: Unsupported DDR Frequency : << " << targetFreq << "Mhz" << endl;
+    }
+
+    return;
 }
 
 

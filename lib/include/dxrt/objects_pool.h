@@ -58,7 +58,7 @@ namespace dxrt {
         DevicePtr GetDevices(int id){ return _devices[id]; }
         int DeviceCount(){ return _devices.size(); }
         void InitDevices(SkipMode skip, uint32_t subCmd);
-        shared_ptr<Device> PickOneDevice(vector<int> &device_ids_);
+        shared_ptr<Device> PickOneDevice(const vector<int> &device_ids_);
         vector<shared_ptr<Device>> CheckDevices();
 
 

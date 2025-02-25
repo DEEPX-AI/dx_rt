@@ -9,6 +9,7 @@
 #include "dxrt/inference_engine.h"
 #include "dxrt/exception/exception.h"
 #include "dxrt/objects_pool.h"
+#include "dxrt/util.h"
 
 #include <future>
 #include <memory>
@@ -67,7 +68,6 @@ void InferenceJob::onRequestComplete(RequestPtr req)
         std::unique_lock<std::mutex> lk(_sTensorsMapLock);
         for (Tensor& output : req->outputs()) {
             auto name = output.name();
-
             _tensors.insert(make_pair(name, output));
         }
         _doneCount++;
@@ -84,15 +84,14 @@ void InferenceJob::onRequestComplete(RequestPtr req)
             auto required_tensors = nextTask->inputs();
             bool allPrepared = true;
             Tensors nexts;
-
             for (auto& required : required_tensors)
             {
                 {
                     std::unique_lock<std::mutex> lk(_sTensorsMapLock);
                     auto it = _tensors.find(required.name());
+
                     if (it == _tensors.end())
                     {
-                        //cout<<"["<<thisTask->name()<<"] task require "<<required.name() << " tensor, it is not found yet"<<endl;
                         allPrepared = false;
                         break;
                     }
@@ -107,7 +106,7 @@ void InferenceJob::onRequestComplete(RequestPtr req)
                 //DXRT_ASSERT(nextTask.get() != nullptr, "nexttask null");
                 if ( nextTask.get() == nullptr )
                     throw InvalidOperationException(EXCEPTION_MESSAGE("next task is null"));
-
+                    
                 //auto nextReq = Request::Create(nextTask.get(), std::move(nexts), {}, _userArg);
                 auto nextReq = Request::Create(nextTask.get(), nexts, {}, _userArg, _jobId);
                 nextReq->setCallback(onRequestCompleteFunction());  // on each request complete, do next request or complete whole inference
@@ -121,19 +120,20 @@ void InferenceJob::onRequestComplete(RequestPtr req)
                     std::unique_lock<std::mutex> lk(_sRequestsLock);
                     _requests.push_back(nextReq);
                 }
+                TASK_FLOW_FINISH("["+to_string(_jobId)+"]"+thisTask->name());
                 TASK_FLOW_START("["+to_string(_jobId)+"]"+nextTask->name()+"");
-                nextTask->InferenceRequest(nextReq);
+                InferenceRequest(nextReq);
             }
         }
     }
     else
     {
+        TASK_FLOW_FINISH("["+to_string(_jobId)+"]"+thisTask->name()+" (Tail Task)");
         if (allRequestComplete)
         {
            onAllRequestComplete();
         }
     }
-    TASK_FLOW_FINISH("["+to_string(_jobId)+"]"+thisTask->name());
 }
 
 InferenceJob::InferenceJob(int id) noexcept
@@ -144,8 +144,11 @@ InferenceJob::InferenceJob(int id) noexcept
 void InferenceJob::onAllRequestComplete()
 {
     TASK_FLOW("["+to_string(_jobId)+"] ALL COMPLETE ~ ")
+    _inferenceEnginePtr->UpdateLatencyStatistics(latency());
+    _inferenceEnginePtr->UpdateInferenceTimeStatistics(inference_time());
     _inferenceEnginePtr->PushLatency(latency());
     _inferenceEnginePtr->PushInferenceTime(inference_time());
+
 
     if(_storeResult)
     {
@@ -165,8 +168,7 @@ void InferenceJob::onAllRequestComplete()
                         make_shared<Tensor>(it.second));
                 }
                 _infEngCallback(ret, _userArg, _jobId);  // callback registered by inference_engine
-                freeAllOutputBuffer();
-                freeAllInputBuffer();
+                ReleaseAllOutputBuffer();
             });
         }
         else
@@ -179,17 +181,19 @@ void InferenceJob::onAllRequestComplete()
                     ret.emplace_back(
                         make_shared<Tensor>(_tensors.find(name)->second));
                 }
+                if (DEBUG_DATA > 0)
+                {
+                    DataDumpBin("output.bin", ret);
+                }
                 _infEngCallback(ret, _userArg, _jobId);  // callback registered by inference_engine
-                freeAllOutputBuffer();
-                freeAllInputBuffer();
+                ReleaseAllOutputBuffer();
 
             });
         }
     }
     else
     {
-        freeAllOutputBuffer();
-        freeAllInputBuffer();
+        ReleaseAllOutputBuffer();
     }
 
     for (auto it : _requests)
@@ -260,7 +264,7 @@ int InferenceJob::startJob(void *inputPtr, void *userArg, void *outputPtr)
     }
     else
         req->getData()->output_ptr = nullptr;
-    req->task()->InferenceRequest(req);
+    InferenceRequest(req);
     return _jobId;
 }
 
@@ -274,7 +278,7 @@ void InferenceJob::setReturnOutputs()
     {
         auto output = _tensors.find(name)->second;
         int output_size = output.elem_size();
-
+        
         for(int size: output.shape())
         {
             output_size *= size;
@@ -338,7 +342,7 @@ InferenceJob::~InferenceJob()
     Clear();
 }
 
-void InferenceJob::freeAllOutputBuffer()
+void InferenceJob::ReleaseAllOutputBuffer()
 {
     std::unique_lock<std::mutex> lk(_sInferenceJobsLock);
     for (auto& req_weak_ptr :  _requests)
@@ -346,22 +350,16 @@ void InferenceJob::freeAllOutputBuffer()
         RequestPtr req = req_weak_ptr.lock();
         if (req)
         {
+            if (DEBUG_DATA > 0 && req->task()->processor()==Processor::CPU)
+            {
+                int id = req->id();
+                DataDumpBin(req->task()->name() + "_output.bin", req->outputs());
+                DataDumpBin(req->task()->name() + "_output_done.bin", &id, 1);
+            }
             if((_outputPtr == nullptr) || (req->task()->is_tail()==false))
             {
-                req->task()->FreeOutputBuffer(req->output_ptr());
+                req->task()->ReleaseOutputBuffer(req->output_ptr());
             }
-        }
-    }
-}
-void InferenceJob::freeAllInputBuffer()
-{
-    std::unique_lock<std::mutex> lk(_sInferenceJobsLock);
-    for (auto& req_weak_ptr :  _requests)
-    {
-        RequestPtr req = req_weak_ptr.lock();
-        if (req && req->task()->processor()==Processor::CPU)
-        {
-            req->task()->FreeInputBuffer(req->output_ptr());
         }
     }
 }

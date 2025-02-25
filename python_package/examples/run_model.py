@@ -54,21 +54,26 @@ if __name__ == "__main__":
     print(f"output file: {args.output}")
 
     ie = InferenceEngine(args.model)
-    input_dtype = ie.input_dtype()
-    output_dtype = ie.output_dtype()
-    input_size = ie.input_size()
-    output_size = ie.output_size()
+    input_dtype = ie.get_input_data_type()
+    output_dtype = ie.get_output_data_type()
+    input_size = ie.get_input_size()
+    output_size = ie.get_output_size()
     print(f"input dtype: {input_dtype}")
     print(f"output dtype: {output_dtype}")
     print(f"input size: {input_size}")
     print(f"output size: {output_size}")
     SetRunModelMode(args.single)
+    if args.input:
+        with open(args.input, "rb") as file:
+            input = [np.frombuffer(file.read(), dtype=np.uint8)]
+    else:
+        input = [np.zeros(input_size, dtype=np.uint8)]
     if mode is RunModelMode.BENCHMARK_MODE:
-        fps = ie.RunBenchMark(args.loops)
+        fps = ie.run_benchmark(args.loops,input)
         if args.input:
             with open(args.input, "rb") as file:
                 input = [np.frombuffer(file.read(), dtype=np.uint8)]
-            outputs = ie.Run(input)
+            outputs = ie.run(input)
             with open(args.output, "wb") as file:
                 for i, output in enumerate(outputs):
                     #print(f" output [{i}]: ", output.dtype, output.shape)
@@ -79,13 +84,8 @@ if __name__ == "__main__":
         print(f"  - FPS                  : {fps}") 
         print("=======================================")
     else:
-        if args.input:
-            with open(args.input, "rb") as file:
-                input = [np.frombuffer(file.read(), dtype=np.uint8)]
-        else:
-            input = [np.zeros(input_size, dtype=np.uint8)]
         for loop in range(args.loops):
-            outputs = ie.Run(input)
+            outputs = ie.run(input)
             if args.input:
                 with open(args.output, "wb") as file:
                     for i, output in enumerate(outputs):
@@ -97,7 +97,7 @@ if __name__ == "__main__":
 
             print("=======================================")
             print("* Benchmark Result(1 Core)")
-            print(f"  - NPU Processing Time  : {ie.inference_time()/1000.} ms")
-            print(f"  - Total Latency        : {ie.latency()/1000.} ms")
-            print(f"  - FPS                  : {1/(ie.inference_time()/1000/1000)}")
+            print(f"  - NPU Processing Time  : {ie.get_npu_inference_time()/1000.} ms")
+            print(f"  - Total Latency        : {ie.get_latency()/1000.} ms")
+            print(f"  - FPS                  : {1/(ie.get_npu_inference_time()/1000/1000)}")
             print("=======================================")

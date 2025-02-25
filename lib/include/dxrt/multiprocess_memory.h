@@ -51,6 +51,7 @@ public:
     void SignalScheduller(int deviceId, const dxrt_request_acc_t& req);
     void SignalEndJobs(int deviceId);
     void SignalDeviceInit(int deviceId, npu_bound_op bound);
+    void SignalDeviceDeInit(int deviceId, npu_bound_op bound);
     void SignalDeviceReset(int deviceId);
 
 private:

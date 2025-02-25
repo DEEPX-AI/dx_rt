@@ -5,7 +5,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=9"/>
 <meta name="generator" content="Doxygen 1.8.17"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>DXRT: /home/devops/workspace/ghes-actions-runner/worker-01/_work/dx_rt/dx_rt/_internal/lib/include/dxrt/inference_engine.h Source File</title>
+<title>DXRT: /home/devops/workspace/ghes-actions-runner/worker-02/_work/dx_rt/dx_rt/_internal/lib/include/dxrt/inference_engine.h Source File</title>
 <link href="tabs.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
@@ -112,57 +112,156 @@ $(function() {
 <div class="line"><a name="l00092"></a><span class="lineno">   92</span>&#160;    TensorPtrs Run(<span class="keywordtype">void</span> *inputPtr, <span class="keywordtype">void</span> *userArg=<span class="keyword">nullptr</span>, <span class="keywordtype">void</span> *outputPtr=<span class="keyword">nullptr</span>);</div>
 <div class="line"><a name="l00093"></a><span class="lineno">   93</span>&#160;    <span class="comment">// void Run(Tensors &amp;inputs, Tensors &amp;outputs); /* TODO */</span></div>
 <div class="line"><a name="l00107"></a><span class="lineno">  107</span>&#160;<span class="comment"></span>    <span class="keywordtype">int</span> RunAsync(<span class="keywordtype">void</span> *inputPtr, <span class="keywordtype">void</span> *userArg=<span class="keyword">nullptr</span>, <span class="keywordtype">void</span> *outputPtr=<span class="keyword">nullptr</span>);</div>
-<div class="line"><a name="l00113"></a><span class="lineno">  113</span>&#160;    <span class="keywordtype">float</span> RunBenchMark(<span class="keywordtype">int</span> num, <span class="keywordtype">void</span>* inputPtr=<span class="keyword">nullptr</span>);</div>
-<div class="line"><a name="l00124"></a><span class="lineno">  124</span>&#160;    TensorPtrs ValidateDevice(<span class="keywordtype">void</span> *inputPtr, <span class="keywordtype">int</span> deviceId=0);</div>
-<div class="line"><a name="l00130"></a><span class="lineno">  130</span>&#160;    <span class="keywordtype">void</span> RegisterCallBack(std::function&lt;<span class="keywordtype">int</span>(TensorPtrs&amp; outputs, <span class="keywordtype">void</span>* userArg)&gt; callbackFunc);</div>
-<div class="line"><a name="l00131"></a><span class="lineno">  131</span>&#160; </div>
-<div class="line"><a name="l00136"></a><span class="lineno">  136</span>&#160;    TensorPtrs Wait(<span class="keywordtype">int</span> jobId);</div>
+<div class="line"><a name="l00108"></a><span class="lineno">  108</span>&#160;    </div>
+<div class="line"><a name="l00116"></a><span class="lineno">  116</span>&#160;    [[deprecated(<span class="stringliteral">&quot;Use RunBenchmark() instead&quot;</span>)]]</div>
+<div class="line"><a name="l00117"></a><span class="lineno"><a class="line" href="classdxrt_1_1InferenceEngine.html#ab0c6629f048341d62bfa3a400c90e827">  117</a></span>&#160;    <span class="keywordtype">float</span> <a class="code" href="classdxrt_1_1InferenceEngine.html#ab0c6629f048341d62bfa3a400c90e827">RunBenchMark</a>(<span class="keywordtype">int</span> num, <span class="keywordtype">void</span>* inputPtr=<span class="keyword">nullptr</span>) { <span class="keywordflow">return</span> RunBenchmark(num, inputPtr); }</div>
+<div class="line"><a name="l00118"></a><span class="lineno">  118</span>&#160; </div>
+<div class="line"><a name="l00124"></a><span class="lineno">  124</span>&#160;    <span class="keywordtype">float</span> RunBenchmark(<span class="keywordtype">int</span> num, <span class="keywordtype">void</span>* inputPtr=<span class="keyword">nullptr</span>);</div>
+<div class="line"><a name="l00125"></a><span class="lineno">  125</span>&#160; </div>
+<div class="line"><a name="l00136"></a><span class="lineno">  136</span>&#160;    TensorPtrs ValidateDevice(<span class="keywordtype">void</span> *inputPtr, <span class="keywordtype">int</span> deviceId=0);</div>
 <div class="line"><a name="l00137"></a><span class="lineno">  137</span>&#160; </div>
-<div class="line"><a name="l00144"></a><span class="lineno">  144</span>&#160;    Tensors inputs(<span class="keywordtype">void</span> *ptr=<span class="keyword">nullptr</span>, uint64_t phyAddr=0);</div>
-<div class="line"><a name="l00145"></a><span class="lineno">  145</span>&#160;    std::vector&lt;Tensors&gt; inputs(<span class="keywordtype">int</span> devId);</div>
-<div class="line"><a name="l00152"></a><span class="lineno">  152</span>&#160;    Tensors outputs(<span class="keywordtype">void</span> *ptr=<span class="keyword">nullptr</span>, uint64_t phyAddr=0);</div>
-<div class="line"><a name="l00156"></a><span class="lineno">  156</span>&#160;    uint64_t input_size();</div>
-<div class="line"><a name="l00160"></a><span class="lineno">  160</span>&#160;    uint64_t output_size();</div>
-<div class="line"><a name="l00164"></a><span class="lineno">  164</span>&#160;    std::string name();</div>
-<div class="line"><a name="l00168"></a><span class="lineno">  168</span>&#160;    std::vector&lt;string&gt; task_order();</div>
-<div class="line"><a name="l00172"></a><span class="lineno">  172</span>&#160;    <span class="keywordtype">int</span> latency();</div>
-<div class="line"><a name="l00176"></a><span class="lineno">  176</span>&#160;    uint32_t inference_time();</div>
-<div class="line"><a name="l00177"></a><span class="lineno">  177</span>&#160;    vector&lt;TensorPtrs&gt; get_outputs();</div>
-<div class="line"><a name="l00178"></a><span class="lineno">  178</span>&#160;    vector&lt;uint8_t&gt; bitmatch_mask(<span class="keywordtype">int</span> index);</div>
-<div class="line"><a name="l00186"></a><span class="lineno">  186</span>&#160;    <span class="keywordtype">int</span> get_num_tails();</div>
-<div class="line"><a name="l00191"></a><span class="lineno">  191</span>&#160;    <span class="keywordtype">string</span> get_compile_type();    </div>
-<div class="line"><a name="l00192"></a><span class="lineno">  192</span>&#160; </div>
-<div class="line"><a name="l00193"></a><span class="lineno">  193</span>&#160;<span class="preprocessor">#ifdef _WIN32</span></div>
-<div class="line"><a name="l00194"></a><span class="lineno">  194</span>&#160;    <span class="keywordtype">float</span> RunBenchMarkWindows(<span class="keywordtype">int</span> num, <span class="keywordtype">void</span>* inputPtr = <span class="keyword">nullptr</span>);</div>
-<div class="line"><a name="l00195"></a><span class="lineno">  195</span>&#160;<span class="preprocessor">#endif // _WIN32</span></div>
-<div class="line"><a name="l00196"></a><span class="lineno">  196</span>&#160;    <span class="keyword">friend</span> DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> <a class="code" href="classdxrt_1_1InferenceEngine.html">InferenceEngine</a>&amp;);</div>
-<div class="line"><a name="l00197"></a><span class="lineno">  197</span>&#160;<span class="keyword">private</span>:</div>
-<div class="line"><a name="l00198"></a><span class="lineno">  198</span>&#160;    std::string _modelFile;</div>
-<div class="line"><a name="l00199"></a><span class="lineno">  199</span>&#160;    std::string _modelDir;</div>
-<div class="line"><a name="l00200"></a><span class="lineno">  200</span>&#160;    std::string _name;</div>
-<div class="line"><a name="l00201"></a><span class="lineno">  201</span>&#160;    std::string _modelCompileType;</div>
-<div class="line"><a name="l00202"></a><span class="lineno">  202</span>&#160;    ModelDataBase _modelData;</div>
-<div class="line"><a name="l00203"></a><span class="lineno">  203</span>&#160;    std::vector&lt;uint8_t&gt; _maskBuf;</div>
-<div class="line"><a name="l00204"></a><span class="lineno">  204</span>&#160;    std::map&lt;std::string, deepx_graphinfo::GraphBindingDatabase&gt; _graphMap;</div>
-<div class="line"><a name="l00205"></a><span class="lineno">  205</span>&#160;    <a class="code" href="structdxrt_1_1InferenceOption.html">InferenceOption</a> _option;</div>
-<div class="line"><a name="l00206"></a><span class="lineno">  206</span>&#160;    std::vector&lt;std::shared_ptr&lt;Task&gt;&gt; _tasks; <span class="comment">// to be changed to complex graph</span></div>
-<div class="line"><a name="l00207"></a><span class="lineno">  207</span>&#160;    std::shared_ptr&lt;Task&gt; _head;</div>
-<div class="line"><a name="l00208"></a><span class="lineno">  208</span>&#160;    std::vector&lt;std::shared_ptr&lt;Task&gt;&gt; _tails;</div>
-<div class="line"><a name="l00209"></a><span class="lineno">  209</span>&#160;    <span class="keywordtype">int</span> _numTails;</div>
-<div class="line"><a name="l00210"></a><span class="lineno">  210</span>&#160;    std::map&lt;std::string, std::shared_ptr&lt;Task&gt;&gt; _taskMap;</div>
-<div class="line"><a name="l00211"></a><span class="lineno">  211</span>&#160;    InferenceTimer _inferenceTimer;</div>
-<div class="line"><a name="l00212"></a><span class="lineno">  212</span>&#160;    std::vector&lt;string&gt; _taskOrder;</div>
-<div class="line"><a name="l00213"></a><span class="lineno">  213</span>&#160;    std::vector&lt;string&gt; _lastOutputOrder; </div>
-<div class="line"><a name="l00214"></a><span class="lineno">  214</span>&#160; </div>
-<div class="line"><a name="l00215"></a><span class="lineno">  215</span>&#160;    std::function&lt;int(TensorPtrs &amp;outputs, <span class="keywordtype">void</span> *userArg)&gt; _userCallback;</div>
-<div class="line"><a name="l00216"></a><span class="lineno">  216</span>&#160;    std::vector&lt;bool&gt; _occupiedInferenceJobs;</div>
-<div class="line"><a name="l00217"></a><span class="lineno">  217</span>&#160;};</div>
-<div class="line"><a name="l00218"></a><span class="lineno">  218</span>&#160; </div>
-<div class="line"><a name="l00219"></a><span class="lineno">  219</span>&#160;} <span class="comment">/* namespace dxrt */</span></div>
+<div class="line"><a name="l00145"></a><span class="lineno">  145</span>&#160;    [[deprecated(<span class="stringliteral">&quot;Use RegisterCallback() instead&quot;</span>)]]</div>
+<div class="line"><a name="l00146"></a><span class="lineno"><a class="line" href="classdxrt_1_1InferenceEngine.html#a3d3fc75faa79470d9a3bdbdc61561a3a">  146</a></span>&#160;    <span class="keywordtype">void</span> <a class="code" href="classdxrt_1_1InferenceEngine.html#a3d3fc75faa79470d9a3bdbdc61561a3a">RegisterCallBack</a>(std::function&lt;<span class="keywordtype">int</span>(TensorPtrs&amp; outputs, <span class="keywordtype">void</span>* userArg)&gt; callbackFunc) { <span class="keywordflow">return</span> RegisterCallback(callbackFunc); }</div>
+<div class="line"><a name="l00147"></a><span class="lineno">  147</span>&#160; </div>
+<div class="line"><a name="l00153"></a><span class="lineno">  153</span>&#160;    <span class="keywordtype">void</span> RegisterCallback(std::function&lt;<span class="keywordtype">int</span>(TensorPtrs&amp; outputs, <span class="keywordtype">void</span>* userArg)&gt; callbackFunc);</div>
+<div class="line"><a name="l00154"></a><span class="lineno">  154</span>&#160; </div>
+<div class="line"><a name="l00159"></a><span class="lineno">  159</span>&#160;    TensorPtrs Wait(<span class="keywordtype">int</span> jobId);</div>
+<div class="line"><a name="l00160"></a><span class="lineno">  160</span>&#160; </div>
+<div class="line"><a name="l00169"></a><span class="lineno">  169</span>&#160;    [[deprecated(<span class="stringliteral">&quot;Use GetInputs() instead&quot;</span>)]]</div>
+<div class="line"><a name="l00170"></a><span class="lineno"><a class="line" href="classdxrt_1_1InferenceEngine.html#afbee8b031fdd6c0a3916ed00d08c9cd8">  170</a></span>&#160;    Tensors <a class="code" href="classdxrt_1_1InferenceEngine.html#afbee8b031fdd6c0a3916ed00d08c9cd8">inputs</a>(<span class="keywordtype">void</span> *ptr=<span class="keyword">nullptr</span>, uint64_t phyAddr=0) { <span class="keywordflow">return</span> GetInputs(ptr, phyAddr); }</div>
+<div class="line"><a name="l00171"></a><span class="lineno">  171</span>&#160;    </div>
+<div class="line"><a name="l00178"></a><span class="lineno">  178</span>&#160;    Tensors GetInputs(<span class="keywordtype">void</span> *ptr=<span class="keyword">nullptr</span>, uint64_t phyAddr=0);</div>
+<div class="line"><a name="l00179"></a><span class="lineno">  179</span>&#160;    </div>
+<div class="line"><a name="l00186"></a><span class="lineno">  186</span>&#160;    [[deprecated(<span class="stringliteral">&quot;Use GetInputs() instead&quot;</span>)]]</div>
+<div class="line"><a name="l00187"></a><span class="lineno"><a class="line" href="classdxrt_1_1InferenceEngine.html#af81b48e8ccd95953dd9bc483e5ec678b">  187</a></span>&#160;    std::vector&lt;Tensors&gt; <a class="code" href="classdxrt_1_1InferenceEngine.html#af81b48e8ccd95953dd9bc483e5ec678b">inputs</a>(<span class="keywordtype">int</span> devId) { <span class="keywordflow">return</span> GetInputs(devId); }</div>
+<div class="line"><a name="l00188"></a><span class="lineno">  188</span>&#160;    </div>
+<div class="line"><a name="l00193"></a><span class="lineno">  193</span>&#160;    std::vector&lt;Tensors&gt; GetInputs(<span class="keywordtype">int</span> devId);</div>
+<div class="line"><a name="l00194"></a><span class="lineno">  194</span>&#160;    </div>
+<div class="line"><a name="l00203"></a><span class="lineno">  203</span>&#160;    [[deprecated(<span class="stringliteral">&quot;Use GetOutputs() instead&quot;</span>)]]</div>
+<div class="line"><a name="l00204"></a><span class="lineno"><a class="line" href="classdxrt_1_1InferenceEngine.html#a0893b724d6eed939556f1315ce05829d">  204</a></span>&#160;    Tensors <a class="code" href="classdxrt_1_1InferenceEngine.html#a0893b724d6eed939556f1315ce05829d">outputs</a>(<span class="keywordtype">void</span> *ptr=<span class="keyword">nullptr</span>, uint64_t phyAddr=0) { <span class="keywordflow">return</span> GetOutputs(ptr, phyAddr); }</div>
+<div class="line"><a name="l00205"></a><span class="lineno">  205</span>&#160; </div>
+<div class="line"><a name="l00212"></a><span class="lineno">  212</span>&#160;    Tensors GetOutputs(<span class="keywordtype">void</span> *ptr=<span class="keyword">nullptr</span>, uint64_t phyAddr=0);</div>
+<div class="line"><a name="l00213"></a><span class="lineno">  213</span>&#160;    </div>
+<div class="line"><a name="l00219"></a><span class="lineno">  219</span>&#160;    [[deprecated(<span class="stringliteral">&quot;Use GetInputSize() instead&quot;</span>)]]</div>
+<div class="line"><a name="l00220"></a><span class="lineno"><a class="line" href="classdxrt_1_1InferenceEngine.html#a96c4e5953a0daf4a1c886002c052a6ba">  220</a></span>&#160;    uint64_t <a class="code" href="classdxrt_1_1InferenceEngine.html#a96c4e5953a0daf4a1c886002c052a6ba">input_size</a>() { <span class="keywordflow">return</span> GetInputSize(); }</div>
+<div class="line"><a name="l00221"></a><span class="lineno">  221</span>&#160; </div>
+<div class="line"><a name="l00226"></a><span class="lineno">  226</span>&#160;    uint64_t GetInputSize();</div>
+<div class="line"><a name="l00227"></a><span class="lineno">  227</span>&#160;    </div>
+<div class="line"><a name="l00233"></a><span class="lineno">  233</span>&#160;    [[deprecated(<span class="stringliteral">&quot;Use GetOutputSize() instead&quot;</span>)]]</div>
+<div class="line"><a name="l00234"></a><span class="lineno"><a class="line" href="classdxrt_1_1InferenceEngine.html#a93e1d7b460b7f8656e725ed708de507b">  234</a></span>&#160;    uint64_t <a class="code" href="classdxrt_1_1InferenceEngine.html#a93e1d7b460b7f8656e725ed708de507b">output_size</a>() { <span class="keywordflow">return</span> GetOutputSize(); }</div>
+<div class="line"><a name="l00235"></a><span class="lineno">  235</span>&#160;    </div>
+<div class="line"><a name="l00240"></a><span class="lineno">  240</span>&#160;    uint64_t GetOutputSize();</div>
+<div class="line"><a name="l00241"></a><span class="lineno">  241</span>&#160;    </div>
+<div class="line"><a name="l00247"></a><span class="lineno">  247</span>&#160;    [[deprecated(<span class="stringliteral">&quot;Use GetModelName() instead&quot;</span>)]]</div>
+<div class="line"><a name="l00248"></a><span class="lineno"><a class="line" href="classdxrt_1_1InferenceEngine.html#a3fb16094508bd367cc4971238f002765">  248</a></span>&#160;    std::string <a class="code" href="classdxrt_1_1InferenceEngine.html#a3fb16094508bd367cc4971238f002765">name</a>() { <span class="keywordflow">return</span> GetModelName(); }</div>
+<div class="line"><a name="l00249"></a><span class="lineno">  249</span>&#160; </div>
+<div class="line"><a name="l00254"></a><span class="lineno">  254</span>&#160;    std::string GetModelName();</div>
+<div class="line"><a name="l00255"></a><span class="lineno">  255</span>&#160; </div>
+<div class="line"><a name="l00261"></a><span class="lineno">  261</span>&#160;    [[deprecated(<span class="stringliteral">&quot;Use GetTaskOrder() instead&quot;</span>)]]</div>
+<div class="line"><a name="l00262"></a><span class="lineno"><a class="line" href="classdxrt_1_1InferenceEngine.html#a22087ed8a6839bfc1c4a6b9c21629236">  262</a></span>&#160;    std::vector&lt;string&gt; <a class="code" href="classdxrt_1_1InferenceEngine.html#a22087ed8a6839bfc1c4a6b9c21629236">task_order</a>() { <span class="keywordflow">return</span> GetTaskOrder(); }</div>
+<div class="line"><a name="l00263"></a><span class="lineno">  263</span>&#160;    </div>
+<div class="line"><a name="l00268"></a><span class="lineno">  268</span>&#160;    std::vector&lt;string&gt; GetTaskOrder();</div>
+<div class="line"><a name="l00269"></a><span class="lineno">  269</span>&#160;    </div>
+<div class="line"><a name="l00275"></a><span class="lineno">  275</span>&#160;    [[deprecated(<span class="stringliteral">&quot;Use GetLatency() instead&quot;</span>)]]</div>
+<div class="line"><a name="l00276"></a><span class="lineno"><a class="line" href="classdxrt_1_1InferenceEngine.html#a990ca720e7f8a28ac5394206eb6f9491">  276</a></span>&#160;    <span class="keywordtype">int</span> <a class="code" href="classdxrt_1_1InferenceEngine.html#a990ca720e7f8a28ac5394206eb6f9491">latency</a>() { <span class="keywordflow">return</span> GetLatency(); }</div>
+<div class="line"><a name="l00277"></a><span class="lineno">  277</span>&#160; </div>
+<div class="line"><a name="l00281"></a><span class="lineno">  281</span>&#160;    <span class="keywordtype">int</span> GetLatency();    </div>
+<div class="line"><a name="l00282"></a><span class="lineno">  282</span>&#160; </div>
+<div class="line"><a name="l00288"></a><span class="lineno">  288</span>&#160;    [[deprecated(<span class="stringliteral">&quot;Use GetNpuInferenceTime() instead&quot;</span>)]]</div>
+<div class="line"><a name="l00289"></a><span class="lineno"><a class="line" href="classdxrt_1_1InferenceEngine.html#aad2f3b616e0e996b66ef7df37dc16a85">  289</a></span>&#160;    uint32_t <a class="code" href="classdxrt_1_1InferenceEngine.html#aad2f3b616e0e996b66ef7df37dc16a85">inference_time</a>() { <span class="keywordflow">return</span> GetNpuInferenceTime(); }</div>
+<div class="line"><a name="l00290"></a><span class="lineno">  290</span>&#160;    </div>
+<div class="line"><a name="l00294"></a><span class="lineno">  294</span>&#160;    uint32_t GetNpuInferenceTime();</div>
+<div class="line"><a name="l00295"></a><span class="lineno">  295</span>&#160;    </div>
+<div class="line"><a name="l00299"></a><span class="lineno">  299</span>&#160;    std::vector&lt;int&gt; GetLatencyVector();</div>
+<div class="line"><a name="l00300"></a><span class="lineno">  300</span>&#160;    </div>
+<div class="line"><a name="l00304"></a><span class="lineno">  304</span>&#160;    std::vector&lt;uint32_t&gt; GetNpuInferenceTimeVector();</div>
+<div class="line"><a name="l00305"></a><span class="lineno">  305</span>&#160;    </div>
+<div class="line"><a name="l00309"></a><span class="lineno">  309</span>&#160;    <span class="keywordtype">double</span> GetLatencyMean();</div>
+<div class="line"><a name="l00310"></a><span class="lineno">  310</span>&#160;    </div>
+<div class="line"><a name="l00314"></a><span class="lineno">  314</span>&#160;    <span class="keywordtype">double</span> GetNpuInferenceTimeMean();</div>
+<div class="line"><a name="l00315"></a><span class="lineno">  315</span>&#160;    </div>
+<div class="line"><a name="l00319"></a><span class="lineno">  319</span>&#160;    <span class="keywordtype">double</span> GetLatencyStdDev();</div>
+<div class="line"><a name="l00320"></a><span class="lineno">  320</span>&#160;    </div>
+<div class="line"><a name="l00324"></a><span class="lineno">  324</span>&#160;    <span class="keywordtype">double</span> GetNpuInferenceTimeStdDev();</div>
+<div class="line"><a name="l00325"></a><span class="lineno">  325</span>&#160;    </div>
+<div class="line"><a name="l00329"></a><span class="lineno">  329</span>&#160;    <span class="keywordtype">int</span> GetLatencyCnt();</div>
+<div class="line"><a name="l00330"></a><span class="lineno">  330</span>&#160;    </div>
+<div class="line"><a name="l00334"></a><span class="lineno">  334</span>&#160;    <span class="keywordtype">int</span> GetNpuInferenceTimeCnt();</div>
+<div class="line"><a name="l00335"></a><span class="lineno">  335</span>&#160; </div>
+<div class="line"><a name="l00341"></a><span class="lineno">  341</span>&#160;    [[deprecated(<span class="stringliteral">&quot;Use GetAllTaskOutputs() instead&quot;</span>)]]</div>
+<div class="line"><a name="l00342"></a><span class="lineno"><a class="line" href="classdxrt_1_1InferenceEngine.html#a077977d15551f525f546e2a3f6ab010c">  342</a></span>&#160;    vector&lt;TensorPtrs&gt; <a class="code" href="classdxrt_1_1InferenceEngine.html#a077977d15551f525f546e2a3f6ab010c">get_outputs</a>() { <span class="keywordflow">return</span> GetAllTaskOutputs(); }</div>
+<div class="line"><a name="l00343"></a><span class="lineno">  343</span>&#160; </div>
+<div class="line"><a name="l00348"></a><span class="lineno">  348</span>&#160;    vector&lt;TensorPtrs&gt; GetAllTaskOutputs();</div>
+<div class="line"><a name="l00349"></a><span class="lineno">  349</span>&#160; </div>
+<div class="line"><a name="l00357"></a><span class="lineno">  357</span>&#160;    [[deprecated(<span class="stringliteral">&quot;Use GetBitmatchMask() instead&quot;</span>)]]</div>
+<div class="line"><a name="l00358"></a><span class="lineno"><a class="line" href="classdxrt_1_1InferenceEngine.html#a0e23ce411e6d6d45e6939fe1b3a7e700">  358</a></span>&#160;    vector&lt;uint8_t&gt; <a class="code" href="classdxrt_1_1InferenceEngine.html#a0e23ce411e6d6d45e6939fe1b3a7e700">bitmatch_mask</a>(<span class="keywordtype">int</span> index) { <span class="keywordflow">return</span> GetBitmatchMask(index); }</div>
+<div class="line"><a name="l00359"></a><span class="lineno">  359</span>&#160;    </div>
+<div class="line"><a name="l00366"></a><span class="lineno">  366</span>&#160;    vector&lt;uint8_t&gt; GetBitmatchMask(<span class="keywordtype">int</span> index);</div>
+<div class="line"><a name="l00367"></a><span class="lineno">  367</span>&#160; </div>
+<div class="line"><a name="l00376"></a><span class="lineno">  376</span>&#160;    [[deprecated(<span class="stringliteral">&quot;Use GetNumTailTasks() instead&quot;</span>)]]</div>
+<div class="line"><a name="l00377"></a><span class="lineno"><a class="line" href="classdxrt_1_1InferenceEngine.html#a0b38cd5001ec327cbdc5b00a7143d0e2">  377</a></span>&#160;    <span class="keywordtype">int</span> <a class="code" href="classdxrt_1_1InferenceEngine.html#a0b38cd5001ec327cbdc5b00a7143d0e2">get_num_tails</a>() { <span class="keywordflow">return</span> GetNumTailTasks(); }</div>
+<div class="line"><a name="l00378"></a><span class="lineno">  378</span>&#160; </div>
+<div class="line"><a name="l00386"></a><span class="lineno">  386</span>&#160;    <span class="keywordtype">int</span> GetNumTailTasks();</div>
+<div class="line"><a name="l00387"></a><span class="lineno">  387</span>&#160; </div>
+<div class="line"><a name="l00393"></a><span class="lineno">  393</span>&#160;    [[deprecated(<span class="stringliteral">&quot;Use GetCompileType() instead&quot;</span>)]]</div>
+<div class="line"><a name="l00394"></a><span class="lineno"><a class="line" href="classdxrt_1_1InferenceEngine.html#adb7b0c6f4a8411823d7eaed57cedd36d">  394</a></span>&#160;    <span class="keywordtype">string</span> <a class="code" href="classdxrt_1_1InferenceEngine.html#adb7b0c6f4a8411823d7eaed57cedd36d">get_compile_type</a>() { <span class="keywordflow">return</span> GetCompileType(); }</div>
+<div class="line"><a name="l00395"></a><span class="lineno">  395</span>&#160;    </div>
+<div class="line"><a name="l00400"></a><span class="lineno">  400</span>&#160;    <span class="keywordtype">string</span> GetCompileType(); </div>
+<div class="line"><a name="l00401"></a><span class="lineno">  401</span>&#160; </div>
+<div class="line"><a name="l00407"></a><span class="lineno">  407</span>&#160;    [[deprecated(<span class="stringliteral">&quot;Use IsPPU() instead&quot;</span>)]]</div>
+<div class="line"><a name="l00408"></a><span class="lineno"><a class="line" href="classdxrt_1_1InferenceEngine.html#a9aeb596b415843e7e318c47938444259">  408</a></span>&#160;    <span class="keywordtype">bool</span> <a class="code" href="classdxrt_1_1InferenceEngine.html#a9aeb596b415843e7e318c47938444259">is_PPU</a>() { <span class="keywordflow">return</span> IsPPU(); }</div>
+<div class="line"><a name="l00409"></a><span class="lineno">  409</span>&#160; </div>
+<div class="line"><a name="l00414"></a><span class="lineno">  414</span>&#160;    <span class="keywordtype">bool</span> IsPPU();</div>
+<div class="line"><a name="l00415"></a><span class="lineno">  415</span>&#160; </div>
+<div class="line"><a name="l00416"></a><span class="lineno">  416</span>&#160;<span class="preprocessor">#ifdef _WIN32</span></div>
+<div class="line"><a name="l00417"></a><span class="lineno">  417</span>&#160;    <span class="keywordtype">float</span> RunBenchMarkWindows(<span class="keywordtype">int</span> num, <span class="keywordtype">void</span>* inputPtr = <span class="keyword">nullptr</span>);</div>
+<div class="line"><a name="l00418"></a><span class="lineno">  418</span>&#160;<span class="preprocessor">#endif // _WIN32</span></div>
+<div class="line"><a name="l00419"></a><span class="lineno">  419</span>&#160;    <span class="keyword">friend</span> DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> <a class="code" href="classdxrt_1_1InferenceEngine.html">InferenceEngine</a>&amp;);</div>
+<div class="line"><a name="l00420"></a><span class="lineno">  420</span>&#160;<span class="keyword">private</span>:</div>
+<div class="line"><a name="l00421"></a><span class="lineno">  421</span>&#160;    std::string _modelFile;</div>
+<div class="line"><a name="l00422"></a><span class="lineno">  422</span>&#160;    std::string _modelDir;</div>
+<div class="line"><a name="l00423"></a><span class="lineno">  423</span>&#160;    std::string _name;</div>
+<div class="line"><a name="l00424"></a><span class="lineno">  424</span>&#160;    std::string _modelCompileType;</div>
+<div class="line"><a name="l00425"></a><span class="lineno">  425</span>&#160;    <span class="keywordtype">bool</span> _isPPU = <span class="keyword">false</span>;</div>
+<div class="line"><a name="l00426"></a><span class="lineno">  426</span>&#160;    </div>
+<div class="line"><a name="l00427"></a><span class="lineno">  427</span>&#160;    ModelDataBase _modelData;</div>
+<div class="line"><a name="l00428"></a><span class="lineno">  428</span>&#160;    std::vector&lt;uint8_t&gt; _maskBuf;</div>
+<div class="line"><a name="l00429"></a><span class="lineno">  429</span>&#160;    std::map&lt;std::string, deepx_graphinfo::GraphBindingDatabase&gt; _graphMap;</div>
+<div class="line"><a name="l00430"></a><span class="lineno">  430</span>&#160;    <a class="code" href="structdxrt_1_1InferenceOption.html">InferenceOption</a> _option;</div>
+<div class="line"><a name="l00431"></a><span class="lineno">  431</span>&#160;    std::vector&lt;std::shared_ptr&lt;Task&gt;&gt; _tasks; <span class="comment">// to be changed to complex graph</span></div>
+<div class="line"><a name="l00432"></a><span class="lineno">  432</span>&#160;    std::shared_ptr&lt;Task&gt; _head;</div>
+<div class="line"><a name="l00433"></a><span class="lineno">  433</span>&#160;    std::vector&lt;std::shared_ptr&lt;Task&gt;&gt; _tails;</div>
+<div class="line"><a name="l00434"></a><span class="lineno">  434</span>&#160;    <span class="keywordtype">int</span> _numTails;</div>
+<div class="line"><a name="l00435"></a><span class="lineno">  435</span>&#160;    std::map&lt;std::string, std::shared_ptr&lt;Task&gt;&gt; _taskMap;</div>
+<div class="line"><a name="l00436"></a><span class="lineno">  436</span>&#160;    InferenceTimer _inferenceTimer;</div>
+<div class="line"><a name="l00437"></a><span class="lineno">  437</span>&#160;    std::vector&lt;string&gt; _taskOrder;</div>
+<div class="line"><a name="l00438"></a><span class="lineno">  438</span>&#160;    std::vector&lt;string&gt; _lastOutputOrder;</div>
+<div class="line"><a name="l00439"></a><span class="lineno">  439</span>&#160; </div>
+<div class="line"><a name="l00440"></a><span class="lineno">  440</span>&#160;    std::function&lt;int(TensorPtrs &amp;outputs, <span class="keywordtype">void</span> *userArg)&gt; _userCallback;</div>
+<div class="line"><a name="l00441"></a><span class="lineno">  441</span>&#160;    std::vector&lt;bool&gt; _occupiedInferenceJobs;</div>
+<div class="line"><a name="l00442"></a><span class="lineno">  442</span>&#160;};</div>
+<div class="line"><a name="l00443"></a><span class="lineno">  443</span>&#160; </div>
+<div class="line"><a name="l00444"></a><span class="lineno">  444</span>&#160;} <span class="comment">/* namespace dxrt */</span></div>
 </div><!-- fragment --></div><!-- contents -->
-<div class="ttc" id="astructdxrt_1_1InferenceOption_html"><div class="ttname"><a href="structdxrt_1_1InferenceOption.html">dxrt::InferenceOption</a></div><div class="ttdoc">This struct specifies inference options applied to dxrt::InferenceEngine.</div><div class="ttdef"><b>Definition:</b> inference_option.h:14</div></div>
+<div class="ttc" id="aclassdxrt_1_1InferenceEngine_html_a93e1d7b460b7f8656e725ed708de507b"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html#a93e1d7b460b7f8656e725ed708de507b">dxrt::InferenceEngine::output_size</a></div><div class="ttdeci">uint64_t output_size()</div><div class="ttdoc">Get total size of output tensors (Legacy API)</div><div class="ttdef"><b>Definition:</b> inference_engine.h:234</div></div>
+<div class="ttc" id="aclassdxrt_1_1InferenceEngine_html_a3fb16094508bd367cc4971238f002765"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html#a3fb16094508bd367cc4971238f002765">dxrt::InferenceEngine::name</a></div><div class="ttdeci">std::string name()</div><div class="ttdoc">Get model name (Legacy API)</div><div class="ttdef"><b>Definition:</b> inference_engine.h:248</div></div>
+<div class="ttc" id="aclassdxrt_1_1InferenceEngine_html_a96c4e5953a0daf4a1c886002c052a6ba"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html#a96c4e5953a0daf4a1c886002c052a6ba">dxrt::InferenceEngine::input_size</a></div><div class="ttdeci">uint64_t input_size()</div><div class="ttdoc">Get total size of input tensors (Legacy API)</div><div class="ttdef"><b>Definition:</b> inference_engine.h:220</div></div>
+<div class="ttc" id="aclassdxrt_1_1InferenceEngine_html_a22087ed8a6839bfc1c4a6b9c21629236"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html#a22087ed8a6839bfc1c4a6b9c21629236">dxrt::InferenceEngine::task_order</a></div><div class="ttdeci">std::vector&lt; string &gt; task_order()</div><div class="ttdoc">Get model task order (Legacy API)</div><div class="ttdef"><b>Definition:</b> inference_engine.h:262</div></div>
+<div class="ttc" id="astructdxrt_1_1InferenceOption_html"><div class="ttname"><a href="structdxrt_1_1InferenceOption.html">dxrt::InferenceOption</a></div><div class="ttdoc">This struct specifies inference options applied to dxrt::InferenceEngine.</div><div class="ttdef"><b>Definition:</b> inference_option.h:21</div></div>
+<div class="ttc" id="aclassdxrt_1_1InferenceEngine_html_a990ca720e7f8a28ac5394206eb6f9491"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html#a990ca720e7f8a28ac5394206eb6f9491">dxrt::InferenceEngine::latency</a></div><div class="ttdeci">int latency()</div><div class="ttdoc">Get latest latency (Legacy API)</div><div class="ttdef"><b>Definition:</b> inference_engine.h:276</div></div>
+<div class="ttc" id="aclassdxrt_1_1InferenceEngine_html_a3d3fc75faa79470d9a3bdbdc61561a3a"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html#a3d3fc75faa79470d9a3bdbdc61561a3a">dxrt::InferenceEngine::RegisterCallBack</a></div><div class="ttdeci">void RegisterCallBack(std::function&lt; int(TensorPtrs &amp;outputs, void *userArg)&gt; callbackFunc)</div><div class="ttdoc">Register user callback function to be called by inference completion. (Legacy API)</div><div class="ttdef"><b>Definition:</b> inference_engine.h:146</div></div>
+<div class="ttc" id="aclassdxrt_1_1InferenceEngine_html_ab0c6629f048341d62bfa3a400c90e827"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html#ab0c6629f048341d62bfa3a400c90e827">dxrt::InferenceEngine::RunBenchMark</a></div><div class="ttdeci">float RunBenchMark(int num, void *inputPtr=nullptr)</div><div class="ttdoc">run benchmark with loop n times (Legacy API)</div><div class="ttdef"><b>Definition:</b> inference_engine.h:117</div></div>
+<div class="ttc" id="aclassdxrt_1_1InferenceEngine_html_af81b48e8ccd95953dd9bc483e5ec678b"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html#af81b48e8ccd95953dd9bc483e5ec678b">dxrt::InferenceEngine::inputs</a></div><div class="ttdeci">std::vector&lt; Tensors &gt; inputs(int devId)</div><div class="ttdoc">Get input tensor (Legacy API)</div><div class="ttdef"><b>Definition:</b> inference_engine.h:187</div></div>
+<div class="ttc" id="aclassdxrt_1_1InferenceEngine_html_aad2f3b616e0e996b66ef7df37dc16a85"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html#aad2f3b616e0e996b66ef7df37dc16a85">dxrt::InferenceEngine::inference_time</a></div><div class="ttdeci">uint32_t inference_time()</div><div class="ttdoc">Get latest inference time (Legacy API)</div><div class="ttdef"><b>Definition:</b> inference_engine.h:289</div></div>
+<div class="ttc" id="aclassdxrt_1_1InferenceEngine_html_a0b38cd5001ec327cbdc5b00a7143d0e2"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html#a0b38cd5001ec327cbdc5b00a7143d0e2">dxrt::InferenceEngine::get_num_tails</a></div><div class="ttdeci">int get_num_tails()</div><div class="ttdoc">Returns the number of tail tasks in the model. (Legacy API)</div><div class="ttdef"><b>Definition:</b> inference_engine.h:377</div></div>
+<div class="ttc" id="aclassdxrt_1_1InferenceEngine_html_afbee8b031fdd6c0a3916ed00d08c9cd8"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html#afbee8b031fdd6c0a3916ed00d08c9cd8">dxrt::InferenceEngine::inputs</a></div><div class="ttdeci">Tensors inputs(void *ptr=nullptr, uint64_t phyAddr=0)</div><div class="ttdoc">Get input tensor (Legacy API)</div><div class="ttdef"><b>Definition:</b> inference_engine.h:170</div></div>
+<div class="ttc" id="aclassdxrt_1_1InferenceEngine_html_a9aeb596b415843e7e318c47938444259"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html#a9aeb596b415843e7e318c47938444259">dxrt::InferenceEngine::is_PPU</a></div><div class="ttdeci">bool is_PPU()</div><div class="ttdoc">Returns whether the model is using PPU. (Legacy API)</div><div class="ttdef"><b>Definition:</b> inference_engine.h:408</div></div>
 <div class="ttc" id="anamespacedxrt_html_aab5060680ba2f567f47f8868cd8b1f00"><div class="ttname"><a href="namespacedxrt.html#aab5060680ba2f567f47f8868cd8b1f00">dxrt::DefaultInferenceOption</a></div><div class="ttdeci">DXRT_API InferenceOption DefaultInferenceOption</div><div class="ttdoc">Default inference option.</div></div>
+<div class="ttc" id="aclassdxrt_1_1InferenceEngine_html_a077977d15551f525f546e2a3f6ab010c"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html#a077977d15551f525f546e2a3f6ab010c">dxrt::InferenceEngine::get_outputs</a></div><div class="ttdeci">vector&lt; TensorPtrs &gt; get_outputs()</div><div class="ttdoc">Get output tensors of all tasks (Legacy API)</div><div class="ttdef"><b>Definition:</b> inference_engine.h:342</div></div>
+<div class="ttc" id="aclassdxrt_1_1InferenceEngine_html_a0e23ce411e6d6d45e6939fe1b3a7e700"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html#a0e23ce411e6d6d45e6939fe1b3a7e700">dxrt::InferenceEngine::bitmatch_mask</a></div><div class="ttdeci">vector&lt; uint8_t &gt; bitmatch_mask(int index)</div><div class="ttdef"><b>Definition:</b> inference_engine.h:358</div></div>
 <div class="ttc" id="anamespacedxrt_html"><div class="ttname"><a href="namespacedxrt.html">dxrt</a></div><div class="ttdoc">DXRT C++ APIs are provided in this namespace.</div><div class="ttdef"><b>Definition:</b> buffer.h:8</div></div>
+<div class="ttc" id="aclassdxrt_1_1InferenceEngine_html_a0893b724d6eed939556f1315ce05829d"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html#a0893b724d6eed939556f1315ce05829d">dxrt::InferenceEngine::outputs</a></div><div class="ttdeci">Tensors outputs(void *ptr=nullptr, uint64_t phyAddr=0)</div><div class="ttdoc">Get output tensor (Legacy API)</div><div class="ttdef"><b>Definition:</b> inference_engine.h:204</div></div>
+<div class="ttc" id="aclassdxrt_1_1InferenceEngine_html_adb7b0c6f4a8411823d7eaed57cedd36d"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html#adb7b0c6f4a8411823d7eaed57cedd36d">dxrt::InferenceEngine::get_compile_type</a></div><div class="ttdeci">string get_compile_type()</div><div class="ttdoc">Returns the compile type of the model. (Legacy API)</div><div class="ttdef"><b>Definition:</b> inference_engine.h:394</div></div>
 <div class="ttc" id="aclassdxrt_1_1InferenceEngine_html"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html">dxrt::InferenceEngine</a></div><div class="ttdoc">This class abstracts runtime inference executor for user's compiled model.</div><div class="ttdef"><b>Definition:</b> inference_engine.h:60</div></div>
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>

@@ -11,6 +11,7 @@ function help()
     echo "    --arch     target CPU architecture : [ x86_64, aarch64, riscv64 ]"
     echo "    --install  install path"
     echo "    --uninstall  uninstall dx-rt files"
+    echo "    --clang    compiler using clang"
 }
 
 # cmake command
@@ -23,6 +24,7 @@ target_arch=$(uname -m)
 build_mode="Release Build"
 install=""
 uninstall=false
+clang=false
 [ $# -gt 0 ] && \
 while (( $# )); do
     case "$1" in
@@ -42,6 +44,7 @@ while (( $# )); do
             install=$1
             shift;;
         --uninstall) uninstall=true; shift;;
+        --clang) clang=true; shift;;
         *)       echo "Invalid argument : " $1 ; help; exit 1;;
     esac
 done
@@ -59,6 +62,9 @@ build_dir=build_"$target_arch"
 out_dir=bin
 
 cmd+=(-DCMAKE_TOOLCHAIN_FILE=cmake/toolchain.$target_arch.cmake)
+if [ $clang == "true" ]; then
+    cmd+=(-DUSE_CLANG=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++)
+fi
 
 cmd+=(-DCMAKE_VERBOSE_MAKEFILE=$verbose)
 if [ $build_type == "release" ] || [ $build_type == "debug" ] || [ $build_type == "relwithdebinfo" ]; then
@@ -71,7 +77,7 @@ cmd+=(-DCMAKE_GENERATOR=Ninja)
 if [ ! -z $install ]; then
     cmd+=(-DCMAKE_INSTALL_PREFIX=$install)
 fi
-cmd+=(-DPython_EXECUTABLE=$(which python))
+cmd+=(-DPython_EXECUTABLE=$(which python3))
 
 echo cmake args : ${cmd[@]}
 [ $clean_build == "true" ] && sudo rm -rf $build_dir

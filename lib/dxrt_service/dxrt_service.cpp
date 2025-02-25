@@ -27,7 +27,6 @@ private:
     void dequeueAllClientMessageQueue(long msgType);
     std::shared_ptr<dxrt::DxrtServiceErr> _srvErr;
     std::mutex _deviceMutex;
-    std::vector<bool> _devErrSts;
 
 public:
     void Process(dxrt::IPCClientMessage& clientMessage);
@@ -37,9 +36,11 @@ public:
     void ErrorBroadCastToClient(dxrt::dxrt_server_err_t err, uint32_t errCode);
 
     void InitDevice(int devId, dxrt::npu_bound_op bound);
+    void DeInitDevice(int devId, dxrt::npu_bound_op bound);
     long ClearDevice(int procId);
     void handle_process_die(DxrtService *service);
     void die_check_thread();
+    int GetDeviceIdByProcId(int procId);
 
     dxrt::IPCServerWrapper _ipcServerWrapper;
     std::vector<std::shared_ptr<dxrt::ServiceDevice> > _devices;
@@ -56,12 +57,12 @@ DxrtService::DxrtService(std::vector<std::shared_ptr<dxrt::ServiceDevice> > devi
     for (auto& device : _devices)
     {
         int id = device->id();
+        _devices[id]->Process(dxrt::dxrt_cmd_t::DXRT_CMD_RECOVERY, nullptr);
 
         // callback gets response from device and give it to schdeuler
         device->SetCallback([id, this](const dxrt::dxrt_response_t& resp_) {
             _scheduler.FinishJobs(id, resp_);
         });
-        _devErrSts.emplace_back(false);
     }
     LOG_DXRT_S << "Initialized Devices count=" << _devices.size() << std::endl;
 
@@ -83,7 +84,6 @@ DxrtService::DxrtService(std::vector<std::shared_ptr<dxrt::ServiceDevice> > devi
     {
         LOG_DXRT_I << "Fail to initialize IPC Server" << std::endl;
     }
-
 }
 
 DxrtService::DxrtService()
@@ -93,21 +93,20 @@ DxrtService::DxrtService()
 }
 
 static std::atomic<int> ch = {0};
-dxrt::RESPONSE_CODE get_ch()
-{
-    int chno = ch;
+dxrt::RESPONSE_CODE get_ch() {
+    int chno = ch.load();
     chno %= 3;
-    ch++;
-    switch (ch)
-    {
+    ch.store((chno + 1) % 3);
+    switch (chno) {
         case 0:
             return dxrt::RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH0;
         case 1:
             return dxrt::RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH1;
         case 2:
             return dxrt::RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH2;
+        default:
+            return dxrt::RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH0;
     }
-    return dxrt::RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH0;
 }
 
 void DxrtService::ErrorBroadCastToClient(dxrt::dxrt_server_err_t err, uint32_t errCode)
@@ -188,9 +187,6 @@ void DxrtService::Process(dxrt::IPCClientMessage& clientMessage)
         case dxrt::REQUEST_CODE::DEVICE_INIT: {
             int deviceId = clientMessage.deviceId;
             int bound = clientMessage.data;
-            if (_devErrSts[deviceId])
-                ErrorBroadCastToClient(dxrt::dxrt_server_err_t::S_ERR_NEED_DEV_RECOVERY, 0);
-
             {
                 std::lock_guard<std::mutex> lock(_deviceMutex);
                 _devInfo[clientMessage.pid][deviceId].insert(bound);
@@ -198,9 +194,18 @@ void DxrtService::Process(dxrt::IPCClientMessage& clientMessage)
             InitDevice(deviceId, static_cast<dxrt::npu_bound_op>(bound));
             return;
         }
-        case dxrt::REQUEST_CODE::DEVICE_RESET: {
+        case dxrt::REQUEST_CODE::DEVICE_DEINIT: {
             int deviceId = clientMessage.deviceId;
-            _devErrSts[deviceId] = false;
+            int bound = clientMessage.data;
+            {
+                std::lock_guard<std::mutex> lock(_deviceMutex);
+                _devInfo[clientMessage.pid][deviceId].erase(bound);
+            }
+            DeInitDevice(deviceId, static_cast<dxrt::npu_bound_op>(bound));
+            return;
+        }
+        case dxrt::REQUEST_CODE::DEVICE_RESET: {
+            return;
         }
         case dxrt::REQUEST_CODE::INFERENCE_COMPLETED: {
             return;
@@ -239,6 +244,22 @@ void DxrtService::dequeueAllClientMessageQueue(long msgType)
     clientWrapper.Close(); // close
 }
 
+int DxrtService::GetDeviceIdByProcId(int procId)
+{
+    auto it = _devInfo.find(procId);
+    int deviceId = -1;
+
+    if (it != _devInfo.end()) {
+        std::unordered_map<int, std::unordered_set<int>> &deviceMap = it->second;
+        for (const auto &device : deviceMap) {
+            deviceId = device.first;
+        }
+    } else {
+        LOG_DXRT_S_ERR("Process ID not found.");
+    }
+    return deviceId;
+}
+
 void DxrtService::InitDevice(int devId, dxrt::npu_bound_op bound)
 {
     int ret;
@@ -249,7 +270,19 @@ void DxrtService::InitDevice(int devId, dxrt::npu_bound_op bound)
     {
         ErrorBroadCastToClient(dxrt::dxrt_server_err_t::S_ERR_SERVICE_DEV_BOUND_ERR, ret);
     }
-    DXRT_ASSERT(ret==0, "failed to apply bound option to device");
+    // DXRT_ASSERT(ret==0, "failed to apply bound option to device");
+}
+
+void DxrtService::DeInitDevice(int devId, dxrt::npu_bound_op bound)
+{
+    int ret;
+    /* TODO - Send init command to driver to clear internal logic */
+    LOG_DXRT_S << "DevId : " << devId << ", delete bound : " << bound << endl;
+    ret = _devices[devId]->BoundOption(dxrt::DX_SCHED_DELETE, static_cast<dxrt::npu_bound_op>(bound));
+    if (ret != 0)
+    {
+        ErrorBroadCastToClient(dxrt::dxrt_server_err_t::S_ERR_SERVICE_DEV_BOUND_ERR, ret);
+    }
 }
 
 #define DXRT_S_DEV_CLR_TIMEOUT_MS     (600)
@@ -263,6 +296,7 @@ long DxrtService::ClearDevice(int procId)
         auto lastLoadCheckTime = std::chrono::steady_clock::now();
         int cnt = 0;
         int prevLoad = _scheduler.GetProcLoad(procId);
+        int devId;
 
         while (true)
         {
@@ -277,13 +311,18 @@ long DxrtService::ClearDevice(int procId)
                 {
                     LOG_DXRT_S_ERR("Timeout reached during process termination (" + std::to_string(cnt) + ")");
                     _scheduler.ClearAllLoad();
-                    _devErrSts[0] = true; /* TODO - will be considered device id*/
+                    if ((devId = GetDeviceIdByProcId(procId))!= -1)
+                        _devices[devId]->Process(dxrt::dxrt_cmd_t::DXRT_CMD_RECOVERY, nullptr);
                     break;
-                } else {
+                }
+                else
+                {
                     if (++cnt > DXRT_S_DEV_CLR_TIMEOUT_CNT)
                     {
                         LOG_DXRT_S_ERR("Overall timeout reached.(" + std::to_string(cnt) + ")");
                         _scheduler.ClearAllLoad();
+                        if ((devId = GetDeviceIdByProcId(procId))!= -1)
+                            _devices[devId]->Process(dxrt::dxrt_cmd_t::DXRT_CMD_RECOVERY, nullptr);
                         break;
                     }
                     else
@@ -354,7 +393,7 @@ void DxrtService::handle_process_die(DxrtService *service)
                             ErrorBroadCastToClient(dxrt::dxrt_server_err_t::S_ERR_SERVICE_DEV_BOUND_ERR, errCode);
                         else
                             ErrorBroadCastToClient(dxrt::dxrt_server_err_t::S_ERR_SERVICE_UNKNOWN_ERR, errCode);
-                        DXRT_ASSERT(false, "failed device termination");
+                        // DXRT_ASSERT(false, "failed device termination");
                     }
                 }
             } else if (errno == EPERM) {

@@ -93,13 +93,13 @@ int main(int argc, char* argv[])
         dxrt::InferenceEngine ie(modelPath);
 
         // create output buffer pool
-        gOutputBufferPool = std::make_shared<SimpleCircularBufferPool<uint8_t>>(BUFFER_POOL_SIZE, ie.output_size());
+        gOutputBufferPool = std::make_shared<SimpleCircularBufferPool<uint8_t>>(BUFFER_POOL_SIZE, ie.GetOutputSize());
 
         // create thread
         auto t1 = std::thread(inferenceThreadFunc, std::ref(ie), loop_count);
 
         // create temporary input buffer for example
-        std::vector<uint8_t> inputPtr(ie.input_size(), 0);
+        std::vector<uint8_t> inputPtr(ie.GetInputSize(), 0);
 
         auto start = std::chrono::high_resolution_clock::now();
 

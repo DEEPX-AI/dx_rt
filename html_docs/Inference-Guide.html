@@ -771,7 +771,7 @@ If <code>dxrt::InferenceOption</code> is not specified, default inference option
 <h3 id="3&gt;_connect&gt;_input&gt;_tensors">3. Connect input tensors<a class="headerlink" href="#3&gt;_connect&gt;_input&gt;_tensors" title="Permanent link">¶</a></h3>
 <p>Prepare input buffer(s) to perform infernce on.
 You can easily prepare an input buffer with minimal effort with the code below.<br>
-</p><div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>vector&lt;uint8_t&gt; inputBuf(ie.input_size(), 0);
+</p><div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>vector&lt;uint8_t&gt; inputBuf(ie.GetInputSize(), 0);
 </code></pre></div>
 Guides for connecting the inference engine to various image sources are provided in dx-app and dx-demo, along with preprocessing examples.  
 <h3 id="4&gt;_inference">4. Inference<a class="headerlink" href="#4&gt;_inference" title="Permanent link">¶</a></h3>
@@ -796,7 +796,7 @@ If you don't want to wait to run your application efficiently, you can pipeline 
 <a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>        ... ...
 <a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>        return 0;
 <a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    };
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>ie.RegisterCallBack(postProcCallBack);
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>ie.RegisterCallback(postProcCallBack);
 </code></pre></div>
 <p><img alt="inference_basic_r1" src="/assets/images/run_async.jpg">  </p>
 <p>For more detailed information, please check the API document.  </p>

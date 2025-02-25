@@ -29,15 +29,15 @@ struct UserArgWrapper {
 #ifdef __linux__
 string pyFormatDescriptorTable[] = {
     [DataType::NONE_TYPE] = py::format_descriptor<uint8_t>::format(),
+    [DataType::FLOAT] = py::format_descriptor<float>::format(),
     [DataType::UINT8] = py::format_descriptor<uint8_t>::format(),
-    [DataType::UINT16] = py::format_descriptor<uint16_t>::format(),
-    [DataType::UINT32] = py::format_descriptor<uint32_t>::format(),
-    [DataType::UINT64] = py::format_descriptor<uint64_t>::format(),
     [DataType::INT8] = py::format_descriptor<int8_t>::format(),
+    [DataType::UINT16] = py::format_descriptor<uint16_t>::format(),
     [DataType::INT16] = py::format_descriptor<int16_t>::format(),
     [DataType::INT32] = py::format_descriptor<int32_t>::format(),
     [DataType::INT64] = py::format_descriptor<int64_t>::format(),
-    [DataType::FLOAT] = py::format_descriptor<float>::format(),
+    [DataType::UINT32] = py::format_descriptor<uint32_t>::format(),
+    [DataType::UINT64] = py::format_descriptor<uint64_t>::format(),
     [DataType::BBOX] = py::format_descriptor<int8_t>::format(),
     [DataType::FACE] = py::format_descriptor<int8_t>::format(),
     [DataType::POSE] = py::format_descriptor<int8_t>::format(),
@@ -47,15 +47,15 @@ string pyFormatDescriptorTable[DataType::MAX_TYPE];
 
 void initializePyFormatDescriptorTable() {
     pyFormatDescriptorTable[DataType::NONE_TYPE] = py::format_descriptor<uint8_t>::format();
+    pyFormatDescriptorTable[DataType::FLOAT] = py::format_descriptor<float>::format();
     pyFormatDescriptorTable[DataType::UINT8] = py::format_descriptor<uint8_t>::format();
-    pyFormatDescriptorTable[DataType::UINT16] = py::format_descriptor<uint16_t>::format();
-    pyFormatDescriptorTable[DataType::UINT32] = py::format_descriptor<uint32_t>::format();
-    pyFormatDescriptorTable[DataType::UINT64] = py::format_descriptor<uint64_t>::format();
     pyFormatDescriptorTable[DataType::INT8] = py::format_descriptor<int8_t>::format();
+    pyFormatDescriptorTable[DataType::UINT16] = py::format_descriptor<uint16_t>::format();
     pyFormatDescriptorTable[DataType::INT16] = py::format_descriptor<int16_t>::format();
     pyFormatDescriptorTable[DataType::INT32] = py::format_descriptor<int32_t>::format();
     pyFormatDescriptorTable[DataType::INT64] = py::format_descriptor<int64_t>::format();
-    pyFormatDescriptorTable[DataType::FLOAT] = py::format_descriptor<float>::format();
+    pyFormatDescriptorTable[DataType::UINT32] = py::format_descriptor<uint32_t>::format();
+    pyFormatDescriptorTable[DataType::UINT64] = py::format_descriptor<uint64_t>::format();
     pyFormatDescriptorTable[DataType::BBOX] = py::format_descriptor<int8_t>::format();
     pyFormatDescriptorTable[DataType::FACE] = py::format_descriptor<int8_t>::format();
     pyFormatDescriptorTable[DataType::POSE] = py::format_descriptor<int8_t>::format();
@@ -77,7 +77,7 @@ void convertToPyArray(const TensorPtr& output, DataType dtype, std::vector<py::a
     if (dtype == DataType::BBOX || dtype == DataType::FACE || dtype == DataType::POSE) {
         std::vector<int64_t> shape;
         std::vector<ssize_t> strides;
-        int outputCnt = output->shape()[0];
+        int outputCnt = output->shape()[1];
         
         if (outputCnt == 0) {
             shape = {0};
@@ -138,7 +138,7 @@ void convertToPyArrayWithCopy(const TensorPtr& output, DataType dtype, std::vect
     if (dtype == DataType::BBOX || dtype == DataType::FACE || dtype == DataType::POSE) {
         std::vector<int64_t> shape;
         std::vector<ssize_t> strides;
-        int outputCnt = output->shape()[0];
+        int outputCnt = output->shape()[1];
         size_t buffer_size = 0;
         
         if (outputCnt == 0) {
@@ -229,7 +229,7 @@ void convertToPyArrayWithCopy(const TensorPtr& output, DataType dtype, std::vect
     }
 }
 
-vector<py::array> pyRunEngine(InferenceEngine &ie, const vector<py::array> &inputs)
+vector<py::array> pyRun(InferenceEngine &ie, const vector<py::array> &inputs)
 {
     py::gil_scoped_acquire gil;
     vector<py::array> result;
@@ -242,8 +242,7 @@ vector<py::array> pyRunEngine(InferenceEngine &ie, const vector<py::array> &inpu
     return result;
 }
 
-
-int pyRunAsyncEngine(InferenceEngine &ie, const vector<py::array> &inputs, py::object userArg) 
+int pyRunAsync(InferenceEngine &ie, const vector<py::array> &inputs, py::object userArg) 
 {
     py::gil_scoped_release release;
 
@@ -262,8 +261,24 @@ int pyRunAsyncEngine(InferenceEngine &ie, const vector<py::array> &inputs, py::o
     
 }
 
-void pyRegisterCallBack(InferenceEngine &ie, const py::function &pyCallback) {
-    ie.RegisterCallBack([pyCallback](TensorPtrs &outputs, void *userArg) -> int {
+float pyRunBenchmark(InferenceEngine &ie, int num, const vector<py::array> &inputs)
+{
+    py::gil_scoped_acquire gil;
+    float fps;
+    if (inputs.empty()) 
+    {
+        throw std::runtime_error("Input array is empty");
+    }
+    else
+    {
+        fps = ie.RunBenchmark(num, inputs.front().request().ptr);
+    }
+    
+    return fps;
+}
+
+void pyRegisterCallback(InferenceEngine &ie, const py::function &pyCallback) {
+    ie.RegisterCallback([pyCallback](TensorPtrs &outputs, void *userArg) -> int {
         py::gil_scoped_acquire gil;
         try {
             std::vector<py::array> result;
@@ -339,34 +354,38 @@ vector<py::array> pyValidateDevice(InferenceEngine &ie, const vector<py::array> 
     }
     return result;
 }
+
 vector<string> pyGetInputDataType(InferenceEngine &ie)
 {
     vector<string> ret;
-    for(auto &tensor:ie.inputs())
+    for(auto &tensor:ie.GetInputs())
     {
         ret.emplace_back( DataTypeToString( tensor.type() ) );
     }
     return ret;
 }
+
 vector<string> pyGetOutputDataType(InferenceEngine &ie)
 {
     vector<string> ret;
-    for(auto &tensor:ie.outputs())
+    for(auto &tensor:ie.GetOutputs())
     {
         ret.emplace_back( DataTypeToString( tensor.type() ) );
     }
     return ret;
 }
+
 vector<string> pyGetTaskOrder(InferenceEngine &ie)
 {
     vector<string> ret;
-    ret = ie.task_order();
+    ret = ie.GetTaskOrder();
     return ret;
 }
-vector<vector<py::array>> pyGetOutputs(InferenceEngine &ie)
+
+vector<vector<py::array>> pyGetAllTaskOutputs(InferenceEngine &ie)
 {
     vector<vector<py::array>> results;
-    auto outputsVector = ie.get_outputs();
+    auto outputsVector = ie.GetAllTaskOutputs();
     for(auto &outputs:outputsVector){
         vector<py::array> result;
         for(auto &output : outputs)
@@ -382,25 +401,36 @@ vector<vector<py::array>> pyGetOutputs(InferenceEngine &ie)
 PYBIND11_MODULE(_pydxrt, m) {
     py::class_<InferenceEngine>(m, "InferenceEngine")
         .def(py::init<string>())
-        .def("benchmark", &InferenceEngine::RunBenchMark, py::arg("num"), py::arg("inputPtr") = nullptr)
-        .def("input_size", &InferenceEngine::input_size)
-        .def("output_size", &InferenceEngine::output_size)
-        .def("latency", &InferenceEngine::latency)
-        .def("inf_time", &InferenceEngine::inference_time)
-        .def("bitmatch_mask", &InferenceEngine::bitmatch_mask)
-        .def("get_num_tails", &InferenceEngine::get_num_tails)
-        .def("get_compile_type", &InferenceEngine::get_compile_type)
-        .def("register_callback", &pyRegisterCallBack)
+        .def("get_input_size", &InferenceEngine::GetInputSize)
+        .def("get_output_size", &InferenceEngine::GetOutputSize)
+        .def("get_latency", &InferenceEngine::GetLatency)
+        .def("get_npu_inference_time", &InferenceEngine::GetNpuInferenceTime)
+        
+        .def("get_latency_list", &InferenceEngine::GetLatencyVector)
+        .def("get_npu_inference_time_list", &InferenceEngine::GetNpuInferenceTimeVector)
+        .def("get_latency_mean", &InferenceEngine::GetLatencyMean)
+        .def("get_npu_inference_time_mean", &InferenceEngine::GetNpuInferenceTimeMean)
+        .def("get_latency_std", &InferenceEngine::GetLatencyStdDev)
+        .def("get_npu_inference_time_std", &InferenceEngine::GetNpuInferenceTimeStdDev)
+        .def("get_latency_count", &InferenceEngine::GetLatencyCnt)
+        .def("get_npu_inference_time_count", &InferenceEngine::GetNpuInferenceTimeCnt)
+
+        .def("get_bitmatch_mask", &InferenceEngine::GetBitmatchMask)
+        .def("get_num_tail_tasks", &InferenceEngine::GetNumTailTasks)
+        .def("get_compile_type", &InferenceEngine::GetCompileType)
+        .def("is_ppu", &InferenceEngine::IsPPU)
         ;
-    m.def("run_engine", &pyRunEngine);
-    m.def("run_async_engine", &pyRunAsyncEngine);
+    m.def("register_callback", &pyRegisterCallback);
+    m.def("run", &pyRun);
+    m.def("run_async", &pyRunAsync);
+    m.def("run_benchmark", &pyRunBenchmark);
     m.def("wait", &pyWait);
     m.def("validate_device", &pyValidateDevice);
+    m.def("get_input_dtype", &pyGetInputDataType);
+    m.def("get_output_dtype", &pyGetOutputDataType);
+    m.def("get_task_order", &pyGetTaskOrder);
+    m.def("get_all_task_outputs", &pyGetAllTaskOutputs);
     m.def("parse_model", &ParseModel);
-    m.def("input_dtype", &pyGetInputDataType);
-    m.def("output_dtype", &pyGetOutputDataType);
-    m.def("task_order", &pyGetTaskOrder);
-    m.def("get_outputs", &pyGetOutputs);
 }
 
 }/* namespace dxrt */

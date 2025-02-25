@@ -54,6 +54,17 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
     {
         Device::_sNpuValidateOpt = true;
     }
+#ifdef USE_ORT
+    if (_option.use_ort == true)
+    {
+        CpuHandle::InitMultiThreadEnv();
+    }
+#else
+    if (_option.use_ort == true)
+    {
+        throw dxrt::InvalidArgumentException("USE_ORT NOT SUPPORTED");
+    }
+#endif
     /* check files */
     if (dxrt::fileExists(_modelFile))
     {
@@ -141,7 +152,7 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
                 }
             }
 #ifdef USE_ORT
-            if(!found)
+            if ((found == false) && (_option.use_ort == true))
             {
                 for(size_t j=0; j<_modelData.deepx_binary.cpu_models().size(); j++)
                 {
@@ -179,49 +190,55 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
                 _tasks.emplace_back(task);
 
 #ifdef USE_ORT
-                auto &graph = _graphMap[order];
-
-                for(auto src : graph.inputs())
+                if (_option.use_ort == true)
                 {
-                    if(src.val().empty())
+                    auto &graph = _graphMap[order];
+
+                    for(auto src : graph.inputs())
                     {
-                        if(_head==nullptr)
+                        if(src.val().empty())
                         {
-                            _head = task;
-                            task->set_head();
-                        }
-                        else
-                        {
-                            if(_head == task and _head->processor()==Processor::NPU)
+                            if(_head==nullptr)
                             {
-                                DXRT_ASSERT(false, "NPU Multi-input is not supported.");
+                                _head = task;
+                                task->set_head();
                             }
                             else
                             {
-                                DXRT_ASSERT(false, "Multi-head model(Start with multi task on the dxnn graph) is not supported.");
+                                if((_head == task) && (_head->processor()==Processor::NPU))
+                                {
+                                    DXRT_ASSERT(false, "NPU Multi-input is not supported.");
+                                }
+                                else
+                                {
+                                    DXRT_ASSERT(false, "Multi-head model(Start with multi task on the dxnn graph) is not supported.");
+                                }
                             }
                         }
                     }
-                }
-                for(auto dst : graph.outputs())
-                {
-                    if(dst.val().empty())
+                    for(auto dst : graph.outputs())
                     {
-                        task->set_tail();
-                        _tails.push_back(task);
+                        if(dst.val().empty())
+                        {
+                            task->set_tail();
+                            _tails.push_back(task);
+                        }
                     }
                 }
-#else
-                _head = task;
-                task->set_head();
-                _tails.push_back(task);
-                task->set_tail();
+                else
 #endif
+                {
+                    _head = task;
+                    task->set_head();
+                    _tails.push_back(task);
+                    task->set_tail();
+                }
                 _taskMap[task->name()] = task;
                 _taskOrder.push_back(task->name());
-#ifndef USE_ORT
-                break; // force single task
+#ifdef USE_ORT
+                if (_option.use_ort == false)
 #endif
+                    break; // force single task
             }
         }
         // exit(1);
@@ -274,9 +291,9 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
         if (!(task->is_head())) 
         {
             auto &prevs = task->prevs();
-            for (size_t i = 0; i < task->inputs().size(); ++i) {
-                cout <<task->name() << "->inputs (" <<to_string(i) <<") " <<task->inputs()[i].name() << endl;
-            }
+            //for (size_t i = 0; i < task->inputs().size(); ++i) {
+            //    cout <<task->name() << "->inputs (" <<to_string(i) <<") " <<task->inputs()[i].name() << endl;
+            //}
             for (auto &node : inputs) {
 
                 string tensorName = node.key();
@@ -295,43 +312,39 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
     }
 
 #ifdef USE_ORT
-    _lastOutputOrder = _modelData.deepx_graph.origin_output(); 
+    if (_option.use_ort == true)
+    {
+        _lastOutputOrder = _modelData.deepx_graph.origin_output();
+    }
+    else
 #endif
-    std::vector<std::string> _lastOutputOrderPPU;
+        _lastOutputOrder.clear();
+
     _numTails = 0;
     for (auto &task : _tasks)
     {
         if(task->nexts().empty())
-        {
-            if(task->is_PPU()) //Remove it when CG supports _lastOutputOrder for PPU
+        {    
+#ifdef USE_ORT
+            if (_option.use_ort == false)
+#endif
+            for (auto& output : task->outputs())
             {
-                //cout<<task->outputs()[0].name()<<endl;//FOR DEBUG, Remove it.
-                _lastOutputOrderPPU.push_back(task->outputs()[0].name());
-            }
-            else
-            {
-                for (auto& output : task->outputs())
-                {
-                    _lastOutputOrderPPU.push_back(output.name());
-                }
+                _lastOutputOrder.push_back(output.name());
             }
             _numTails++;
         }
     }
-#ifdef USE_ORT
-    if(_lastOutputOrder.size() > _lastOutputOrderPPU.size())
-    {
-        _lastOutputOrder = _lastOutputOrderPPU;
+
+    cout << "Last Output Tensors: ";
+    for (size_t i = 0; i < _lastOutputOrder.size(); ++i) {
+        cout << _lastOutputOrder[i];
+        if (i < _lastOutputOrder.size() - 1) {
+            cout << ", ";
+        }
     }
-#else
-    _lastOutputOrder = _lastOutputOrderPPU;
-#endif
-    
-    for(size_t i=0; i<(_lastOutputOrder).size();i++)
-    {
-        cout<<(_lastOutputOrder)[i]<<endl;
-    }
-    
+    cout << endl;
+
     LOG_DBG("_numTails : "+_numTails)
     //DXRT_ASSERT(_numTails==1, "Invalid Graph : check the number of tail task (The final inference output aggregation for multi-tail tasks is not yet supported.)");
     
@@ -380,8 +393,6 @@ InferenceEngine::~InferenceEngine(void)
         task->prevs().clear();
         task->nexts().clear();
         task->ClearOutputBuffer();
-        if(task->processor()==Processor::CPU)
-            task->ClearInputBuffer();
     }
     _tasks.clear();
     _taskMap.clear();
@@ -389,6 +400,7 @@ InferenceEngine::~InferenceEngine(void)
     _tails.clear();
     _userCallback = nullptr;
     Request::Clear();
+    LOG_DXRT_DBG <<" Done"<< endl;
 
     // usleep(500);
 }
@@ -452,13 +464,13 @@ int InferenceEngine::RunAsync(void *inputPtr, void *userArg, void *outputPtr)
     return jobId;
 }
 
-void InferenceEngine::RegisterCallBack(function<int(TensorPtrs &outputs, void *userArg)> f)
+void InferenceEngine::RegisterCallback(function<int(TensorPtrs &outputs, void *userArg)> f)
 {
     LOG_DXRT_DBG << endl;
     _userCallback = f;
 }
 
-float InferenceEngine::RunBenchMark(int num, void *inputPtr)
+float InferenceEngine::RunBenchmark(int num, void *inputPtr)
 {
 #ifdef _WIN32
     return RunBenchMarkWindows(num, inputPtr);
@@ -468,7 +480,6 @@ float InferenceEngine::RunBenchMark(int num, void *inputPtr)
     vector<float> fps;
     int todo = max(30, num);
 
-
     std::atomic<int> done_count;
     auto callBack = [&done_count](TensorPtrs &outputs, void *userArg) -> int{
         std::ignore = outputs;
@@ -476,7 +487,7 @@ float InferenceEngine::RunBenchMark(int num, void *inputPtr)
         done_count++;
         return 0;
     }; //callback used to count inference
-    RegisterCallBack(callBack);
+    RegisterCallback(callBack);
     while (todo > 0)
     {
         uint64_t infTime = 0;
@@ -503,7 +514,7 @@ float InferenceEngine::RunBenchMark(int num, void *inputPtr)
         sum += val;
         //cout << "fps: " << val << endl;
     }
-    RegisterCallBack(nullptr);
+    RegisterCallback(nullptr);
     return sum / fps.size();
 }
 
@@ -530,7 +541,7 @@ float InferenceEngine::RunBenchMarkWindows(int num, void* inputPtr)
         done_count++; i_last = ((int)userArg);
         return 0;
         }; //callback used to count inference
-    RegisterCallBack(callBack);
+    RegisterCallback(callBack);
     while (todo > 0)
     {
         uint64_t infTime = 0;
@@ -559,7 +570,7 @@ float InferenceEngine::RunBenchMarkWindows(int num, void* inputPtr)
         sum += val;
         //cout << "fps: " << val << endl;
     }
-    RegisterCallBack(nullptr);
+    RegisterCallback(nullptr);
     return sum / fps.size();
 }
 #endif // _WIN32
@@ -582,7 +593,6 @@ TensorPtrs InferenceEngine::ValidateDevice(void *inputPtr, int deviceId)
     if (static_cast<size_t>(deviceId) >= devices.size()) {
         throw DeviceIOException(EXCEPTION_MESSAGE("invalid device id"));
     }
-
     auto req = Request::Create(npuTask.get(), inputPtr, nullptr, nullptr);
     req->setCallback([](RequestPtr) {});
     req->SetStatus(Request::Status::REQ_BUSY);
@@ -618,12 +628,12 @@ TensorPtrs InferenceEngine::Wait(int jobId)
     return infJob->getOutput();
 }
 
-Tensors InferenceEngine::inputs(void *ptr, uint64_t phyAddr)
+Tensors InferenceEngine::GetInputs(void *ptr, uint64_t phyAddr)
 {
     return _head->inputs(ptr, phyAddr);
 }
 
-vector<Tensors> InferenceEngine::inputs(int devId)
+vector<Tensors> InferenceEngine::GetInputs(int devId)
 {
     auto devices = dxrt::CheckDevices();
     if(devices.empty()) return {};
@@ -631,45 +641,136 @@ vector<Tensors> InferenceEngine::inputs(int devId)
     return device->inputs(_head->id());
 }
 
-Tensors InferenceEngine::outputs(void *ptr, uint64_t phyAddr)
+Tensors InferenceEngine::GetOutputs(void *ptr, uint64_t phyAddr)
 {
-    return _tails[0]->outputs(ptr, phyAddr);
+    Tensors filteredTensors;
+
+    for (auto &task : _tasks)
+    {
+        TaskData* tempTaskDataPtr = task->getData();
+        Tensors tempTensors = tempTaskDataPtr->output_tensors();
+
+        if (ptr == nullptr) {
+            for (const auto &name : _lastOutputOrder) {
+                for (Tensor &tensor : tempTensors) {
+                    if (tensor.name() == name) {
+                        filteredTensors.push_back(tensor);
+                    }
+                }
+            }
+        } 
+        else {
+            int i = 0;
+            for (auto &t : tempTensors)
+            {
+                t.data() = static_cast<void*>(static_cast<uint8_t*>(ptr) + tempTaskDataPtr->_outputOffsets[i]);
+                t.phy_addr() = phyAddr + tempTaskDataPtr->_outputOffsets[i];
+
+                if (std::find(_lastOutputOrder.begin(), _lastOutputOrder.end(), t.name()) != _lastOutputOrder.end()) {
+                    filteredTensors.push_back(t);
+                }
+                i++;
+            }
+        }
+    }
+    
+    return filteredTensors; 
 }
 
 
-uint64_t InferenceEngine::input_size()
+uint64_t InferenceEngine::GetInputSize()
 {
     return _head->input_size();
 }
 
-uint64_t InferenceEngine::output_size()
+uint64_t InferenceEngine::GetOutputSize()
 {
-    return _tails[0]->output_size();
+    uint64_t outputSize = 0;
+    for (auto &name : _lastOutputOrder)
+    {
+        for (auto &task : _tasks)
+        {
+            if(task->is_PPU())
+            {
+                return task->output_size();
+            }
+            for(Tensor tensor: task->outputs())
+            {
+                if(tensor.name() == name)
+                {
+                    outputSize += tensor.size_in_bytes();
+                }
+            }
+        }
+    }
+    return outputSize;
 }
 
-string InferenceEngine::name()
+string InferenceEngine::GetModelName()
 {
     return _name;
 }
 
-vector<string> InferenceEngine::task_order()
+vector<string> InferenceEngine::GetTaskOrder()
 {
     return _taskOrder;
 }
 
-int InferenceEngine::latency()
+int InferenceEngine::GetLatency()
 {
     LOG_DXRT_DBG << endl;
     return _inferenceTimer.latency();
 }
 
-uint32_t InferenceEngine::inference_time()
+vector<int> InferenceEngine::GetLatencyVector()
+{
+    LOG_DXRT_DBG << endl;
+    return _inferenceTimer.GetLatencyVector();
+}
+
+uint32_t InferenceEngine::GetNpuInferenceTime()
 {
     LOG_DXRT_DBG << endl;
     return _inferenceTimer.inference_time();
 }
 
-vector<TensorPtrs> InferenceEngine::get_outputs()
+vector<uint32_t> InferenceEngine::GetNpuInferenceTimeVector()
+{
+    LOG_DXRT_DBG << endl;
+    return _inferenceTimer.GetNpuInferenceTimeVector();
+}
+
+double InferenceEngine::GetLatencyMean()
+{
+    return _inferenceTimer.GetLatencyMean();
+}
+
+double InferenceEngine::GetNpuInferenceTimeMean()
+{
+    return _inferenceTimer.GetNpuInferenceTimeMean();
+}
+
+double InferenceEngine::GetLatencyStdDev()
+{
+    return _inferenceTimer.GetLatencyStdDev();
+}
+
+double InferenceEngine::GetNpuInferenceTimeStdDev()
+{
+    return _inferenceTimer.GetNpuInferenceTimeStdDev();
+}
+
+int InferenceEngine::GetLatencyCnt()
+{
+    return _inferenceTimer.GetLatencyCnt();
+}
+
+int InferenceEngine::GetNpuInferenceTimeCnt()
+{
+    return _inferenceTimer.GetNpuInferenceTimeCnt();
+}
+
+vector<TensorPtrs> InferenceEngine::GetAllTaskOutputs()
 {
     LOG_DXRT_DBG << "Collecting outputs from all tasks in order." << endl;
     vector<TensorPtrs> all_outputs;
@@ -701,17 +802,22 @@ vector<TensorPtrs> InferenceEngine::get_outputs()
     return all_outputs;
 }
 
-int InferenceEngine::get_num_tails()
+int InferenceEngine::GetNumTailTasks()
 { 
     return _numTails; 
 }
 
-string InferenceEngine::get_compile_type()
+string InferenceEngine::GetCompileType()
 { 
     return _modelCompileType; 
 }
 
-vector<uint8_t> InferenceEngine::bitmatch_mask(int index) {
+bool InferenceEngine::IsPPU()
+{ 
+    return _isPPU; 
+}
+
+vector<uint8_t> InferenceEngine::GetBitmatchMask(int index) {
     const vector<char>& maskBuffer = _modelData.deepx_binary.bitmatch_mask(index).buffer();
     vector<uint8_t> data(maskBuffer.begin(), maskBuffer.end());
     return data;
@@ -720,15 +826,23 @@ vector<uint8_t> InferenceEngine::bitmatch_mask(int index) {
 ostream& operator<<(ostream& os, const InferenceEngine& ie)
 {
     os << " InferenceEngine " << ie._name << endl;
-    // for(auto &task:ie._tasks)
-    // {
-    //     os << *task << endl;
-    // }
+    for (const auto& task_name : ie._taskOrder)
+    {
+        auto it = ie._taskMap.find(task_name);
+        if (it != ie._taskMap.end())
+        {
+            os << *(it->second) << endl;
+        }
+
+    }
+    /*
     for(auto &pair:ie._taskMap)
     {
         os << *pair.second << endl;
     }
+    */
     return os;
+
 }
 
 } // namespace dxrt

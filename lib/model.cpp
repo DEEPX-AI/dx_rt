@@ -3,6 +3,7 @@
 #include "dxrt/model.h"
 #include "dxrt/inference_engine.h"
 #include "dxrt/exception/exception.h"
+#include "dxrt/util.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -142,7 +143,7 @@ int LoadBinaryInfo(deepx_binaryinfo::BinaryInfoDatabase& param, char *buffer, in
     headerInfo = string(buffer+offset,sizeInfo-offset);
     offset = sizeInfo;
 
-    cout << headerInfo << endl;
+    //cout << headerInfo << endl;
     document.Parse(headerInfo.c_str());    
     if (document.HasParseError()) {
         std::cerr << "headerinfo parsing failed. (" << document.GetParseError() << ")" << std::endl;
@@ -152,32 +153,6 @@ int LoadBinaryInfo(deepx_binaryinfo::BinaryInfoDatabase& param, char *buffer, in
 
     if (document.HasMember("data") && document["data"].IsObject()) {
         const Value &dataObj = document["data"];
-
-        // [Field] - merged model
-        if (dataObj.HasMember("merged_model") && dataObj["merged_model"].IsObject()) {
-            const Value &mergedModelObj = dataObj["merged_model"];
-            if (mergedModelObj.HasMember("offset") && mergedModelObj["offset"].IsInt64())
-                param.merged_model().offset() = mergedModelObj["offset"].GetInt64();
-            if (mergedModelObj.HasMember("size") && mergedModelObj["size"].IsInt64())
-                param.merged_model().size() = mergedModelObj["size"].GetInt64();
-        }
-
-        // [Field] - npu models
-        if (dataObj.HasMember("npu_models") && dataObj["npu_models"].IsObject()) {
-            const Value &npuModelsObj = dataObj["npu_models"];
-            for (Value::ConstMemberIterator iter = npuModelsObj.MemberBegin(); iter != npuModelsObj.MemberEnd(); ++iter) {
-                if (iter->name.IsString()) {
-                    deepx_binaryinfo::Models model;
-                    model.name() = iter->name.GetString();
-                    const Value& value = iter->value;
-                    if (value.HasMember("offset") && !value["offset"].IsInt64())
-                        model.offset() = value["offset"].GetInt64();
-                    if (value.HasMember("size") && value["size"].IsInt64())
-                        model.size() = value["size"].GetInt64();    
-                    param.npu_models().push_back(model);                                    
-                }
-            }
-        }
 
         // [Field] - cpu models
 #ifdef USE_ORT
@@ -357,22 +332,47 @@ int LoadGraphInfo(deepx_graphinfo::GraphInfoDatabase& param, ModelDataBase& data
             if (graphObj.HasMember("outputs") && graphObj["outputs"].IsObject()) {
                 const Value& outputsObj = graphObj["outputs"];
                 for (Value::ConstMemberIterator iter = outputsObj.MemberBegin(); iter != outputsObj.MemberEnd(); ++iter) {
+
                     if (iter->name.IsString()) {
-                        const Value& value = iter->value;
-                        if (value.Size() > 0){
-                            for (SizeType i = 0; i < value.Size(); i++) {
-                                if (value[i].IsString()) {
+                        const std::string key = iter->name.GetString();
+                        const Value& outputDetails = iter->value;
+                        
+                        if (outputDetails.IsArray() && outputDetails.Size() == 0) {
+                            deepx_graphinfo::KeyValueInfo keyVal;
+                            keyVal.key() = key;
+                            graph.outputs().push_back(keyVal);
+                        } 
+                        else if (outputDetails.IsArray()) {
+                            for (SizeType i = 0; i < outputDetails.Size(); ++i) {
+                                if (outputDetails[i].IsString()) {
                                     deepx_graphinfo::KeyValueInfo keyVal;
-                                    keyVal.key() = iter->name.GetString();
-                                    keyVal.val() = value[i].GetString(); 
+                                    keyVal.key() = key; 
+                                    keyVal.val() = outputDetails[i].GetString(); 
                                     graph.outputs().push_back(keyVal);
                                 }
                             }
-                        }
-                        else{
-                            deepx_graphinfo::KeyValueInfo keyVal;
-                            keyVal.key() = iter->name.GetString();
-                            graph.outputs().push_back(keyVal);
+                        } else if (outputDetails.IsObject()) {
+                            if (outputDetails.HasMember("next_layers") && outputDetails["next_layers"].IsArray()) {
+                                const Value& nextLayersArray = outputDetails["next_layers"];
+                                if(nextLayersArray.Size() == 0) {
+                                    deepx_graphinfo::KeyValueInfo keyVal;
+                                    keyVal.key() = key;
+                                    graph.outputs().push_back(keyVal);
+                                }
+                                else {
+                                    for (SizeType i = 0; i < nextLayersArray.Size(); ++i) {
+                                        if (nextLayersArray[i].IsString()) {
+                                            deepx_graphinfo::KeyValueInfo keyVal;
+                                            keyVal.key() = key;
+                                            keyVal.val() = nextLayersArray[i].GetString();
+                                            graph.outputs().push_back(keyVal);
+                                        }
+                                    }
+                                }
+
+                            }
+                        } else{
+                            DXRT_ASSERT(false, "invalid outputDetails in graph_info");
                         }
                     }
                 }
@@ -516,33 +516,91 @@ string LoadRmapInfo(deepx_rmapinfo::rmapInfoDatabase& param, ModelDataBase& data
                     for (SizeType i = 0; i < regMap.outputs().outputlist().output_size(); i++) {
                         const Value &outputObj = outputArr[i];
                         deepx_rmapinfo::InOutput output;
-                        if (outputObj.HasMember("name") && outputObj["name"].IsString())
-                            output.name() = outputObj["name"].GetString();
-                        if (outputObj.HasMember("shapes") && outputObj["shapes"].IsObject()) {
-                            const Value& shapesObj = outputObj["shapes"];
-                            if (shapesObj.HasMember("shape") && shapesObj["shape"].IsArray()) {
-                                const Value& shapeArr = shapesObj["shape"];
-                                output.shapes().shape_size() = shapeArr.Size();
-                                for (SizeType j = 0; j < output.shapes().shape_size(); j++) {
-                                    output.shapes().shape().push_back(shapeArr[j].GetInt64());
-                                }
-                            }
-                        }
-                        if (outputObj.HasMember("type") && outputObj["type"].IsString())
-                            output.type() = GetDataTypeNum(outputObj["type"].GetString());
+                        if (outputObj.HasMember("format") && outputObj["format"].IsString())
+                            output.format() = GetDataFormatNum(outputObj["format"].GetString());
                         if (outputObj.HasMember("memory") && outputObj["memory"].IsObject()) {
                             const Value &memoryObj = outputObj["memory"];
+                            if (memoryObj.HasMember("type") && memoryObj["type"].IsString())
+                                output.memory().type() = GetMemoryTypeNum(memoryObj["type"].GetString());
                             if (memoryObj.HasMember("name") && memoryObj["name"].IsString())
                                 output.memory().name() = memoryObj["name"].GetString();
                             if (memoryObj.HasMember("offset") && memoryObj["offset"].IsString())
                                 output.memory().offset() = stoi(memoryObj["offset"].GetString());
                             if (memoryObj.HasMember("size") && memoryObj["size"].IsString())
                                 output.memory().size() = stoi(memoryObj["size"].GetString());
-                            if (memoryObj.HasMember("type") && memoryObj["type"].IsString())
-                                output.memory().type() = GetMemoryTypeNum(memoryObj["type"].GetString());
                         }
-                        if (outputObj.HasMember("format") && outputObj["format"].IsString())
-                            output.format() = GetDataFormatNum(outputObj["format"].GetString());
+                        //PPU Output
+                        if (output.memory().type() == 3){
+                            if (output.format() == 4){
+                                output.name() = "BBOX";
+                            }
+                            else if (output.format() == 5){
+                                output.name() = "FACE";
+                            }
+                            else if (output.format() == 6){
+                                output.name() = "POSE";
+                            }
+                            else{
+                                cout << " PPU Output format is invalid. " << endl;
+                                exit (1);
+                            }
+                            output.shapes().shape_size() = 2;
+                            output.shapes().shape().push_back(1);
+                            output.shapes().shape().push_back(-1);
+
+                            int dataType = DataType::BBOX;
+                            dataType += output.format();
+                            dataType -= deepx_rmapinfo::DataFormat::PPU_YOLO;
+                            output.type() = dataType;
+                        }
+                        else{
+                            if (outputObj.HasMember("name") && outputObj["name"].IsString())
+                                output.name() = outputObj["name"].GetString();
+                            if (outputObj.HasMember("type") && outputObj["type"].IsString())
+                                output.type() = GetDataTypeNum(outputObj["type"].GetString());
+                            if (outputObj.HasMember("shapes") && outputObj["shapes"].IsObject()) {
+                                const Value& shapesObj = outputObj["shapes"];
+                                if (shapesObj.HasMember("shape") && shapesObj["shape"].IsArray()) {
+                                    const Value& shapeArr = shapesObj["shape"];
+                                    output.shapes().shape_size() = shapeArr.Size();
+
+                                    int64_t product = 1;  
+                                    for (SizeType j = 0; j < output.shapes().shape_size(); j++) {
+                                        int64_t value = shapeArr[j].GetInt64();
+                                        if (j == 3)
+                                        {
+                                            value = GetAlign(value);
+                                        }
+                                        else if (j > 3) 
+                                            throw std::out_of_range("Invalid tensor shape ( > 4D)");
+                                        output.shapes().shape().push_back(value);
+                                        product *= value;
+                                    }
+
+                                    int dataType = output.type();
+                                    if (dataType == DataType::UINT8 || dataType == DataType::INT8 ) {
+                                        product *= 1;  
+                                    } else if (dataType == DataType::UINT16 || dataType == DataType::INT16 ) {
+                                        product *= 2;  
+                                    } else if (dataType == DataType::UINT32 || dataType == DataType::INT32 ||  dataType == DataType::FLOAT ) {
+                                        product *= 4;  
+                                    } else if (dataType == DataType::UINT64 || dataType == DataType::INT64 ) {
+                                        product *= 8;  
+                                    } else if (dataType == DataType::NONE_TYPE ) {
+                                        product *= 1; 
+                                    } else {
+                                        std::cerr << "Invalid type : " << dataType << std::endl;
+                                    }
+                                    if(product != output.memory().size()){
+                                        std::cerr << "Final product: " << product << std::endl;
+                                        std::cerr << "output.memory().size(): " << output.memory().size() << std::endl;
+                                        DXRT_ASSERT(false, "invalid output shape in rmap_info");
+                                    }
+                                }
+                            }
+
+                        }
+
                         regMap.outputs().outputlist().output().push_back(output);
                     }
                 }

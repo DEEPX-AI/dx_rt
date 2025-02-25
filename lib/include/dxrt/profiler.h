@@ -9,8 +9,9 @@
 #include <vector>
 #include <map>
 #include <mutex>
+#include "dxrt/configuration.h"
 
-#define PROFILER_DEFAULT_SAMPLES 50
+#define PROFILER_DEFAULT_SAMPLES 10000
 
 namespace dxrt {
 // using ProfilerClock = std::chrono::high_resolution_clock;
@@ -104,6 +105,7 @@ private:
     std::map<std::string, std::vector<TimePoint>> timePoints; ///< start/end time points per events
     std::map<std::string, int> idx;  ///< next array index to save data
     std::mutex _lock;
+    std::shared_ptr<Configuration> _conf;
 };
 
 extern uint8_t DEBUG_DATA;

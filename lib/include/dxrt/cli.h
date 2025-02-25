@@ -46,6 +46,13 @@ class DXRT_API DeviceStatusMonitor : public CLICommand
    private:
       void doCommand(DevicePtr devicePtr) override;
 };
+class DXRT_API DeviceMonitorDebug : public CLICommand
+{
+   public:
+      explicit DeviceMonitorDebug(cxxopts::ParseResult &);
+   private:
+      void doCommand(DevicePtr devicePtr) override;
+};
 class DXRT_API FWVersionCommand : public CLICommand
 {
  public:
@@ -104,6 +111,14 @@ class DXRT_API FWConfigCommandJson : public CLICommand
     explicit FWConfigCommandJson(cxxopts::ParseResult &);
  private:
     void doCommand(DevicePtr devicePtr) override;
+};
+
+class DXRT_API DDRTargetCommand : public CLICommand
+{
+   public:
+      explicit DDRTargetCommand(cxxopts::ParseResult &);
+   private:
+      void doCommand(DevicePtr devicePtr) override;
 };
 
 class DXRT_API FWLogCommand : public CLICommand

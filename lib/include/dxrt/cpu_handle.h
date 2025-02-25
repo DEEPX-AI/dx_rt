@@ -4,20 +4,21 @@
 #pragma once
 
 #include <vector>
+#include <atomic>
 
 #include "dxrt/common.h"
 #include "dxrt/datatype.h"
-#include "dxrt/request.h"
 
 #ifdef USE_ORT
-#ifdef __linux__
 #include <onnxruntime_cxx_api.h>
-#endif
 #endif
 
 namespace dxrt {
 class Buffer;
 class CpuHandleWorker;
+class Request;
+using RequestPtr = std::shared_ptr<Request>;
+
 class DXRT_API CpuHandle
 {
 public:
@@ -30,15 +31,20 @@ public:
 #endif
 
 public:
+    static std::atomic<int> _totalNumThreads;
+    static bool _multiThreadEnv;
+    static void InitMultiThreadEnv();
+
+public:
     uint32_t _inputSize = 0;
     uint32_t _outputSize = 0;
     uint32_t _outputMemSize = 0;
     std::vector<DataType> _inputDataTypes;  
     std::vector<DataType> _outputDataTypes; 
-    std::vector<int> _inputDataTypesOrg;    
-    std::vector<int> _outputDataTypesOrg;   
     int _numInputs = 1;
     int _numOutputs;
+    int _numThreads = 1;
+    int _initDynamicThreads = 0;
     std::string _name;
     std::vector<std::string> _inputNames;
     std::vector<const char*> _inputNamesChar;
@@ -52,7 +58,6 @@ public:
     std::vector<uint64_t> _outputSizes;
     //std::shared_ptr<Buffer> _buffer;
     void* _cpuTaskOutputBufferPtr;
-    void* _cpuTaskInputBufferPtr;
     std::shared_ptr<CpuHandleWorker> _worker=nullptr;
 
 public:

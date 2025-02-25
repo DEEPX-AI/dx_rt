@@ -4,7 +4,11 @@
 #include "dxrt/common.h"
 #include "dxrt/worker.h"
 #include "dxrt/device.h"
+#include "dxrt/util.h"
 #include "dxrt/task_data.h"
+#include "dxrt/profiler.h"
+#include "dxrt/request.h"
+#include "dxrt/configuration.h"
 
 namespace dxrt {
 
@@ -15,6 +19,7 @@ DeviceInputWorker::DeviceInputWorker(string name_, int numThreads, Device *devic
 }
 DeviceInputWorker::~DeviceInputWorker()
 {
+    LOG_DXRT_DBG<<endl;
     _cv.notify_all();
 }
 
@@ -35,10 +40,11 @@ int DeviceInputWorker::request(int requestId)
 
 void DeviceInputWorker::ThreadWork(int id)
 {
-    string threadName = getName() + to_string(id);
+    string threadName = getName() +"_t"+ to_string(id);
+    thread::id this_id = this_thread::get_id();
     int loopCnt = 0;  // int processCnt = 0;
     LOG_DXRT_DBG << getName() << " : Entry" << endl;
-
+    int load;
     int ret;
     uint32_t type = _device->info().type;
 #ifdef WORKER_USE_PROFILER
@@ -55,12 +61,27 @@ void DeviceInputWorker::ThreadWork(int id)
                 return _queue.size() || _stop;
             }
         );
-        LOG_DXRT_DBG << threadName << " : wake up. (" << _queue.size() << ") " << endl;
         if (_stop)
         {
             LOG_DXRT_DBG << threadName << " : requested to stop thread." << endl;
+            std::cout << "[" << threadName << "] Average Load: " << GetAverageLoad() << std::endl;
+            while (!_queue.empty()) {
+                _queue.pop();
+            }
+            auto it = find_if(_threads.begin(), _threads.end(),
+                [this_id](thread& t) { return t.get_id() == this_id; });
+            if (it != _threads.end()) {
+                LOG_DXRT_DBG<<threadName<<" Detaching..."<<endl;
+                it->detach();
+                _threads.erase(it);
+                LOG_DXRT_DBG << threadName << " : removed itself from input worker threads. Remaining: " 
+                    << _threads.size() <<endl;
+            }
             break;
         }
+        load = _device->load();
+        LOG_DXRT_DBG << threadName << " : wake up. (" << load << ") " << endl;
+        UpdateQueueStats(load);
         auto requestId = _queue.front();
         _queue.pop();
         lk.unlock();
@@ -72,35 +93,43 @@ void DeviceInputWorker::ThreadWork(int id)
             auto inferenceAcc = _device->peekInferenceAcc(requestId);
             inferenceAcc->dma_ch = id;
             // cout << inferenceAcc << endl; // for debug.
+            RequestPtr req = Request::GetById(requestId);
             if (SKIP_INFERENCE_IO != 1)
             {
+                TASK_FLOW("["+to_string(req->job_id())+"]"+req->taskData()->name()+" write input, load: "+to_string(load));
                 _device->Write(inferenceAcc->input, id);
             }
 #ifdef USE_SERVICE
-            std::ignore = ret;
-            _device->SignalToService(inferenceAcc);
-        
-#else
-       
-            while (true)
+            if (Configuration::GetInstance()->GetEnable(Configuration::ITEM::SERVICE))
             {
-                 ret = _device->Process(cmd, inferenceAcc);
-                if (ret == 0 || _stop)
+                std::ignore = ret;
+                TASK_FLOW("["+to_string(req->job_id())+"]"+req->taskData()->name()+" signal to service input");
+                _device->SignalToService(inferenceAcc);
+            }
+            else
+#endif
+            {
+                while (true)
                 {
-                    if (DEBUG_DATA > 0)
+                    ret = _device->Process(cmd, inferenceAcc);
+                    LOG_DXRT_DBG << "Input signalled " << id << " " << inferenceAcc->req_id<< endl;
+                    if (ret == 0 || _stop)
                     {
-                        RequestPtr req = Request::GetById(requestId);
-                        DataDumpBin(req->taskData()->name() + "_input.bin", req->inputs());
+                        if (DEBUG_DATA > 0)
+                        {
+                            RequestPtr req = Request::GetById(requestId);
+                            DataDumpBin(req->taskData()->name() + "_input.bin", req->inputs());
+                        }
+                        // processCnt++;
+                        break;
                     }
-                    // processCnt++;
-                    break;
-                }
-                if (ret != -EBUSY)  // write done, but failed to enqueue
-                {
-                    inferenceAcc->input.data = 0;
+                    if (ret != -EBUSY)  // write done, but failed to enqueue
+                    {
+                        inferenceAcc->input.data = 0;
+                    }
                 }
             }
-#endif
+
             
 #ifdef WORKER_USE_PROFILER
             profiler.End(threadName);

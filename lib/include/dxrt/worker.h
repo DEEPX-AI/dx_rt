@@ -11,13 +11,13 @@
 #include <memory>
 #include <string>
 #include <array>
+#include <unordered_map>
 #include "dxrt/common.h"
-#include "dxrt/profiler.h"
 #include "dxrt/driver.h"
 
 namespace dxrt {
 class Tensor;
-class Task;
+
 class Device;
 class Request;
 class CpuHandle;
@@ -39,27 +39,38 @@ public:
     Worker();
     virtual ~Worker();
     static std::shared_ptr<Worker> Create(std::string name_, Type type_, int numThreads = 1, Device *device_ = nullptr, CpuHandle *cpuHandle_ = nullptr);
-    void Stop();
+    virtual void Stop();
+    void UpdateQueueStats(int queueSize) {
+        std::unique_lock<std::mutex> lk(_statsLock);
+        _checkQueueCnt++;
+        _accumulatedQueueSize += queueSize;
+    }
+
 protected:
     const std::string& getName() const {return _name;}
     Device *_device = nullptr;
     CpuHandle *_cpuHandle = nullptr;
     std::mutex _lock;
+    std::mutex _statsLock;
     std::condition_variable _cv;
     std::atomic<bool> _stop {false};
+    std::vector<std::thread> _threads;
+
     void InitializeThread();
-
-
+    float GetAverageLoad() {
+        std::unique_lock<std::mutex> lk(_statsLock);
+        return (_checkQueueCnt > 0) ? static_cast<float>(_accumulatedQueueSize) / _checkQueueCnt : 0.0f;
+    }
     virtual void ThreadWork(int id) = 0;
 private:
     void DoThread(int id);
     std::string _name;
     Type _type;
     int _queueMaxSize = 1000;
-
+    std::atomic<int> _checkQueueCnt = {0};
+    std::atomic<int> _accumulatedQueueSize = {0};
     //std::queue<std::shared_ptr<Request>> _queue;
 
-    std::vector<std::thread> _threads;
 };
 
 class DeviceInputWorker : public Worker
@@ -106,13 +117,30 @@ private:
 class CpuHandleWorker : public Worker
 {
 public:
-    CpuHandleWorker(string name_, int numThreads, CpuHandle *cpuHandle_);
+    CpuHandleWorker(string name_, int numThreads, int initDynamicThreads, CpuHandle *cpuHandle_);
     virtual ~CpuHandleWorker();
-    static shared_ptr<CpuHandleWorker> Create(string name_, int numThreads, CpuHandle *cpuHandle_);
+    static shared_ptr<CpuHandleWorker> Create(string name_, int numThreads, int initDynamicThreads, CpuHandle *cpuHandle_);
     int request(std::shared_ptr<Request> req);
 
 private:
     std::queue<std::shared_ptr<Request>> _queue;
-    void ThreadWork(int id) override;
+    void ThreadWork(int id) override; 
+
+    size_t _numThreads;
+    size_t _minThreads;
+    size_t _maxThreads;
+    
+    int _initDynamicThreads;
+
+    int _loadCheck = 0;
+    int _loadCheckTerm = 0;
+    int _stableLoad = 0;
+    int _loadZeroCount = 0;
+    const int _threshold = 3;
+    const int _idleLimit = 5;
+    
+    std::vector<std::thread> _dynamicThreads;  
+    std::atomic<int> _dynamicStopCnt{0};  
+
 };
 } // namespace dxrt

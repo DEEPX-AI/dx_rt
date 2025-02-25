@@ -16,7 +16,7 @@ Tensor::Tensor(string name_, std::vector<int64_t> shape_, DataType type_, void *
     _elemSize = GetDataSize_Datatype(static_cast<DataType>(_type));
     //if(_shape.size()>=4)
     //    _inc = _elemSize*( 64*( _shape[3]/64) + (int)(((_shape[3]%64)>0) ? 64 : 0) );
-    if(_shape.size()==4)
+    if(_shape.size()>=4)
         _inc = _elemSize*_shape[3];
 }
 Tensor::Tensor(const Tensor &tensor_, void *data_)
@@ -69,7 +69,7 @@ ostream& operator<<(ostream& os, const Tensor& tensor)
     {
         if (tensor._shape[i] == -1) 
         {
-            os << "UNKNOWN";
+            os << "unknown";
         } 
         else 
         {

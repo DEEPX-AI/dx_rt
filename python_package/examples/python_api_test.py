@@ -35,10 +35,10 @@ if __name__ == "__main__":
 
     # Initialize inference engine
     ie = InferenceEngine(args.model)
-    input_dtype = ie.input_dtype()
-    output_dtype = ie.output_dtype()
-    input_size = ie.input_size()
-    output_size = ie.output_size()
+    input_dtype = ie.get_input_data_type()
+    output_dtype = ie.get_output_data_type()
+    input_size = ie.get_input_size()
+    output_size = ie.get_output_size()
 
     print(f"Input data type: {input_dtype}")
     print("\n------------------------------------------\n")
@@ -54,51 +54,83 @@ if __name__ == "__main__":
 
     input_data_list = [[np.zeros(input_size, dtype=np.uint8)],[np.zeros(input_size, dtype=np.uint8)]]
     
-    req_id = ie.RunAsync(input_data_list[0], user_arg=0)
-    outputs = ie.Wait(req_id)  
-    print(f"RunAsync() => Wait() => outputs[0].shape : {outputs[0].shape}")
+    req_id = ie.run_async(input_data_list[0], user_arg=0)
+    outputs = ie.wait(req_id)  
+    print(f"run_async() => wait() => outputs[0].shape : {outputs[0].shape}")
     print("\n------------------------------------------\n")
 
-    outputs = ie.Run(input_data_list[0])
-    print(f"Run() => outputs[0].shape : {outputs[0].shape}")
+    outputs = ie.run(input_data_list[0])
+    print(f"run() => outputs[0].shape : {outputs[0].shape}")
     print("\n------------------------------------------\n")
     
-    fps = ie.RunBenchMark()
-    print(f"benchmaRunBenchMarkrk() => fps : {fps}")
+    fps = ie.run_benchmark(30, input_data_list[0])
+    print(f"run_benchmark() => fps : {fps}")
     print("\n------------------------------------------\n")
 
-    outputs = ie.ValidateDevice(input_data_list[0], 0)
+    outputs = ie.validate_device(input_data_list[0], 0)
     print(outputs)
-    print(f"ValidateDevice() => outputs[0].shape : {outputs[0].shape}")
+    print(f"validate_device() => outputs[0].shape : {outputs[0].shape}")
     print("\n------------------------------------------\n")
     
 
-    ie.RegisterCallBack(callback_with_args)
+    ie.register_callback(callback_with_args)
 
-    req_id = ie.RunAsync(input_data_list[0], user_arg=0)
+    req_id = ie.run_async(input_data_list[0], user_arg=0)
     result_queue.put(req_id)
     result_queue.join()
-    print(f"RunAsync(), RegisterCallBack(), req_id : {req_id}")
+    print(f"run_async(), register_callback(), req_id : {req_id}")
     print("\n------------------------------------------\n")
 
-    mask = ie.bitmatch_mask(0)  
-    print(f"bitmatch_mask() => mask.shape : {mask.shape}")
+    mask = ie.get_bitmatch_mask(0)  
+    print(f"get_bitmatch_mask() => mask.shape : {mask.shape}")
     print("\n------------------------------------------\n")
 
-    task_order = ie.task_order()
-    print(f"task_order() => task_order : {task_order}")
+    task_order = ie.get_task_order()
+    print(f"get_task_order() => task_order : {task_order}")
     print("\n------------------------------------------\n")
 
-    outputs = ie.get_outputs()
-    print(f"runAsync() => the number of outputs : {len(outputs)}, outputs[0].shape : {outputs[0][0].shape}")
+    outputs = ie.get_all_task_outputs()
+    print(f"runAsync() => the number of outputs from all tasks : {len(outputs)}, outputs[0].shape : {outputs[0][0].shape}")
     print("\n------------------------------------------\n")
     
-    latency = ie.latency()
-    print(f"latency() => latency : {latency}")
+    latency = ie.get_latency()
+    print(f"get_latency() => latency : {latency}")
     print("\n------------------------------------------\n")
 
-    inf_time = ie.inference_time()
-    print(f"inf_time() => inference_time : {inf_time}")
+    npu_inference_time = ie.get_npu_inference_time()
+    print(f"get_npu_inference_time() => inference_time : {npu_inference_time}")
     print("\n------------------------------------------\n")
 
+    latency_list = ie.get_latency_list()
+    print(f"get_latency_list() => {latency_list}")
+    print("\n------------------------------------------\n")
+
+    npu_inference_time_list = ie.get_npu_inference_time_list()
+    print(f"get_npu_inference_time_list() => {npu_inference_time_list}")
+    print("\n------------------------------------------\n")
+
+    latency_mean = ie.get_latency_mean()
+    print(f"get_latency_mean() => {latency_mean}")
+    print("\n------------------------------------------\n")
+
+    npu_inference_time_mean = ie.get_npu_inference_time_mean()
+    print(f"get_npu_inference_time_mean() => {npu_inference_time_mean}")
+    print("\n------------------------------------------\n")
+
+    latency_std = ie.get_latency_std()
+    print(f"get_latency_std() => {latency_std}")
+    print("\n------------------------------------------\n")
+
+    npu_inference_time_std = ie.get_npu_inference_time_std()
+    print(f"get_npu_inference_time_std() => {npu_inference_time_std}")
+    print("\n------------------------------------------\n")
+    
+    latency_count = ie.get_latency_count()
+    print(f"get_latency_count() => {latency_count}")
+    print("\n------------------------------------------\n")
+
+    npu_inference_time_count = ie.get_npu_inference_time_count()
+    print(f"get_npu_inference_time_count() => {npu_inference_time_count}")
+    print("\n------------------------------------------\n")
+    
     exit(0)

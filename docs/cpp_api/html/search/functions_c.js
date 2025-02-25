@@ -1,4 +1,6 @@
 var searchData=
 [
-  ['task_5forder_74',['task_order',['../classdxrt_1_1InferenceEngine.html#a22087ed8a6839bfc1c4a6b9c21629236',1,'dxrt::InferenceEngine']]]
+  ['save_119',['Save',['../classdxrt_1_1Profiler.html#ae7a4f64cc8dcfea179ab9eb0a8bea8da',1,'dxrt::Profiler']]],
+  ['show_120',['Show',['../classdxrt_1_1Profiler.html#a8b3f38d3b67f15fd530cca295c8a50a8',1,'dxrt::Profiler']]],
+  ['start_121',['Start',['../classdxrt_1_1Profiler.html#aec94050841dbf409644cf73a1647820b',1,'dxrt::Profiler']]]
 ];

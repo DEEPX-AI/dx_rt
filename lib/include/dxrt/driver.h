@@ -221,6 +221,9 @@ typedef struct _dxrt_response_t {
     uint32_t  ppu_filter_num    = 0;
     uint32_t  proc_id           = 0;
     uint32_t  queue             = 0;
+    int32_t   dma_ch            = 0;
+    uint32_t  ddr_wr_bw         = 0; /* unit : KB/s */
+    uint32_t  ddr_rd_bw         = 0; /* unit : KB/s */
 } dxrt_response_t;
 
 typedef struct _dxrt_message
@@ -262,6 +265,8 @@ typedef enum {
     DXRT_CMD_NPU_RUN_REQ        ,
     DXRT_CMD_NPU_RUN_RESP       ,
     DXRT_CMD_UPDATE_CONFIG_JSON ,
+    DXRT_CMD_RECOVERY           ,
+    DXRT_CMD_SET_DDR_FREQ       ,
     DXRT_CMD_MAX,
 } dxrt_cmd_t;
 

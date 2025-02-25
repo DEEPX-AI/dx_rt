@@ -46,6 +46,7 @@ namespace dxrt
         GET_MEMORY_FOR_MODEL = 3, //memory from backwards;
         DEVICE_INIT = 4,
         DEVICE_RESET = 5,
+        DEVICE_DEINIT = 6,
 
         MEMORY_ALLOCATION_AND_TRANSFER_MODEL = 100,
         COMPLETE_TRANSFER_MODEL = 101,

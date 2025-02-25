@@ -31,7 +31,7 @@ setuptools.setup(
     packages=setuptools.find_packages(where="src"),
     package_dir={"": "src"},
     package_data={
-        'dx_engine': ['capi/*.so'],
+        'dx_engine': ['capi/*.so', 'capi/*.lib', 'capi/*.dll', 'capi/*.pyd'],
     },
     entry_points={},
     python_requires=">=3.6",

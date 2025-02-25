@@ -148,10 +148,10 @@ int main(int argc, char *argv[])
     }
 
     dxrt::InferenceEngine ie(modelFile, op);
-    vector<uint8_t> inputBuf(ie.input_size(), 0);
+    vector<uint8_t> inputBuf(ie.GetInputSize(), 0);
     if(!inputFile.empty())
     {
-        DXRT_ASSERT(ie.input_size() == static_cast<uint64_t>(dxrt::getFileSize(inputFile)), "input file size mismatch");
+        DXRT_ASSERT(ie.GetInputSize() == static_cast<uint64_t>(dxrt::getFileSize(inputFile)), "input file size mismatch");
         dxrt::DataFromFile(inputFile, inputBuf.data());
     }
 
@@ -181,8 +181,8 @@ int main(int argc, char *argv[])
             {
                 auto outputs = ie.Run(inputBuf.data());
                 if (!inputFile.empty())
-                    dxrt::DataDumpBin(outputFile, outputs.front()->data(), ie.output_size()); /* TODO: sparse tensor */
-                PrintInfResult(inputFile, outputFile, modelFile, ie.latency()/1000., ie.inference_time()/1000., 0);
+                    dxrt::DataDumpBin(outputFile, outputs.front()->data(), ie.GetOutputSize()); /* TODO: sparse tensor */
+                PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatency()/1000., ie.GetNpuInferenceTime()/1000., 0);
             }
             break;
         }
@@ -205,7 +205,7 @@ int main(int argc, char *argv[])
                     return 0;
                 };
             callback_cnt = 0;
-            ie.RegisterCallBack(postProcCallBack);
+            ie.RegisterCallback(postProcCallBack);
 
             profiler.Start("TargetFps");
             for(int i = 0; i < loops; i++)
@@ -247,13 +247,12 @@ int main(int argc, char *argv[])
             break;
         }
         case BENCHMARK_MODE: {
-            //float fps = ie.RunBenchMark(loops, inputFile.empty() ? nullptr : inputBuf.data());
             //PrintInfResult(inputFile, outputFile, modelFile, 0.0, 0.0, fps);
-            float fps = ie.RunBenchMark(loops, inputFile.empty() ? nullptr : inputBuf.data());
+            float fps = ie.RunBenchmark(loops, inputBuf.data());
             if (!inputFile.empty())
             {
                 auto outputs = ie.Run(inputBuf.data());
-                dxrt::DataDumpBin(outputFile, outputs.front()->data(), ie.output_size()); /* TODO: sparse tensor */
+                dxrt::DataDumpBin(outputFile, outputs.front()->data(), ie.GetOutputSize()); /* TODO: sparse tensor */
             }
             PrintInfResult(inputFile, outputFile, modelFile, 0.0, 0.0, fps);
             break;

@@ -97,7 +97,7 @@ void SchedulerService::schedule(int deviceId)
         // do inference
         dxrt::dxrt_request_acc_t new_req = _map[proc_id][req_id];
         int retval = _devices[deviceId]->InferenceRequest(&new_req);
-        if (retval == -EBUSY)
+        if ((retval == -EBUSY) || (retval == -EAGAIN))
         {
             _loads[deviceId]--;
             _device_queues[deviceId].push(std::make_pair(proc_id, req_id));
@@ -107,8 +107,9 @@ void SchedulerService::schedule(int deviceId)
         {
             LOG_DXRT_S << "Report error message to client:" << retval << endl;
             _errCallBack(dxrt::dxrt_server_err_t::S_ERR_SCHEDULE_REQ, retval);
+            _devices[deviceId]->Process(dxrt::dxrt_cmd_t::DXRT_CMD_RECOVERY, nullptr);
         }
-        DXRT_ASSERT(retval == 0, "IOCTL FAILED err: "+ to_string(retval));
+        // DXRT_ASSERT(retval == 0, "IOCTL FAILED err: "+ to_string(retval));
     }
 }
 void SchedulerService::FinishJobs(int deviceId, const dxrt::dxrt_response_t& response_data)

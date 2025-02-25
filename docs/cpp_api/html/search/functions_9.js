@@ -1,4 +1,5 @@
 var searchData=
 [
-  ['parsemodel_66',['ParseModel',['../namespacedxrt.html#a639d891e943841d37650b5775bdfd279',1,'dxrt']]]
+  ['output_5fsize_112',['output_size',['../classdxrt_1_1InferenceEngine.html#a93e1d7b460b7f8656e725ed708de507b',1,'dxrt::InferenceEngine']]],
+  ['outputs_113',['outputs',['../classdxrt_1_1InferenceEngine.html#a0893b724d6eed939556f1315ce05829d',1,'dxrt::InferenceEngine']]]
 ];

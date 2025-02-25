@@ -44,7 +44,7 @@ int main(int argc, char* argv[])
         dxrt::InferenceEngine ie(modelPath, op);
 
         // create temporary input buffer for example
-        std::vector<uint8_t> inputPtr(ie.input_size(), 0);
+        std::vector<uint8_t> inputPtr(ie.GetInputSize(), 0);
 
         auto start = std::chrono::high_resolution_clock::now();
 

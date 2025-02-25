@@ -9,12 +9,12 @@
 #include <thread>
 #include <condition_variable>
 #include "dxrt/common.h"
-#include "dxrt/request.h"
+#include "dxrt/request_data.h"
 #include "dxrt/driver.h"
 #include "dxrt/device_struct.h"
 #include "dxrt/worker.h"
 #include "dxrt/driver_adapter/driver_adapter.h"
-#include "dxrt/task.h"
+#include "dxrt/task_data.h"
 #include "dxrt/npu_memory_cache.h"
 
 #define DXRT_ASYNC_LOAD_THRE    (5)
@@ -44,7 +44,9 @@ enum class DeviceType : uint32_t
     STD_TYPE = 1,
 };
 
-class Worker;
+class DeviceInputWorker;
+class DeviceOutputWorker;
+class DeviceEventWorker;
 class Memory;
 #ifdef __linux__
 class InferenceOption;
@@ -52,11 +54,12 @@ class InferenceOption;
 
 struct InferenceOption;
 #endif
-class TaskData;
 class Profiler;
 class Buffer;
 class FwLog;
 class MultiprocessMemory;
+class Request;
+
 class DXRT_API Device
 {
 public:
@@ -85,7 +88,7 @@ public:
 
 
     int InferenceRequest(RequestData* req, npu_bound_op boundOp = N_BOUND_NORMAL);
-    TensorPtrs Validate(RequestPtr req, bool skipInference = false);
+    TensorPtrs Validate(std::shared_ptr<Request> req, bool skipInference = false);
     int Release(TaskData *task);
     int Response(dxrt_response_t &response);
     int Write(dxrt_meminfo_t &, int ch);
@@ -102,6 +105,7 @@ public:
     int UpdateFw(std::string fwFile, int subCmd = 0);
     int UploadFw(std::string fwFile, int subCmd = 0);
     int UpdateFwConfig(std::string jsonFile);
+    int UpdateDDRFreq(uint32_t freq);
     std::shared_ptr<FwLog> GetFwLog();
     int64_t Allocate(uint64_t size);
     int64_t Allocate(dxrt_request_t &inference);
@@ -120,6 +124,7 @@ public:
     void popInferenceStruct(int requestId);
     void signalToWorker(int channel);
     void signalToDevice(npu_bound_op boundOp);
+    void signalToDeviceDeInit(npu_bound_op boundOp);
     void Deallocate_npuBuf(int64_t addr, int taskId);
 #ifdef USE_SERVICE
     void SignalToService(dxrt_request_acc_t* npu_inference_acc);

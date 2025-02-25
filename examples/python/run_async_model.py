@@ -59,17 +59,17 @@ if __name__ == "__main__":
     ie = InferenceEngine(modelPath)
 
     # register call back function
-    ie.RegisterCallBack(onInferenceCallbackFunc)
+    ie.register_callback(onInferenceCallbackFunc)
 
 
-    input = [np.zeros(ie.input_size(), dtype=np.uint8)]
+    input = [np.zeros(ie.get_input_size(), dtype=np.uint8)]
 
     # inference loop
     for i in range(loop_count):
 
         # inference asynchronously, use all npu cores
         # if device-load >= max-load-value, this function will block  
-        ie.RunAsync(input, user_arg=[i, loop_count])
+        ie.run_async(input, user_arg=[i, loop_count])
 
         print("Inference start (async)", i)
 

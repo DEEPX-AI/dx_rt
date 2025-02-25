@@ -5,7 +5,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=9"/>
 <meta name="generator" content="Doxygen 1.8.17"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>DXRT: /home/devops/workspace/ghes-actions-runner/worker-01/_work/dx_rt/dx_rt/_internal/lib/include/dxrt/tensor.h Source File</title>
+<title>DXRT: /home/devops/workspace/ghes-actions-runner/worker-02/_work/dx_rt/dx_rt/_internal/lib/include/dxrt/tensor.h Source File</title>
 <link href="tabs.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
@@ -94,25 +94,29 @@ $(function() {
 <div class="line"><a name="l00026"></a><span class="lineno">   26</span>&#160;    <span class="keywordtype">void</span>* &amp;data(); <span class="comment">// data pointer</span></div>
 <div class="line"><a name="l00027"></a><span class="lineno">   27</span>&#160;    uint64_t &amp;phy_addr(); <span class="comment">// physical address of data</span></div>
 <div class="line"><a name="l00028"></a><span class="lineno">   28</span>&#160;    uint32_t &amp;elem_size();</div>
-<div class="line"><a name="l00035"></a><span class="lineno">   35</span>&#160;    <span class="keywordtype">void</span>* data(<span class="keywordtype">int</span> height, <span class="keywordtype">int</span> width, <span class="keywordtype">int</span> channel);</div>
-<div class="line"><a name="l00036"></a><span class="lineno">   36</span>&#160;    <span class="keyword">friend</span> DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> <a class="code" href="classdxrt_1_1Tensor.html">Tensor</a>&amp;);</div>
-<div class="line"><a name="l00037"></a><span class="lineno">   37</span>&#160;<span class="keyword">private</span>:</div>
-<div class="line"><a name="l00038"></a><span class="lineno">   38</span>&#160;    std::string _name;</div>
-<div class="line"><a name="l00039"></a><span class="lineno">   39</span>&#160;    std::vector&lt;int64_t&gt; _shape;</div>
-<div class="line"><a name="l00040"></a><span class="lineno">   40</span>&#160;    DataType _type;</div>
-<div class="line"><a name="l00041"></a><span class="lineno">   41</span>&#160;    <span class="keywordtype">void</span> *_data;</div>
-<div class="line"><a name="l00042"></a><span class="lineno">   42</span>&#160;    uint64_t _phyAddr = 0;</div>
-<div class="line"><a name="l00043"></a><span class="lineno">   43</span>&#160;    uint32_t _inc; <span class="comment">// addr. increasement for shape[2]</span></div>
-<div class="line"><a name="l00044"></a><span class="lineno">   44</span>&#160;    uint32_t _elemSize;</div>
-<div class="line"><a name="l00045"></a><span class="lineno">   45</span>&#160;};</div>
-<div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160;<span class="keyword">using</span> Tensors = std::vector&lt;Tensor&gt;;</div>
-<div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160;<span class="keyword">using</span> TensorPtr = std::shared_ptr&lt;Tensor&gt;;</div>
-<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;<span class="keyword">using</span> TensorPtrs = std::vector&lt;std::shared_ptr&lt;Tensor&gt;&gt;;</div>
-<div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160; </div>
-<div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160;DXRT_API <span class="keywordtype">void</span> DataDumpBin(std::string filename, std::vector&lt;dxrt::Tensor&gt; tensors);</div>
-<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;DXRT_API <span class="keywordtype">void</span> DataDumpBin(std::string filename, std::vector&lt;std::shared_ptr&lt;dxrt::Tensor&gt;&gt; tensors);</div>
-<div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160; </div>
-<div class="line"><a name="l00053"></a><span class="lineno">   53</span>&#160;} <span class="comment">// namespace dxrt</span></div>
+<div class="line"><a name="l00029"></a><span class="lineno">   29</span>&#160;    uint64_t size_in_bytes()<span class="keyword"> const </span>{</div>
+<div class="line"><a name="l00030"></a><span class="lineno">   30</span>&#160;        uint64_t num_elements = std::accumulate(_shape.begin(), _shape.end(), 1, std::multiplies&lt;int64_t&gt;());</div>
+<div class="line"><a name="l00031"></a><span class="lineno">   31</span>&#160;        <span class="keywordflow">return</span> num_elements * _elemSize;</div>
+<div class="line"><a name="l00032"></a><span class="lineno">   32</span>&#160;    }</div>
+<div class="line"><a name="l00039"></a><span class="lineno">   39</span>&#160;    <span class="keywordtype">void</span>* data(<span class="keywordtype">int</span> height, <span class="keywordtype">int</span> width, <span class="keywordtype">int</span> channel);</div>
+<div class="line"><a name="l00040"></a><span class="lineno">   40</span>&#160;    <span class="keyword">friend</span> DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> <a class="code" href="classdxrt_1_1Tensor.html">Tensor</a>&amp;);</div>
+<div class="line"><a name="l00041"></a><span class="lineno">   41</span>&#160;<span class="keyword">private</span>:</div>
+<div class="line"><a name="l00042"></a><span class="lineno">   42</span>&#160;    std::string _name;</div>
+<div class="line"><a name="l00043"></a><span class="lineno">   43</span>&#160;    std::vector&lt;int64_t&gt; _shape;</div>
+<div class="line"><a name="l00044"></a><span class="lineno">   44</span>&#160;    DataType _type;</div>
+<div class="line"><a name="l00045"></a><span class="lineno">   45</span>&#160;    <span class="keywordtype">void</span> *_data;</div>
+<div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160;    uint64_t _phyAddr = 0;</div>
+<div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160;    uint32_t _inc; <span class="comment">// addr. increasement for shape[2]</span></div>
+<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;    uint32_t _elemSize;</div>
+<div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160;};</div>
+<div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160;<span class="keyword">using</span> Tensors = std::vector&lt;Tensor&gt;;</div>
+<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;<span class="keyword">using</span> TensorPtr = std::shared_ptr&lt;Tensor&gt;;</div>
+<div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160;<span class="keyword">using</span> TensorPtrs = std::vector&lt;std::shared_ptr&lt;Tensor&gt;&gt;;</div>
+<div class="line"><a name="l00053"></a><span class="lineno">   53</span>&#160; </div>
+<div class="line"><a name="l00054"></a><span class="lineno">   54</span>&#160;DXRT_API <span class="keywordtype">void</span> DataDumpBin(std::string filename, std::vector&lt;dxrt::Tensor&gt; tensors);</div>
+<div class="line"><a name="l00055"></a><span class="lineno">   55</span>&#160;DXRT_API <span class="keywordtype">void</span> DataDumpBin(std::string filename, std::vector&lt;std::shared_ptr&lt;dxrt::Tensor&gt;&gt; tensors);</div>
+<div class="line"><a name="l00056"></a><span class="lineno">   56</span>&#160; </div>
+<div class="line"><a name="l00057"></a><span class="lineno">   57</span>&#160;} <span class="comment">// namespace dxrt</span></div>
 </div><!-- fragment --></div><!-- contents -->
 <div class="ttc" id="aclassdxrt_1_1Tensor_html"><div class="ttname"><a href="classdxrt_1_1Tensor.html">dxrt::Tensor</a></div><div class="ttdoc">This class abstracts DXRT tensor object, which defines data array composed of uniform elements.</div><div class="ttdef"><b>Definition:</b> tensor.h:17</div></div>
 <div class="ttc" id="anamespacedxrt_html"><div class="ttname"><a href="namespacedxrt.html">dxrt</a></div><div class="ttdoc">DXRT C++ APIs are provided in this namespace.</div><div class="ttdef"><b>Definition:</b> buffer.h:8</div></div>

@@ -215,6 +215,19 @@ int Request::job_id() const
 {
     return _data.jobId;
 }
+void Request::set_processed_unit(std::string processedPU, int processedId)
+{
+    _data._processedPU = processedPU;
+    _data._processedId = processedId;
+}
+std::string Request::processed_pu() const
+{
+    return _data._processedPU;
+}
+int Request::processed_id() const
+{
+    return _data._processedId;
+}
 TaskData* Request::taskData()
 {
     return _data.taskData;

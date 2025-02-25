@@ -1,5 +1,4 @@
 var searchData=
 [
-  ['end_51',['End',['../classdxrt_1_1Profiler.html#ad3168a5bbc2035cef2d63dc04c5b0b24',1,'dxrt::Profiler']]],
-  ['erase_52',['Erase',['../classdxrt_1_1Profiler.html#a866e3e6d0e6cadd4c941bc9c9ad0032a',1,'dxrt::Profiler']]]
+  ['data_76',['data',['../classdxrt_1_1Tensor.html#a199c03999346426d6c70f76ec051a0b2',1,'dxrt::Tensor']]]
 ];

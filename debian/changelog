@@ -1,4 +1,4 @@
-ibdxrt (2.6.2) unstable; urgency=medium
+libdxrt (2.6.2) unstable; urgency=medium
 
   * Fixed: Fix free output buffer locking issue for multi-threaded runAsync
   * Added: Modify configuration function for throttling using JSON

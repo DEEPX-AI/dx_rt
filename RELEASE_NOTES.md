@@ -1,4 +1,5 @@
-# Changelog
+# RELEASE_NOTES
+
 ## v2.6.3 / 2025-01-06
 ### Changed
 - seperate msg queue for Send To / Receive From
@@ -8,7 +9,6 @@
 ### Added
 - NONE
 
-# Changelog
 ## v2.6.2 / 2024-12-19
 ### Changed
 - NONE
@@ -17,7 +17,6 @@
 ### Added
 - Modify configuration function for throttling using json
 
-# Changelog
 ## v2.6.1 / 2024-12-11
 ### Changed
 - NONE
@@ -59,7 +58,6 @@
   - Async mode / Batch mode
 - Device status monitoring function via cli-command
 
-# Changelog
 ## v2.0.3 / 2024-09-04
 ### Changed
 - align change: 64 to 16
@@ -77,7 +75,6 @@
 ### Added
 - None
 
-# Changelog
 ## v2.0.0 / 2024-08-02
 ### Changed
 - dxnn version up(v6). so prior dxnn models will not work from this version.
@@ -87,7 +84,6 @@
 - stress test script
 - batch run async in pybinding
 
-# Changelog
 ## v1.2.3 / 2024-07-23
 ### Changed
 - Update process id & model_format for device message
@@ -99,7 +95,6 @@
 ### Added
 - Implement multi-task and multi in/out for achieving CPU offloading level 1
 
-# Changelog
 ## v1.1.2 / 2024-07-03
 ### Changed
 - update documents

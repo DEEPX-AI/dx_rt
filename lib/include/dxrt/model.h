@@ -286,15 +286,15 @@ namespace deepx_rmapinfo {
 
     enum DXRT_API DataType : int {
         DATA_TYPE_NONE = 0,
-        UINT8 = 1,
-        UINT16 = 2,
-        UINT32 = 3,
-        UINT64 = 4,
-        INT8 = 5,
-        INT16 = 6,
-        INT32 = 7,
-        INT64 = 8,
-        FLOAT32 = 9,
+        FLOAT32 = 1,
+        UINT8 = 2,
+        INT8 = 3,
+        UINT16 = 4,
+        INT16 = 5,
+        INT32 = 6,
+        INT64 = 7,
+        UINT32 = 8,
+        UINT64 = 9,
         DataType_INT_MIN_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int32_t>::min(),
         DataType_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int32_t>::max()
     };

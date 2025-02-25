@@ -48,12 +48,7 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_)
             {
                 shapes.emplace_back(node.shapes().shape(j));
             }
-            if (shapes.size() == 4)
-            {
-                shapes[3] = GetAlign(shapes[3]);
-            }
-            else if (shapes.size()>4) 
-                throw std::out_of_range("Invalid tensor shape ( > 4D)");
+
             _outputShape.emplace_back(shapes);
             _outputOffsets.emplace_back(info.outputs().outputlist().output(i).memory().offset()
                 - info.outputs().outputlist().output(0).memory().offset());
@@ -129,10 +124,8 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_)
                 model.format = info.outputs().outputlist().output(0).format();
                 _outputTensors.clear();
 
+                int dataType = info.outputs().outputlist().output(0).type();
 
-                int dataType = DataType::BBOX;
-                dataType += info.outputs().outputlist().output(0).format();
-                dataType -= deepx_rmapinfo::DataFormat::PPU_YOLO;
                 _outputTensors.emplace_back(
                     //Tensor(_outputNames[i], {128*1024/GetDataSize_Datatype(static_cast<DataType>(dataType))}, static_cast<DataType>(dataType), nullptr)
                     Tensor(_outputNames[i], _outputShape[i], static_cast<DataType>(dataType), nullptr)
