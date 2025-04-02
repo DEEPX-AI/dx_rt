@@ -19,6 +19,7 @@ class FixedSizeBuffer
     void* getBuffer();
     void releaseBuffer(void* ptr);
     bool hasBuffer();
+    int64_t size() { return _size;}
  private:
     std::vector<std::vector<uint8_t> > _data;
     std::vector<void*> _pointers;

@@ -111,9 +111,9 @@ int32_t IPCMessageQueueLinux::Receive(Message& message, size_t size, long msgTyp
 {
     if ( _msgId >= 0 )
     {
-        // std::cout << "[IPCMessageQueueLinux] Receive : " << _msgId << ", " << msgType << std::endl;
 
         // receive except message type
+        //if (msgrcv(_msgId, &message, sizeof(Message) - sizeof(long), msgType, 0) == -1)
         if ( msgrcv(_msgId, &message, size, msgType, 0) == -1 )
         {
             LOG_DXRT_I_ERR("[IPCMessageQueueLinux] msgrcv 1 failed" << errno);
@@ -124,7 +124,6 @@ int32_t IPCMessageQueueLinux::Receive(Message& message, size_t size, long msgTyp
     {
         return -1;
     }
-
     return 0;
 }
 
@@ -138,7 +137,6 @@ int32_t IPCMessageQueueLinux::Delete()
         }
         _msgId = -1;
     }
-
     return 0;
 }
 

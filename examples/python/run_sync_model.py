@@ -15,23 +15,23 @@ if __name__ == "__main__":
     else:
         print("[Usage] run_sync_model [dxnn-file-path] [loop-count]")
         exit(-1)
-    
-
+   
+   
     # create inference engine instance with model
-    ie = InferenceEngine(modelPath)
+    with InferenceEngine(modelPath) as ie:
 
-    input = [np.zeros(ie.get_input_size(), dtype=np.uint8)]
+        input = [np.zeros(ie.get_input_size(), dtype=np.uint8)]
 
-    # inference loop
-    for i in range(loop_count):
+        # inference loop
+        for i in range(loop_count):
 
-        # inference synchronously 
-        # use only one npu core 
-        # ownership of the outputs is transferred to the user 
-        outputs = ie.run(input)
+            # inference synchronously 
+            # use only one npu core 
+            # ownership of the outputs is transferred to the user 
+            outputs = ie.run(input)
 
-        # post processing 
-        #postProcessing(outputs)
-        print("Inference outputs ", i)
+            # post processing 
+            #postProcessing(outputs)
+            print("Inference outputs ", i)
 
     exit(0)

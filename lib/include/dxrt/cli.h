@@ -83,7 +83,6 @@ class DXRT_API FWUploadCommand : public CLICommand
     explicit FWUploadCommand(cxxopts::ParseResult &);
  private:
     void doCommand(DevicePtr devicePtr) override;
-    uint32_t _fwUpdateSubCmd;
     std::string _fwUpdateFile;
 };
 
@@ -117,6 +116,14 @@ class DXRT_API DDRTargetCommand : public CLICommand
 {
    public:
       explicit DDRTargetCommand(cxxopts::ParseResult &);
+   private:
+      void doCommand(DevicePtr devicePtr) override;
+};
+
+class DXRT_API OTPCommand : public CLICommand
+{
+   public:
+      explicit OTPCommand(cxxopts::ParseResult &);
    private:
       void doCommand(DevicePtr devicePtr) override;
 };

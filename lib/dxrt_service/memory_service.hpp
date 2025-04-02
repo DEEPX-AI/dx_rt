@@ -23,6 +23,8 @@ class MemoryService
     bool Deallocate(uint64_t ptr, pid_t pid);
     void DeallocateAll(pid_t pid);
     static void DeallocateAllDevice(pid_t pid);
+    uint64_t free_size() const;
+    uint64_t used_size() const;
  private:
     MemoryService(uint64_t start, uint64_t size);
     dxrt::Memory* _mem;

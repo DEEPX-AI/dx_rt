@@ -12,7 +12,7 @@ This class abstracts runtime inference executor for user\textquotesingle{}s comp
 \doxysubsection*{Public Member Functions}
 \begin{DoxyCompactItemize}
 \item 
-\mbox{\hyperlink{classdxrt_1_1InferenceEngine_aed622c0fa566620899c9e7e26011bacd}{Inference\+Engine}} (const std\+::string \&model\+Path, \mbox{\hyperlink{structdxrt_1_1InferenceOption}{Inference\+Option}} \&option=\mbox{\hyperlink{namespacedxrt_aab5060680ba2f567f47f8868cd8b1f00}{Default\+Inference\+Option}})
+\mbox{\hyperlink{classdxrt_1_1InferenceEngine_aed622c0fa566620899c9e7e26011bacd}{Inference\+Engine}} (const std\+::string \&model\+Path, \mbox{\hyperlink{classdxrt_1_1InferenceOption}{Inference\+Option}} \&option=\mbox{\hyperlink{namespacedxrt_aab5060680ba2f567f47f8868cd8b1f00}{Default\+Inference\+Option}})
 \begin{DoxyCompactList}\small\item\em Perform the task of loading the model and configuring the N\+PU to run. \end{DoxyCompactList}\item 
 Tensor\+Ptrs \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a88cea5324cbeb436034adb60cf31050f}{Run}} (void $\ast$input\+Ptr, void $\ast$user\+Arg=nullptr, void $\ast$output\+Ptr=nullptr)
 \begin{DoxyCompactList}\small\item\em Run inference engine using specific input pointer Synchronously. \end{DoxyCompactList}\item 
@@ -99,7 +99,10 @@ string \mbox{\hyperlink{classdxrt_1_1InferenceEngine_ae6f83c617959dc76fc993b9da3
 bool \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a9aeb596b415843e7e318c47938444259}{is\+\_\+\+P\+PU}} ()
 \begin{DoxyCompactList}\small\item\em Returns whether the model is using P\+PU. (Legacy A\+PI) \end{DoxyCompactList}\item 
 bool \mbox{\hyperlink{classdxrt_1_1InferenceEngine_ab6fd915af259467afe1681098b315dca}{Is\+P\+PU}} ()
-\begin{DoxyCompactList}\small\item\em Returns whether the model is using P\+PU. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\begin{DoxyCompactList}\small\item\em Returns whether the model is using P\+PU. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{classdxrt_1_1InferenceEngine_af3feefee6373ecfe7fe5b9b84501a723}\label{classdxrt_1_1InferenceEngine_af3feefee6373ecfe7fe5b9b84501a723}} 
+void \mbox{\hyperlink{classdxrt_1_1InferenceEngine_af3feefee6373ecfe7fe5b9b84501a723}{Dispose}} ()
+\begin{DoxyCompactList}\small\item\em Resource deallocation and cleanup. \end{DoxyCompactList}\end{DoxyCompactItemize}
 
 
 \doxysubsection{Detailed Description}
@@ -115,8 +118,8 @@ After user loads compiled model to \mbox{\hyperlink{classdxrt_1_1InferenceEngine
 \begin{DoxyCode}{0}
 \DoxyCodeLine{\textcolor{comment}{// Use a new inference option}}
 \DoxyCodeLine{\textcolor{keyword}{auto} modelPath = \textcolor{stringliteral}{"model.dxnn"}; \textcolor{comment}{// assume compiled model path name is "model.dxnn"}}
-\DoxyCodeLine{\mbox{\hyperlink{structdxrt_1_1InferenceOption}{dxrt::InferenceOption}} option;}
-\DoxyCodeLine{option.\mbox{\hyperlink{structdxrt_1_1InferenceOption_ae98837ff566fe2b089a5b1bf07feb48c}{devices}} = \{0,1,3\};  \textcolor{comment}{//use only 0,1,3 device}}
+\DoxyCodeLine{\mbox{\hyperlink{classdxrt_1_1InferenceOption}{dxrt::InferenceOption}} option;}
+\DoxyCodeLine{option.\mbox{\hyperlink{classdxrt_1_1InferenceOption_ae98837ff566fe2b089a5b1bf07feb48c}{devices}} = \{0,1,3\};  \textcolor{comment}{//use only 0,1,3 device}}
 \DoxyCodeLine{\textcolor{keyword}{auto} ie = \mbox{\hyperlink{classdxrt_1_1InferenceEngine}{dxrt::InferenceEngine}}(modelPath, option);}
 \end{DoxyCode}
  
@@ -126,7 +129,7 @@ After user loads compiled model to \mbox{\hyperlink{classdxrt_1_1InferenceEngine
 \index{dxrt::InferenceEngine@{dxrt::InferenceEngine}!InferenceEngine@{InferenceEngine}}
 \index{InferenceEngine@{InferenceEngine}!dxrt::InferenceEngine@{dxrt::InferenceEngine}}
 \doxysubsubsection{\texorpdfstring{InferenceEngine()}{InferenceEngine()}}
-{\footnotesize\ttfamily dxrt\+::\+Inference\+Engine\+::\+Inference\+Engine (\begin{DoxyParamCaption}\item[{const std\+::string \&}]{model\+Path,  }\item[{\mbox{\hyperlink{structdxrt_1_1InferenceOption}{Inference\+Option}} \&}]{option = {\ttfamily \mbox{\hyperlink{namespacedxrt_aab5060680ba2f567f47f8868cd8b1f00}{Default\+Inference\+Option}}} }\end{DoxyParamCaption})}
+{\footnotesize\ttfamily dxrt\+::\+Inference\+Engine\+::\+Inference\+Engine (\begin{DoxyParamCaption}\item[{const std\+::string \&}]{model\+Path,  }\item[{\mbox{\hyperlink{classdxrt_1_1InferenceOption}{Inference\+Option}} \&}]{option = {\ttfamily \mbox{\hyperlink{namespacedxrt_aab5060680ba2f567f47f8868cd8b1f00}{Default\+Inference\+Option}}} }\end{DoxyParamCaption})}
 
 
 
@@ -142,9 +145,9 @@ Perform the task of loading the model and configuring the N\+PU to run.
 \DoxyCodeLine{\mbox{\hyperlink{classdxrt_1_1InferenceEngine}{dxrt::InferenceEngine}}(modelPath) ie(modelPath);}
 \DoxyCodeLine{\textcolor{keyword}{auto} \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a0893b724d6eed939556f1315ce05829d}{outputs}} = ie.Run();}
 \DoxyCodeLine{}
-\DoxyCodeLine{\mbox{\hyperlink{structdxrt_1_1InferenceOption}{dxrt::InferenceOption}} op;}
-\DoxyCodeLine{op.\mbox{\hyperlink{structdxrt_1_1InferenceOption_ae98837ff566fe2b089a5b1bf07feb48c}{devices}}.push\_back(0); }
-\DoxyCodeLine{op.\mbox{\hyperlink{structdxrt_1_1InferenceOption_a9fd270a5eeeb1a14ce5f133c16c30d55}{boundOption}} = dxrt::InferenceOption::BOUND\_OPTION::NPU\_0; \textcolor{comment}{// NPU\_0 only}}
+\DoxyCodeLine{\mbox{\hyperlink{classdxrt_1_1InferenceOption}{dxrt::InferenceOption}} op;}
+\DoxyCodeLine{op.\mbox{\hyperlink{classdxrt_1_1InferenceOption_ae98837ff566fe2b089a5b1bf07feb48c}{devices}}.push\_back(0); }
+\DoxyCodeLine{op.\mbox{\hyperlink{classdxrt_1_1InferenceOption_a9fd270a5eeeb1a14ce5f133c16c30d55}{boundOption}} = dxrt::InferenceOption::BOUND\_OPTION::NPU\_0; \textcolor{comment}{// NPU\_0 only}}
 \DoxyCodeLine{\mbox{\hyperlink{classdxrt_1_1InferenceEngine}{dxrt::InferenceEngine}} ie(modelPath, op);}
 \DoxyCodeLine{\textcolor{keyword}{auto} \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a0893b724d6eed939556f1315ce05829d}{outputs}} = ie.Run();}
 \end{DoxyCode}
@@ -751,8 +754,8 @@ Non-\/blocking call to request asynchronous inference by input pointer, and get 
 \mbox{\texttt{ out}}  & {\em output\+Ptr} & pointer to output data, if it is nullptr, output data area is allocated by D\+X\+RT. 
 \begin{DoxyCode}{1}
 \DoxyCodeLine{\textcolor{keyword}{auto} modelPath = \textcolor{stringliteral}{"model"}; \textcolor{comment}{// assume compiled model path name is "model"}}
-\DoxyCodeLine{\mbox{\hyperlink{structdxrt_1_1InferenceOption}{dxrt::InferenceOption}} option;}
-\DoxyCodeLine{option.\mbox{\hyperlink{structdxrt_1_1InferenceOption_ae98837ff566fe2b089a5b1bf07feb48c}{devices}} = \{0,1,3\};  \textcolor{comment}{//use only 0,1,3 device}}
+\DoxyCodeLine{\mbox{\hyperlink{classdxrt_1_1InferenceOption}{dxrt::InferenceOption}} option;}
+\DoxyCodeLine{option.\mbox{\hyperlink{classdxrt_1_1InferenceOption_ae98837ff566fe2b089a5b1bf07feb48c}{devices}} = \{0,1,3\};  \textcolor{comment}{//use only 0,1,3 device}}
 \DoxyCodeLine{\mbox{\hyperlink{classdxrt_1_1InferenceEngine}{dxrt::InferenceEngine}} ie(modelPath, option);}
 \DoxyCodeLine{\textcolor{keyword}{auto} \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a0893b724d6eed939556f1315ce05829d}{outputs}} = ie.Run();}
 \end{DoxyCode}

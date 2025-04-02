@@ -17,7 +17,7 @@
 #include "dxrt/task_data.h"
 #include "dxrt/npu_memory_cache.h"
 
-#define DXRT_ASYNC_LOAD_THRE    (5)
+#define DEVICE_NUM_BUF 2
 
 #ifdef __linux__
     #include <poll.h>
@@ -38,22 +38,13 @@ enum SkipMode
     IDENTIFY_SKIP
 };
 
-enum class DeviceType : uint32_t
-{
-    ACC_TYPE = 0,
-    STD_TYPE = 1,
-};
+
 
 class DeviceInputWorker;
 class DeviceOutputWorker;
 class DeviceEventWorker;
 class Memory;
-#ifdef __linux__
 class InferenceOption;
-#elif _WIN32
-
-struct InferenceOption;
-#endif
 class Profiler;
 class Buffer;
 class FwLog;
@@ -105,7 +96,7 @@ public:
     int UpdateFw(std::string fwFile, int subCmd = 0);
     int UploadFw(std::string fwFile, int subCmd = 0);
     int UpdateFwConfig(std::string jsonFile);
-    int UpdateDDRFreq(uint32_t freq);
+    void DoCustomCommand(void *data, uint32_t subCmd, uint32_t size = 0);
     std::shared_ptr<FwLog> GetFwLog();
     int64_t Allocate(uint64_t size);
     int64_t Allocate(dxrt_request_t &inference);

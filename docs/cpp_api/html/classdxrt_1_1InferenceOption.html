@@ -5,7 +5,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=9"/>
 <meta name="generator" content="Doxygen 1.8.17"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>DXRT: dxrt::InferenceOption Struct Reference</title>
+<title>DXRT: dxrt::InferenceOption Class Reference</title>
 <link href="tabs.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
@@ -62,34 +62,34 @@ $(function() {
 
 <div id="nav-path" class="navpath">
   <ul>
-<li class="navelem"><a class="el" href="namespacedxrt.html">dxrt</a></li><li class="navelem"><a class="el" href="structdxrt_1_1InferenceOption.html">InferenceOption</a></li>  </ul>
+<li class="navelem"><a class="el" href="namespacedxrt.html">dxrt</a></li><li class="navelem"><a class="el" href="classdxrt_1_1InferenceOption.html">InferenceOption</a></li>  </ul>
 </div>
 </div><!-- top -->
 <div class="header">
   <div class="summary">
 <a href="#pub-attribs">Public Attributes</a> &#124;
-<a href="structdxrt_1_1InferenceOption-members.html">List of all members</a>  </div>
+<a href="classdxrt_1_1InferenceOption-members.html">List of all members</a>  </div>
   <div class="headertitle">
-<div class="title">dxrt::InferenceOption Struct Reference</div>  </div>
+<div class="title">dxrt::InferenceOption Class Reference</div>  </div>
 </div><!--header-->
 <div class="contents">
 
 <p>This struct specifies inference options applied to <a class="el" href="classdxrt_1_1InferenceEngine.html" title="This class abstracts runtime inference executor for user&#39;s compiled model.">dxrt::InferenceEngine</a>.  
- <a href="structdxrt_1_1InferenceOption.html#details">More...</a></p>
+ <a href="classdxrt_1_1InferenceOption.html#details">More...</a></p>
 
 <p><code>#include &quot;<a class="el" href="dxrt__api_8h_source.html">dxrt/dxrt_api.h</a>&quot;</code></p>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-attribs"></a>
 Public Attributes</h2></td></tr>
-<tr class="memitem:ae98837ff566fe2b089a5b1bf07feb48c"><td class="memItemLeft" align="right" valign="top">std::vector&lt; int &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structdxrt_1_1InferenceOption.html#ae98837ff566fe2b089a5b1bf07feb48c">devices</a> = {}</td></tr>
-<tr class="memdesc:ae98837ff566fe2b089a5b1bf07feb48c"><td class="mdescLeft">&#160;</td><td class="mdescRight">device ID list to use  <a href="structdxrt_1_1InferenceOption.html#ae98837ff566fe2b089a5b1bf07feb48c">More...</a><br /></td></tr>
+<tr class="memitem:ae98837ff566fe2b089a5b1bf07feb48c"><td class="memItemLeft" align="right" valign="top">std::vector&lt; int &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceOption.html#ae98837ff566fe2b089a5b1bf07feb48c">devices</a> = {}</td></tr>
+<tr class="memdesc:ae98837ff566fe2b089a5b1bf07feb48c"><td class="mdescLeft">&#160;</td><td class="mdescRight">device ID list to use  <a href="classdxrt_1_1InferenceOption.html#ae98837ff566fe2b089a5b1bf07feb48c">More...</a><br /></td></tr>
 <tr class="separator:ae98837ff566fe2b089a5b1bf07feb48c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9fd270a5eeeb1a14ce5f133c16c30d55"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structdxrt_1_1InferenceOption.html#a9fd270a5eeeb1a14ce5f133c16c30d55">boundOption</a> = BOUND_OPTION::NPU_ALL</td></tr>
-<tr class="memdesc:a9fd270a5eeeb1a14ce5f133c16c30d55"><td class="mdescLeft">&#160;</td><td class="mdescRight">Select the NPU core inside the device.  <a href="structdxrt_1_1InferenceOption.html#a9fd270a5eeeb1a14ce5f133c16c30d55">More...</a><br /></td></tr>
+<tr class="memitem:a9fd270a5eeeb1a14ce5f133c16c30d55"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceOption.html#a9fd270a5eeeb1a14ce5f133c16c30d55">boundOption</a> = BOUND_OPTION::NPU_ALL</td></tr>
+<tr class="memdesc:a9fd270a5eeeb1a14ce5f133c16c30d55"><td class="mdescLeft">&#160;</td><td class="mdescRight">Select the NPU core inside the device.  <a href="classdxrt_1_1InferenceOption.html#a9fd270a5eeeb1a14ce5f133c16c30d55">More...</a><br /></td></tr>
 <tr class="separator:a9fd270a5eeeb1a14ce5f133c16c30d55"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af1f6772eccc49abdd828bca882966111"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structdxrt_1_1InferenceOption.html#af1f6772eccc49abdd828bca882966111">use_ort</a> = ORT_OPTION_DEFAULT</td></tr>
-<tr class="memdesc:af1f6772eccc49abdd828bca882966111"><td class="mdescLeft">&#160;</td><td class="mdescRight">Select which uses ORT task or not.  <a href="structdxrt_1_1InferenceOption.html#af1f6772eccc49abdd828bca882966111">More...</a><br /></td></tr>
-<tr class="separator:af1f6772eccc49abdd828bca882966111"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aca38d2276725c63a2e9ac73046acc1a2"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceOption.html#aca38d2276725c63a2e9ac73046acc1a2">useORT</a> = ORT_OPTION_DEFAULT</td></tr>
+<tr class="memdesc:aca38d2276725c63a2e9ac73046acc1a2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Select which uses ORT task or not.  <a href="classdxrt_1_1InferenceOption.html#aca38d2276725c63a2e9ac73046acc1a2">More...</a><br /></td></tr>
+<tr class="separator:aca38d2276725c63a2e9ac73046acc1a2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>This struct specifies inference options applied to <a class="el" href="classdxrt_1_1InferenceEngine.html" title="This class abstracts runtime inference executor for user&#39;s compiled model.">dxrt::InferenceEngine</a>. </p>
@@ -129,14 +129,14 @@ Public Attributes</h2></td></tr>
 
 </div>
 </div>
-<a id="af1f6772eccc49abdd828bca882966111"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af1f6772eccc49abdd828bca882966111">&#9670;&nbsp;</a></span>use_ort</h2>
+<a id="aca38d2276725c63a2e9ac73046acc1a2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aca38d2276725c63a2e9ac73046acc1a2">&#9670;&nbsp;</a></span>useORT</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">bool dxrt::InferenceOption::use_ort = ORT_OPTION_DEFAULT</td>
+          <td class="memname">bool dxrt::InferenceOption::useORT = ORT_OPTION_DEFAULT</td>
         </tr>
       </table>
 </div><div class="memdoc">

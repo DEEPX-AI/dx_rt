@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <stdexcept>
 #include <utility>
+#include <memory>
 
 #include "common.h"
 
@@ -23,15 +24,16 @@ namespace dxrt {
     public:
 
         // static function
-        static std::shared_ptr<Configuration> GetInstance();
-
+        static std::shared_ptr<Configuration>& GetInstance();
+        void LoadConfigFile(const std::string& fileName);
 
         // ITEM
         enum class ITEM {
             DEBUG = 1,
             PROFILER,
-            SERVICE
-
+            SERVICE,
+            DYNAMIC_CPU_THREAD,
+            TASK_FLOW
             //DEBUG
             //USE_PROFILER
             //SHOW_PROFILER_DATA
@@ -39,10 +41,9 @@ namespace dxrt {
             //SAVE_PROFILER_DATA
         };
 
-        // ATTRIBUT
+        // ATTRIBUTE
         enum class ATTRIBUTE {
             PROFILER_SHOW_DATA = 1001,
-            PROFILER_SHOW_TASK_FLOW,
             PROFILER_SAVE_DATA
         };
 
@@ -54,6 +55,8 @@ namespace dxrt {
 
         std::string GetAttribute(const ITEM item, const ATTRIBUTE attrib) const;
 
+        void LockEnable(const ITEM item);
+
     private:
 
         std::unordered_map<ITEM, bool> _enableSettings;
@@ -61,4 +64,7 @@ namespace dxrt {
         std::unordered_map<ITEM, std::pair<bool,std::unordered_map<ATTRIBUTE, bool> > > _isReadonly;
     };
 
-} // namespace dxrt
+
+    
+
+}  // namespace dxrt

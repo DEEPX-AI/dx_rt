@@ -127,7 +127,7 @@ $(function() {
 <div class="line"><a name="l00055"></a><span class="lineno">   55</span>&#160;        InferenceJobPtr PickInferenceJob(); <span class="comment">// new one</span></div>
 <div class="line"><a name="l00056"></a><span class="lineno">   56</span>&#160;        InferenceJobPtr GetInferenceJobById(<span class="keywordtype">int</span> <span class="keywordtype">id</span>); <span class="comment">// find one by id</span></div>
 <div class="line"><a name="l00057"></a><span class="lineno">   57</span>&#160; </div>
-<div class="line"><a name="l00058"></a><span class="lineno">   58</span>&#160;        DevicePtr GetDevices(<span class="keywordtype">int</span> <span class="keywordtype">id</span>){ <span class="keywordflow">return</span> _devices[id]; }</div>
+<div class="line"><a name="l00058"></a><span class="lineno">   58</span>&#160;        DevicePtr GetDevice(<span class="keywordtype">int</span> <span class="keywordtype">id</span>){ <span class="keywordflow">return</span> _devices[id]; }</div>
 <div class="line"><a name="l00059"></a><span class="lineno">   59</span>&#160;        <span class="keywordtype">int</span> DeviceCount(){ <span class="keywordflow">return</span> _devices.size(); }</div>
 <div class="line"><a name="l00060"></a><span class="lineno">   60</span>&#160;        <span class="keywordtype">void</span> InitDevices(SkipMode skip, uint32_t subCmd);</div>
 <div class="line"><a name="l00061"></a><span class="lineno">   61</span>&#160;        shared_ptr&lt;Device&gt; PickOneDevice(<span class="keyword">const</span> vector&lt;int&gt; &amp;device_ids_);</div>

@@ -27,7 +27,9 @@ int InferenceRequest(RequestPtr req)
             << req->requestor_name() << " -> " << req->task()->name() << std::endl;
         auto device = ObjectsPool::GetInstance()->PickOneDevice(req->task()->getDeviceIds());
         TASK_FLOW("["+to_string(req->job_id())+"]"+req->task()->name()+" picks device");
+#ifdef USE_PROFILER
         req->CheckTimePoint(0);
+#endif
         req->model_type() = req->taskData()->_npuModel.front().type;
         if(req->getData()->output_ptr == nullptr)
         {
@@ -39,7 +41,9 @@ int InferenceRequest(RequestPtr req)
     {
         LOG_DXRT_DBG << "[" << req->id() << "] " << "C) Req " << req->id() << ": "
             << req->requestor_name() << " -> " << req->task()->name() << std::endl;
+#ifdef USE_PROFILER
         req->CheckTimePoint(0);
+#endif
         if(req->getData()->output_ptr == nullptr)
         {
             req->getData()->output_ptr = req->task()->GetOutputBuffer();
@@ -51,8 +55,9 @@ int InferenceRequest(RequestPtr req)
 
 int ProcessResponse(RequestPtr req, dxrt_response_t *response)
 {
-
+#ifdef USE_PROFILER
     req->CheckTimePoint(1);
+#endif
     LOG_DXRT_DBG << "[" << req->id() << "] " << "    Response : " << req->id() << ", " << req->task()->name() << ", " << req->latency() << std::endl;
     req->taskData()->_outputTensors = req->outputs(); 
     if (req->task()->processor() == Processor::NPU)
@@ -63,9 +68,10 @@ int ProcessResponse(RequestPtr req, dxrt_response_t *response)
     {
         req->inference_time() = req->latency();
     }
-
+#ifdef USE_PROFILER
     req->task()->PushLatency(req->latency());
     req->task()->PushInferenceTime(req->inference_time());
+#endif
     req->onRequestComplete(req);
     return 0;
 }

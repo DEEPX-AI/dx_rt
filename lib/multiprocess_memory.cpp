@@ -3,6 +3,7 @@
 
 
 #include "dxrt/driver.h"
+#include "dxrt/common.h"
 #include "dxrt/multiprocess_memory.h"
 #include "dxrt/ipc_wrapper/ipc_message.h"
 #include "dxrt/exception/exception.h"
@@ -66,8 +67,9 @@ uint64_t MultiprocessMemory::Allocate(int deviceId, uint64_t required)
     //unique_lock<mutex> _lk(_lock);
     dxrt::IPCClientMessage clientMessage;
     dxrt::IPCServerMessage serverMessage;
-    do{
-
+    bool isDone = false;
+    for(int i = 0; i < 20; i++)
+    {
 
         clientMessage.code = dxrt::REQUEST_CODE::GET_MEMORY;
         clientMessage.deviceId = deviceId;
@@ -79,18 +81,15 @@ uint64_t MultiprocessMemory::Allocate(int deviceId, uint64_t required)
         ipcClientWrapperSync.SendToServer(serverMessage, clientMessage);
         if (serverMessage.result == 0)
         {
+            isDone = true;
             break;
         }
         std::this_thread::sleep_for(chrono::seconds(2));
-
-//#ifdef __linux__
-        //sleep(2);
-//#elif _WIN32
-//        std::this_thread::sleep_for(chrono::seconds(2));
-//        Sleep(2);
-//#endif
-    } while (true);
+    }
+    DXRT_ASSERT(isDone,"allocate timeout");
     LOG_DXRT_DBG << std::hex << serverMessage.data << std::dec << " is allocated from service\n";
+    DXRT_ASSERT(static_cast<int64_t>(serverMessage.data) != -1,"allocate error");
+    //DXRT_ASSERT(static_cast<int64_t>(serverMessage.data) != 0,"allocate error");
     return serverMessage.data;
 }
 uint64_t MultiprocessMemory::BackwardAllocate(int deviceId, uint64_t required)
@@ -99,8 +98,9 @@ uint64_t MultiprocessMemory::BackwardAllocate(int deviceId, uint64_t required)
     //unique_lock<mutex> _lk(_lock);
     dxrt::IPCClientMessage clientMessage;
     dxrt::IPCServerMessage serverMessage;
-    do{
-
+    bool isDone = false;
+    for(int i = 0; i < 20; i++)
+    {
 
         clientMessage.code = dxrt::REQUEST_CODE::GET_MEMORY_FOR_MODEL;
         clientMessage.deviceId = deviceId;
@@ -112,6 +112,7 @@ uint64_t MultiprocessMemory::BackwardAllocate(int deviceId, uint64_t required)
         ipcClientWrapperSync.SendToServer(serverMessage, clientMessage);
         if (serverMessage.result == 0)
         {
+            isDone = true;
             break;
         }
 
@@ -121,8 +122,11 @@ uint64_t MultiprocessMemory::BackwardAllocate(int deviceId, uint64_t required)
 //#elif _WIN32
 //        this_thread::sleep_for(chrono::microseconds(50));
 //#endif
-    } while (true);
+    }
+    DXRT_ASSERT(isDone,"allocateB timeout");
     LOG_DXRT_DBG << std::hex << serverMessage.data << std::dec << " is allocated from service\n";
+    DXRT_ASSERT(static_cast<int64_t>(serverMessage.data) != -1,"allocate error");
+    //DXRT_ASSERT(static_cast<int64_t>(serverMessage.data) != 0,"allocate error");
     return serverMessage.data;
 }
 

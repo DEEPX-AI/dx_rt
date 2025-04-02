@@ -54,23 +54,26 @@ if __name__ == "__main__":
         print("[Usage] run_async_model [dxnn-file-path] [loop-count]")
         exit(-1)
     
+    result = -1
 
     # create inference engine instance with model
-    ie = InferenceEngine(modelPath)
+    with InferenceEngine(modelPath) as ie:
 
-    # register call back function
-    ie.register_callback(onInferenceCallbackFunc)
+        # register call back function
+        ie.register_callback(onInferenceCallbackFunc)
 
+        input = [np.zeros(ie.get_input_size(), dtype=np.uint8)]
 
-    input = [np.zeros(ie.get_input_size(), dtype=np.uint8)]
+        # inference loop
+        for i in range(loop_count):
 
-    # inference loop
-    for i in range(loop_count):
+            # inference asynchronously, use all npu cores
+            # if device-load >= max-load-value, this function will block  
+            ie.run_async(input, user_arg=[i, loop_count])
 
-        # inference asynchronously, use all npu cores
-        # if device-load >= max-load-value, this function will block  
-        ie.run_async(input, user_arg=[i, loop_count])
+            print("Inference start (async)", i)
 
-        print("Inference start (async)", i)
+        # wait until all callback data processing is completed
+        result = q.get()
 
-    exit(q.get())
+    exit(result)

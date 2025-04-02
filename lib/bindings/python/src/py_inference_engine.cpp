@@ -26,23 +26,7 @@ struct UserArgWrapper {
     explicit UserArgWrapper(py::object obj) : pyObj(std::move(obj)) {}
 };
 
-#ifdef __linux__
-string pyFormatDescriptorTable[] = {
-    [DataType::NONE_TYPE] = py::format_descriptor<uint8_t>::format(),
-    [DataType::FLOAT] = py::format_descriptor<float>::format(),
-    [DataType::UINT8] = py::format_descriptor<uint8_t>::format(),
-    [DataType::INT8] = py::format_descriptor<int8_t>::format(),
-    [DataType::UINT16] = py::format_descriptor<uint16_t>::format(),
-    [DataType::INT16] = py::format_descriptor<int16_t>::format(),
-    [DataType::INT32] = py::format_descriptor<int32_t>::format(),
-    [DataType::INT64] = py::format_descriptor<int64_t>::format(),
-    [DataType::UINT32] = py::format_descriptor<uint32_t>::format(),
-    [DataType::UINT64] = py::format_descriptor<uint64_t>::format(),
-    [DataType::BBOX] = py::format_descriptor<int8_t>::format(),
-    [DataType::FACE] = py::format_descriptor<int8_t>::format(),
-    [DataType::POSE] = py::format_descriptor<int8_t>::format(),
-};
-#elif _WIN32
+
 string pyFormatDescriptorTable[DataType::MAX_TYPE];
 
 void initializePyFormatDescriptorTable() {
@@ -67,7 +51,7 @@ static struct InitializePyFormatDescriptorTable {
     }
 } initPyFormatDescriptorTable;
 
-#endif 
+
 string pyGetFormatDescriptor(DataType dtype)
 {
     return pyFormatDescriptorTable[dtype];
@@ -77,26 +61,27 @@ void convertToPyArray(const TensorPtr& output, DataType dtype, std::vector<py::a
     if (dtype == DataType::BBOX || dtype == DataType::FACE || dtype == DataType::POSE) {
         std::vector<int64_t> shape;
         std::vector<ssize_t> strides;
-        int outputCnt = output->shape()[1];
-        
-        if (outputCnt == 0) {
+        int batch_size = output->shape()[0];
+        int output_cnt = output->shape()[1];
+
+        if (output_cnt == 0) {
             shape = {0};
             strides = {1};
         } else {
             switch(dtype) {
                 case DataType::BBOX:
-                    shape = {outputCnt, static_cast<int64_t>(sizeof(DeviceBoundingBox_t))};
+                    shape = {batch_size, output_cnt, static_cast<int64_t>(sizeof(DeviceBoundingBox_t))};
                     break;
                 case DataType::FACE:
-                    shape = {outputCnt, static_cast<int64_t>(sizeof(DeviceFace_t))};
+                    shape = {batch_size, output_cnt, static_cast<int64_t>(sizeof(DeviceFace_t))};
                     break;
                 case DataType::POSE:
-                    shape = {outputCnt, static_cast<int64_t>(sizeof(DevicePose_t))};
+                    shape = {batch_size, output_cnt, static_cast<int64_t>(sizeof(DevicePose_t))};
                     break;
                 default:
                     throw std::runtime_error("Unexpected dtype in device output conversion");
             }
-            strides = {shape[1], 1};
+            strides = {shape[1]*shape[2], shape[2], 1};
         }
 
         result.emplace_back(
@@ -138,31 +123,32 @@ void convertToPyArrayWithCopy(const TensorPtr& output, DataType dtype, std::vect
     if (dtype == DataType::BBOX || dtype == DataType::FACE || dtype == DataType::POSE) {
         std::vector<int64_t> shape;
         std::vector<ssize_t> strides;
-        int outputCnt = output->shape()[1];
+        int batch_size = output->shape()[0];
+        int output_cnt = output->shape()[1];
         size_t buffer_size = 0;
         
-        if (outputCnt == 0) {
+        if (output_cnt == 0) {
             shape = {0};
             strides = {1};
             buffer_size = 1;
         } else {
             switch(dtype) {
                 case DataType::BBOX:
-                    shape = {outputCnt, static_cast<int64_t>(sizeof(DeviceBoundingBox_t))};
-                    buffer_size = outputCnt * sizeof(DeviceBoundingBox_t);
+                    shape = {batch_size, output_cnt, static_cast<int64_t>(sizeof(DeviceBoundingBox_t))};
+                    buffer_size = batch_size * output_cnt * sizeof(DeviceBoundingBox_t);
                     break;
                 case DataType::FACE:
-                    shape = {outputCnt, static_cast<int64_t>(sizeof(DeviceFace_t))};
-                    buffer_size = outputCnt * sizeof(DeviceFace_t);
+                    shape = {batch_size, output_cnt, static_cast<int64_t>(sizeof(DeviceFace_t))};
+                    buffer_size = batch_size * output_cnt * sizeof(DeviceFace_t);
                     break;
                 case DataType::POSE:
-                    shape = {outputCnt, static_cast<int64_t>(sizeof(DevicePose_t))};
-                    buffer_size = outputCnt * sizeof(DevicePose_t);
+                    shape = {batch_size, output_cnt, static_cast<int64_t>(sizeof(DevicePose_t))};
+                    buffer_size = batch_size * output_cnt * sizeof(DevicePose_t);
                     break;
                 default:
                     throw std::runtime_error("Unexpected dtype in device output conversion");
             }
-            strides = {shape[1], 1};
+            strides = {shape[1]*shape[2], shape[2], 1};
         }
         
         void* buffer_data = malloc(buffer_size);
@@ -398,9 +384,73 @@ vector<vector<py::array>> pyGetAllTaskOutputs(InferenceEngine &ie)
     return results;
 }
 
+// InferenceEngine::Enter
+void pyInferenceEngine_Enter([[maybe_unused]] InferenceEngine &ie)
+{
+    
+}
+
+// InferenceEngine::Exit
+void pyInferenceEngine_Exit(InferenceEngine &ie)
+{
+    ie.Dispose();
+}
+
+// InferencOptoin::SetUseORT
+void pyInferenceOption_SetUseORT(InferenceOption &option, bool useORT)
+{
+    option.useORT = useORT;
+}
+
+// InferencOptoin::GetUseORT
+bool pyInferenceOption_GetUseORT(InferenceOption &option)
+{
+    return option.useORT;
+}
+
+// InferencOptoin::SetBoundOption
+void pyInferenceOption_SetBoundOption(InferenceOption &option, int boundOption)
+{
+    option.boundOption = boundOption;
+}
+
+// InferencOptoin::GetBoundOption
+int pyInferenceOption_GetBoundOption(InferenceOption &option)
+{
+    return option.boundOption;
+}
+
+// InferencOptoin::SetDevices
+void pyInferenceOption_SetDevices(InferenceOption &option, py::array_t<int>& devices)
+{
+    py::buffer_info buf = devices.request();
+
+    int* ptr = static_cast<int*>(buf.ptr);
+    option.devices = std::vector<int>(ptr, ptr + buf.size);
+}
+
+// InferencOptoin::GetDevices
+py::array_t<int> pyInferenceOption_GetDevices(InferenceOption &option)
+{
+    return py::array_t<int>(option.devices.size(), option.devices.data());
+}
+
 PYBIND11_MODULE(_pydxrt, m) {
+
+    // InferenceOption
+    py::class_<InferenceOption>(m, "InferenceOption")
+        .def(py::init<>());
+
+    m.def("inference_option_set_use_ort", &pyInferenceOption_SetUseORT);
+    m.def("inference_option_get_use_ort", &pyInferenceOption_GetUseORT);
+    m.def("inference_option_set_bound_option", &pyInferenceOption_SetBoundOption);
+    m.def("inference_option_get_bound_option", &pyInferenceOption_GetBoundOption);
+    m.def("inference_option_set_devices", &pyInferenceOption_SetDevices);
+    m.def("inference_option_get_devices", &pyInferenceOption_GetDevices);
+
+
     py::class_<InferenceEngine>(m, "InferenceEngine")
-        .def(py::init<string>())
+        .def(py::init<string, InferenceOption&>())
         .def("get_input_size", &InferenceEngine::GetInputSize)
         .def("get_output_size", &InferenceEngine::GetOutputSize)
         .def("get_latency", &InferenceEngine::GetLatency)
@@ -431,6 +481,8 @@ PYBIND11_MODULE(_pydxrt, m) {
     m.def("get_task_order", &pyGetTaskOrder);
     m.def("get_all_task_outputs", &pyGetAllTaskOutputs);
     m.def("parse_model", &ParseModel);
+    m.def("inference_engine_enter", &pyInferenceEngine_Enter);
+    m.def("inference_engine_exit", &pyInferenceEngine_Exit);
 }
 
 }/* namespace dxrt */

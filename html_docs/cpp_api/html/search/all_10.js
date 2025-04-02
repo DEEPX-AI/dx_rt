@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['wait_64',['Wait',['../classdxrt_1_1InferenceEngine.html#a2c6f130d722950153287d4cf1efd5a5d',1,'dxrt::InferenceEngine']]]
+  ['useort_88',['useORT',['../classdxrt_1_1InferenceOption.html#aca38d2276725c63a2e9ac73046acc1a2',1,'dxrt::InferenceOption']]]
 ];

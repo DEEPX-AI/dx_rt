@@ -40,6 +40,9 @@ int main(int argc, char* argv[])
         // NPU0 to NPU2
         op.boundOption = dxrt::InferenceOption::BOUND_OPTION::NPU_0; 
 
+        // Use ORT
+        op.useORT = false;
+
         // create inference engine instance with model
         dxrt::InferenceEngine ie(modelPath, op);
 

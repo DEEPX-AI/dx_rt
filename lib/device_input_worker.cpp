@@ -41,13 +41,14 @@ int DeviceInputWorker::request(int requestId)
 void DeviceInputWorker::ThreadWork(int id)
 {
     string threadName = getName() +"_t"+ to_string(id);
-    thread::id this_id = this_thread::get_id();
+    thread::id thisId = this_thread::get_id();
     int loopCnt = 0;  // int processCnt = 0;
     LOG_DXRT_DBG << getName() << " : Entry" << endl;
     int load;
     int ret;
     uint32_t type = _device->info().type;
-#ifdef WORKER_USE_PROFILER
+    int deviceId = _device->id();
+#ifdef USE_PROFILER
     auto& profiler = dxrt::Profiler::GetInstance();
 #endif
     dxrt_cmd_t cmd = //static_cast<dxrt_cmd_t>(static_cast<int>(dxrt::dxrt_cmd_t::DXRT_CMD_WRITE_INPUT_DMA_CH0)+id);
@@ -64,12 +65,11 @@ void DeviceInputWorker::ThreadWork(int id)
         if (_stop)
         {
             LOG_DXRT_DBG << threadName << " : requested to stop thread." << endl;
-            std::cout << "[" << threadName << "] Average Load: " << GetAverageLoad() << std::endl;
             while (!_queue.empty()) {
                 _queue.pop();
             }
             auto it = find_if(_threads.begin(), _threads.end(),
-                [this_id](thread& t) { return t.get_id() == this_id; });
+                [thisId](thread& t) { return t.get_id() == thisId; });
             if (it != _threads.end()) {
                 LOG_DXRT_DBG<<threadName<<" Detaching..."<<endl;
                 it->detach();
@@ -77,6 +77,8 @@ void DeviceInputWorker::ThreadWork(int id)
                 LOG_DXRT_DBG << threadName << " : removed itself from input worker threads. Remaining: " 
                     << _threads.size() <<endl;
             }
+            if (id == 0)
+                LOG << "NPU DEVICE [" << deviceId << "] Average Load: " << GetAverageLoad() <<"  (Load "<<DXRT_TASK_MAX_LOAD<<": high utilization; Load 1: low utilization)"<< endl;    
             break;
         }
         load = _device->load();
@@ -87,21 +89,27 @@ void DeviceInputWorker::ThreadWork(int id)
         lk.unlock();
         if (type == static_cast<uint32_t>(DeviceType::ACC_TYPE))
         {
-#ifdef WORKER_USE_PROFILER
-            profiler.Start(threadName);
-#endif
             auto inferenceAcc = _device->peekInferenceAcc(requestId);
             inferenceAcc->dma_ch = id;
-            // cout << inferenceAcc << endl; // for debug.
             RequestPtr req = Request::GetById(requestId);
             if (SKIP_INFERENCE_IO != 1)
             {
                 TASK_FLOW("["+to_string(req->job_id())+"]"+req->taskData()->name()+" write input, load: "+to_string(load));
+#ifdef USE_PROFILER
+                profiler.Start("PCIe Write(" + to_string(inferenceAcc->dma_ch)+")");
+#endif
                 _device->Write(inferenceAcc->input, id);
+#ifdef USE_PROFILER
+                profiler.End("PCIe Write(" + to_string(inferenceAcc->dma_ch)+")");
+#endif
             }
 #ifdef USE_SERVICE
             if (Configuration::GetInstance()->GetEnable(Configuration::ITEM::SERVICE))
             {
+                if (DEBUG_DATA > 0)
+                {
+                    DataDumpBin(req->taskData()->name() + "_input.bin", req->inputs());
+                }
                 std::ignore = ret;
                 TASK_FLOW("["+to_string(req->job_id())+"]"+req->taskData()->name()+" signal to service input");
                 _device->SignalToService(inferenceAcc);
@@ -123,33 +131,32 @@ void DeviceInputWorker::ThreadWork(int id)
                         // processCnt++;
                         break;
                     }
+#ifdef __linux__
                     if (ret != -EBUSY)  // write done, but failed to enqueue
+#elif _WIN32
+                    if (ret != ERROR_BUSY)
+#endif
                     {
                         inferenceAcc->input.data = 0;
                     }
                 }
             }
-
-            
-#ifdef WORKER_USE_PROFILER
-            profiler.End(threadName);
-#endif
         }
         else
         {
-#ifdef WORKER_USE_PROFILER
-            profiler.Start(threadName);
+#ifdef USE_PROFILER
+            profiler.Start("Input Reqeust");
 #endif
-            auto inference = _device->peekInferenceStd(requestId);
-            cout << inference << endl; // for debug.
+            auto inference = _device->peekInferenceStd(requestId); 
+            LOG_DXRT_DBG << inference << endl; // for debug.
             ret = _device->Process(cmd, inference);
-#ifdef WORKER_USE_PROFILER
-            profiler.End(threadName);
+#ifdef USE_PROFILER
+            profiler.End("Input Request");
 #endif
         }
         loopCnt++;
     }
-    LOG_DXRT_DBG << threadName << " : End" << endl;
+    LOG_DXRT_DBG << threadName << " : End, loopCount:" << loopCnt << endl;
 }
 
 

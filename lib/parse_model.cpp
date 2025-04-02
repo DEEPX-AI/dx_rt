@@ -49,10 +49,20 @@ int ParseModel(string file)
 
     std::vector<TaskData> dataList;
 
-    string name = getAbsolutePath(file);
-    //dxrt::ModelDataBase modelData = LoadModelParam(file);
     dxrt::ModelDataBase modelData;
     LoadModelParam(modelData, file);
+
+    // Log .dxnn File Format Version 
+    std::cout << ".dxnn File Format Version : " << modelData.deepx_binary._dxnnFileFormatVersion << std::endl;
+    std::cout << "Compiler Version : " << modelData.deepx_binary._compilerVersion << std::endl;
+
+    if ( modelData.deepx_rmap.m_rmap().size() > 0 ) 
+    {
+        std::string rmapInfoVersion = modelData.deepx_rmap.m_rmap().at(0).version().rmapinfo();
+        std::cout << "RMapInfo Version : " << rmapInfoVersion << std::endl;
+    }
+
+    
     std::vector<std::string> taskOrder = modelData.deepx_graph.topoSort_order();
 
     if (taskOrder.empty())
@@ -86,12 +96,12 @@ int ParseModel(string file)
 
                 rmapInfos.emplace_back(rmapInfo);
 
-                data.emplace_back(move(vector<uint8_t>(rmapInfo.memorys().memory(0).size())));
+                data.emplace_back(vector<uint8_t>(rmapInfo.memorys().memory(0).size()));
                 auto& firstMemBuffer = modelData.deepx_binary.rmap(j).buffer();
                 memcpy(data.back().data(), firstMemBuffer.data(), firstMemBuffer.size());
                 DXRT_ASSERT(0 < data.back().size(), "invalid model");
 
-                data.emplace_back(move(vector<uint8_t>(rmapInfo.memorys().memory(1).size())));
+                data.emplace_back(vector<uint8_t>(rmapInfo.memorys().memory(1).size()));
                 auto& weightBuffer = modelData.deepx_binary.weight(j).buffer();
                 memcpy(data.back().data(), weightBuffer.data(), weightBuffer.size());
                 DXRT_ASSERT(0 < data.back().size(), "invalid model");
@@ -139,6 +149,7 @@ int ParseModel(string file)
         }
     }
 
+    /*
     for (const auto &order : taskOrder )
     {
         auto& graphElem = graphMap[order];
@@ -189,7 +200,9 @@ int ParseModel(string file)
                 cout << "      " << data_name << endl;
             }
         }
-    }
+    }*/
+
+    std::cout << "Loaded model infomation" << std::endl;
     for (auto& taskData : dataList)
     {
         cout << dec << "  Task[" <<taskData._id << "] " << taskData._name

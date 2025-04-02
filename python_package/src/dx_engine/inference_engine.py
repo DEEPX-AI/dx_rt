@@ -5,20 +5,20 @@ import numpy as np
 
 import dx_engine.capi._pydxrt as C
 from dx_engine.dtype import NumpyDataTypeMapper
-
+from dx_engine.utils import ensure_contiguous
+from dx_engine.inference_option import InferenceOption
 
 class InferenceEngine:
     def __init__(
         self,
         model_path: str,
-        inference_option=None,  # TODO: Will be used after pybind complete
+        inference_option=InferenceOption()
     ) -> None:
-        self.model_path = model_path
-        self.inference_option = inference_option
-        self.engine = C.InferenceEngine(model_path)
+        self.engine = C.InferenceEngine(model_path, inference_option.instance)
 
     def run(self, input_feed_list: List[np.ndarray]) -> List[np.ndarray]:
-        """Return normal inference result."""
+        """Return normal inference result"""
+        input_feed_list = ensure_contiguous(input_feed_list)
         return C.run(self.engine, input_feed_list)
 
     def Run(self, input_feed_list: List[np.ndarray]):
@@ -28,6 +28,7 @@ class InferenceEngine:
 
     def run_async(self, input_feed_list: List[np.ndarray], user_arg) -> int:
         """Run inference asynchronously."""
+        input_feed_list = ensure_contiguous(input_feed_list)
         user_arg_capsule = ctypes.py_object(user_arg)
         return C.run_async(self.engine, input_feed_list, user_arg_capsule)
 
@@ -38,6 +39,7 @@ class InferenceEngine:
 
     def run_benchmark(self, loop_cnt, input_feed_list) -> float:
         """Return benchmark result."""
+        input_feed_list = ensure_contiguous(input_feed_list)
         return C.run_benchmark(self.engine, loop_cnt, input_feed_list)
 
     def RunBenchMark(self, loop_cnt, input_feed_list):
@@ -47,6 +49,7 @@ class InferenceEngine:
 
     def validate_device(self, input_feed_list: List[np.ndarray], device_id=0) -> List[np.ndarray]:
         """Return device validation run result."""
+        input_feed_list = ensure_contiguous(input_feed_list)
         return C.validate_device(self.engine, input_feed_list, device_id)
 
     def ValidateDevice(self, input_feed_list: List[np.ndarray], device_id=0):
@@ -216,3 +219,13 @@ class InferenceEngine:
     def parse_model(self, file: str):
         """Show model information"""
         return C.parse_model(self.engine, file)
+    
+    # for using 'with' statement
+    def __enter__(self):
+        C.inference_engine_enter(self.engine)
+        return self
+    
+    # for using 'with' statement
+    def __exit__(self, exc_type, exc_value, traceback):
+        C.inference_engine_exit(self.engine)
+        return True

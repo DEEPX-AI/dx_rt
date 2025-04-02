@@ -10,6 +10,7 @@
 #include <sys/fcntl.h>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 
 
 #include "dxrt/common.h"
@@ -33,11 +34,12 @@ int32_t LinuxDriverAdapter::IOControl(dxrt_cmd_t request, void* data, uint32_t s
     msg.data = data;
     msg.size = size;
 
-
     ret = ioctl(_fd, static_cast<unsigned long>(dxrt::dxrt_ioctl_t::DXRT_IOCTL_MESSAGE), &msg);
+
     if (ret < 0)
         return errno*(-1);
     return ret;
+    
 }
 
 int32_t LinuxDriverAdapter::Write(const void* buffer, uint32_t size)

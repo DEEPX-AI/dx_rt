@@ -36,12 +36,12 @@ Profiler::~Profiler()
     // cout << "destroy profiler" << endl;
     if(!timePoints.empty())
     {
-        if (_conf->GetAttribute(Configuration::ITEM::PROFILER,Configuration::ATTRIBUTE::PROFILER_SAVE_DATA) == "ON")
+        if (_conf->GetAttribute(Configuration::ITEM::PROFILER,Configuration::ATTRIBUTE::PROFILER_SAVE_DATA) == "on")
         {
             Save("profiler.json");
         }
 
-        if (_conf->GetAttribute(Configuration::ITEM::PROFILER,Configuration::ATTRIBUTE::PROFILER_SHOW_DATA) == "ON")
+        if (_conf->GetAttribute(Configuration::ITEM::PROFILER,Configuration::ATTRIBUTE::PROFILER_SHOW_DATA) == "on")
         {
             Show();
         }

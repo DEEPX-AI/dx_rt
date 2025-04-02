@@ -55,7 +55,7 @@ namespace dxrt {
         InferenceJobPtr PickInferenceJob(); // new one
         InferenceJobPtr GetInferenceJobById(int id); // find one by id
 
-        DevicePtr GetDevices(int id){ return _devices[id]; }
+        DevicePtr GetDevice(int id){ return _devices[id]; }
         int DeviceCount(){ return _devices.size(); }
         void InitDevices(SkipMode skip, uint32_t subCmd);
         shared_ptr<Device> PickOneDevice(const vector<int> &device_ids_);

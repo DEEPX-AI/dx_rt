@@ -48,9 +48,10 @@ void DeviceOutputWorker::ThreadWork(int id)
     std::string threadName = getName() +"_t"+ to_string(id);
     thread::id this_id = this_thread::get_id();
     int loopCnt = 0, ret=0;
+    std::shared_ptr<TimePoint> tp = nullptr;
     LOG_DXRT_DBG << getName() << " : Entry" << endl;
-    //int devId = _device->id();
-#ifdef WORKER_USE_PROFILER
+    int deviceId = _device->id();
+#ifdef USE_PROFILER
     auto& profiler = dxrt::Profiler::GetInstance();
 #endif
     dxrt_cmd_t cmd = //static_cast<dxrt_cmd_t>(static_cast<int>(dxrt::dxrt_cmd_t::DXRT_CMD_READ_OUTPUT_DMA_CH0)+id);
@@ -60,17 +61,19 @@ void DeviceOutputWorker::ThreadWork(int id)
         LOG_DXRT_DBG << threadName << " : wait" << endl;
         dxrt_response_t response;
 #ifdef USE_SERVICE
+        std::unique_lock<std::mutex> lk(_lock, std::defer_lock);
         if (Configuration::GetInstance()->GetEnable(Configuration::ITEM::SERVICE))
         {
-            unique_lock<mutex> lk(_lock);
+            lk.lock();
             _cv.wait(
                 lk, [this] {
                     return _queue.size() || _stop;
                 }
             );
             LOG_DXRT_DBG << threadName << " : wake up. " << endl;
-#ifdef WORKER_USE_PROFILER
-            profiler.Start(threadName);
+#ifdef USE_PROFILER
+            tp = std::make_shared<TimePoint>();
+            tp->end = ProfilerClock::now();
 #endif
             if (_stop)
             {
@@ -96,12 +99,11 @@ void DeviceOutputWorker::ThreadWork(int id)
 #endif
         {
             response.req_id = static_cast<uint32_t>(id);
-#ifdef WORKER_USE_PROFILER
-            if (loopCnt > 0)  profiler.Start(threadName);
-#endif
-
             ret = _device->Process(cmd, &response);
-
+#ifdef USE_PROFILER
+            tp = std::make_shared<TimePoint>();
+            tp->end = ProfilerClock::now();
+#endif
             if (ret != 0)
             {
                 continue;
@@ -109,9 +111,9 @@ void DeviceOutputWorker::ThreadWork(int id)
             if (response.status != 0)
             {
                 LOG_VALUE(response.status);
-                string _dumpFile = "dxrt.dump.bin." + to_string(_device->id());
-                cout << "Error Detected: " + ErrTable(static_cast<dxrt_error_t>(response.status)) << endl;
-                cout << "    Device " << _device->id() << " dump to file " << _dumpFile << endl;
+                string _dumpFile = "dxrt.dump.bin." + to_string(deviceId);
+                LOG_DXRT << "Error Detected: " + ErrTable(static_cast<dxrt_error_t>(response.status)) << endl;
+                LOG_DXRT << "    Device " << deviceId << " dump to file " << _dumpFile << endl;
                 vector<uint32_t> dump(1000, 0);
                 _device->Process(dxrt::dxrt_cmd_t::DXRT_CMD_DUMP, dump.data());
                 for (size_t i = 0; i < dump.size(); i+=2)
@@ -124,43 +126,59 @@ void DeviceOutputWorker::ThreadWork(int id)
                 _stop = true;
                 DXRT_ASSERT(false, "");
             }
-        }
-        if (_stop)
-        {
-            LOG_DXRT_DBG << threadName << " : requested to stop thread." << endl;
-#ifdef USE_SERVICE
-            while (!_queue.empty()) {
-                _queue.pop();
+            if (_stop)
+            {
+                LOG_DXRT_DBG << threadName << " : requested to stop thread." << endl;
+                auto it = find_if(_threads.begin(), _threads.end(),
+                    [this_id](thread& t) { return t.get_id() == this_id; });
+                if (it != _threads.end()) {
+                    LOG_DXRT_DBG<<threadName<<" Detaching..."<<endl;
+                    it->detach();
+                    _threads.erase(it);
+                    LOG_DXRT_DBG << threadName << " : removed itself from output worker threads. Remaining: " 
+                        << _threads.size() <<endl;
+                }
+                break;
             }
-#endif
-            auto it = find_if(_threads.begin(), _threads.end(),
-                [this_id](thread& t) { return t.get_id() == this_id; });
-            if (it != _threads.end()) {
-                LOG_DXRT_DBG<<threadName<<" Detaching..."<<endl;
-                it->detach();
-                _threads.erase(it);
-                LOG_DXRT_DBG << threadName << " : removed itself from output worker threads. Remaining: " 
-                    << _threads.size() <<endl;
-            }
-            break;
         }
         if (response.proc_id == 0)
         {
             continue;
         }
+        if (response.proc_id != static_cast<uint32_t>(getpid()))
+        {
+            LOG_DXRT << "response from other process reqid: " << response.req_id << ", pid:" << response.proc_id << endl;
+            continue;
+        }
         int reqId = response.req_id;
         dxrt_request_acc_t* request_acc = _device->peekInferenceAcc(reqId);
         auto req = Request::GetById(reqId);
-        req->set_processed_unit("NPU_"+to_string(_device->id()),response.dma_ch);
-
+        req->set_processed_unit("NPU_"+to_string(deviceId),response.dma_ch);
+        if (request_acc == nullptr)
+        {
+            DXRT_ASSERT(false, "request_acc is nullptr "+std::to_string(reqId));
+        }
+        if (req == nullptr)
+        {
+            DXRT_ASSERT(false, "req is nullptr "+std::to_string(reqId));
+        }
         if ((request_acc != nullptr) && (req != nullptr))
         {
             dxrt_meminfo_t output = request_acc->output;
             if (SKIP_INFERENCE_IO != 1 || req->model_type() != 1)
             {
-                DXRT_ASSERT(_device->Read(output, id) == 0, "Failed to read output");
+#ifdef USE_PROFILER
+                tp->start = tp->end - std::chrono::microseconds(response.inf_time);
+                profiler.AddTimePoint("NPU Core_" + to_string(response.dma_ch), tp);
+                profiler.Start("PCIe Read(" + to_string(response.dma_ch)+")");
+#endif
+                int ret = _device->Read(output, id);
+#ifdef USE_PROFILER
+                profiler.End("PCIe Read(" + to_string(response.dma_ch)+")");
+#endif
+                DXRT_ASSERT(ret == 0, "Failed to read output, errno="+ to_string(ret) +
+                    ", reqId=" + to_string(reqId) + ",ch:" + to_string(id));
             }
-            
             if (DEBUG_DATA == 1)
             {
                 dxrt::TensorPtrs outputs = _device->Validate(req, true);
@@ -187,9 +205,6 @@ void DeviceOutputWorker::ThreadWork(int id)
                 if (DEBUG_DATA > 0)
                     DataDumpBin(req->taskData()->name() + "_output.ppu.bin", req->outputs());
             }
-#ifdef WORKER_USE_PROFILER
-            profiler.End(threadName);
-#endif
             _device->CallBack();
             TASK_FLOW("["+to_string(req->job_id())+"]"+req->taskData()->name()+" output is ready, load :"+to_string(_device->load()));
             Profiler::GetInstance().End(_device->name());
@@ -197,22 +212,16 @@ void DeviceOutputWorker::ThreadWork(int id)
             _device->Deallocate_npuBuf(request_acc->input.offset, req->taskData()->id());
             ProcessResponse(req, &response);
 
-
             _device->popInferenceStruct(reqId);
         }
         else
         {
-#ifdef WORKER_USE_PROFILER
-            profiler.End(threadName);
-#endif
            // cout << "ERRORs" << reqId << endl;
             DXRT_ASSERT(false, "FAILED");
-
-            
         }
         loopCnt++;
     }
-    LOG_DXRT_DBG << threadName << " : End" << endl;
+    LOG_DXRT_DBG << threadName << " : End, Loopcount: " << loopCnt << endl;
 
 }
 

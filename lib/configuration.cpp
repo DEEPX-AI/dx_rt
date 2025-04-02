@@ -2,80 +2,240 @@
 #include "dxrt/configuration.h"
 #include "dxrt/exception/exception.h"
 #include <memory>
+#include <iostream>
+#include <fstream>
+#include <unordered_map>
+#include <sstream>
+#include <algorithm>
+#include <atomic>
+
+
 
 #ifdef USE_SERVICE
-#define SERVICE_DEFAULT_VALUE true
+#define USE_SERVICE_DEFAULT_VALUE true
 #else
-#define SERVICE_DEFAULT_VALUE false
+#define USE_SERVICE_DEFAULT_VALUE false
 #endif
+
+#if DEBUG_DXRT
+#define DEBUG_DXRT_DEFAULT_VALUE true
+#else
+#define DEBUG_DXRT_DEFAULT_VALUE false
+#endif
+
+#if USE_PROFILER
+#define USE_PROFILER_DEFAULT_VALUE true
+#else
+#define USE_PROFILER_DEFAULT_VALUE false
+#endif
+
+#if DXRT_DYNAMIC_CPU_THREAD
+#define DXRT_DYNAMIC_CPU_THREAD_DEFAULT_VALUE true
+#else
+#define DXRT_DYNAMIC_CPU_THREAD_DEFAULT_VALUE false
+#endif
+
+#if SHOW_PROFILER_DATA
+#define SHOW_PROFILER_DATA_DEFAULT_VALUE "on"
+#else
+#define SHOW_PROFILER_DATA_DEFAULT_VALUE "off"
+#endif
+
+#if SHOW_TASK_FLOW
+#define SHOW_TASK_FLOW_DEFAULT_VALUE true
+#else
+#define SHOW_TASK_FLOW_DEFAULT_VALUE false
+#endif
+
+#if SAVE_PROFILER_DATA
+#define SAVE_PROFILER_DATA_DEFAULT_VALUE "on"
+#else
+#define SAVE_PROFILER_DATA_DEFAULT_VALUE "off"
+#endif
+
+
+static bool isDebugFlag = DEBUG_DXRT_DEFAULT_VALUE;
+static bool isShowTaskFlowFlag = SHOW_TASK_FLOW_DEFAULT_VALUE;
 
 
 namespace dxrt {
 
-    std::shared_ptr<Configuration> Configuration::GetInstance()
-    {
-        static std::shared_ptr<Configuration> _instance(new Configuration());
-        return _instance;
+static std::string toLower(const std::string& str) {
+    std::string result = str;
+    std::transform(result.begin(), result.end(), result.begin(), ::tolower);
+    return result;
+}
+
+class ConfigParser
+{
+ public:
+    explicit ConfigParser(const std::string& filename) {
+        parseFile(filename);
     }
 
-    Configuration::Configuration()
-    {
-        // default configuration
-        _enableSettings[ITEM::DEBUG] = false;
-        _enableSettings[ITEM::PROFILER] = false;
-        _enableSettings[ITEM::SERVICE] = SERVICE_DEFAULT_VALUE;
+    std::string getValue(const std::string& key) const {
+        auto it = config.find(key);
+        return (it != config.end()) ? it->second : "";
+    }
 
-        _attributes[ITEM::PROFILER][ATTRIBUTE::PROFILER_SHOW_DATA] = "OFF";
-        _attributes[ITEM::PROFILER][ATTRIBUTE::PROFILER_SHOW_TASK_FLOW] = "OFF";
-        _attributes[ITEM::PROFILER][ATTRIBUTE::PROFILER_SAVE_DATA] = "OFF";
+    int getIntValue(const std::string& key) const {
+        return std::stoi(getValue(key));
+    }
+
+    bool getBoolValue(const std::string& key) const {
+        std::string value = getValue(key);
+        return (value == "1" || value == "true" || value == "on");
+    }
+
+ private:
+    std::unordered_map<std::string, std::string> config;
+
+    void parseFile(const std::string& filename) {
+        std::ifstream file(filename);
+        std::string line;
+        if (!file)
+        {
+            throw dxrt::FileNotFoundException(filename);
+        }
+
+        while (std::getline(file, line))
+        {
+            std::istringstream iss(line);
+            std::string key, value;
+
+            if (std::getline(iss, key, '=') && std::getline(iss, value))
+            {
+                key.erase(std::remove_if(key.begin(), key.end(), ::isspace), key.end());
+                value.erase(std::remove_if(value.begin(), value.end(), ::isspace), value.end());
+                config[key] = toLower(value);
+            }
+        }
+    }
+};
+
+
+
+std::shared_ptr<Configuration>& Configuration::GetInstance()
+{
+    static std::shared_ptr<Configuration> _instance(new Configuration());
+    return _instance;
+}
+
+Configuration::Configuration()
+{
+    // default configuration
+    _enableSettings[ITEM::DEBUG] = DXRT_DYNAMIC_CPU_THREAD_DEFAULT_VALUE;
+    _enableSettings[ITEM::PROFILER] = USE_PROFILER_DEFAULT_VALUE;
+    _enableSettings[ITEM::SERVICE] = USE_SERVICE_DEFAULT_VALUE;
+    _enableSettings[ITEM::DYNAMIC_CPU_THREAD] = DXRT_DYNAMIC_CPU_THREAD_DEFAULT_VALUE;
+    _enableSettings[ITEM::TASK_FLOW] = SHOW_TASK_FLOW_DEFAULT_VALUE;
+
+    _attributes[ITEM::PROFILER][ATTRIBUTE::PROFILER_SHOW_DATA] = SHOW_PROFILER_DATA_DEFAULT_VALUE;
+    _attributes[ITEM::PROFILER][ATTRIBUTE::PROFILER_SAVE_DATA] = SAVE_PROFILER_DATA_DEFAULT_VALUE;
 
 #ifndef USE_SERVICE
-        _isReadonly[ITEM::SERVICE].first = true;
+    _isReadonly[ITEM::SERVICE].first = true;
 #endif
-    }
+}
 
-    void Configuration::SetEnable(const ITEM item, bool enabled)
-    {
-        if (_isReadonly[item].first == true)
-        {
-            throw dxrt::InvalidOperationException("change configuration not allowed");
-        }
-        _enableSettings[item] = enabled;
-    }
 
-    void Configuration::SetAttribute(const ITEM item, const ATTRIBUTE attrib, const std::string& value)
-    {
-        if (_isReadonly[item].second[attrib] == true)
-        {
-            throw dxrt::InvalidOperationException("change configuration not allowed");
-        }
-        _attributes[item][attrib] = value;
-    }
+/* example config file
+ENABLE_MULTI_PROCESS=ON
+ENABLE_PROFILER=ON
+PROFILER_SHOW_DATA=OFF
+PROFILER_SAVE_DATA=OFF
+ENABLE_DYNAMIC_CPU_THREAD=OFF
 
-    bool Configuration::GetEnable(const ITEM item) const
-    {
-        auto it = _enableSettings.find(item);
-        if (it == _enableSettings.end())
-        {
-            return false;
-        }
-        return it->second;
-    }
+*/
 
-    std::string Configuration::GetAttribute(const ITEM item, const ATTRIBUTE attrib) const
-    {
-        auto it = _attributes.find(item);
-        if (it == _attributes.end())
-        {
-            return "";
-        }
-        auto it2 = it->second.find(attrib);
-        if (it2 == it->second.end())
-        {
-            return "";
-        }
-        return it2->second;
-    }
+void Configuration::LoadConfigFile(const std::string& fileName)
+{
+    ConfigParser parser(fileName);
+
+    SetEnable(ITEM::DEBUG, parser.getBoolValue("ENABLE_DEBUG"));
+    SetEnable(ITEM::PROFILER, parser.getBoolValue("ENABLE_PROFILER"));
+#ifdef USE_SERVICE
+    SetEnable(ITEM::SERVICE, parser.getBoolValue("ENABLE_MULTI_PROCESS"));
+#endif
+    SetEnable(ITEM::DYNAMIC_CPU_THREAD, parser.getBoolValue("ENABLE_DYNAMIC_CPU_THREAD"));
+    SetEnable(ITEM::TASK_FLOW, parser.getBoolValue("ENABLE_TASK_FLOW"));
+
+    _attributes[ITEM::PROFILER][ATTRIBUTE::PROFILER_SHOW_DATA] = parser.getValue("PROFILER_SHOW_DATA");
+    _attributes[ITEM::PROFILER][ATTRIBUTE::PROFILER_SAVE_DATA] = parser.getValue("PROFILER_SAVE_DATA");
 
 }
 
+
+
+void Configuration::SetEnable(const ITEM item, bool enabled)
+{
+    if (_isReadonly[item].first == true)
+    {
+        throw dxrt::InvalidOperationException("configuration change not allowed");
+    }
+    _enableSettings[item] = enabled;
+    if (item == ITEM::DEBUG)
+    {
+        isDebugFlag = enabled;
+    }
+    if (item == ITEM::TASK_FLOW)
+    {
+        isShowTaskFlowFlag = enabled;
+    }
+}
+
+void Configuration::SetAttribute(const ITEM item, const ATTRIBUTE attrib, const std::string& value)
+{
+    if (_isReadonly[item].second[attrib] == true)
+    {
+        throw dxrt::InvalidOperationException("change configuration not allowed");
+    }
+    _attributes[item][attrib] = value;
+}
+
+bool Configuration::GetEnable(const ITEM item) const
+{
+    auto it = _enableSettings.find(item);
+    if (it == _enableSettings.end())
+    {
+        return false;
+    }
+    return it->second;
+}
+
+std::string Configuration::GetAttribute(const ITEM item, const ATTRIBUTE attrib) const
+{
+    auto it = _attributes.find(item);
+    if (it == _attributes.end())
+    {
+        return "";
+    }
+    auto it2 = it->second.find(attrib);
+    if (it2 == it->second.end())
+    {
+        return "";
+    }
+    return it2->second;
+}
+void Configuration::LockEnable(const ITEM item)
+{
+    auto it = _attributes.find(item);
+    if (it == _attributes.end())
+    {
+        return;
+    }
+    _isReadonly[item].first = true;
+}
+
+
+}  // namespace dxrt
+
+bool isDebug()
+{
+    return isDebugFlag;
+}
+
+bool isShowTaskFlow()
+{
+    return isShowTaskFlowFlag;
+}

@@ -17,9 +17,9 @@ int dxrt_service_main();
 #include <unistd.h>
 bool hasOtherProcess() {
     const std::string& processName = "dxrtd";
-    pid_t myPid = getpid(); // 현재 프로세스의 PID 가져오기
+    pid_t myPid = getpid(); // Get Current Process PID
 
-    // /proc 디렉토리 열기
+    // /proc Directory Open
     DIR* procDir = opendir("/proc");
     if (!procDir) {
         perror("opendir");
@@ -28,7 +28,7 @@ bool hasOtherProcess() {
 
     struct dirent* entry;
     while ((entry = readdir(procDir)) != nullptr) {
-        // 디렉토리 이름이 숫자인지 확인 (프로세스 디렉토리)
+        // Check if directory name is digit(process)
         std::string dirName(entry->d_name);
         if (!std::all_of(dirName.begin(), dirName.end(), ::isdigit)) {
             continue;
@@ -36,21 +36,21 @@ bool hasOtherProcess() {
 
         pid_t pid = std::stoi(dirName);
         if (pid == myPid) {
-            continue; // 자신의 프로세스는 제외
+            continue; // Exclude self 
         }
 
-        // /proc/<pid>/cmdline 파일 열기
+        // /proc/<pid>/cmdline file open
         std::ifstream cmdlineFile("/proc/" + dirName + "/cmdline");
         if (!cmdlineFile.is_open()) {
             continue;
         }
 
-        // cmdline 파일에서 명령어 이름 읽기
+        // read from cmdline
         std::string cmdline;
-        std::getline(cmdlineFile, cmdline, '\0'); // NULL 문자로 구분된 첫 번째 항목 읽기
+        std::getline(cmdlineFile, cmdline, '\0'); // read first things seperated by NULL
         cmdlineFile.close();
 
-        // 프로세스 이름이 포함되어 있는지 확인
+        // Check for process name
         if (cmdline.find(processName) != std::string::npos) {
             closedir(procDir);
             return true;
@@ -63,12 +63,12 @@ bool hasOtherProcess() {
 #elif _WIN32
 #include <windows.h>
 #include <tlhelp32.h>
-// 특정 이름의 다른 프로세스가 있는지 확인하는 함수
+// Check for other process with has same name
 bool hasOtherProcess() {
     const std::string processName = "dxrtd.exe";
-    DWORD myPid = GetCurrentProcessId(); // 현재 프로세스의 PID 가져오기
+    DWORD myPid = GetCurrentProcessId(); // Get current process PID
 
-    // 프로세스 스냅샷 생성
+    // Get process snapshots
     HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (hSnapshot == INVALID_HANDLE_VALUE) {
         std::cerr << "Failed to create process snapshot.\n";
@@ -78,24 +78,24 @@ bool hasOtherProcess() {
     PROCESSENTRY32 processEntry;
     processEntry.dwSize = sizeof(PROCESSENTRY32);
 
-    // 첫 번째 프로세스 가져오기
+    // Get first process
     if (!Process32First(hSnapshot, &processEntry)) {
         std::cerr << "Failed to retrieve first process.\n";
         CloseHandle(hSnapshot);
         return false;
     }
 
-    // 프로세스 목록 순회
+    // iterate process list
     do {
-        // 현재 프로세스의 이름이 일치하고 PID가 다른 경우
+        // If name is equal and pid is not equal
         if (processName == processEntry.szExeFile && myPid != processEntry.th32ProcessID) {
             CloseHandle(hSnapshot);
-            return true; // 다른 프로세스가 실행 중
+            return true; // Other instance running
         }
     } while (Process32Next(hSnapshot, &processEntry));
 
     CloseHandle(hSnapshot);
-    return false; // 동일한 이름의 다른 프로세스가 없음
+    return false; // No Other instance
 }
 #endif
 

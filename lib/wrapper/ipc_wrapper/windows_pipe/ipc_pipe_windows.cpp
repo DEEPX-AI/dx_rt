@@ -45,8 +45,16 @@ int32_t IPCPipeWindows::SendOL(LPCVOID message, int32_t messageLength, LPDWORD b
 				fSuccess = TRUE ;
 			}
 			else {
-				printf("WriteFile to pipe failed. GLE=%d\n", GetLastError()); // return -1;
+				printf("WriteFile to pipe failed. GLE=%d\n, handle=%lld\n", GetLastError(), reinterpret_cast<uint64_t>(_hPipe)); // return -1;
 				if (GetLastError() == ERROR_NO_DATA)return -1;	// pipe is closing;
+				if (GetLastError() == ERROR_INVALID_HANDLE) return -1;  // pipe is closing
+
+				if (_hPipe == INVALID_HANDLE_VALUE)
+				{
+					printf("pipe is invalid value %d\n", GetLastError());
+					return -1; //closed pipe
+				}
+
 			}
 		}
 		if (fSuccess)	break;
@@ -87,7 +95,7 @@ int32_t IPCPipeWindows::ReceiveOL(LPVOID buffer, int32_t bytesToRead, LPDWORD by
 				fSuccess = true;
 			}
 			else {
-				printf("ReadFile from pipe failed. GLE=%d\n", GetLastError()); 
+				printf("ReadFile from pipe failed. GLE=%d\n, handle %lld\n", GetLastError(), reinterpret_cast<uint64_t>(_hPipe));
 				if (GetLastError() == ERROR_NO_DATA)return -1;	// pipe is closing;
 			}
 		}

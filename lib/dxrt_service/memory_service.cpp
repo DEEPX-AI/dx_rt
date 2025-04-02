@@ -37,6 +37,10 @@ MemoryService* MemoryService::getInstance(int deviceId)
         }
         LOG_DXRT_S_DBG << "device count:" << _instances.size() << endl;
     }
+    if ((_instances.size() <= static_cast<size_t>(deviceId)) || (deviceId < 0))
+    {
+        return nullptr;
+    }
     return _instances[deviceId];
 }
 
@@ -106,8 +110,15 @@ void MemoryService::DeallocateAllDevice(pid_t pid)
     }
 }
 
+uint64_t MemoryService::free_size() const
+{
+    return _mem->free_size();
+}
 
-
+uint64_t MemoryService::used_size() const
+{
+    return _mem->used_size();
+}
 
 
 

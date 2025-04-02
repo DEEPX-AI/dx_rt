@@ -17,7 +17,7 @@ class LinuxDriverAdapter : public DriverAdapter {
     int32_t Read(void* buffer, uint32_t size) override;
     void* MemoryMap(void *__addr, size_t __len, off_t __offset = 0) override;
     int32_t Poll() override;
-    int GetFd() { return _fd; }
+    int GetFd() override { return _fd; }
 
     ~LinuxDriverAdapter() override;
  private:

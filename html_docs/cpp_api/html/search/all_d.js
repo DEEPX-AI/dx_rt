@@ -1,5 +1,7 @@
 var searchData=
 [
-  ['task_5forder_60',['task_order',['../classdxrt_1_1InferenceEngine.html#a22087ed8a6839bfc1c4a6b9c21629236',1,'dxrt::InferenceEngine']]],
-  ['tensor_61',['Tensor',['../classdxrt_1_1Tensor.html',1,'dxrt']]]
+  ['registercallback_78',['RegisterCallBack',['../classdxrt_1_1InferenceEngine.html#a3d3fc75faa79470d9a3bdbdc61561a3a',1,'dxrt::InferenceEngine::RegisterCallBack(std::function&lt; int(TensorPtrs &amp;outputs, void *userArg)&gt; callbackFunc)'],['../classdxrt_1_1InferenceEngine.html#a1d8b33fa324a48b43433c401bd54280a',1,'dxrt::InferenceEngine::RegisterCallback(std::function&lt; int(TensorPtrs &amp;outputs, void *userArg)&gt; callbackFunc)']]],
+  ['run_79',['Run',['../classdxrt_1_1InferenceEngine.html#a88cea5324cbeb436034adb60cf31050f',1,'dxrt::InferenceEngine']]],
+  ['runasync_80',['RunAsync',['../classdxrt_1_1InferenceEngine.html#af3006c9a7183f7e42d1528aa8a6fea24',1,'dxrt::InferenceEngine']]],
+  ['runbenchmark_81',['RunBenchmark',['../classdxrt_1_1InferenceEngine.html#a3846a2f47ea39933136e589aad036eb0',1,'dxrt::InferenceEngine::RunBenchmark(int num, void *inputPtr=nullptr)'],['../classdxrt_1_1InferenceEngine.html#ab0c6629f048341d62bfa3a400c90e827',1,'dxrt::InferenceEngine::RunBenchMark(int num, void *inputPtr=nullptr)']]]
 ];

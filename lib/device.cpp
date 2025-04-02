@@ -41,6 +41,7 @@
 #include <iostream>
 #include <sstream>
 #include <iomanip>
+#include <chrono>
 
 using namespace std;
 
@@ -48,7 +49,7 @@ using namespace std;
 // #define DEVICE_POLL_LIMIT_MS 1000
 // #define DEVICE_POLL_LIMIT_MS 3*1000
 #define DEVICE_POLL_LIMIT_MS 3*1000*1000
-#define DEVICE_NUM_BUF 2
+//#define DEVICE_NUM_BUF 2
 //#define ACC_DEVICE_BUFFER_SIZE 128*1024*1024
 //#define ACC_DEVICE_BUFFER_SIZE 64*1024*1024
 
@@ -85,6 +86,8 @@ Device::~Device(void)
             _eventWorker->Stop();
         Terminate(); //To wake up the event thread waiting in the kernel.
     }
+
+	
     _driverAdapter = nullptr;
     LOG_DXRT_DBG << "Device " << _id << " released." << endl;
     if (( _type == DeviceType::STD_TYPE) && (_skip == SkipMode::NONE))
@@ -214,6 +217,7 @@ int Device::InferenceRequest_STD(RequestData* req, npu_bound_op boundOp)
                 memcpy(dest, reqInputPtr, task->_inputSize);
                 Process(dxrt::dxrt_cmd_t::DXRT_CMD_CPU_CACHE_FLUSH, reinterpret_cast<void*>(&inferences[pick].input));
             }
+			req->outputs = _outputTensors[taskId][pick];
         }
         auto npu_inference = inferences[pick];
         npu_inference.req_id = req->requestId;
@@ -224,10 +228,10 @@ int Device::InferenceRequest_STD(RequestData* req, npu_bound_op boundOp)
         }
         LOG_DXRT_DBG << "Device " << _id << " Request : " << inferences[pick] << endl;
 #ifdef __linux__
-        // ret = write(_devFd, inference, sizeof(dxrt_request_t));
-        ret = _driverAdapter->Write(&inferences[pick], sizeof(dxrt_request_t));
+        // ret = write(_devFd, inference, sizeof(dxrt_request_t));        
+		ret = _driverAdapter->Write(&npu_inference, sizeof(dxrt_request_t));
 #elif _WIN32
-        ret = _driverAdapter->Write(&inferences[pick], sizeof(dxrt_request_t));
+		ret = _driverAdapter->Write(&npu_inference, sizeof(dxrt_request_t));
 #endif
         LOG_DXRT_DBG << "written " << ret << endl;
     }
@@ -393,7 +397,7 @@ int Device::Response(dxrt_response_t &response)
     int ret;
 #ifdef __linux__
     ret = _driverAdapter->Read(&response, sizeof(dxrt_response_t));
-    if (ret != sizeof(response))
+	if (ret != 0)//if (ret != sizeof(response))
     {
         return -1;
     }
@@ -467,7 +471,7 @@ int Device::Wait(void)
     LOG_DXRT_DBG << "Device " << _id << " Wakeup" << endl;
     if (ret < 0)
     {
-        cout << "Error: Device " << _id << "poll fail." << endl;
+        LOG_DXRT << "Error: Device " << _id << "poll fail." << endl;
         return -1;
     }
 #elif _WIN32
@@ -510,7 +514,7 @@ void Device::Identify(int id_, SkipMode skip, uint32_t subCmd)
     _driverAdapter = make_shared<WindowsDriverAdapter>(_file.c_str());
     _devHandle = (HANDLE)_driverAdapter->GetFd();
     if (_devHandle == INVALID_HANDLE_VALUE) {
-        cout << "Error: Can't open " << _file << endl;
+        LOG_DXRT << "Error: Can't open " << _file << endl;
         return;
     }
 #endif
@@ -659,10 +663,47 @@ int Device::UpdateFwConfig(string jsonFile)
     return buf[0];
 }
 
-int Device::UpdateDDRFreq(uint32_t freq)
+void Device::DoCustomCommand(void *data, uint32_t subCmd, uint32_t size)
 {
-    Process(dxrt::dxrt_cmd_t::DXRT_CMD_SET_DDR_FREQ, &freq, sizeof(uint32_t));
-    return 0;
+    dxrt_custom_sub_cmt_t sCmd = static_cast<dxrt_custom_sub_cmt_t>(subCmd);
+    if (data == nullptr)
+    {
+        LOG_DXRT_ERR("Null data pointer received");
+        return;
+    }
+
+    switch (sCmd)
+    {
+        case DX_SET_DDR_FREQ:
+        {
+            uint32_t freq = *static_cast<uint32_t *>(data);
+            Process(dxrt::dxrt_cmd_t::DXRT_CMD_CUSTOM,
+                    &freq,
+                    sizeof(uint32_t),
+                    sCmd);
+            break;
+        }
+        case DX_GET_OTP:
+        {
+            otp_info_t *info = static_cast<otp_info_t *>(data);
+            Process(dxrt::dxrt_cmd_t::DXRT_CMD_CUSTOM,
+                    info,
+                    sizeof(otp_info_t),
+                    sCmd);
+            break;
+        }
+        case DX_SET_OTP:
+        {
+            Process(dxrt::dxrt_cmd_t::DXRT_CMD_CUSTOM,
+                    data,
+                    size,
+                    sCmd);
+            break;
+        }
+        default:
+            LOG_DXRT_ERR("Unknown sub command: " << sCmd);
+            break;
+    }
 }
 
 int64_t Device::Allocate(uint64_t size)
@@ -755,7 +796,7 @@ void Device::ThreadImpl(void)
         ret = Response(response);
         if (_stop) break;
         LOG_DXRT_DBG << "Device " << _id << " got response " << response.req_id << endl;
-        if (ret == 0 && response.req_id > 0)
+		if (ret == 0)// && response.req_id >= 0)
         {
             // cout << "response " << response.req_id << ", inf time " << response.inf_time << ", load " << load() << endl;
             auto req = Request::GetById(response.req_id);
@@ -855,7 +896,7 @@ int Device::RegisterTask_STD(TaskData* task)
             {
                 {
                     vector<uint8_t> buf(model.output_all_size);
-                    _outputValidateBuffers[id] = move(buf);
+                    _outputValidateBuffers[id] = std::move(buf);
                 }
             }
             else
@@ -912,10 +953,10 @@ int Device::RegisterTask_STD(TaskData* task)
 
     for (auto &v : _inputTensors[id])
         for (auto &tensor : v)
-            cout << tensor << endl;
+            LOG_DXRT << tensor << endl;
     for (auto &v : _outputTensors[id])
         for (auto &tensor : v)
-            cout << tensor << endl;
+            LOG_DXRT << tensor << endl;
 
     return ret;
 }
@@ -1005,7 +1046,7 @@ int Device::RegisterTask_ACC(TaskData* task)
             {
                 {
                     vector<uint8_t> buf(model.output_all_size);
-                    _outputValidateBuffers[id] = move(buf);
+                    _outputValidateBuffers[id] =  std::move(buf);
                 }
             }
             else
@@ -1059,7 +1100,7 @@ int Device::RegisterTask_ACC(TaskData* task)
     // cout << "memcmp done" << endl;
     int block_size = data_align(task->input_size(), 64) + task->_outputMemSize;
     
-    _npuMemoryCacheManager.registerMemoryCache(task->id(), block_size, DXRT_ASYNC_LOAD_THRE);
+    _npuMemoryCacheManager.registerMemoryCache(task->id(), block_size, DXRT_TASK_MAX_LOAD);
     return ret;
 }
 
@@ -1145,7 +1186,7 @@ void WaitDeviceResponses(vector<shared_ptr<Device>> &devices_) // temp.
     {
         while(device->load()>0)
         {
-            cout << *device << endl;
+            LOG_DXRT << *device << endl;
             // LOG_VALUE(device->load());
         }
     }

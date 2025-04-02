@@ -12,9 +12,6 @@
 
 using namespace std;
 
-#ifndef __linux__
-    #define MAX_PATH    (400)
-#endif  // __linux__
 
 string dxrt::getCurrentPath()
 {

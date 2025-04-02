@@ -29,11 +29,15 @@
 #include "dxrt/worker.h"
 #include "dxrt/device.h"
 #include "dxrt/request.h"
+#include "dxrt/exception/exception.h"
+#include "dxrt/configuration.h"
 
 #ifdef USE_ORT
 #include <onnxruntime_cxx_api.h>
 #endif
 
+
+#define MINIMUM_ORT_VERSION "1.20.0"
 using namespace std;
 
 namespace dxrt
@@ -55,7 +59,7 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
 }
 
 std::atomic<int> CpuHandle::_totalNumThreads{0};
-bool CpuHandle::_multiThreadEnv = false;
+bool CpuHandle::_dynamicCpuThread = false;
 
 #ifdef USE_ORT
 DataType convertDataType(ONNXTensorElementDataType dataType)
@@ -122,9 +126,31 @@ size_t convertElementSize(ONNXTensorElementDataType dataType)
             return 0;
     }
 }
+
+std::pair<int, int> verson_parse(const string& str)
+{
+    std::stringstream vs(str);
+    char dot = '.';
+    int major = 0, minor = 0;
+    vs >> major >> dot >> minor;
+    return std::make_pair(major, minor);
+}
+
+bool version_check()
+{
+    std::pair<int, int> ver = verson_parse(Ort::GetVersionString());
+    std::pair<int, int> min_ver =  verson_parse(MINIMUM_ORT_VERSION);
+    return ver >= min_ver;
+}
+
+
 CpuHandle::CpuHandle(void* data_, int64_t size_, string name_)
 : _name(name_)
 {
+    if (version_check() == false)
+    {
+        throw InvalidOperationException("NOT SUPPORTED ORT VERSION "+ Ort::GetVersionString());
+    }
     // _env = Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_VERBOSE, "dxrt cpu handle");
     // _env = Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_INFO, "dxrt cpu handle");
     _env = Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_INFO);
@@ -204,17 +230,17 @@ CpuHandle::CpuHandle(void* data_, int64_t size_, string name_)
         }
     }
 
-    if (_multiThreadEnv) {
+    if (_dynamicCpuThread) {
         if (size_ <= 64 * 1024) {
             _initDynamicThreads = 0;
         } else if (size_ <= 1 * 1024 * 1024) {
-            _initDynamicThreads = 2;
+            _initDynamicThreads = 1;
         } else {
-            _initDynamicThreads = 4;
+            _initDynamicThreads = 3;
         }
     }
     _totalNumThreads += (_numThreads+_initDynamicThreads);
-    cout<<"Task "<<name_<<" is set to "<<to_string(_numThreads+_initDynamicThreads)<<" threads (total : "<<to_string(_totalNumThreads)<<")"<<endl;
+    LOG_DXRT_DBG<<"Task "<<name_<<" is set to "<<to_string(_numThreads+_initDynamicThreads)<<" threads (total : "<<to_string(_totalNumThreads)<<")"<<endl;
 }
 
 CpuHandle::~CpuHandle()
@@ -225,15 +251,27 @@ CpuHandle::~CpuHandle()
     LOG_DXRT_DBG <<" Done"<< endl;
 }
 
-void CpuHandle::InitMultiThreadEnv() {
-    const char* env_p = getenv("USE_MULTI_CPU_THREADS");
-    if (env_p != nullptr && string(env_p) == "ON") {
-        _multiThreadEnv = true;
-        cout << "CPU TASK MULTI MODE" << endl;
+void CpuHandle::SetDynamicCpuThread() {
+    const char* env = getenv("DXRT_DYNAMIC_CPU_THREAD");
+    bool dynamic_cpu_thread_env = false;
+    if (env != nullptr && string(env) == "ON") {
+        dynamic_cpu_thread_env = true;
     } else {
-        _multiThreadEnv = false;
-        cout << "CPU TASK SINGLE MODE" << endl;
+        dynamic_cpu_thread_env = false;
     }
+
+    _dynamicCpuThread = Configuration::GetInstance()->GetEnable(Configuration::ITEM::DYNAMIC_CPU_THREAD);
+    Configuration::GetInstance()->LockEnable(Configuration::ITEM::DYNAMIC_CPU_THREAD);
+
+    if(dynamic_cpu_thread_env||_dynamicCpuThread)
+        _dynamicCpuThread=true;
+    
+    if (_dynamicCpuThread) {
+        LOG_DXRT_DBG << "Dynamic Multi Threading : MULTI MODE" << endl;
+    } else {
+        LOG_DXRT_DBG << "Dynamic Multi Threading : SINGLE MODE" << endl;
+    }
+
 }
 
 int CpuHandle::InferenceRequest(RequestPtr req)
@@ -243,7 +281,7 @@ int CpuHandle::InferenceRequest(RequestPtr req)
 
 void CpuHandle::Run(RequestPtr req)
 {
-#ifdef WORKER_USE_PROFILER
+#ifdef USE_PROFILER
     auto& profiler = dxrt::Profiler::GetInstance();
     string processedPU = req->processed_pu();
     int processedId = req->processed_id();
@@ -346,7 +384,7 @@ void CpuHandle::Run(RequestPtr req)
                   _inputNamesChar.data(), inputTensors.data(), inputTensors.size(),
                   _outputNamesChar.data(), outputTensors.data(), outputTensors.size());
     LOG_DXRT_DBG << "session run end : " << req->id() << std::endl;
-#ifdef WORKER_USE_PROFILER
+#ifdef USE_PROFILER
     profiler.End(profileInstanceName);
 #endif
     //ProcessResponse(req, nullptr);
@@ -357,6 +395,7 @@ void CpuHandle::Terminate()
 }
 void CpuHandle::Start()
 {
+    LOG_DXRT_DBG<<"CpuHandleWorer Start : "<<_numThreads<<endl;
     _worker = CpuHandleWorker::Create(_name, _numThreads, _initDynamicThreads, this);
 }
 
