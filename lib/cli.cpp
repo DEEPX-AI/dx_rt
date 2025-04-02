@@ -108,7 +108,7 @@ DeviceStatusCLICommand::DeviceStatusCLICommand(cxxopts::ParseResult &cmd)
 }
 void DeviceStatusCLICommand::doCommand(DevicePtr devicePtr)
 {
-    cout << DxrtDeviceInfoWithStatus::getStatusInfo(devicePtr);
+    cout << DeviceStatus::GetCurrentStatus(devicePtr);
 }
 
 DeviceStatusMonitor::DeviceStatusMonitor(cxxopts::ParseResult &cmd)
@@ -121,7 +121,7 @@ void DeviceStatusMonitor::doCommand(DevicePtr devicePtr)
     uint32_t delay = _cmd["monitor"].as<uint32_t>();
 
     while (true) {
-        DxrtDeviceInfoWithStatus::getStatusInfo(devicePtr).statusToStream(cout);
+        DeviceStatus::GetCurrentStatus(devicePtr).StatusToStream(cout);
         std::this_thread::sleep_for(chrono::seconds(delay));
 //#ifdef __linux__
 //        sleep(delay);
@@ -140,9 +140,9 @@ void DeviceMonitorDebug::doCommand(DevicePtr devicePtr)
 {
     uint32_t delay = _cmd["monitor_debug"].as<uint32_t>();
     while (true) {
-        auto deviceStatus = DxrtDeviceInfoWithStatus::getStatusInfo(devicePtr);
-        deviceStatus.statusToStream(cout);
-        deviceStatus.debugStatusToStream(cout);
+        auto deviceStatus = DeviceStatus::GetCurrentStatus(devicePtr);
+        deviceStatus.StatusToStream(cout);
+        deviceStatus.DebugStatusToStream(cout);
         std::this_thread::sleep_for(chrono::seconds(delay));
     }
 }
@@ -154,7 +154,7 @@ DeviceInfoCLICommand::DeviceInfoCLICommand(cxxopts::ParseResult &cmd)
 }
 void DeviceInfoCLICommand::doCommand(DevicePtr devicePtr)
 {
-    DxrtDeviceInfoWithStatus::getStatusInfo(devicePtr).infoToStream(cout);
+    DeviceStatus::GetCurrentStatus(devicePtr).InfoToStream(cout);
 }
 
 FWVersionCommand::FWVersionCommand(cxxopts::ParseResult &cmd)
@@ -319,7 +319,7 @@ void DDRTargetCommand::doCommand(DevicePtr devicePtr)
 
     if (find(supported_freq.begin(), supported_freq.end(), targetFreq) != supported_freq.end()) {
         cout << "   Target LPDDR Frequency: " << targetFreq << "Mhz" << endl;
-        devicePtr->UpdateDDRFreq(targetFreq);
+        devicePtr->DoCustomCommand(&targetFreq, dxrt::DX_SET_DDR_FREQ);
     }
     else {
         cout << "ERROR: Unsupported DDR Frequency : << " << targetFreq << "Mhz" << endl;
@@ -328,7 +328,50 @@ void DDRTargetCommand::doCommand(DevicePtr devicePtr)
     return;
 }
 
+OTPCommand::OTPCommand(cxxopts::ParseResult &cmd)
+: CLICommand(cmd)
+{
+    _withDevice = true;
+}
 
+#define OTP_REGION_SIZE  (16)
+#define OTP_VALUE_LENGTH (13)
+void OTPCommand::doCommand(DevicePtr devicePtr)
+{
+    string otpValue = _cmd["otp"].as<string>();
+    if (otpValue == "GET")
+    {
+        otp_info_t otp;
+        devicePtr->DoCustomCommand(&otp, dxrt::DX_GET_OTP);
+        cout << otp << endl;
+    } 
+    else
+    {
+        if (otpValue.size() != OTP_VALUE_LENGTH)
+        {
+            cerr << "Error: OTP value must be exactly " << OTP_VALUE_LENGTH << " characters long/short." << endl;
+            return;
+        }
+
+        char otpCharValue[OTP_REGION_SIZE] = {}; // Null-terminated safety
+        copy_n(otpValue.c_str(), OTP_VALUE_LENGTH, otpCharValue);
+
+        cout << "Setting OTP data to: " << otpValue << endl;
+        devicePtr->DoCustomCommand(&otpCharValue, dxrt::DX_SET_OTP, OTP_REGION_SIZE);
+        switch (otpCharValue[0])
+        {
+            case -1:
+                cerr << "ERROR: OTP region of barcode is full" << endl;
+                break;
+            case -2:
+                cerr << "ERROR: OTP Write/Read data mismatch" << endl;
+                break;
+            default:
+                cout << "OTP data successfully written." << endl;
+                break;
+        }
+    }
+}
 
 FWLogCommand::FWLogCommand(cxxopts::ParseResult &cmd)
 : CLICommand(cmd)

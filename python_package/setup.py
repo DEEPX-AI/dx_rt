@@ -14,8 +14,8 @@ def get_version():
 setuptools.setup(
     name="dx-engine",
     version=get_version(),
-    author="Jangmin Son",
-    author_email="jangmin@deepx.co.kr",
+    author="JG Jang",
+    author_email="jgjang@deepx.co.kr",
     description="Python wrapper class for dx_rt",
     long_description=long_description,
     long_description_content_type="text/markdown",

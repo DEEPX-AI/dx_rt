@@ -9,6 +9,7 @@
 #include "dxrt/driver.h"
 #include "dxrt/device_struct.h"
 #include "dxrt/driver_adapter/windows_driver_adapter.h"
+#include <iostream>
 
 namespace dxrt {
 
@@ -31,8 +32,9 @@ WindowsDriverAdapter::WindowsDriverAdapter(const char* fileName)
 
 int32_t WindowsDriverAdapter::IOControl(dxrt_cmd_t request, void* data, uint32_t size , uint32_t sub_cmd)
 {
-	OVERLAPPED overlappedSend1 = {}; overlappedSend1.hEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
-	int ret;
+    OVERLAPPED overlappedSend1 = {};
+    overlappedSend1.hEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+    int ret;
     dxrt_message_t msg;
     msg.cmd = static_cast<int32_t>(request);
     msg.sub_cmd = static_cast<int32_t>(sub_cmd),
@@ -41,66 +43,64 @@ int32_t WindowsDriverAdapter::IOControl(dxrt_cmd_t request, void* data, uint32_t
 
     DWORD bytesReturned;
     BOOL success = DeviceIoControl(
-   		_fd,
+        _fd,
         static_cast<DWORD>(dxrt::dxrt_ioctl_t::DXRT_IOCTL_MESSAGE),
         &msg,
         sizeof(msg),
         NULL,
         0,
         &bytesReturned,
-		&overlappedSend1	// NULL
-    );
-    if ( !success )	{
-		if (GetLastError() == ERROR_IO_PENDING) {
+        &overlappedSend1);
+    if ( !success )
+    {
+        if (GetLastError() == ERROR_IO_PENDING)
+        {
 #if 0
-			for (int i = 0; i < 10000; i++) {
-				DWORD e = WaitForSingleObject(overlappedSend1.hEvent, 6);	// INFINITE
-				if (e == WAIT_OBJECT_0)	break;
-				if (e == WAIT_TIMEOUT) continue;
-				break; // error
-			}
-			GetOverlappedResult(_fd, &overlappedSend1, &bytesReturned, FALSE);
-			// CloseHandle(_fd.hEvent);
-			success = true;
+            for (int i = 0; i < 10000; i++) {
+                DWORD e = WaitForSingleObject(overlappedSend1.hEvent, 6);  // INFINITE
+                if (e == WAIT_OBJECT_0)
+                    break;
+                if (e == WAIT_TIMEOUT)
+                    continue;
+                break;  // error
+            }
+            GetOverlappedResult(_fd, &overlappedSend1, &bytesReturned, FALSE);
+            // CloseHandle(_fd.hEvent);
+            success = true;
 #endif
             DWORD e = WaitForSingleObject(overlappedSend1.hEvent, INFINITE);
             if (e == WAIT_OBJECT_0) {
                 GetOverlappedResult(_fd, &overlappedSend1, &bytesReturned, FALSE);
                 success = true;
             }
-            if (e == WAIT_TIMEOUT) return -1 ;
-		}
-        else {
+            if (e == WAIT_TIMEOUT)
+                return -1;
+        }
+        else
+        {
             LOG_DXRT_ERR("e:" << GetLastError());
         }
     }
+    CloseHandle(overlappedSend1.hEvent);
     switch (request)
     {
     case dxrt_cmd_t::DXRT_CMD_UPDATE_FIRMWARE:
         if (!success) {
             ret = bytesReturned;
         }
-        else {
+        else
+        {
             ret = 0;
         }
         break;
-    case dxrt_cmd_t::DXRT_CMD_WRITE_INPUT_DMA_CH0:
-    case dxrt_cmd_t::DXRT_CMD_WRITE_INPUT_DMA_CH1:
-    case dxrt_cmd_t::DXRT_CMD_WRITE_INPUT_DMA_CH2:
-        if (!success) {
-            ret = -1;
-        }
-        else {
-            ret = 0;
-        }
-        break;
-
     default:
         if (!success) {
-            //PrintLastErrorString();
-            ret = GetLastError() * (-1);
+            // PrintLastErrorString();
+            ret = GetLastError();
+            std::cout << "GetLastError() = " << ret  << std::endl;
         }
-        else {
+        else
+        {
             ret = 0;
         }
         break;

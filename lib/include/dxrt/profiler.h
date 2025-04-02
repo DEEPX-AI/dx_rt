@@ -11,7 +11,7 @@
 #include <mutex>
 #include "dxrt/configuration.h"
 
-#define PROFILER_DEFAULT_SAMPLES 10000
+#define PROFILER_DEFAULT_SAMPLES 50
 
 namespace dxrt {
 // using ProfilerClock = std::chrono::high_resolution_clock;

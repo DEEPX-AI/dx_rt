@@ -1,6 +1,5 @@
 var searchData=
 [
-  ['save_119',['Save',['../classdxrt_1_1Profiler.html#ae7a4f64cc8dcfea179ab9eb0a8bea8da',1,'dxrt::Profiler']]],
-  ['show_120',['Show',['../classdxrt_1_1Profiler.html#a8b3f38d3b67f15fd530cca295c8a50a8',1,'dxrt::Profiler']]],
-  ['start_121',['Start',['../classdxrt_1_1Profiler.html#aec94050841dbf409644cf73a1647820b',1,'dxrt::Profiler']]]
+  ['parsemodel_165',['ParseModel',['../namespacedxrt.html#a639d891e943841d37650b5775bdfd279',1,'dxrt']]],
+  ['pcieinfostr_166',['PcieInfoStr',['../classdxrt_1_1DeviceStatus.html#a37337069fb67e4adbdf16f085205bf0e',1,'dxrt::DeviceStatus']]]
 ];

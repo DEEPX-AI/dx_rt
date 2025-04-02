@@ -39,3 +39,9 @@ typedef struct DXRT_API
 } dxrt_device_log_t;
 #pragma pack(pop) 
 
+
+enum class DeviceType : uint32_t
+{
+    ACC_TYPE = 0,
+    STD_TYPE = 1,
+};

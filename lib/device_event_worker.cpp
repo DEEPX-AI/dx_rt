@@ -28,9 +28,9 @@ void DeviceEventWorker::ThreadWork(int id)
     std::ignore = id;
     string threadName = getName();
 
-    int loopCnt = 0;  // ret;
+    int loopCnt = 0;
     LOG_DXRT_DBG << getName() << " : Entry" << endl;
-    // int devId = _device->id();
+    // int deviceId = _device->id();
     dxrt_cmd_t cmd = dxrt::dxrt_cmd_t::DXRT_CMD_EVENT;
     while (true)
     {
@@ -48,14 +48,14 @@ void DeviceEventWorker::ThreadWork(int id)
                 eventInfo.dx_rt_err);
         }
         else if (static_cast<dxrt::dxrt_event_t>(eventInfo.event_type)==dxrt::dxrt_event_t::DXRT_EVENT_NOTIFY_THROT) {
-            cout << eventInfo.dx_rt_ntfy_throt << endl;
+            LOG_DXRT << eventInfo.dx_rt_ntfy_throt << endl;
         }
         else {
             LOG_DXRT_DBG << "!! unknown event occured from device\n";
         }
         loopCnt++;
     }
-    LOG_DXRT_DBG << threadName << " : End" << endl;
+    LOG_DXRT_DBG << threadName << " : End, LoopCount" << loopCnt << endl;
 }
 
 }  // namespace dxrt

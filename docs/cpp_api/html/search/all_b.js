@@ -1,7 +1,5 @@
 var searchData=
 [
-  ['registercallback_53',['RegisterCallBack',['../classdxrt_1_1InferenceEngine.html#a3d3fc75faa79470d9a3bdbdc61561a3a',1,'dxrt::InferenceEngine::RegisterCallBack(std::function&lt; int(TensorPtrs &amp;outputs, void *userArg)&gt; callbackFunc)'],['../classdxrt_1_1InferenceEngine.html#a1d8b33fa324a48b43433c401bd54280a',1,'dxrt::InferenceEngine::RegisterCallback(std::function&lt; int(TensorPtrs &amp;outputs, void *userArg)&gt; callbackFunc)']]],
-  ['run_54',['Run',['../classdxrt_1_1InferenceEngine.html#a88cea5324cbeb436034adb60cf31050f',1,'dxrt::InferenceEngine']]],
-  ['runasync_55',['RunAsync',['../classdxrt_1_1InferenceEngine.html#af3006c9a7183f7e42d1528aa8a6fea24',1,'dxrt::InferenceEngine']]],
-  ['runbenchmark_56',['RunBenchmark',['../classdxrt_1_1InferenceEngine.html#a3846a2f47ea39933136e589aad036eb0',1,'dxrt::InferenceEngine::RunBenchmark(int num, void *inputPtr=nullptr)'],['../classdxrt_1_1InferenceEngine.html#ab0c6629f048341d62bfa3a400c90e827',1,'dxrt::InferenceEngine::RunBenchMark(int num, void *inputPtr=nullptr)']]]
+  ['output_5fsize_73',['output_size',['../classdxrt_1_1InferenceEngine.html#a93e1d7b460b7f8656e725ed708de507b',1,'dxrt::InferenceEngine']]],
+  ['outputs_74',['outputs',['../classdxrt_1_1InferenceEngine.html#a0893b724d6eed939556f1315ce05829d',1,'dxrt::InferenceEngine']]]
 ];

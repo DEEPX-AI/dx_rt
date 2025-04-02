@@ -143,12 +143,13 @@ InferenceJob::InferenceJob(int id) noexcept
 
 void InferenceJob::onAllRequestComplete()
 {
-    TASK_FLOW("["+to_string(_jobId)+"] ALL COMPLETE ~ ")
+    TASK_FLOW("["+to_string(_jobId)+"] ALL COMPLETE")
+#ifdef USE_PROFILER
     _inferenceEnginePtr->UpdateLatencyStatistics(latency());
     _inferenceEnginePtr->UpdateInferenceTimeStatistics(inference_time());
     _inferenceEnginePtr->PushLatency(latency());
     _inferenceEnginePtr->PushInferenceTime(inference_time());
-
+#endif
 
     if(_storeResult)
     {
@@ -273,7 +274,7 @@ void InferenceJob::setReturnOutputs()
 {
     TensorPtrs ret;
 
-    int output_size_increment = 0;
+    //int output_size_increment = 0;
     for (auto &name : _outputs)
     {
         auto output = _tensors.find(name)->second;
@@ -293,7 +294,7 @@ void InferenceJob::setReturnOutputs()
 
         ret.emplace_back(
             make_shared<Tensor>(_tensors.find(name)->second));
-        output_size_increment += output_size;
+        //output_size_increment += output_size;
     }
     _returnOutputs = ret;
 }
@@ -326,8 +327,8 @@ void InferenceJob::Clear()
     //_head.reset();
     //_headTask.reset();
     _status = Request::Status::REQ_IDLE;
-    _outputCount = {0};
-    _doneCount = {0};
+    _outputCount = 0;
+    _doneCount = 0;
     //_outputs.clear();
     _userArg = nullptr;
     _latency = 0;

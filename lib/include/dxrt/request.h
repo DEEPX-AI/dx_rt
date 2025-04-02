@@ -46,10 +46,8 @@ public:
     static RequestPtr Pick();
     static void ShowAll();
     static void Clear();
-    static void SaveTaskStats(Task *task);
     void Wait();
     void SetStatus(Status s);
-    void NotifyCompletion();
     void CheckTimePoint(int opt);
     int id() const;
     int job_id() const;
@@ -71,7 +69,6 @@ public:
     dxrt_request_t* &npu_inference_ptr();
     dxrt_request_acc_t &npu_inference_acc();
     uint32_t &inference_time();
-    int &complete_cnt();
     TimePointPtr time_point();
     Status status();
     int &latency();
@@ -107,8 +104,6 @@ private:
     bool _validateDevice = false;
     int16_t _modelType;
     uint32_t _infTime;
-    int _completeCnt;
-    std::mutex _completeCntLock;
     std::function<void(RequestPtr)> _callback;
     
 

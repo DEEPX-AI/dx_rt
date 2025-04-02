@@ -1,40 +1,41 @@
-from typing import List
+from typing import List, Any
+import numpy as np
+from enum import Enum
 
-from dx_engine import capi as C
+import dx_engine.capi._pydxrt as C
+from dx_engine.dtype import NumpyDataTypeMapper
+from dx_engine.utils import ensure_contiguous
 
 
 class InferenceOption:
+
+    class BOUND_OPTION(Enum):
+        NPU_ALL = 0
+        NPU_0 = 1
+        NPU_1 = 2
+        NPU_2 = 3
+
     def __init__(
         self,
-        mode,
-        num_npus: int,
-        num_threads: int,
-        num_buffering: int,
-        reset_addr: bool,
-        use_ppu: bool,
-        npus: List[int],
     ) -> None:
-        """
-        Args:
-            mode (InferenceMode):  inference mode
-            num_npus (int):  number of devices to use (default 0 to apply number of automatically detected devices)
-            num_threads (int):  number of threads to use for CPU task (default 1)
-            num_buffering (int):  number of device memory buffers
-                1 = for standalone device,
-                2 = for accelerator device
-            reset_addr (bool):  whether to reset device memory buffer address
-            use_ppu (bool):  whether to use device PPU(Post-Processing Unit) (default enable for PPU-integrated device )
-            npus (List[int]):  vector of NPU device IDs to use
-        """
+        self.instance = C.InferenceOption()
 
-        self.mode = mode
-        self.num_npus = num_npus
-        self.num_threads = num_threads
-        self.num_buffering = num_buffering
-        self.reset_addr = reset_addr
-        self.use_ppu = use_ppu
-        self.npus = npus
+    def set_use_ort(self, use_ort):
+        C.inference_option_set_use_ort(self.instance, use_ort)
 
-    def summary(self) -> str:
-        """List of attribute's label and data."""
-        return self.engine.summary()
+    def get_use_ort(self):
+        return C.inference_option_get_use_ort(self.instance)
+    
+    def set_bound_option(self, boundOption):
+        C.inference_option_set_bound_option(self.instance, boundOption.value)
+
+    def get_bound_option(self):
+        return self.BOUND_OPTION(C.inference_option_get_bound_option(self.instance))
+    
+    def set_devices(self, devices):
+        C.inference_option_set_devices(self.instance, devices)
+
+    def get_devices(self):
+        return C.inference_option_get_devices(self.instance)
+
+    

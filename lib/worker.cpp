@@ -51,7 +51,7 @@ Worker::~Worker()
 
 void Worker::Stop()
 {
-    LOG_DXRT_DBG << "Stop " << _name << endl;
+    LOG_DXRT_DBG << "Stop " << _name <<" threads size : "<< _threads.size()<< endl;
     if (_threads.empty())
     {
         return;

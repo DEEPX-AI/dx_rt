@@ -25,8 +25,6 @@ class DXRT_API Memory
 {
 public:
     Memory(struct device_info &, void *);
-    void* GetBuffer(uint32_t required);
-    uint32_t GetBufferAsOffset(uint32_t required);
     int64_t Allocate(uint64_t required);
     int64_t BackwardAllocate(uint64_t required);
     int64_t Allocate(dxrt_meminfo_t &meminfo);
@@ -36,10 +34,12 @@ public:
     void Deallocate(dxrt_request_t &inference);
     void MergeAdjacentNodes(std::map<uint64_t, MemoryNode>::iterator it);
     void ResetBuffer();
-    uint64_t start();
-    uint64_t end();
-    uint64_t size();
-    uint64_t data();
+    uint64_t start() const;
+    uint64_t end() const;
+    uint64_t size() const;
+    uint64_t data() const;
+    uint64_t free_size() const;
+    uint64_t used_size() const;
     friend DXRT_API std::ostream& operator<<(std::ostream& os, const Memory& memory);
 private:
     std::map<uint64_t, MemoryNode> _pool;
@@ -47,8 +47,9 @@ private:
     uint64_t _cur = 0;
     uint64_t _end = 0;
     uint64_t _size = 0;
-    uint64_t _data; // pointer to addr
-    uint64_t _dataEnd; // pointer to addr
+    uint64_t _data;  // pointer to addr
+    uint64_t _dataEnd;  // pointer to addr
+    uint64_t _used_size = 0;
     std::mutex _lock;
 };
 

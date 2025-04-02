@@ -51,29 +51,29 @@ if __name__ == "__main__":
     
 
     # create inference engine instance with model
-    ie = InferenceEngine(modelPath)
+    with InferenceEngine(modelPath) as ie:
 
-    # do not register call back function
-    # ie.register_callback(onInferenceCallbackFunc)
+        # do not register call back function
+        # ie.register_callback(onInferenceCallbackFunc)
 
-    t1 = threading.Thread(target=inferenceThreadFunc, args=(ie, loop_count))
+        t1 = threading.Thread(target=inferenceThreadFunc, args=(ie, loop_count))
 
-    t1.start()
+        t1.start()
 
-    input = [np.zeros(ie.get_input_size(), dtype=np.uint8)]
+        input = [np.zeros(ie.get_input_size(), dtype=np.uint8)]
 
-    # inference loop
-    for i in range(loop_count):
+        # inference loop
+        for i in range(loop_count):
 
-        
-        # inference asynchronously, use all npu cores
-        # if device-load >= max-load-value, this function will block  
-        jobId = ie.run_async(input, user_arg=0)
+            
+            # inference asynchronously, use all npu cores
+            # if device-load >= max-load-value, this function will block  
+            jobId = ie.run_async(input, user_arg=0)
 
-        q.put(jobId)
+            q.put(jobId)
 
-        print("Inference start (async)", i)
+            print("Inference start (async)", i)
 
-    t1.join()
+        t1.join()
 
     exit(0)

@@ -1,28 +1,4 @@
 var searchData=
 [
-  ['get_79',['Get',['../classdxrt_1_1Profiler.html#ad71927e9b626848a62fba23383924c96',1,'dxrt::Profiler']]],
-  ['get_5fcompile_5ftype_80',['get_compile_type',['../classdxrt_1_1InferenceEngine.html#adb7b0c6f4a8411823d7eaed57cedd36d',1,'dxrt::InferenceEngine']]],
-  ['get_5fnum_5ftails_81',['get_num_tails',['../classdxrt_1_1InferenceEngine.html#a0b38cd5001ec327cbdc5b00a7143d0e2',1,'dxrt::InferenceEngine']]],
-  ['get_5foutputs_82',['get_outputs',['../classdxrt_1_1InferenceEngine.html#a077977d15551f525f546e2a3f6ab010c',1,'dxrt::InferenceEngine']]],
-  ['getalltaskoutputs_83',['GetAllTaskOutputs',['../classdxrt_1_1InferenceEngine.html#a12ebd04c3d8780e2d6c08d0fc2913534',1,'dxrt::InferenceEngine']]],
-  ['getaverage_84',['GetAverage',['../classdxrt_1_1Profiler.html#a4e58ab716a6ae7a22d0bc38340a4fbb4',1,'dxrt::Profiler']]],
-  ['getcompiletype_85',['GetCompileType',['../classdxrt_1_1InferenceEngine.html#ae6f83c617959dc76fc993b9da3c51769',1,'dxrt::InferenceEngine']]],
-  ['getinputs_86',['GetInputs',['../classdxrt_1_1InferenceEngine.html#abe536ab666125335e08764fa4916c157',1,'dxrt::InferenceEngine::GetInputs(void *ptr=nullptr, uint64_t phyAddr=0)'],['../classdxrt_1_1InferenceEngine.html#adb0043cbbf3dfa50eba37d03b9e7d48e',1,'dxrt::InferenceEngine::GetInputs(int devId)']]],
-  ['getinputsize_87',['GetInputSize',['../classdxrt_1_1InferenceEngine.html#ad2c11689c4839b5dbb3571107a7b3a7c',1,'dxrt::InferenceEngine']]],
-  ['getinstance_88',['GetInstance',['../classdxrt_1_1Profiler.html#a6afdfa9072f7e182b1f8e56497f5684b',1,'dxrt::Profiler']]],
-  ['getlatency_89',['GetLatency',['../classdxrt_1_1InferenceEngine.html#a3758aeb28d7ed75216770a5fd5dd9619',1,'dxrt::InferenceEngine']]],
-  ['getlatencycnt_90',['GetLatencyCnt',['../classdxrt_1_1InferenceEngine.html#a1259543ba3f8fc52efb503e40570f95e',1,'dxrt::InferenceEngine']]],
-  ['getlatencymean_91',['GetLatencyMean',['../classdxrt_1_1InferenceEngine.html#a1e81cce5b5db047c17ba40b69bab9a60',1,'dxrt::InferenceEngine']]],
-  ['getlatencystddev_92',['GetLatencyStdDev',['../classdxrt_1_1InferenceEngine.html#ae8bec4ff8e4e0fb6fa680c04f84b642d',1,'dxrt::InferenceEngine']]],
-  ['getlatencyvector_93',['GetLatencyVector',['../classdxrt_1_1InferenceEngine.html#a331862cfde13a009b3e4133678a1c597',1,'dxrt::InferenceEngine']]],
-  ['getmodelname_94',['GetModelName',['../classdxrt_1_1InferenceEngine.html#a7ed90b0eaa55ce7c097cc7163009c66e',1,'dxrt::InferenceEngine']]],
-  ['getnpuinferencetime_95',['GetNpuInferenceTime',['../classdxrt_1_1InferenceEngine.html#a1ee64321b5d6c50cb95be282080f326d',1,'dxrt::InferenceEngine']]],
-  ['getnpuinferencetimecnt_96',['GetNpuInferenceTimeCnt',['../classdxrt_1_1InferenceEngine.html#ad7a32a700fa89a0213b815d57f8fc1c2',1,'dxrt::InferenceEngine']]],
-  ['getnpuinferencetimemean_97',['GetNpuInferenceTimeMean',['../classdxrt_1_1InferenceEngine.html#a0d46e7a44cd5975c5a9c3a76be684dc3',1,'dxrt::InferenceEngine']]],
-  ['getnpuinferencetimestddev_98',['GetNpuInferenceTimeStdDev',['../classdxrt_1_1InferenceEngine.html#a4d552cb23986c189b1002a3e0b9915a9',1,'dxrt::InferenceEngine']]],
-  ['getnpuinferencetimevector_99',['GetNpuInferenceTimeVector',['../classdxrt_1_1InferenceEngine.html#aad79d35e5a285878517eb784439737a9',1,'dxrt::InferenceEngine']]],
-  ['getnumtailtasks_100',['GetNumTailTasks',['../classdxrt_1_1InferenceEngine.html#a110445fe04396f2d2ea309c18c3bb930',1,'dxrt::InferenceEngine']]],
-  ['getoutputs_101',['GetOutputs',['../classdxrt_1_1InferenceEngine.html#a411b78e6c9560119f9a39c30ee1021af',1,'dxrt::InferenceEngine']]],
-  ['getoutputsize_102',['GetOutputSize',['../classdxrt_1_1InferenceEngine.html#a82af5685f6b43643c3ddf47bf0a4ade8',1,'dxrt::InferenceEngine']]],
-  ['gettaskorder_103',['GetTaskOrder',['../classdxrt_1_1InferenceEngine.html#a0fabc1c0f736be0d297b2ce14929847b',1,'dxrt::InferenceEngine']]]
+  ['firmwareversionstr_116',['FirmwareVersionStr',['../classdxrt_1_1DeviceStatus.html#a867bb805a2328bce7a170762b69e3bbd',1,'dxrt::DeviceStatus']]]
 ];

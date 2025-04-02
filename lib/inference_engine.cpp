@@ -12,6 +12,7 @@
 #include "dxrt/filesys_support.h"
 #include "dxrt/inference_job.h"
 #include "dxrt/exception/exception.h"
+#include "dxrt/device_info_status.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -31,7 +32,7 @@ using namespace std;
 
 namespace dxrt
 {
-InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
+InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &option_)
 :_modelFile(path_), _option(option_)
 {
     _modelDir = getParentPath(getAbsolutePath(_modelFile));
@@ -45,9 +46,9 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
         try {
             DEBUG_DATA = std::stoi(env);
         } catch (const std::invalid_argument&) {
-            std::cerr << "Environment variable DXRT_DEBUG_DATA is not a valid integer.\n";
+            cerr << "Environment variable DXRT_DEBUG_DATA is not a valid integer.\n";
         } catch (const std::out_of_range&) {
-            std::cerr << "Environment variable DXRT_DEBUG_DATA is out of range.\n";
+            cerr << "Environment variable DXRT_DEBUG_DATA is out of range.\n";
         }
     }
     if (DEBUG_DATA == 1 )
@@ -55,12 +56,12 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
         Device::_sNpuValidateOpt = true;
     }
 #ifdef USE_ORT
-    if (_option.use_ort == true)
+    if (_option.useORT == true)
     {
-        CpuHandle::InitMultiThreadEnv();
+        CpuHandle::SetDynamicCpuThread();
     }
 #else
-    if (_option.use_ort == true)
+    if (_option.useORT == true)
     {
         throw dxrt::InvalidArgumentException("USE_ORT NOT SUPPORTED");
     }
@@ -68,7 +69,7 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
     /* check files */
     if (dxrt::fileExists(_modelFile))
     {
-        _modelFile = string(getAbsolutePath(_modelFile));
+        _modelFile = std::string(getAbsolutePath(_modelFile));
         _name = _modelFile;
         //_modelData = LoadModelParam(_modelFile);
         _modelCompileType = LoadModelParam(_modelData, _modelFile);
@@ -95,8 +96,8 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
         // exit(1);
         for (auto &order : orgTaskOrder )
         {
-            vector<dxrt::rmapinfo> rmapInfos;
-            vector<vector<uint8_t>> data;
+            std::vector<dxrt::rmapinfo> rmapInfos;
+            std::vector<std::vector<uint8_t>> data;
             bool found = false;
             auto graphs = _modelData.deepx_graph.m_graph();
             for(auto &graph:graphs)
@@ -127,14 +128,12 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
                 {
                     // cout << "found " << order << endl;
                     auto rmapInfo = _modelData.deepx_rmap.m_rmap(j);
-#define MIN_CG_VERSION "2.20.0"
                     // version check
-                    string version_str = rmapInfo.version().rmapinfo();
+                    std::string version_str = rmapInfo.version().rmapinfo();
                     //DXRT_ASSERT(isSupporterModelVersion(version_str),
-                    //   (string("Not Supported model compiler version ")+version_str).c_str());
+                    //   (std::string("Not Supported model compiler version ")+version_str).c_str());
                     if ( !isSupporterModelVersion(version_str) ) 
-                        throw InvalidModelException(EXCEPTION_MESSAGE(std::string("Not Supported model compiler version ")+version_str));
-
+                        throw InvalidModelException(std::string("Unsupported compiler version. Please downgrade the RT version or use a compiler version " +std::string(MIN_CG_VERSION)+ "or higher."));
 
                     if(_graphMap.find(order)!=_graphMap.end())
                         rmapInfo.input().memory().name() = _graphMap[order].inputs().front().key(); // Temp. workaround : rmapinfo doesn't have input tensor name
@@ -152,7 +151,7 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
                 }
             }
 #ifdef USE_ORT
-            if ((found == false) && (_option.use_ort == true))
+            if ((found == false) && (_option.useORT == true))
             {
                 for(size_t j=0; j<_modelData.deepx_binary.cpu_models().size(); j++)
                 {
@@ -186,11 +185,11 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
                         selected_devices.push_back(devices[dev_id]);
                     }
                 }
-                auto task = make_shared<Task>(order, rmapInfos, move(data), static_cast<npu_bound_op>(_option.boundOption), selected_devices);
+                auto task = make_shared<Task>(order, rmapInfos, std::move(data), static_cast<npu_bound_op>(_option.boundOption), selected_devices);
                 _tasks.emplace_back(task);
 
 #ifdef USE_ORT
-                if (_option.use_ort == true)
+                if (_option.useORT == true)
                 {
                     auto &graph = _graphMap[order];
 
@@ -236,7 +235,7 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
                 _taskMap[task->name()] = task;
                 _taskOrder.push_back(task->name());
 #ifdef USE_ORT
-                if (_option.use_ort == false)
+                if (_option.useORT == false)
 #endif
                     break; // force single task
             }
@@ -246,7 +245,7 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
     else
     {
         //DXRT_ASSERT(false, "Can't find " + _modelFile);
-        throw dxrt::FileNotFoundException(EXCEPTION_MESSAGE(_modelFile));
+        throw dxrt::FileNotFoundException(_modelFile);
     }
 
     // task chain
@@ -272,13 +271,13 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
             auto &nexts = task->nexts();
 
             for (auto &node : graph.outputs()) {
-                string tensorName = node.key();
-                string nextTaskName = node.val();
+                std::string tensorName = node.key();
+                std::string nextTaskName = node.val();
                 auto target = _taskMap.find(nextTaskName);
 
                 if (target != _taskMap.end())
                 {
-                    auto it = find(nexts.begin(), nexts.end(), target->second);
+                    auto it = std::find(nexts.begin(), nexts.end(), target->second);
 
                     if (it == nexts.end()) {
                         nexts.emplace_back(target->second);
@@ -292,15 +291,15 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
         {
             auto &prevs = task->prevs();
             //for (size_t i = 0; i < task->inputs().size(); ++i) {
-            //    cout <<task->name() << "->inputs (" <<to_string(i) <<") " <<task->inputs()[i].name() << endl;
+            //    cout <<task->name() << "->inputs (" <<to_std::string(i) <<") " <<task->inputs()[i].name() << endl;
             //}
             for (auto &node : inputs) {
 
-                string tensorName = node.key();
-                string prevTaskName = node.val();
+                std::string tensorName = node.key();
+                std::string prevTaskName = node.val();
 
                 auto target = _taskMap[prevTaskName];
-                auto it = find(prevs.begin(), prevs.end(), target);
+                auto it = std::find(prevs.begin(), prevs.end(), target);
 
                 if (it == prevs.end()) {
                     prevs.emplace_back(target);
@@ -309,10 +308,13 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
             }
         }
         task->SetInferenceEngineTimer(&_inferenceTimer);
+        if(task->is_PPU()){
+            _isPPU = true;
+        }
     }
 
 #ifdef USE_ORT
-    if (_option.use_ort == true)
+    if (_option.useORT == true)
     {
         _lastOutputOrder = _modelData.deepx_graph.origin_output();
     }
@@ -326,7 +328,7 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
         if(task->nexts().empty())
         {    
 #ifdef USE_ORT
-            if (_option.use_ort == false)
+            if (_option.useORT == false)
 #endif
             for (auto& output : task->outputs())
             {
@@ -336,7 +338,8 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
         }
     }
 
-    cout << "Last Output Tensors: ";
+    /*
+    LOG << "Last Output Tensors: ";
     for (size_t i = 0; i < _lastOutputOrder.size(); ++i) {
         cout << _lastOutputOrder[i];
         if (i < _lastOutputOrder.size() - 1) {
@@ -344,7 +347,7 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
         }
     }
     cout << endl;
-
+    */
     LOG_DBG("_numTails : "+_numTails)
     //DXRT_ASSERT(_numTails==1, "Invalid Graph : check the number of tail task (The final inference output aggregation for multi-tail tasks is not yet supported.)");
     
@@ -373,40 +376,16 @@ InferenceEngine::InferenceEngine(const string &path_, InferenceOption &option_)
 InferenceEngine::~InferenceEngine(void)
 {
     LOG_DXRT_DBG << endl;
-    for (size_t i = 0; i < _occupiedInferenceJobs.size(); ++i)
-    {
-        // wait for the job to finish
-        if ( _occupiedInferenceJobs[i] ) {
-            Wait(static_cast<int>(i));
-        }
-    }
-    for (size_t i = 0; i < _occupiedInferenceJobs.size(); ++i)
-    {
-        if ( !_occupiedInferenceJobs[i] ) {
-            InferenceJob::GetById(i)->Clear();
-        }
-    }
-    for (auto &task : _tasks)
-    {
-        // cout << *task << endl;
-        // LOG_VALUE(task.use_count());
-        task->prevs().clear();
-        task->nexts().clear();
-        task->ClearOutputBuffer();
-    }
-    _tasks.clear();
-    _taskMap.clear();
-    _head.reset();
-    _tails.clear();
-    _userCallback = nullptr;
-    Request::Clear();
-    LOG_DXRT_DBG <<" Done"<< endl;
-
-    // usleep(500);
+    std::call_once(_disposeOnceFlag, [this]() { this->disposeOnce(); });
+    LOG_DXRT_DBG <<" DONE"<< endl;
 }
 
 TensorPtrs InferenceEngine::Run(void *inputPtr, void *userArg, void *outputPtr)
 {
+    if (_isDisposed)
+    {
+        throw InvalidOperationException("InferenceEngine already Disposed");
+    }
     std::shared_ptr<InferenceJob> infJob = InferenceJob::Pick(); 
 
     infJob->SetInferenceJob(_tasks, _head, _lastOutputOrder);
@@ -434,6 +413,10 @@ TensorPtrs InferenceEngine::Run(void *inputPtr, void *userArg, void *outputPtr)
 
 int InferenceEngine::RunAsync(void *inputPtr, void *userArg, void *outputPtr)
 {
+    if (_isDisposed)
+    {
+        throw InvalidOperationException("InferenceEngine already Disposed");
+    }
     // return InferenceJob instance from InferenceJob pool (reused)
     std::shared_ptr<InferenceJob> infJob = InferenceJob::Pick(); 
 
@@ -477,7 +460,7 @@ float InferenceEngine::RunBenchmark(int num, void *inputPtr)
 #endif
     float sum = 0.;
     auto& profiler = dxrt::Profiler::GetInstance();
-    vector<float> fps;
+    std::vector<float> fps;
     int todo = max(30, num);
 
     std::atomic<int> done_count;
@@ -488,6 +471,8 @@ float InferenceEngine::RunBenchmark(int num, void *inputPtr)
         return 0;
     }; //callback used to count inference
     RegisterCallback(callBack);
+    bool isStandalone = (dxrt::DeviceStatus::GetCurrentStatus(0).GetDeviceType() == DeviceType::STD_TYPE);
+
     while (todo > 0)
     {
         uint64_t infTime = 0;
@@ -497,6 +482,11 @@ float InferenceEngine::RunBenchmark(int num, void *inputPtr)
         // profiler.Start("req");
         for (int i=0 ; i < infCnt ; i++)
         {
+            if (isStandalone)
+            {
+                while ((i-done_count) >= DEVICE_NUM_BUF) continue;
+                //usleep(20000);
+            }
             RunAsync(inputPtr);
         }
         // profiler.End("req");
@@ -524,24 +514,22 @@ float InferenceEngine::RunBenchMarkWindows(int num, void* inputPtr)
 {
     float sum = 0.;
     auto& profiler = dxrt::Profiler::GetInstance();
-    vector<float> fps;
+    std::vector<float> fps;
     int todo = max(10, num);
 
-    std::atomic<int> done_count, i_last;
-    auto callBack = [&done_count, &i_last](TensorPtrs& outputs, void* userArg) -> int {
+    std::atomic<int> done_count, i_last, done_todo;
+    auto callBack = [&done_count, &i_last,&done_todo](const TensorPtrs& outputs, void* userArg) -> int {
         std::ignore = outputs;
         std::ignore = userArg;
-        // cout << "BenchMark(" << ((int)userArg) << ")" << std::endl;
-        if (true) {
-            if (done_count != ((int)userArg)) {
-                cout << "@@@@@ @@@@@ ";
-            }
-            cout << "BenchMark(done_count:" << done_count << ", " << "i:" << ((int)userArg) << ")" << std::endl;
-        }
-        done_count++; i_last = ((int)userArg);
+        // cout << "BenchMark(" << ((int)userArg) << ")" << endl;
+        int userArgInt = reinterpret_cast<uint64_t>(userArg);
+
+        done_count++;
+        i_last = userArgInt;
         return 0;
-        }; //callback used to count inference
+        };  // callback used to count inference
     RegisterCallback(callBack);
+    done_todo = 0;
     while (todo > 0)
     {
         uint64_t infTime = 0;
@@ -551,29 +539,29 @@ float InferenceEngine::RunBenchMarkWindows(int num, void* inputPtr)
         // profiler.Start("req");
         for (int i = 0; i < infCnt; i++)
         {
-            RunAsync(inputPtr, (int*)i);
+            RunAsync(inputPtr, reinterpret_cast<void*>(i));
         }
         // profiler.End("req");
-        while (done_count < infCnt)continue;
+        while (done_count < infCnt)
+        {
+        }
         // while (done_count < infCnt || (i_last!=(infCnt-1)) )continue;
         profiler.End("benchmark");
         infTime = profiler.Get("benchmark");
         todo -= infCnt;
-        if (i_last == (infCnt - 1)) todo = 0;
-        //LOG_VALUE(infTime);
-        //LOG_VALUE(infCnt);
+        done_todo += infCnt;
         fps.emplace_back(1000000.0 * infCnt / infTime);
     }
     profiler.Erase("benchmark");
-    for (auto& val : fps)
+    for (const auto& val : fps)
     {
         sum += val;
-        //cout << "fps: " << val << endl;
+        // cout << "fps: " << val << endl;
     }
     RegisterCallback(nullptr);
     return sum / fps.size();
 }
-#endif // _WIN32
+#endif  // _WIN32
 
 TensorPtrs InferenceEngine::ValidateDevice(void *inputPtr, int deviceId)
 {
@@ -596,11 +584,12 @@ TensorPtrs InferenceEngine::ValidateDevice(void *inputPtr, int deviceId)
     auto req = Request::Create(npuTask.get(), inputPtr, nullptr, nullptr);
     req->setCallback([](RequestPtr) {});
     req->SetStatus(Request::Status::REQ_BUSY);
-    devices[deviceId]->InferenceRequest(req->getData());
-    req->Wait();
-
+    //devices[deviceId]->InferenceRequest(req->getData());
+    //req->Wait();
+    //TensorPtrs ret = devices[deviceId]->Validate(req, true);
+    TensorPtrs ret = devices[deviceId]->Validate(req, false);
     Device::_sNpuValidateOpt = false;
-    return devices[deviceId]->Validate(req, true);
+    return ret;
 }
 
 TensorPtrs InferenceEngine::Wait(int jobId)
@@ -633,7 +622,7 @@ Tensors InferenceEngine::GetInputs(void *ptr, uint64_t phyAddr)
     return _head->inputs(ptr, phyAddr);
 }
 
-vector<Tensors> InferenceEngine::GetInputs(int devId)
+std::vector<Tensors> InferenceEngine::GetInputs(int devId)
 {
     auto devices = dxrt::CheckDevices();
     if(devices.empty()) return {};
@@ -706,12 +695,12 @@ uint64_t InferenceEngine::GetOutputSize()
     return outputSize;
 }
 
-string InferenceEngine::GetModelName()
+std::string InferenceEngine::GetModelName()
 {
     return _name;
 }
 
-vector<string> InferenceEngine::GetTaskOrder()
+std::vector<std::string> InferenceEngine::GetTaskOrder()
 {
     return _taskOrder;
 }
@@ -722,7 +711,7 @@ int InferenceEngine::GetLatency()
     return _inferenceTimer.latency();
 }
 
-vector<int> InferenceEngine::GetLatencyVector()
+std::vector<int> InferenceEngine::GetLatencyVector()
 {
     LOG_DXRT_DBG << endl;
     return _inferenceTimer.GetLatencyVector();
@@ -734,7 +723,7 @@ uint32_t InferenceEngine::GetNpuInferenceTime()
     return _inferenceTimer.inference_time();
 }
 
-vector<uint32_t> InferenceEngine::GetNpuInferenceTimeVector()
+std::vector<uint32_t> InferenceEngine::GetNpuInferenceTimeVector()
 {
     LOG_DXRT_DBG << endl;
     return _inferenceTimer.GetNpuInferenceTimeVector();
@@ -770,10 +759,10 @@ int InferenceEngine::GetNpuInferenceTimeCnt()
     return _inferenceTimer.GetNpuInferenceTimeCnt();
 }
 
-vector<TensorPtrs> InferenceEngine::GetAllTaskOutputs()
+std::vector<TensorPtrs> InferenceEngine::GetAllTaskOutputs()
 {
     LOG_DXRT_DBG << "Collecting outputs from all tasks in order." << endl;
-    vector<TensorPtrs> all_outputs;
+    std::vector<TensorPtrs> all_outputs;
 
     // Iterate through each task in the task order
     for (const auto& task_name : _taskOrder)
@@ -795,7 +784,7 @@ vector<TensorPtrs> InferenceEngine::GetAllTaskOutputs()
         #ifdef USE_ORT
         else
         {
-            cout << "Task " << task_name << " not found in task map." << endl;
+            LOG_DXRT << "Task " << task_name << " not found in task map." << endl;
         }
         #endif
     }
@@ -807,7 +796,7 @@ int InferenceEngine::GetNumTailTasks()
     return _numTails; 
 }
 
-string InferenceEngine::GetCompileType()
+std::string InferenceEngine::GetCompileType()
 { 
     return _modelCompileType; 
 }
@@ -817,9 +806,48 @@ bool InferenceEngine::IsPPU()
     return _isPPU; 
 }
 
-vector<uint8_t> InferenceEngine::GetBitmatchMask(int index) {
-    const vector<char>& maskBuffer = _modelData.deepx_binary.bitmatch_mask(index).buffer();
-    vector<uint8_t> data(maskBuffer.begin(), maskBuffer.end());
+void InferenceEngine::disposeOnce()
+{
+    _isDisposed = true;
+    LOG_DXRT_DBG << endl;
+    for (size_t i = 0; i < _occupiedInferenceJobs.size(); ++i)
+    {
+        // wait for the job to finish
+        if ( _occupiedInferenceJobs[i] ) {
+            Wait(static_cast<int>(i));
+        }
+    }
+    for (size_t i = 0; i < _occupiedInferenceJobs.size(); ++i)
+    {
+        if ( !_occupiedInferenceJobs[i] ) {
+            InferenceJob::GetById(i)->Clear();
+        }
+    }
+    for (auto &task : _tasks)
+    {
+        // cout << *task << endl;
+        // LOG_VALUE(task.use_count());
+        task->prevs().clear();
+        task->nexts().clear();
+        task->ClearOutputBuffer();
+    }
+    _tasks.clear();
+    _taskMap.clear();
+    _head.reset();
+    _tails.clear();
+    _userCallback = nullptr;
+    Request::Clear();
+    LOG_DXRT_DBG <<" Done"<< endl;
+
+}
+void InferenceEngine::Dispose()
+{
+    std::call_once(_disposeOnceFlag, [this]() { this->disposeOnce(); });
+}
+
+std::vector<uint8_t> InferenceEngine::GetBitmatchMask(int index) {
+    const std::vector<char>& maskBuffer = _modelData.deepx_binary.bitmatch_mask(index).buffer();
+    std::vector<uint8_t> data(maskBuffer.begin(), maskBuffer.end());
     return data;
 }
 

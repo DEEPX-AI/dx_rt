@@ -20,54 +20,22 @@ Memory::Memory(dxrt_device_info_t &info, void *data_)
     _pool[0].addr = 0;
     _pool[0].size = _size;
     _pool[0].status = 0;
-}
-void* Memory::GetBuffer(uint32_t required)
-{
-    uint32_t offset;
-    unique_lock<mutex> lk(_lock);
-    if(required>_size)
-    {
-        return nullptr;
-    }
-    if(_cur + required > _end)
-    {
-        _cur = _start;
-    }
-    offset = _cur - _start;
-    _cur += required;
-    return (reinterpret_cast<void*>(_data + offset));
-}
-uint32_t Memory::GetBufferAsOffset(uint32_t required)
-{
-    uint32_t offset;
-    unique_lock<mutex> lk(_lock);
-    if(required>_size)
-    {
-        return 0;
-    }
-    if(_cur + required > _end)
-    {
-        _cur = _start;
-    }
-    offset = _cur - _start;
-    _cur += required;
-    LOG_DXRT_DBG << "offset : "<< offset << ", required : "<< required<< endl;
-    return offset;
+    _used_size = 0;
 }
 int64_t Memory::Allocate(uint64_t required)
 {
     LOG_DXRT_DBG << endl;
     unique_lock<mutex> lk(_lock);
-    for(auto &pair:_pool)
+    for (auto &pair : _pool)
     {
         auto &node = pair.second;
-        if(node.status==0)
+        if (node.status == 0)
         {
-            if(required <= node.size)
+            if (required <= node.size)
             {
                 uint64_t addr = node.addr;
                 // LOG_VALUE_HEX(ret);
-                if(required < node.size)
+                if (required < node.size)
                 {
                     _pool[addr + required].addr = addr + required;
                     _pool[addr + required].size = node.size - required;
@@ -76,27 +44,29 @@ int64_t Memory::Allocate(uint64_t required)
                 _pool[addr].addr = addr;
                 _pool[addr].size = required;
                 _pool[addr].status = 1;
+                _used_size += required;
+                LOG_DXRT_DBG << required << " byte Allocated 0x" <<  hex << addr << dec << endl;
                 return addr;
             }
         }
     }
-    cout << "failed to allocate memory" << endl;
+    LOG_DXRT << "failed to allocate memory" << endl;
     return -1;
 }
 int64_t Memory::BackwardAllocate(uint64_t required)
 {
     LOG_DXRT_DBG << endl;
     unique_lock<mutex> lk(_lock);
-    for(auto it = _pool.rbegin(); it != _pool.rend(); it++)
+    for (auto it = _pool.rbegin(); it != _pool.rend(); it++)
     {
         auto &node = it->second;
-        if(node.status==0)
+        if (node.status == 0)
         {
-            if(required <= node.size)
+            if (required <= node.size)
             {
                 uint64_t addr = node.addr;
                 // LOG_VALUE_HEX(ret);
-                if(required < node.size)
+                if (required < node.size)
                 {
                     uint64_t remain = node.size - required;
                     _pool[addr].addr = addr;
@@ -109,20 +79,23 @@ int64_t Memory::BackwardAllocate(uint64_t required)
                 _pool[addr].addr = addr;
                 _pool[addr].size = required;
                 _pool[addr].status = 1;
+                _used_size += required;
+                LOG_DXRT_DBG << required << " byte Allocated B 0x" <<  hex << addr << dec << endl;
+
                 return addr;
 
             }
         }
     }
     cout << "failed to allocate memory" << endl;
-    return -1;    
+    return -1;
 }
 
 
 int64_t Memory::Allocate(dxrt_meminfo_t &meminfo)
 {
     LOG_DXRT_DBG << endl;
-    if(meminfo.data==0)
+    if (meminfo.data == 0)
     {
         /* allocate, new */
         LOG_DXRT_DBG << "allocate, new" << endl;
@@ -130,11 +103,11 @@ int64_t Memory::Allocate(dxrt_meminfo_t &meminfo)
         meminfo.offset = Allocate(meminfo.size);
         meminfo.data = _data + meminfo.offset;
     }
-    else if(meminfo.data < _data || meminfo.data >_dataEnd)
-    {       
+    else if (meminfo.data < _data || meminfo.data >_dataEnd)
+    {
         /* allocate, out of area, don't know phy addr, need memcpy */
         LOG_DXRT_DBG << "allocate, out of area" << endl;
-        if(meminfo.base==0)
+        if (meminfo.base == 0)
         {
             meminfo.base = _start;
         }
@@ -164,17 +137,20 @@ void Memory::Deallocate(uint64_t addr)
     // LOG_DXRT_DBG << hex << addr << dec << endl;
     unique_lock<mutex> lk(_lock);
     auto it = _pool.find(addr);
-    if(it != _pool.end())
+    if (it != _pool.end())
     {
+        _used_size -= it->second.size;
         it->second.status = 0;
+        LOG_DXRT_DBG << it->second.size << " byte Deallocated 0x" << hex << addr << dec << endl;
+
         MergeAdjacentNodes(it);
     }
 }
 void Memory::Deallocate(dxrt_meminfo_t &meminfo)
 {
     // LOG_DXRT_DBG << endl;
-    if(meminfo.base == _start)
-    {        
+    if (meminfo.base == _start)
+    {
         Deallocate(meminfo.offset);
     }
     else
@@ -188,7 +164,7 @@ void Memory::Deallocate(dxrt_request_t &inf)
     auto &input = inf.input;
     auto &output = inf.output;
     Deallocate(input);
-    Deallocate(output);    
+    Deallocate(output);
 }
 void Memory::MergeAdjacentNodes(std::map<uint64_t, MemoryNode>::iterator it) {
     // LOG_DXRT_DBG << endl;
@@ -225,37 +201,46 @@ void Memory::ResetBuffer()
 {
     _cur = _start;
 }
-uint64_t Memory::start(void)
+uint64_t Memory::start(void) const
 {
     return _start;
 }
-uint64_t Memory::end(void)
+uint64_t Memory::end(void) const
 {
     return _end;
 }
-uint64_t Memory::size(void)
+uint64_t Memory::size(void) const
 {
     return _size;
 }
-uint64_t Memory::data(void)
+uint64_t Memory::data(void) const
 {
     return _data;
 }
+uint64_t Memory::free_size(void) const
+{
+    return _size - _used_size;
+}
+uint64_t Memory::used_size(void) const
+{
+    return _used_size;
+}
+
 
 
 ostream& operator<<(std::ostream& os, const MemoryNode& node)
 {
-    os << hex << "[" << node.addr 
-        << ", " << node.size 
+    os << hex << "[" << node.addr
+        << ", " << node.size
         << ", " << node.status << "]";
     os << dec;
     return os;
 }
 ostream& operator<<(std::ostream& os, const Memory& memory)
 {
-    os << "      Memory @ " << hex << memory._start << " ~ " << memory._end 
+    os << "      Memory @ " << hex << memory._start << " ~ " << memory._end
         << "(" << memory._data << " ~ " << memory._dataEnd << "), " << memory._size << ", cur " << memory._cur << ", ";
-    for(const auto &pair:memory._pool)
+    for (const auto &pair : memory._pool)
     {
         os << pair.second << ", ";
     }
@@ -263,4 +248,4 @@ ostream& operator<<(std::ostream& os, const Memory& memory)
     return os;
 }
 
-} // namespace dxrt
+}  // namespace dxrt

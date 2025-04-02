@@ -9,8 +9,8 @@
 #include "dxrt/device.h"
 
 #define RT_DRV_VERSION_CHECK (1300)
-#define FW_VERSION_CHECK     (159)
-#define PCIE_VERSION_CHECK   (1200)
+#define FW_VERSION_CHECK     (163)
+#define PCIE_VERSION_CHECK   (1201)
 
 namespace dxrt {
 

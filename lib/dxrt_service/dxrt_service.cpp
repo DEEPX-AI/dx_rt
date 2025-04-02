@@ -210,13 +210,50 @@ void DxrtService::Process(dxrt::IPCClientMessage& clientMessage)
         case dxrt::REQUEST_CODE::INFERENCE_COMPLETED: {
             return;
         }
+        case dxrt::REQUEST_CODE::VIEW_FREE_MEMORY: {
+            const dxrt::MemoryService* instance = dxrt::MemoryService::getInstance(clientMessage.deviceId);
+            if (instance == nullptr)
+            {
+                serverMessage.code = dxrt::RESPONSE_CODE::VIEW_FREE_MEMORY_RESULT;
+                serverMessage.data = 0;
+                serverMessage.result = UINT_MAX;
+            }
+            else
+            {
+                auto result = instance->free_size();
+                serverMessage.code = dxrt::RESPONSE_CODE::VIEW_FREE_MEMORY_RESULT;
+                serverMessage.data = result;
+                serverMessage.result = 0;
+            }
+            serverMessage.deviceId = clientMessage.deviceId;
+            serverMessage.msgType = clientMessage.msgType;
+            break;
+        }
+        case dxrt::REQUEST_CODE::VIEW_USED_MEMORY: {
+            const dxrt::MemoryService* instance = dxrt::MemoryService::getInstance(clientMessage.deviceId);
+            if (instance == nullptr)
+            {
+                serverMessage.code = dxrt::RESPONSE_CODE::VIEW_FREE_MEMORY_RESULT;
+                serverMessage.data = 0;
+                serverMessage.result = UINT_MAX;
+            }
+            else
+            {
+                auto result = instance->used_size();
+                serverMessage.code = dxrt::RESPONSE_CODE::VIEW_FREE_MEMORY_RESULT;
+                serverMessage.data = result;
+                serverMessage.result = 0;
+            }
+            serverMessage.deviceId = clientMessage.deviceId;
+            serverMessage.msgType = clientMessage.msgType;
+            break;
+        }
         default: {
             serverMessage.msgType = clientMessage.msgType;
             serverMessage.code = dxrt::RESPONSE_CODE::INVALID_REQUEST_CODE;
             break;
         }
     }
-
     _ipcServerWrapper.SendToClient(serverMessage);
 }
 
@@ -289,6 +326,7 @@ void DxrtService::DeInitDevice(int devId, dxrt::npu_bound_op bound)
 #define DXRT_S_DEV_CLR_TIMEOUT_CNT    (3)
 long DxrtService::ClearDevice(int procId)
 {
+    LOG_DXRT_S_DBG << endl ;
     int ret;
     try {
         std::lock_guard<std::mutex> lock(_deviceMutex);
@@ -360,6 +398,7 @@ long DxrtService::ClearDevice(int procId)
         LOG_DXRT_S_ERR(str);
         return 999;
     }
+    LOG_DXRT_S_DBG << "DONE"<<endl ;
 }
 
 void DxrtService::handle_process_die(DxrtService *service)
@@ -370,11 +409,9 @@ void DxrtService::handle_process_die(DxrtService *service)
         pid_t pid = *it;
 
         if (kill(pid, 0) == 0) {
-            //std::cout << "Process " << pid << " is still running." << std::endl;
             ++it;
         } else {
             if (errno == ESRCH) {
-                // std::cout << "Process(" << pid << ") has terminated. Cleaning up resources." << std::endl;
                 _scheduler.StopScheduler(pid);
                 dequeueAllClientMessageQueue(pid);
                 dxrt::MemoryService::DeallocateAllDevice(pid);

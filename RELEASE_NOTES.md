@@ -1,5 +1,54 @@
 # RELEASE_NOTES
 
+## v2.8.2 / 2025-03-21
+### 1. Changed
+- Modify Inference Engine to be used with 'with' statements, and update relevant examples.
+- None
+### 2. Fixed
+- failed to read output -70 bug
+### 3. Added
+- Add Python inference option interface with the following configurations
+   * NPU Device Selection / NPU Bound Option / ORT Usage Flag
+- None
+
+## v2.7.1 / 2025-03-12
+### 1. Changed
+- display dxnn versions in parse_model (.dxnn file format version & compiler version)
+- None
+### 2. Fixed
+- None
+### 3. Added
+- Add otp read / write api (internal only)
+## v2.7.1 / 2025-03-11
+### 1. Changed
+- Added instructions on how to retrieve device status information
+- Driver and Firmware versions
+  - RT Driver >= v1.3.3
+  - Firmware >= v1.6.3
+### 2. Fixed
+- Include batch size in PPU output shape in Python API
+### 3. Added
+- Implemented retrieval of device status information by device ID
+- Retrieved the count of installed devices
+- Non contiguous input handling in Python API
+## v2.7.0 / 2025-02-25
+### 1. Changed
+- API renaming
+- Optimize sync timing in asynchronous inference scenario
+- DX-COM version >= 1.40.2
+- onnxruntime version >= 1.20.1
+### 2. Fixed
+- Troubleshooting abnormal process terminations
+- Multi process termination bug
+- Stabilization on Windows operating systems
+- Restrict multiple services from running
+### 3. Added
+- Configuration
+- Dynamic CPU task multi threading
+- Statistics profiler
+- Clang compiler
+- Average load on NPU devices and CPU tasks
+
 ## v2.6.3 / 2025-01-06
 ### Changed
 - seperate msg queue for Send To / Receive From

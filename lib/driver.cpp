@@ -217,7 +217,8 @@ std::ostream& operator<<(std::ostream& os, const dxrt_device_info_t& info)
         << dec;
     return os;
 }
-std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_ntfy_throt_t& notify) {
+std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_ntfy_throt_t& notify)
+{
     if (notify.ntfy_code == NTFY_EMERGENCY_BLOCK || notify.ntfy_code == NTFY_EMERGENCY_RELEASE) {
         os  << "[Emergency] NPU@" << notify.npu_id
             << ":: " << (notify.ntfy_code == NTFY_EMERGENCY_BLOCK ? "BLOCKED" : "RELEASED")
@@ -234,6 +235,31 @@ std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_ntfy_throt_t& notif
            << " frequency:: " << notify.throt_freq[0] << "mhz -> " << notify.throt_freq[1] << "mhz"
            << " temperature:: " << notify.throt_temper << "\'C";
     }
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const otp_info_t& info)
+{
+    os << "=====================================\n"
+        << "              OTP Info              \n"
+        << "=====================================\n"
+        << uppercase
+        << left << setw(20) << "JEP ID:"            << "0x" << hex <<static_cast<int>(info.JEP_ID) << dec << "\n"
+        << left << setw(20) << "Continuation Code:" << "0x" << hex << static_cast<int>(info.CONTINUATION_CODE) << dec << "\n"
+        << left << setw(20) << "Chip Name:"         << string(info.CHIP_NAME, sizeof(info.CHIP_NAME)) << "\n"
+        << left << setw(20) << "Device Revision:"   << string(info.DEVICE_REV, sizeof(info.DEVICE_REV)) << "\n"
+        << left << setw(20) << "ECID:"              << "0x" << hex << static_cast<int>(info.ECID) << dec << "\n"
+        << left << setw(20) << "Foundry Fab:"       << string(info.FOUNDRY_FAB, sizeof(info.FOUNDRY_FAB)) << "\n"
+        << left << setw(20) << "Process:"           << string(info.PROCESS, sizeof(info.PROCESS)) << "\n"
+        << left << setw(20) << "Lot ID:"            << string(info.LOT_ID, sizeof(info.LOT_ID)) << "\n"
+        << left << setw(20) << "Wafer ID:"          << string(info.WAFER_ID, sizeof(info.WAFER_ID)) << "\n"
+        << left << setw(20) << "X Axis:"            << string(info.X_AXIS, sizeof(info.X_AXIS)) << "\n"
+        << left << setw(20) << "Y Axis:"            << string(info.Y_AXIS, sizeof(info.Y_AXIS)) << "\n"
+        << left << setw(20) << "Test Program:"      << string(info.TEST_PGM, sizeof(info.TEST_PGM)) << "\n"
+        << left << setw(20) << "Barcode:"           << string(info.BARCODE, sizeof(info.BARCODE)) << "\n"
+        << left << setw(20) << "Barcode index:"     << "0x" << hex << static_cast<int>(info.BARCODE_IDX) << dec << "\n"
+        << "=====================================\n";
+
     return os;
 }
 

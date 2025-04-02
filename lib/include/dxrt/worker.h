@@ -12,6 +12,7 @@
 #include <string>
 #include <array>
 #include <unordered_map>
+#include <chrono> 
 #include "dxrt/common.h"
 #include "dxrt/driver.h"
 
@@ -132,13 +133,15 @@ private:
     
     int _initDynamicThreads;
 
-    int _loadCheck = 0;
-    int _loadCheckTerm = 0;
-    int _stableLoad = 0;
-    int _loadZeroCount = 0;
-    const int _threshold = 3;
-    const int _idleLimit = 5;
-    
+
+    std::deque<size_t> _loadHistory;
+    size_t _slidingSum = 0;
+
+    std::chrono::steady_clock::time_point _lastThreadControlTime = std::chrono::steady_clock::now();
+    std::chrono::milliseconds _threadControlInterval = std::chrono::milliseconds(200); 
+    std::chrono::steady_clock::time_point _idleStartTime = std::chrono::steady_clock::now();
+    std::chrono::milliseconds _idleInterval = std::chrono::milliseconds(500); 
+
     std::vector<std::thread> _dynamicThreads;  
     std::atomic<int> _dynamicStopCnt{0};  
 

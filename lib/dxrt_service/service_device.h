@@ -65,12 +65,7 @@ namespace dxrt {
 
 class Worker;
 class Memory;
-#ifdef __linux__
 class InferenceOption;
-#elif _WIN32
-
-struct InferenceOption;
-#endif
 class TaskData;
 class Profiler;
 class Buffer;

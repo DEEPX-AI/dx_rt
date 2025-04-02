@@ -55,7 +55,7 @@ class BitMatchTester:
             log_format = "%(asctime)s - %(levelname)s - %(message)s"
             date_format = "%Y-%m-%d %H:%M:%S"
             logging.basicConfig(
-                filename='bitmatch_test_async_result.log',
+                filename='BITMATCH_RESULTS.log',
                 level=logging.INFO,
                 format=log_format,
                 datefmt=date_format
@@ -319,7 +319,7 @@ class BitMatchTester:
             exit(1)
         self.stats.execution_times.append((time.time() - start_time)*1000)
         
-        latency_mean = ie.GetLatencyMean()
+        latency_mean = ie.get_latency_mean()
         latency_std = ie.get_latency_std()
         latency_CV = latency_std/latency_mean
         

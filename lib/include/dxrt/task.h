@@ -83,9 +83,11 @@ public:
     std::function<int(TensorPtrs&, void*)> callback();
     void PushLatency(int latency);
     void PushInferenceTime(uint32_t infTime);
-    int latency();
-    uint32_t inference_time();
-    int &complete_cnt();
+    InferenceTimer& GetTaskTimer();
+    int GetLatency();
+    uint32_t GetNpuInferenceTime();
+    int &GetCompleteCnt();
+    void IncrementCompleteCount();
     void SetInferenceEngineTimer(InferenceTimer* ie);
     void SetOutputBuffer(int size);
     void* GetOutputBuffer();
@@ -115,6 +117,7 @@ private:
     std::vector<string> _inputNameOrder;
 
     std::mutex _reqLock;
+    std::mutex _completeCntLock;
 
     bool _isHead = false;
     bool _isTail = false;
@@ -123,8 +126,8 @@ private:
     std::function<int(TensorPtrs&, void*)> _callBack;
 
     std::shared_ptr<CpuHandle> _cpuHandle;
-    InferenceTimer _inferenceTimer;
-    InferenceTimer* _ie;
+    InferenceTimer _taskTimer;
+    InferenceTimer* _inferenceEngineTimer;
     std::shared_ptr<FixedSizeBuffer> _taskOutputBuffer;
 
     int _completeCnt = 1;

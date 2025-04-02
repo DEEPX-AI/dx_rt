@@ -35,7 +35,6 @@
 
 namespace dxrt {
 using rmapinfo = deepx_rmapinfo::RegisterInfoDatabase;
-struct InferenceOption;
 class Task;
 struct TimePoint;
 
@@ -413,6 +412,11 @@ public:
      */
     bool IsPPU();
 
+    /** 
+     * @brief Resource deallocation and cleanup
+     */
+    void Dispose();
+
 #ifdef _WIN32
     float RunBenchMarkWindows(int num, void* inputPtr = nullptr);
 #endif // _WIN32
@@ -439,6 +443,10 @@ private:
 
     std::function<int(TensorPtrs &outputs, void *userArg)> _userCallback;
     std::vector<bool> _occupiedInferenceJobs;
+
+    void disposeOnce();
+    std::once_flag _disposeOnceFlag;
+    bool _isDisposed = false;
 };
 
 } /* namespace dxrt */

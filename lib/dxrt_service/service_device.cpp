@@ -217,7 +217,7 @@ int ServiceDevice::WaitThread(int ids)
         dxrt::dxrt_cmd_t::DXRT_CMD_NPU_RUN_RESP;
     int loopCnt = 0;
     int ret = 0;
-#ifdef WORKER_USE_PROFILER
+#ifdef USE_PROFILER
     auto& profiler = dxrt::Profiler::GetInstance();
 #endif
     while (true)
@@ -230,13 +230,13 @@ int ServiceDevice::WaitThread(int ids)
         }
         dxrt_response_t response;
         response.req_id = ids;
-#ifdef WORKER_USE_PROFILER
-        if (loopCnt > 0)  profiler.Start(threadName);
+#ifdef USE_PROFILER
+        //if (loopCnt > 0)  profiler.Start(threadName);
 #endif
         ret = Process(cmd, &response);
         // cout << response << endl; // for debug.
-#ifdef WORKER_USE_PROFILER
-        profiler.End(threadName);
+#ifdef USE_PROFILER
+        //profiler.End(threadName);
 #endif
         if (ret == 0 && !_stop)
         {
@@ -281,11 +281,11 @@ int ServiceDevice::WaitThread(int ids)
         //    LOG_DXRT_S_ERR("DXRT_CMD_NPU_RUN_RESP ret !=0");	// for debug
         //}
         loopCnt++;
-#ifdef WORKER_USE_PROFILER
+#ifdef USE_PROFILER
         profiler.End(threadName);
 #endif
     }
-    //std::cout << "@@@ Thread End : WaitThread(DXRT_CMD_NPU_RUN_RESP)" << std::endl ;
+    LOG_DXRT_S_DBG << "@@@ Thread End : WaitThread(DXRT_CMD_NPU_RUN_RESP), loopCount:" << loopCnt << std::endl;
     return 0;
 }
 
@@ -338,7 +338,7 @@ vector<shared_ptr<ServiceDevice>> ServiceDevice::CheckServiceDevices(SkipMode sk
                 LOG_DBG("Found " + devFile);
                 shared_ptr<ServiceDevice> device = make_shared<ServiceDevice>(devFile);
                 device->Identify(cnt, skip, subCmd);
-                serviceDevices.emplace_back(move(device));
+                serviceDevices.emplace_back(device);
             }
             else
             {

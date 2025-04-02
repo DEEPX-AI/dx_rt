@@ -18,7 +18,7 @@ TestData::TestData(int id_, string inputFile_, vector<string> refOutputFile_, st
     for(auto &rf:refOutputFile)
     {
         size = getFileSize(rf);
-        refOutput.emplace_back(move(vector<uint8_t>(size, 0)));
+        refOutput.emplace_back(vector<uint8_t>(size, 0));
         if(static_cast<uint32_t>(size) > outputSize)
             type = 0;
         else

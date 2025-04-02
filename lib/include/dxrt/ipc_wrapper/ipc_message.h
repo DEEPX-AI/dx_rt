@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <cstdint>
 #include <map>
+#include <chrono>
 
 #include "dxrt/common.h"
 #include "dxrt/driver.h"
@@ -47,6 +48,8 @@ namespace dxrt
         DEVICE_INIT = 4,
         DEVICE_RESET = 5,
         DEVICE_DEINIT = 6,
+        VIEW_FREE_MEMORY = 11, 
+        VIEW_USED_MEMORY = 12,
 
         MEMORY_ALLOCATION_AND_TRANSFER_MODEL = 100,
         COMPLETE_TRANSFER_MODEL = 101,
@@ -60,6 +63,8 @@ namespace dxrt
     };
     std::ostream& operator<< (std::ostream& os, REQUEST_CODE code);
     enum class RESPONSE_CODE : uint32_t {
+        VIEW_FREE_MEMORY_RESULT = 13,
+        VIEW_USED_MEMORY_RESULT = 14,
         CONFIRM_MEMORY_ALLOCATION_AND_TRANSFER_MODEL = 200,
         CONFIRM_MEMORY_ALLOCATION = 201,
         CONFIRM_TRANSFER_INPUT_AND_RUN = 202,
@@ -151,7 +156,8 @@ namespace dxrt
             m[dxrt::REQUEST_CODE::GET_MEMORY_FOR_MODEL] = "GET_MEMORY_FOR_MODEL";
             m[dxrt::REQUEST_CODE::DEVICE_INIT] = "DEVICE_INIT";
             m[dxrt::REQUEST_CODE::DEVICE_RESET] = "DEVICE_RESET";
-
+            m[dxrt::REQUEST_CODE::VIEW_FREE_MEMORY] = "VIEW_FREE_MEMORY";
+             m[dxrt::REQUEST_CODE::VIEW_USED_MEMORY] = "VIEW_USED_MEMORY";
             m[dxrt::REQUEST_CODE::MEMORY_ALLOCATION_AND_TRANSFER_MODEL] = "MEMORY_ALLOCATION_AND_TRANSFER_MODEL";
             m[dxrt::REQUEST_CODE::COMPLETE_TRANSFER_MODEL] = "COMPLETE_TRANSFER_MODEL";
             m[dxrt::REQUEST_CODE::MEMORY_ALLOCATION_INPUT_AND_OUTPUT] = "MEMORY_ALLOCATION_INPUT_AND_OUTPUT";
@@ -168,6 +174,8 @@ namespace dxrt
     {
         static std::map<dxrt::RESPONSE_CODE, std::string> m;
         if (m.size() == 0) {
+            m[dxrt::RESPONSE_CODE::VIEW_FREE_MEMORY_RESULT] = "VIEW_FREE_MEMORY_RESULT";
+            m[dxrt::RESPONSE_CODE::VIEW_USED_MEMORY_RESULT] = "VIEW_USED_MEMORY_RESULT";
             m[dxrt::RESPONSE_CODE::CONFIRM_MEMORY_ALLOCATION_AND_TRANSFER_MODEL] = "CONFIRM_MEMORY_ALLOCATION_AND_TRANSFER_MODEL";
             m[dxrt::RESPONSE_CODE::CONFIRM_MEMORY_ALLOCATION] = "CONFIRM_MEMORY_ALLOCATION";
             m[dxrt::RESPONSE_CODE::CONFIRM_TRANSFER_INPUT_AND_RUN] = "CONFIRM_TRANSFER_INPUT_AND_RUN";

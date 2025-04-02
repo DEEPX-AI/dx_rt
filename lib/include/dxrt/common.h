@@ -59,6 +59,8 @@
 #include <shared_mutex>
 #endif
 
+#define DXRT_TASK_MAX_LOAD    (6)
+
 #if DEBUG_DXRT
 #define LOG_DBG(x) std::cout<<"[DXRT] "<< x << std::endl;
 #else
@@ -75,6 +77,7 @@
 #define TASK_FLOW_FINISH(x)
 #endif
 
+#define LOG     std::cout<<"[DXRT] "
 #define LOG_DXRT     std::cout<<"[DXRT]["<< __func__ << "] "
 #define LOG_DXRT_DBG if(DEBUG_DXRT) std::cout<<"[DXRT]["<< __func__ << "] " 
 #define LOG_DXRT_ERR(x) std::cout<<"[DXRT][Error] "<< x << std::endl;

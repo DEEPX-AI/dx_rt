@@ -59,13 +59,12 @@ RequestPtr Request::Create(Task *task_, Tensors inputs_, Tensors outputs_, void 
     req->_task = task_;
     req->_data.taskData = task_->getData();
 
-    req->inputs() = move(inputs_);
-    req->outputs() = move(outputs_);
+    req->inputs() = inputs_;
+    req->outputs() = outputs_;
     req->_userArg = userArg;
     req->latency_valid() = true;
     req->latency() = 0;
     req->inference_time() = 0;
-    req->complete_cnt() = 0;
     req->_requestorName = "";
     req->_data.jobId = jobId;
     req->_data.output_ptr = nullptr;
@@ -91,7 +90,6 @@ RequestPtr Request::Create(Task *task_, void *input, void *output, void *userArg
     req->latency_valid() = true;
     req->latency() = 0;
     req->inference_time() = 0;
-    req->complete_cnt() = 0;
     req->_requestorName = "";
     req->_data.jobId = jobId;
     req->_data.output_ptr = nullptr;
@@ -121,64 +119,6 @@ void Request::Clear()
 {
     LOG_DXRT_DBG << endl;
 }
-void Request::SaveTaskStats(Task *task)
-{
-    LOG_DXRT_DBG << endl;
-    auto &profiler = Profiler::GetInstance();
-    auto &stats = TaskStats::GetInstance(task->id());
-    int cnt = 0;
-    stats.name = task->name();
-    stats.id = task->id();
-    stats.latency_us = 0;
-    stats.inference_time_us = 0;
-    for (int i = 0; i < REQUEST_ID_MAX_VALUE; i++)
-    {
-        RequestPtr req = GetById(i);
-        if (req->task() == task)
-        {
-            cnt++;
-            if (req->latency_valid())
-            {
-                stats.latency_data.emplace_back(req->latency());
-            }
-            stats.inference_time_data.emplace_back(req->inference_time());
-            profiler.AddTimePoint(task->name(), req->time_point());
-        }
-    }
-
-    // LOG_VALUE(stats.latency_data.size());
-    if(!stats.latency_data.empty())
-    {
-        cnt = 0;
-        for(auto &latency:stats.latency_data)
-        {
-            if(latency>0)
-            {
-                // LOG_VALUE(latency);
-                stats.latency_us += latency;
-                cnt++;
-            }
-        }
-        if(cnt>0)
-            stats.latency_us /= cnt;
-
-    }
-    if(!stats.inference_time_data.empty())
-    {
-        cnt = 0;
-        for(auto &infTime:stats.inference_time_data)
-        {
-            if(infTime>0)
-            {
-                stats.inference_time_us += infTime;
-                cnt++;
-            }
-        }
-        if(cnt>0)
-            stats.inference_time_us /= cnt;
-
-    }
-}
 void Request::Wait()
 {
     LOG_DXRT_DBG << "request " << id() << endl;
@@ -204,9 +144,7 @@ void Request::CheckTimePoint(int opt)
         _latency = chrono::duration_cast<chrono::microseconds>(_timePoint->end - _timePoint->start).count();
         // LOG_VALUE(_latency);
     }
-
 }
-
 int Request::id() const
 {
     return _data.requestId;
@@ -284,16 +222,6 @@ uint32_t &Request::inference_time()
 {
     return _infTime;
 }
-int &Request::complete_cnt()
-{
-    unique_lock<mutex> lk(_completeCntLock);
-    return _completeCnt;
-}
-void Request::NotifyCompletion()
-{
-    unique_lock<mutex> lk(_completeCntLock);
-    _completeCnt++;
-}
 TimePointPtr Request::time_point()
 {
     return _timePoint;
@@ -330,6 +258,9 @@ void Request::setCallback(std::function<void(RequestPtr)> func)
 void Request::onRequestComplete(RequestPtr req)
 {
     _status = Request::Status::REQ_DONE;
+#ifdef USE_PROFILER
+    _task->IncrementCompleteCount();
+#endif
     _callback(req);  // callback registered by InferenceJobs
 }
 void Request::Reset()

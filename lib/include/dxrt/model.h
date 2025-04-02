@@ -19,6 +19,8 @@
 #include "rapidjson/pointer.h"
 #include "rapidjson/rapidjson.h"
 
+#define MIN_CG_VERSION "2.27.1"
+#define MIN_SINGLEFILE_VERSION 6
 using namespace std;
 namespace deepx_binaryinfo {
     struct DXRT_API Models {
@@ -62,6 +64,10 @@ namespace deepx_binaryinfo {
         vector<Models> _weight;
         vector<Models> _rmap_info;
         vector<Models> _bitmatch_mask;
+
+        // version info (file-format & compiler)
+        int32_t _dxnnFileFormatVersion;
+        std::string _compilerVersion;
     };
 } /* namespace deepx_binaryinfo */
 

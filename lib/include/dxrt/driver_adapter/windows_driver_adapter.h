@@ -16,7 +16,7 @@ class WindowsDriverAdapter : public DriverAdapter {
     int32_t Read(void* buffer, uint32_t size) override;
     void* MemoryMap(void *__addr, size_t __len, off_t __offset = 0) override;
     int32_t Poll() override;
-    int GetFd() { return (int)_fd; }
+    int GetFd() { return reinterpret_cast<uint64_t>(_fd); }
 
     ~WindowsDriverAdapter() override;
  private:

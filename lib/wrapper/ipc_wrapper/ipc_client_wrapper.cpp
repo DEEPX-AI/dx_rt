@@ -81,6 +81,7 @@ int32_t IPCClientWrapper::SendToServer(IPCServerMessage& outServerMessage, IPCCl
 // Receive message from server
 int32_t IPCClientWrapper::ReceiveFromServer(IPCServerMessage& serverMessage)
 {
+    LOG_DXRT_I_DBG << serverMessage.code << std::endl;
     if(_ipcClient == nullptr) return -1;
     return _ipcClient->ReceiveFromServer(serverMessage);
 }

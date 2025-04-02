@@ -18,8 +18,9 @@ enum DXRT_API InferenceMode;
  * @details User can configure which npu device is used to inference.
  * @headerfile "dxrt/dxrt_api.h"
 */
-struct DXRT_API InferenceOption
+class DXRT_API InferenceOption
 {
+ public:
     enum BOUND_OPTION {
         NPU_ALL = 0,
         NPU_0,
@@ -40,7 +41,7 @@ struct DXRT_API InferenceOption
      * @details if this is true, all task will works. if false, only npu task works.
      */
 
-    bool use_ort = ORT_OPTION_DEFAULT;
+    bool useORT = ORT_OPTION_DEFAULT;
 
 };
 

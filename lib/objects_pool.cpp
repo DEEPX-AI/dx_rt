@@ -50,7 +50,7 @@ void ObjectsPool::makeDeviceList()
 
                 LOG_DBG("Found " + devFile);
                 shared_ptr<Device> device = make_shared<Device>(devFile);
-                _devices.emplace_back(move(device));
+                _devices.emplace_back(std::move(device));
             }
             else
             {
@@ -90,6 +90,7 @@ InferenceJobPtr ObjectsPool::GetInferenceJobById(int id)  // find one by id
 void ObjectsPool::InitDevices(SkipMode skip, uint32_t subCmd)
 {
     std::call_once(_initDevicesOnceFlag, &ObjectsPool::InitDevices_once, this, skip, subCmd);
+    _device_identified = true;
 }
 
 void ObjectsPool::InitDevices_once(SkipMode skip, uint32_t subCmd)
@@ -119,7 +120,7 @@ shared_ptr<Device> ObjectsPool::PickOneDevice(const vector<int> &device_ids)
             int idx = (i + _curDevIdx) % device_id_size;
             int device_id = device_ids[idx];
             curDeviceLoad = _devices[device_id]->load();
-            if(curDeviceLoad < DXRT_ASYNC_LOAD_THRE && curDeviceLoad < load)
+            if(curDeviceLoad < DXRT_TASK_MAX_LOAD && curDeviceLoad < load)
             // if(curDeviceLoad < load)
             {
                 load = curDeviceLoad;
@@ -138,7 +139,7 @@ shared_ptr<Device> ObjectsPool::PickOneDevice(const vector<int> &device_ids)
     shared_ptr<Device> pick = nullptr;
     pick = devices_[(curDevIdx++)%devices_.size()];
     pick->pick();
-    while(pick->load()>=DXRT_ASYNC_LOAD_THRE);
+    while(pick->load()>=DXRT_TASK_MAX_LOAD);
     // cout << "dev " << pick->id() << ", " << pick->load() << endl;
     return pick;
 #endif

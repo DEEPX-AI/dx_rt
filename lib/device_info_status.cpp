@@ -4,6 +4,7 @@
 #include "dxrt/device_info_status.h"
 #include "dxrt/device.h"
 #include "dxrt/device_util.h"
+#include "dxrt/exception/exception.h"
 #include<map>
 #include<iostream>
 #include<iomanip>
@@ -89,22 +90,36 @@ static string insert_comma(const string& str)
 
 namespace dxrt {
 
-DxrtDeviceInfoWithStatus::DxrtDeviceInfoWithStatus(int id, dxrt_device_info_t info, dxrt_device_status_t status, dxrt_dev_info_t devInfo)
+DeviceStatus::DeviceStatus(int id, dxrt_device_info_t info, dxrt_device_status_t status, dxrt_dev_info_t devInfo)
 :_id(id), _info(info), _status(status), _devInfo(devInfo)
 {
 }
 
-
-DxrtDeviceInfoWithStatus DxrtDeviceInfoWithStatus::getStatusInfo(DevicePtr device)
+DeviceStatus DeviceStatus::GetCurrentStatus(DevicePtr device)
 {
     int deviceId = device->id();
     auto info = device->info();
     auto status = device->status();
     auto devInfo = device->devInfo();
-    return DxrtDeviceInfoWithStatus(deviceId, info, status, devInfo);
+    return DeviceStatus(deviceId, info, status, devInfo);
+}
+DeviceStatus DeviceStatus::GetCurrentStatus(int id)
+{
+    auto devices = CheckDevices(dxrt::SkipMode::COMMON_SKIP);
+    if (devices.size() <= static_cast<unsigned int>(id))
+    {
+        throw dxrt::InvalidArgumentException("Not exist device id:"+ std::to_string(id));
+    }
+    return GetCurrentStatus(devices[id]);
 }
 
-string DxrtDeviceInfoWithStatus::dvfsStateInfoStr() const
+int DeviceStatus::GetDeviceCount()
+{
+    return CheckDevices(dxrt::SkipMode::COMMON_SKIP).size();
+}
+
+
+string DeviceStatus::DvfsStateInfoStr() const
 {
     char buf[CHARBUFFER_SIZE];
     if (_status.dvfs_enable == 1)
@@ -118,7 +133,7 @@ string DxrtDeviceInfoWithStatus::dvfsStateInfoStr() const
     return string(buf);
 }
 
-string DxrtDeviceInfoWithStatus::ddrStatusStr(int ch) const
+string DeviceStatus::DdrStatusStr(int ch) const
 {
     char buf[CHARBUFFER_SIZE];
     uint32_t rm_1, rm_0 = 0, derate = 0;
@@ -146,7 +161,7 @@ string DxrtDeviceInfoWithStatus::ddrStatusStr(int ch) const
     return string(buf);
 }
 
-string DxrtDeviceInfoWithStatus::npuStatusStr(int no) const
+string DeviceStatus::NpuStatusStr(int no) const
 {
     char buf[CHARBUFFER_SIZE];
     snprintf(buf, CHARBUFFER_SIZE, "NPU %d: voltage %u mV, clock %u MHz, temperature %d'C",
@@ -154,57 +169,57 @@ string DxrtDeviceInfoWithStatus::npuStatusStr(int no) const
     return string(buf);
 }
 
-string DxrtDeviceInfoWithStatus::deviceTypeStr() const
+string DeviceStatus::DeviceTypeStr() const
 {
     return map_lookup(device_types, _info.type);
 }
-string DxrtDeviceInfoWithStatus::deviceTypeWord() const
+string DeviceStatus::DeviceTypeWord() const
 {
     return map_lookup(device_type_words, _info.type);
 }
-string DxrtDeviceInfoWithStatus::deviceVariantStr() const
+string DeviceStatus::DeviceVariantStr() const
 {
     return map_lookup(device_variants, _info.variant);
 }
-string DxrtDeviceInfoWithStatus::boardTypeStr() const
+string DeviceStatus::BoardTypeStr() const
 {
     return map_lookup(board_types, _info.bd_type);
 }
-string DxrtDeviceInfoWithStatus::memoryTypeStr() const
+string DeviceStatus::MemoryTypeStr() const
 {
     return map_lookup(memory_types, _info.ddr_type);
 }
-string DxrtDeviceInfoWithStatus::memorySizeStrBinaryPrefix() const
+string DeviceStatus::MemorySizeStrBinaryPrefix() const
 {
     return convert_capacity(_info.mem_size);
 }
 
-string DxrtDeviceInfoWithStatus::memorySizeStrWithComma() const
+string DeviceStatus::MemorySizeStrWithComma() const
 {
     return insert_comma(std::to_string(_info.mem_size))+"Byte";
 }
 
-string DxrtDeviceInfoWithStatus::allMemoryInfoStr() const
+string DeviceStatus::AllMemoryInfoStr() const
 {
      char buffer[CHARBUFFER_SIZE];
      snprintf(buffer, CHARBUFFER_SIZE, "Type:%s, Addr:%p, size: %s(%s), clock: %udMHz",
-      memoryTypeStr().c_str(), reinterpret_cast<void*>(_info.mem_addr),
-      memorySizeStrBinaryPrefix().c_str(), memorySizeStrWithComma().c_str(), _info.ddr_freq);
+      MemoryTypeStr().c_str(), reinterpret_cast<void*>(_info.mem_addr),
+      MemorySizeStrBinaryPrefix().c_str(), MemorySizeStrWithComma().c_str(), _info.ddr_freq);
      return string(buffer);
 }
 
-string DxrtDeviceInfoWithStatus::pcieInfoStr(int spd, int wd, int bus, int dev, int func) const
+string DeviceStatus::PcieInfoStr(int spd, int wd, int bus, int dev, int func) const
 {
     char buf[64];
     snprintf(buf, sizeof(buf), "Gen%d X%d [%02d:%02d:%02d]", spd, wd, bus, dev, func);
     return string(buf);
 }
 
-std::ostream& DxrtDeviceInfoWithStatus::infoToStream(std::ostream& os) const
+std::ostream& DeviceStatus::InfoToStream(std::ostream& os) const
 {
     os << "=======================================================" << endl;
-    os << std::showbase << std::dec << " * Device " << getId()
-      << ": " << deviceVariantStr()<< ", "<< deviceTypeWord() <<" type" << endl;
+    os << std::showbase << std::dec << " * Device " << GetId()
+      << ": " << DeviceVariantStr()<< ", "<< DeviceTypeWord() <<" type" << endl;
     os << "---------------------   Version   ---------------------" << endl;
     os << " * RT Driver version   : v" << GetDrvVersionWithDot(_devInfo.rt_drv_ver) << endl;
     if (_info.type == static_cast<uint32_t>(DeviceType::ACC_TYPE))
@@ -214,14 +229,14 @@ std::ostream& DxrtDeviceInfoWithStatus::infoToStream(std::ostream& os) const
     os << "-------------------------------------------------------" << endl;
     os << " * FW version          : v"<< GetFwVersionWithDot(_info.fw_ver) << endl;
     os << "--------------------- Device Info ---------------------" << endl;
-    os << " * Memory : " << memoryTypeStr() << " " << _info.ddr_freq <<" MHz, "
-      << memorySizeStrBinaryPrefix() << endl;
-    os << " * Board  : "<< boardTypeStr();
-    os << std::fixed << std::setprecision(1) << ", Rev " << static_cast<double>(info().bd_rev)/10.0 << endl;
+    os << " * Memory : " << MemoryTypeStr() << " " << _info.ddr_freq <<" MHz, "
+      << MemorySizeStrBinaryPrefix() << endl;
+    os << " * Board  : "<< BoardTypeStr();
+    os << std::fixed << std::setprecision(1) << ", Rev " << static_cast<double>(Info().bd_rev)/10.0 << endl;
     if (_info.type == static_cast<uint32_t>(DeviceType::ACC_TYPE))
     {
         os << " * PCIe   : "<<
-            pcieInfoStr(_devInfo.pcie.speed,
+            PcieInfoStr(_devInfo.pcie.speed,
                 _devInfo.pcie.width,
                 _devInfo.pcie.bus,
                 _devInfo.pcie.dev,
@@ -230,52 +245,52 @@ std::ostream& DxrtDeviceInfoWithStatus::infoToStream(std::ostream& os) const
     return os;
 }
 
-string DxrtDeviceInfoWithStatus::getInfoString() const
+string DeviceStatus::GetInfoString() const
 {
     std::ostringstream os;
-    infoToStream(os);
+    InfoToStream(os);
     return os.str();
 }
 
-std::ostream&DxrtDeviceInfoWithStatus::statusToStream(std::ostream& os) const
+std::ostream&DeviceStatus::StatusToStream(std::ostream& os) const
 {
     os << std::showbase << std::dec;
-    for (int i = 0; i < static_cast<int>(info().num_dma_ch); i++)
+    for (int i = 0; i < static_cast<int>(Info().num_dma_ch); i++)
     {
-        os << npuStatusStr(i)<< endl;
+        os << NpuStatusStr(i)<< endl;
     }
-    os << dvfsStateInfoStr() << endl;
+    os << DvfsStateInfoStr() << endl;
     os << "=======================================================" << endl;
     return os;
 }
 
-std::ostream&DxrtDeviceInfoWithStatus::debugStatusToStream(std::ostream& os) const
+std::ostream&DeviceStatus::DebugStatusToStream(std::ostream& os) const
 {
     for (int i = 0; i < 4; i++)
     {
-        os << ddrStatusStr(i) << endl;
+        os << DdrStatusStr(i) << endl;
     }
     os << "=======================================================" << endl;
     return os;
 }
 
-string DxrtDeviceInfoWithStatus::getStatusString() const
+string DeviceStatus::GetStatusString() const
 {
     std::ostringstream os;
-    statusToStream(os);
+    StatusToStream(os);
     return os.str();
 }
 
-std::ostream& operator<<(std::ostream& os, const DxrtDeviceInfoWithStatus& d)
+std::ostream& operator<<(std::ostream& os, const DeviceStatus& d)
 {
-    d.infoToStream(os);
+    d.InfoToStream(os);
     os << endl;
-    d.statusToStream(os);
+    d.StatusToStream(os);
     return os;
 }
 
 
-uint32_t DxrtDeviceInfoWithStatus::voltage(int ch) const
+uint32_t DeviceStatus::Voltage(int ch) const
 {
     if ((ch < 0) || (ch >= static_cast<int>(_info.num_dma_ch)))
     {
@@ -283,7 +298,7 @@ uint32_t DxrtDeviceInfoWithStatus::voltage(int ch) const
     }
     return _status.voltage[ch];
 }
-uint32_t DxrtDeviceInfoWithStatus::clock(int ch) const
+uint32_t DeviceStatus::NpuClock(int ch) const
 {
     if ((ch < 0) || (ch >= static_cast<int>(_info.num_dma_ch)))
     {
@@ -292,7 +307,7 @@ uint32_t DxrtDeviceInfoWithStatus::clock(int ch) const
     return _status.clock[ch];
 }
 
-int DxrtDeviceInfoWithStatus::temperature(int ch) const
+int DeviceStatus::Temperature(int ch) const
 {
     if ((ch < 0) || (ch >= static_cast<int>(_info.num_dma_ch)))
     {

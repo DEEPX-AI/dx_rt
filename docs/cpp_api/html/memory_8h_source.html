@@ -97,21 +97,21 @@ $(function() {
 <div class="line"><a name="l00025"></a><span class="lineno">   25</span>&#160;{</div>
 <div class="line"><a name="l00026"></a><span class="lineno">   26</span>&#160;<span class="keyword">public</span>:</div>
 <div class="line"><a name="l00027"></a><span class="lineno">   27</span>&#160;    Memory(<span class="keyword">struct</span> device_info &amp;, <span class="keywordtype">void</span> *);</div>
-<div class="line"><a name="l00028"></a><span class="lineno">   28</span>&#160;    <span class="keywordtype">void</span>* GetBuffer(uint32_t required);</div>
-<div class="line"><a name="l00029"></a><span class="lineno">   29</span>&#160;    uint32_t GetBufferAsOffset(uint32_t required);</div>
-<div class="line"><a name="l00030"></a><span class="lineno">   30</span>&#160;    int64_t Allocate(uint64_t required);</div>
-<div class="line"><a name="l00031"></a><span class="lineno">   31</span>&#160;    int64_t BackwardAllocate(uint64_t required);</div>
-<div class="line"><a name="l00032"></a><span class="lineno">   32</span>&#160;    int64_t Allocate(dxrt_meminfo_t &amp;meminfo);</div>
-<div class="line"><a name="l00033"></a><span class="lineno">   33</span>&#160;    int64_t Allocate(dxrt_request_t &amp;inference);</div>
-<div class="line"><a name="l00034"></a><span class="lineno">   34</span>&#160;    <span class="keywordtype">void</span> Deallocate(uint64_t addr);</div>
-<div class="line"><a name="l00035"></a><span class="lineno">   35</span>&#160;    <span class="keywordtype">void</span> Deallocate(dxrt_meminfo_t &amp;meminfo);</div>
-<div class="line"><a name="l00036"></a><span class="lineno">   36</span>&#160;    <span class="keywordtype">void</span> Deallocate(dxrt_request_t &amp;inference);</div>
-<div class="line"><a name="l00037"></a><span class="lineno">   37</span>&#160;    <span class="keywordtype">void</span> MergeAdjacentNodes(std::map&lt;uint64_t, MemoryNode&gt;::iterator it);</div>
-<div class="line"><a name="l00038"></a><span class="lineno">   38</span>&#160;    <span class="keywordtype">void</span> ResetBuffer();</div>
-<div class="line"><a name="l00039"></a><span class="lineno">   39</span>&#160;    uint64_t start();</div>
-<div class="line"><a name="l00040"></a><span class="lineno">   40</span>&#160;    uint64_t end();</div>
-<div class="line"><a name="l00041"></a><span class="lineno">   41</span>&#160;    uint64_t size();</div>
-<div class="line"><a name="l00042"></a><span class="lineno">   42</span>&#160;    uint64_t data();</div>
+<div class="line"><a name="l00028"></a><span class="lineno">   28</span>&#160;    int64_t Allocate(uint64_t required);</div>
+<div class="line"><a name="l00029"></a><span class="lineno">   29</span>&#160;    int64_t BackwardAllocate(uint64_t required);</div>
+<div class="line"><a name="l00030"></a><span class="lineno">   30</span>&#160;    int64_t Allocate(dxrt_meminfo_t &amp;meminfo);</div>
+<div class="line"><a name="l00031"></a><span class="lineno">   31</span>&#160;    int64_t Allocate(dxrt_request_t &amp;inference);</div>
+<div class="line"><a name="l00032"></a><span class="lineno">   32</span>&#160;    <span class="keywordtype">void</span> Deallocate(uint64_t addr);</div>
+<div class="line"><a name="l00033"></a><span class="lineno">   33</span>&#160;    <span class="keywordtype">void</span> Deallocate(dxrt_meminfo_t &amp;meminfo);</div>
+<div class="line"><a name="l00034"></a><span class="lineno">   34</span>&#160;    <span class="keywordtype">void</span> Deallocate(dxrt_request_t &amp;inference);</div>
+<div class="line"><a name="l00035"></a><span class="lineno">   35</span>&#160;    <span class="keywordtype">void</span> MergeAdjacentNodes(std::map&lt;uint64_t, MemoryNode&gt;::iterator it);</div>
+<div class="line"><a name="l00036"></a><span class="lineno">   36</span>&#160;    <span class="keywordtype">void</span> ResetBuffer();</div>
+<div class="line"><a name="l00037"></a><span class="lineno">   37</span>&#160;    uint64_t start() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00038"></a><span class="lineno">   38</span>&#160;    uint64_t end() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00039"></a><span class="lineno">   39</span>&#160;    uint64_t size() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00040"></a><span class="lineno">   40</span>&#160;    uint64_t data() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00041"></a><span class="lineno">   41</span>&#160;    uint64_t free_size() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00042"></a><span class="lineno">   42</span>&#160;    uint64_t used_size() <span class="keyword">const</span>;</div>
 <div class="line"><a name="l00043"></a><span class="lineno">   43</span>&#160;    <span class="keyword">friend</span> DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp; os, <span class="keyword">const</span> Memory&amp; memory);</div>
 <div class="line"><a name="l00044"></a><span class="lineno">   44</span>&#160;<span class="keyword">private</span>:</div>
 <div class="line"><a name="l00045"></a><span class="lineno">   45</span>&#160;    std::map&lt;uint64_t, MemoryNode&gt; _pool;</div>
@@ -119,12 +119,13 @@ $(function() {
 <div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160;    uint64_t _cur = 0;</div>
 <div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;    uint64_t _end = 0;</div>
 <div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160;    uint64_t _size = 0;</div>
-<div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160;    uint64_t _data; <span class="comment">// pointer to addr</span></div>
-<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;    uint64_t _dataEnd; <span class="comment">// pointer to addr</span></div>
-<div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160;    std::mutex _lock;</div>
-<div class="line"><a name="l00053"></a><span class="lineno">   53</span>&#160;};</div>
-<div class="line"><a name="l00054"></a><span class="lineno">   54</span>&#160; </div>
-<div class="line"><a name="l00055"></a><span class="lineno">   55</span>&#160;} <span class="comment">// namespace dxrt</span></div>
+<div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160;    uint64_t _data;  <span class="comment">// pointer to addr</span></div>
+<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;    uint64_t _dataEnd;  <span class="comment">// pointer to addr</span></div>
+<div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160;    uint64_t _used_size = 0;</div>
+<div class="line"><a name="l00053"></a><span class="lineno">   53</span>&#160;    std::mutex _lock;</div>
+<div class="line"><a name="l00054"></a><span class="lineno">   54</span>&#160;};</div>
+<div class="line"><a name="l00055"></a><span class="lineno">   55</span>&#160; </div>
+<div class="line"><a name="l00056"></a><span class="lineno">   56</span>&#160;} <span class="comment">// namespace dxrt</span></div>
 </div><!-- fragment --></div><!-- contents -->
 <div class="ttc" id="anamespacedxrt_html"><div class="ttname"><a href="namespacedxrt.html">dxrt</a></div><div class="ttdoc">DXRT C++ APIs are provided in this namespace.</div><div class="ttdef"><b>Definition:</b> buffer.h:8</div></div>
 <!-- start footer part -->

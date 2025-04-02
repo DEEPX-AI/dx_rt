@@ -32,8 +32,8 @@ public:
 
 public:
     static std::atomic<int> _totalNumThreads;
-    static bool _multiThreadEnv;
-    static void InitMultiThreadEnv();
+    static bool _dynamicCpuThread;
+    static void SetDynamicCpuThread();
 
 public:
     uint32_t _inputSize = 0;

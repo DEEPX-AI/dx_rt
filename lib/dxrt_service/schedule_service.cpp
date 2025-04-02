@@ -5,7 +5,7 @@
 #include "scheduler_service.h"
 #include "../include/dxrt/ipc_wrapper/ipc_server_wrapper.h"
 #include "service_error.h"
-#include <algorithm> 
+#include <algorithm>
 
 #define DX_RT_SERVICE_SCHED_THRE (10)
 
@@ -97,7 +97,11 @@ void SchedulerService::schedule(int deviceId)
         // do inference
         dxrt::dxrt_request_acc_t new_req = _map[proc_id][req_id];
         int retval = _devices[deviceId]->InferenceRequest(&new_req);
+#ifdef __linux__
         if ((retval == -EBUSY) || (retval == -EAGAIN))
+#elif _WIN32
+        if (retval == ERROR_BUSY)
+#endif
         {
             _loads[deviceId]--;
             _device_queues[deviceId].push(std::make_pair(proc_id, req_id));

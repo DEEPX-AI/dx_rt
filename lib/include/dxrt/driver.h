@@ -131,6 +131,26 @@ typedef struct _dx_pcie_dev_ntfy_throt {
     uint32_t throt_temper;
 } dx_pcie_dev_ntfy_throt_t;
 
+#pragma pack(push, 1)
+typedef struct otp_info {
+    uint32_t    JEP_ID : 8;
+    uint32_t    CONTINUATION_CODE : 8;
+    char        CHIP_NAME[2];
+    char        DEVICE_REV[2];
+    uint32_t    RESERVED0 : 16;
+    uint32_t    ECID;
+    char        FOUNDRY_FAB[4];
+    char        PROCESS[4];
+    char        LOT_ID[12];
+    char        WAFER_ID[4];
+    char        X_AXIS[4];
+    char        Y_AXIS[4];
+    char        TEST_PGM[4];
+    char        BARCODE[16];
+    uint32_t    BARCODE_IDX;
+} otp_info_t;
+#pragma pack(pop)
+
 typedef struct _dx_pcie_dev_event {
     uint32_t event_type;
     union {
@@ -266,7 +286,7 @@ typedef enum {
     DXRT_CMD_NPU_RUN_RESP       ,
     DXRT_CMD_UPDATE_CONFIG_JSON ,
     DXRT_CMD_RECOVERY           ,
-    DXRT_CMD_SET_DDR_FREQ       ,
+    DXRT_CMD_CUSTOM             , /* Sub-command */
     DXRT_CMD_MAX,
 } dxrt_cmd_t;
 
@@ -285,6 +305,12 @@ typedef enum {
     DRVINFO_CMD_GET_RT_INFO   = 0,
     DRVINFO_CMD_GET_PCIE_INFO = 1,
 } dxrt_drvinfo_sub_cmd_t;
+
+typedef enum {
+    DX_SET_DDR_FREQ         = 1,
+    DX_GET_OTP              = 2,
+    DX_SET_OTP              = 3,
+} dxrt_custom_sub_cmt_t;
 
 typedef enum device_type
 {
@@ -355,6 +381,7 @@ DXRT_API std::ostream& operator<<(std::ostream&, const dxrt_request_acc_t&);
 DXRT_API std::ostream& operator<<(std::ostream&, const dxrt_response_t&);
 DXRT_API std::ostream& operator<<(std::ostream&, const dxrt_model_t&);
 DXRT_API std::ostream& operator<<(std::ostream&, const dxrt_device_info_t&);
+DXRT_API std::ostream& operator<<(std::ostream&, const otp_info_t&);
 
 DXRT_API std::string dxrt_cmd_t_str(dxrt::dxrt_cmd_t c);
 

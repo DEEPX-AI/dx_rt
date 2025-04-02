@@ -157,6 +157,6 @@ int main(int argc, char* argv[])
         return -1;
     }
     
-    return 0;
+    return (gOutputCount == loop_count ? 0 : -1);
 }
 

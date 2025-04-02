@@ -68,30 +68,33 @@ if __name__ == "__main__":
         print("[Usage] run_async_model [dxnn-file-path] [loop-count]")
         exit(-1)
     
+    result = -1
 
     # create inference engine instance with model
-    ie = InferenceEngine(modelPath)
+    with InferenceEngine(modelPath) as ie:
 
-    # register call back function
-    ie.register_callback(onInferenceCallbackFunc)
-    
-    # input
-    input = [np.zeros(ie.get_input_size(), dtype=np.uint8)]
-   
-    t1 = threading.Thread(target=inferenceThreadFunc, args=(ie, input, 0, loop_count))
-    t2 = threading.Thread(target=inferenceThreadFunc, args=(ie, input, 1, loop_count))
-    t3 = threading.Thread(target=inferenceThreadFunc, args=(ie, input, 2, loop_count))
-
-    # Start and join
-    t1.start()
-    t2.start()
-    t3.start()
-
-
-    # join
-    t1.join()
-    t2.join()
-    t3.join()
+        # register call back function
+        ie.register_callback(onInferenceCallbackFunc)
         
+        # input
+        input = [np.zeros(ie.get_input_size(), dtype=np.uint8)]
+    
+        t1 = threading.Thread(target=inferenceThreadFunc, args=(ie, input, 0, loop_count))
+        t2 = threading.Thread(target=inferenceThreadFunc, args=(ie, input, 1, loop_count))
+        t3 = threading.Thread(target=inferenceThreadFunc, args=(ie, input, 2, loop_count))
 
-    exit(q.get())
+        # Start and join
+        t1.start()
+        t2.start()
+        t3.start()
+
+
+        # join
+        t1.join()
+        t2.join()
+        t3.join()
+
+        # wait until all callback data processing is completed
+        result = q.get()
+
+    exit(result)
