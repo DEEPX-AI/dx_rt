@@ -40,7 +40,7 @@ jobs:
             - name: Get to tag
               run: echo "TO_TAG=${{ github.event.head_commit.message }}" >> $GITHUB_ENV
             - name: make latest_release.md
-              run: awk '/^## v/{if (found) exit; found=1} found' RELEASE_NOTES.md > latest_release.md
+              run: awk '/^## ${{ env.CURRENT_RELEASE_TAG }}/ { exit } { print }' RELEASE_NOTES.md > latest_release.md
     
             - name: Create release
               uses: ncipollo/release-action@v1
@@ -50,3 +50,6 @@ jobs:
                 makeLatest: true
                 draft: true
                 bodyfile: latest_release.md
+
+            - name: Clean workspace
+              run: sudo rm -rf ${{ github.workspace }}
