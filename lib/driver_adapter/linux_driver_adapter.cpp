@@ -27,10 +27,11 @@ LinuxDriverAdapter::LinuxDriverAdapter(const char* fileName)
 
 int32_t LinuxDriverAdapter::IOControl(dxrt_cmd_t request, void* data, uint32_t size , uint32_t sub_cmd)
 {
-    int ret;
-    dxrt_message_t msg;
+    int ret = 0;
+    dxrt_message_t msg = dxrt_message_t{};
+    // memset(&msg, 0, sizeof(dxrt_message_t));  // for valgrind
     msg.cmd = static_cast<::int32_t>(request);
-    msg.sub_cmd = static_cast<::int32_t>(sub_cmd),
+    msg.sub_cmd = static_cast<::int32_t>(sub_cmd);
     msg.data = data;
     msg.size = size;
 

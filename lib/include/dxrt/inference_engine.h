@@ -6,6 +6,7 @@
 #include <cassert>
 #include <map>
 #include <memory>
+#include <mutex>
 
 #include "dxrt/common.h"
 #include "dxrt/model.h"
@@ -89,7 +90,30 @@ public:
      * @return output tensors as vector of smart pointer instances 
      */
     TensorPtrs Run(void *inputPtr, void *userArg=nullptr, void *outputPtr=nullptr);
-    // void Run(Tensors &inputs, Tensors &outputs); /* TODO */
+    
+    /**
+     * @brief Runs the inference engine using a specific input pointer vector.
+     *
+     * This function executes inference based on the provided input data pointer vector and returns a vector of output tensors.
+     * Users can optionally provide additional user-defined arguments and output pointer vectors.
+     * If userArgs is used, the number of elements in inputPtrs must be the same as the number of elements in userArgs.
+     * An InvalidArgumentException is thrown if the size of inputPtrs and userArgs are different.
+     * An InvalidArgumentException is thrown if the size of inputPtrs and OutputPtrs are different.
+     * An InvalidArgumentException is thrown if the size of inputPtrs is 0.
+     * 
+     * @param[in] inputBuffers Vector of input data pointers used for inference.
+     * @param[out] outputBuffers Vector of output data pointers.
+     * @param[in] userArgs Vector of user-defined arguments (e.g., original frame data, input metadata, etc.). (Optional)
+     *
+     * @return Vector of output tensors as smart pointer instances.
+     */
+    std::vector<TensorPtrs> Run(
+        const std::vector<void*>& inputBuffers,
+        const std::vector<void*>& outputBuffers,
+        const std::vector<void*>& userArgs = {}
+    );
+    
+
     /** @brief Non-blocking call to request asynchronous inference by input pointer, and get job ID from inference engine.
      * @param[in] inputPtr input data pointer to run inference
      * @param[in] userArg user-defined arguments as a void pointer(e.g. original frame data, metadata about input, ... )
@@ -421,6 +445,17 @@ public:
     float RunBenchMarkWindows(int num, void* inputPtr = nullptr);
 #endif // _WIN32
     friend DXRT_API std::ostream& operator<<(std::ostream&, const InferenceEngine&);
+    InferenceTimer* getTimer(){return &_inferenceTimer;}
+
+private: // private functions
+    int runAsync(void *inputPtr, void *userArg, void *outputPtr,
+        std::function<void(TensorPtrs &outputs, void *userArg, int jobId)> batchCallback); 
+
+    void runSubBatch(std::vector<TensorPtrs>& result, int batchCount, int startIndex, void* batchArgs,
+            const std::vector<void*>& inputPtrs,
+            const std::vector<void*>& outputPtrs,
+            const std::vector<void*>& userArgs);
+
 private:
     std::string _modelFile;
     std::string _modelDir;
@@ -443,6 +478,7 @@ private:
 
     std::function<int(TensorPtrs &outputs, void *userArg)> _userCallback;
     std::vector<bool> _occupiedInferenceJobs;
+    std::mutex _occupiedInferenceJobsLock;
 
     void disposeOnce();
     std::once_flag _disposeOnceFlag;

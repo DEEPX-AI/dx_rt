@@ -86,7 +86,7 @@ namespace dxrt {
         setCode(ERROR_CODE::INVALID_MODEL);
     }
 
-    ModelPasrsingException::ModelPasrsingException(const std::string& msg)
+    ModelParsingException::ModelParsingException(const std::string& msg)
     {
         setMessage("Model parsing exception {" + msg + "}");
         setCode(ERROR_CODE::MODEL_PARSING);

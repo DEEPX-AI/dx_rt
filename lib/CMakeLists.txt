@@ -30,6 +30,9 @@ if (MSVC)
             PRIVATE DXRT_EXPORTS 
             PUBLIC DXRT_DLL
         )
+        if(CMAKE_BUILD_TYPE MATCHES Debug)
+            set_target_properties(${target} PROPERTIES OUTPUT_NAME "dxrtdbg")
+        endif()
     else()
         add_library(${target} STATIC ${srcs})
         set_target_properties(${target} PROPERTIES

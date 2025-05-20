@@ -36,6 +36,23 @@ class InferenceEngine:
         """@deprecated: Use `run_async()` instead."""
         warnings.warn("RunAsync() is deprecated. Use run_async() instead.", DeprecationWarning, stacklevel=2)
         return self.run_async(input_feed_list, user_arg)
+    
+    def run_batch(self, input_buffers: List[List[np.ndarray]], output_buffers: List[List[np.ndarray]], user_args: List[object] = None):
+        """@deprecated: Run batch inference"""
+        #print('run_batch start', len(input_buffers))
+        for i in range(len(input_buffers)):
+            input_buffers[i] = ensure_contiguous(input_buffers[i])
+
+        for i in range(len(output_buffers)):
+            output_buffers[i] = ensure_contiguous(output_buffers[i])
+
+        user_args_capsule = []
+        if user_args != None:
+            for i in range(len(user_args)):
+                user_args_capsule.append(ctypes.py_object(user_args[i]))
+
+        return C.run_batch(self.engine, input_buffers, output_buffers, user_args_capsule)
+        
 
     def run_benchmark(self, loop_cnt, input_feed_list) -> float:
         """Return benchmark result."""

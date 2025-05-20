@@ -10,21 +10,28 @@
 #include <utility>
 #include <memory>
 
-#include "common.h"
+#include "dxrt/common.h"
 
 namespace dxrt {
 
-    class DXRT_API Configuration {
-
+    class DXRT_API Configuration
+    {
     private:
-
         // constructor
         Configuration();
+        ~Configuration();
+
+        // Delete copy constructor and assignment operator
+        Configuration(const Configuration&) = delete;
+        Configuration& operator=(const Configuration&) = delete;
+
+        friend class ObjectsPool;
+        static Configuration* _staticInstance;
+        static void deleteInstance();
 
     public:
-
         // static function
-        static std::shared_ptr<Configuration>& GetInstance();
+        static Configuration& GetInstance();
         void LoadConfigFile(const std::string& fileName);
 
         // ITEM
@@ -34,11 +41,6 @@ namespace dxrt {
             SERVICE,
             DYNAMIC_CPU_THREAD,
             TASK_FLOW
-            //DEBUG
-            //USE_PROFILER
-            //SHOW_PROFILER_DATA
-            //SHOW_TASK_FLOW
-            //SAVE_PROFILER_DATA
         };
 
         // ATTRIBUTE
@@ -51,20 +53,17 @@ namespace dxrt {
 
         void SetAttribute(const ITEM item, const ATTRIBUTE attrib, const std::string& value);
 
-        bool GetEnable(const ITEM item) const;
+        bool GetEnable(const ITEM item);
 
-        std::string GetAttribute(const ITEM item, const ATTRIBUTE attrib) const;
+        std::string GetAttribute(const ITEM item, const ATTRIBUTE attrib);
 
         void LockEnable(const ITEM item);
 
     private:
-
         std::unordered_map<ITEM, bool> _enableSettings;
-        std::unordered_map<ITEM, std::unordered_map<ATTRIBUTE, std::string>> _attributes;
-        std::unordered_map<ITEM, std::pair<bool,std::unordered_map<ATTRIBUTE, bool> > > _isReadonly;
+        std::unordered_map<ITEM, std::unordered_map<ATTRIBUTE, std::string> > _attributes;
+        std::unordered_map<ITEM, std::pair<bool, std::unordered_map<ATTRIBUTE, bool> > > _isReadonly;
+        std::mutex _mutex;
     };
-
-
-    
 
 }  // namespace dxrt

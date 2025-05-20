@@ -33,7 +33,7 @@ string dxrt::getCurrentPath()
 
 string dxrt::getPath(const string& path)
 {
-    if(path.length() < 1) return "";
+    if (path.length() < 1) return "";
 #ifdef _WIN32
     return getAbsolutePath(path);
 #endif
@@ -62,13 +62,14 @@ string dxrt::getAbsolutePath(const string& path)
     if (path.length() < 1)return "";
 #ifdef __linux__
     if (path[0] == '\\')return path;
-    char* resolvedPath = realpath(path.c_str(), NULL);
+    char path_buffer [PATH_MAX];
+    char* resolvedPath = realpath(path.c_str(), path_buffer);
     if (resolvedPath == NULL)
     {
         return "";
     }
     string absolutePath(resolvedPath);
-    free(resolvedPath);
+
     return absolutePath;
 
 #elif _WIN32
@@ -87,11 +88,11 @@ string dxrt::getParentPath(const string& path)
 {
 #ifdef __linux__
     size_t pos = path.find_last_of("/\\");
-    if(pos == string::npos) 
+    if (pos == string::npos)
     {
         return "";
     }
-    return path.substr(0,pos);
+    return path.substr(0, pos);
 #elif _WIN32
     size_t pos = path.find_last_of("\\");
     if (pos == string::npos)
@@ -105,8 +106,8 @@ string dxrt::getParentPath(const string& path)
 int dxrt::getFileSize(const string& filename)
 {
     struct stat stat_buf;
-    int rc = stat(filename.c_str(),&stat_buf);
-    if(rc!=0)
+    int rc = stat(filename.c_str(), &stat_buf);
+    if (rc != 0)
     {
         return -1;
     }
@@ -117,25 +118,25 @@ bool dxrt::fileExists(const string& path)
 {
 #ifdef __linux__
     struct stat stat_buf;
-    int rc = stat(path.c_str(),&stat_buf);
-    if(rc!=0)
+    int rc = stat(path.c_str(), &stat_buf);
+    if (rc != 0)
     {
         return false;
     }
 #elif _WIN32
     HANDLE handle = CreateFile(
         path.c_str(),
-        GENERIC_READ,           // 
-        FILE_SHARE_READ,        // 
-        NULL,                   // 
-        OPEN_EXISTING,          // 
-        FILE_ATTRIBUTE_NORMAL,  // 
-        NULL                    // 
-    );
+        GENERIC_READ,
+        FILE_SHARE_READ,
+        NULL,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL,
+        NULL);
+
     if (handle == INVALID_HANDLE_VALUE) {
-        return false; // 
+        return false;
     }
-    CloseHandle(handle); // 
+    CloseHandle(handle);
 #endif
     return true;
 }

@@ -11,7 +11,7 @@
 #include "dxrt/util.h"
 #include "dxrt/buffer.h"
 
-using namespace std;
+
 
 namespace dxrt {
 
@@ -127,9 +127,8 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_)
                 int dataType = info.outputs().outputlist().output(0).type();
 
                 _outputTensors.emplace_back(
-                    //Tensor(_outputNames[i], {128*1024/GetDataSize_Datatype(static_cast<DataType>(dataType))}, static_cast<DataType>(dataType), nullptr)
-                    Tensor(_outputNames[i], _outputShape[i], static_cast<DataType>(dataType), nullptr)
-                );
+                    // Tensor(_outputNames[i], {128*1024/GetDataSize_Datatype(static_cast<DataType>(dataType))}, static_cast<DataType>(dataType), nullptr)
+                    Tensor(_outputNames[i], _outputShape[i], static_cast<DataType>(dataType), nullptr));
                 model.last_output_offset = model.output_all_size;
                 model.last_output_size = 128*1024;
                 model.output_all_size += 128*1024;
@@ -155,7 +154,7 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_)
         _npuModel.emplace_back(model);
     }
     _outputMemSize = 0;
-    for (auto &model : _npuModel)
+    for (const auto& model : _npuModel)
     {
         _outputMemSize = max(_outputMemSize, model.output_all_size);
     }
@@ -206,7 +205,6 @@ Tensors TaskData::inputs(void* ptr, uint64_t phyAddr)
         }
         return ret;
     }
-    return _inputTensors;
 }
 
 Tensors TaskData::outputs(void* ptr, uint64_t phyAddr)
@@ -227,6 +225,5 @@ Tensors TaskData::outputs(void* ptr, uint64_t phyAddr)
         }
         return ret;
     }
-    return _outputTensors;
 }
 }  // namespace dxrt

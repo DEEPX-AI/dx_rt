@@ -238,11 +238,20 @@ int pyRunAsync(InferenceEngine &ie, const vector<py::array> &inputs, py::object 
     
     py::gil_scoped_acquire gil;
     auto wrapper = new UserArgWrapper(userArg);
+    
+    /*void* userArgPointer = nullptr;
+    if ( !userArg.is_none() ) 
+    {
+        userArgPointer = reinterpret_cast<void*>(&userArg);
+        userArg.inc_ref();
+    }*/
+
     void* inputPtr = const_cast<void*>(inputs.front().request().ptr);
     
     {
         py::gil_scoped_release release;
-        return ie.RunAsync(inputPtr, static_cast<void*>(wrapper), nullptr);
+        return ie.RunAsync(inputPtr, reinterpret_cast<void*>(wrapper), nullptr);
+        //return ie.RunAsync(inputPtr, userArgPointer, nullptr);
     }
     
 }
@@ -264,20 +273,26 @@ float pyRunBenchmark(InferenceEngine &ie, int num, const vector<py::array> &inpu
 }
 
 void pyRegisterCallback(InferenceEngine &ie, const py::function &pyCallback) {
+
     ie.RegisterCallback([pyCallback](TensorPtrs &outputs, void *userArg) -> int {
+
         py::gil_scoped_acquire gil;
+
         try {
+
             std::vector<py::array> result;
             
             {
                 for(auto &output : outputs) {
                     
                     auto dtype = output->type();
-                    convertToPyArray(output, dtype, result);  
+                    convertToPyArray(output, dtype, result);
                 }
             }
-            UserArgWrapper* wrapper = static_cast<UserArgWrapper*>(userArg);
+
+            UserArgWrapper* wrapper = reinterpret_cast<UserArgWrapper*>(userArg);
             pyCallback(result, wrapper->pyObj);
+            if ( wrapper != nullptr ) delete wrapper;
             
             return 0;
         }
@@ -290,6 +305,87 @@ void pyRegisterCallback(InferenceEngine &ie, const py::function &pyCallback) {
             return -1;
         }
     });
+
+}
+
+vector<vector<py::array>> pyRunBatch(InferenceEngine &ie, const vector<vector<py::array>> &inputBuffers, 
+    vector<vector<py::array>> &outputBuffers, vector<py::object>& userArgs)
+{
+
+    std::ignore = ie;
+    std::ignore = inputBuffers;
+    std::ignore = outputBuffers;
+    std::ignore = userArgs;
+
+    std::cout << "pyRunBatch input_buffers size=" << inputBuffers.size() << std::endl;
+    std::cout << "pyRunBatch output_buffers size=" << outputBuffers.size() << std::endl;
+    std::cout << "pyRunBatch user_args size=" << userArgs.size() << std::endl;
+
+    // input buffer: convert python list to vector
+    std::vector<void*> vectorInputBuffers;
+    for(auto& input : inputBuffers)
+    {
+        vectorInputBuffers.emplace_back(const_cast<void*>(input.front().request().ptr));
+    }
+
+    // output buffer: convert python list to vector
+    std::vector<void*> vectorOutputBuffers;
+    for(auto& output : outputBuffers)
+    {
+        vectorOutputBuffers.emplace_back(const_cast<void*>(output.front().request().ptr));
+    }
+
+    
+    
+    try {
+        // create user arguments wrapper
+        std::vector<void*> vectorUserArgs;
+        // for(auto& arg : userArgs)
+        // {
+        //     std::cout << "argument=" << arg << std::endl;
+        //     vectorUserArgs.emplace_back(new UserArgWrapper(arg));
+        // }
+        
+        vector<dxrt::TensorPtrs> vectorOutputTensorPtrs = ie.Run(vectorInputBuffers, vectorOutputBuffers);
+
+        // delete user arguments wrapper
+        // for(auto& argPointer : vectorUserArgs)
+        // {
+        //     delete reinterpret_cast<UserArgWrapper*>(argPointer);
+        //     argPointer = nullptr;
+        // }
+
+        vector<vector<py::array>> vectorResult(vectorOutputTensorPtrs.size());
+
+        //py::gil_scoped_acquire gil;
+        int index = 0;
+        for(auto &outputs : vectorOutputTensorPtrs)
+        {
+            for(auto &output : outputs) {
+                        
+                auto dtype = output->type();
+                convertToPyArray(output, dtype, vectorResult[index]);
+            }
+            index++;
+        } // data conversion
+
+        return vectorResult;
+
+    }
+    catch(const dxrt::Exception &e)
+    {
+        std::cerr << "DXRT Exception in run-batch: " << e.what() << std::endl;
+    }
+    catch(const std::exception &e)
+    {
+        std::cerr << "STD Exception in run-batch: " << e.what() << std::endl;
+    }
+    catch(...)
+    {
+        std::cerr << "Exception in run-batch: " << std::endl;
+    }
+
+    return {};
 }
 
 vector<py::array> pyWait(InferenceEngine &ie, int reqId) {
@@ -385,9 +481,9 @@ vector<vector<py::array>> pyGetAllTaskOutputs(InferenceEngine &ie)
 }
 
 // InferenceEngine::Enter
-void pyInferenceEngine_Enter([[maybe_unused]] InferenceEngine &ie)
+void pyInferenceEngine_Enter(InferenceEngine &ie)
 {
-    
+    std::ignore = ie;
 }
 
 // InferenceEngine::Exit
@@ -473,6 +569,7 @@ PYBIND11_MODULE(_pydxrt, m) {
     m.def("register_callback", &pyRegisterCallback);
     m.def("run", &pyRun);
     m.def("run_async", &pyRunAsync);
+    m.def("run_batch", &pyRunBatch);
     m.def("run_benchmark", &pyRunBenchmark);
     m.def("wait", &pyWait);
     m.def("validate_device", &pyValidateDevice);

@@ -33,7 +33,11 @@ setuptools.setup(
     package_data={
         'dx_engine': ['capi/*.so', 'capi/*.lib', 'capi/*.dll', 'capi/*.pyd'],
     },
-    entry_points={},
+    entry_points={
+        'console_scripts': [
+            'dxrt_bitmatch = dx_engine.bitmatch.cli:main',
+        ],
+    },
     python_requires=">=3.6",
     install_requires=["numpy"],
 )

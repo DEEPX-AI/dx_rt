@@ -5,6 +5,7 @@
 #include "dxrt/device.h"
 #include "dxrt/task.h"
 #include "dxrt/inference_engine.h"
+#include "dxrt/inference_job.h"
 #include "dxrt/profiler.h"
 #include "dxrt/objects_pool.h"
 #include <iostream>
@@ -17,6 +18,7 @@ using namespace std;
 namespace dxrt
 {
 
+std::mutex Request::_reqLock;
 
 Request::Request(void)
 {
@@ -58,9 +60,11 @@ RequestPtr Request::Create(Task *task_, Tensors inputs_, Tensors outputs_, void 
     RequestPtr req = Request::Pick();
     req->_task = task_;
     req->_data.taskData = task_->getData();
+    req->_data.inputs.clear();
+    req->_data.outputs.clear();
 
-    req->inputs() = inputs_;
-    req->outputs() = outputs_;
+    req->setInputs(inputs_);
+    req->setOutputs(outputs_);
     req->_userArg = userArg;
     req->latency_valid() = true;
     req->latency() = 0;
@@ -79,13 +83,13 @@ RequestPtr Request::Create(Task *task_, void *input, void *output, void *userArg
     req->_data.taskData = task_->getData();
 
     if(input==nullptr)
-        req->inputs() = {};
+        req->setInputs({});
     else
-        req->inputs() = task_->inputs(input); // TODO: check to move to device?
+        req->setInputs(task_->inputs(input)); // TODO: check to move to device?
     if(output==nullptr)
-        req->outputs() = {};
+        req->setOutputs({});
     else    
-        req->outputs() = task_->outputs(output);  // TODO: move to device?
+        req->setOutputs(task_->outputs(output));  // TODO: move to device?
     req->_userArg = userArg;
     req->latency_valid() = true;
     req->latency() = 0;
@@ -98,18 +102,16 @@ RequestPtr Request::Create(Task *task_, void *input, void *output, void *userArg
 }
 RequestPtr Request::GetById(int id)
 {
-    ObjectsPool* instance = ObjectsPool::GetInstance();
-    return instance->GetRequestById(id);
+    return ObjectsPool::GetInstance().GetRequestById(id);
 }
 RequestPtr Request::Pick()
 {
-    ObjectsPool* instance = ObjectsPool::GetInstance();
-    return instance->PickRequest();
+    return ObjectsPool::GetInstance().PickRequest();
 }
 void Request::ShowAll()
 {
-    LOG_DXRT_DBG << REQUEST_ID_MAX_VALUE << endl;
-    for (int i = 0; i < REQUEST_ID_MAX_VALUE; i++)
+    LOG_DXRT_DBG << ObjectsPool::REQUEST_MAX_COUNT << endl;
+    for (int i = 0; i < ObjectsPool::REQUEST_MAX_COUNT; i++)
     {
         RequestPtr request = GetById(i);
         cout << dec << "(" << request.use_count() << ") " << *request << endl;
@@ -127,8 +129,7 @@ void Request::Wait()
 void Request::SetStatus(Request::Status status)
 {
     LOG_DXRT_DBG << id() << ", " << status << endl;
-    unique_lock<mutex> lk(_statusLock);
-    _status = status;
+    _status.store(status);
 }
 void Request::CheckTimePoint(int opt)
 {
@@ -153,9 +154,10 @@ int Request::job_id() const
 {
     return _data.jobId;
 }
-void Request::set_processed_unit(std::string processedPU, int processedId)
+void Request::set_processed_unit(std::string processedPU, int processedDevId, int processedId)
 {
     _data._processedPU = processedPU;
+    _data._processedDevId = processedDevId;
     _data._processedId = processedId;
 }
 std::string Request::processed_pu() const
@@ -178,22 +180,26 @@ std::string Request::requestor_name() const
 {
     return _requestorName;
 }
-Tensors &Request::inputs()
+Tensors Request::inputs()
 {
+    unique_lock<mutex> lk(_reqLock);
     return _data.inputs;
 }
-Tensors &Request::outputs()
+Tensors Request::outputs()
 {
+    unique_lock<mutex> lk(_reqLock);
     return _data.outputs;
 }
 void * Request::input_ptr()
 {
+    unique_lock<mutex> lk(_reqLock);
     if (_data.inputs.empty())
         return nullptr;
     return _data.inputs.front().data();
 }
 void * Request::output_ptr()
 {
+    unique_lock<mutex> lk(_reqLock);
     if (_data.outputs.empty())
         return nullptr;
     return _data.outputs.front().data();
@@ -228,8 +234,7 @@ TimePointPtr Request::time_point()
 }
 Request::Status Request::status()
 {
-    unique_lock<mutex> lk(_statusLock);
-    return _status;
+    return _status.load();
 }
 int &Request::latency()
 {
@@ -251,32 +256,48 @@ void Request::setNpuInferenceAcc(dxrt_request_acc_t npuInferenceAcc)
 {
     _npuInferenceAcc=npuInferenceAcc;
 }
-void Request::setCallback(std::function<void(RequestPtr)> func)
+void Request::setInferenceJob(InferenceJob* job)
 {
-    _callback = func;
+    _job = job;
 }
 void Request::onRequestComplete(RequestPtr req)
 {
-    _status = Request::Status::REQ_DONE;
+    SetStatus(Request::Status::REQ_DONE);
 #ifdef USE_PROFILER
     _task->IncrementCompleteCount();
 #endif
-    _callback(req);  // callback registered by InferenceJobs
+    if (_job != nullptr)
+        _job->onRequestComplete(req);
 }
 void Request::Reset()
 {
     _data.taskData = nullptr;
-    _data.inputs = {};
-    _data.outputs = {};
+    setInputs({});
+    setOutputs({});
 
     _userArg = nullptr;
 
     _requestorName = "";
-    _callback = nullptr;
-    _status = Status::REQ_IDLE;
+    _job = nullptr;
+    SetStatus(Status::REQ_IDLE);
     
     _task = nullptr;
+    _use_flag = false;
 }
+
+void Request::setInputs(Tensors input)
+{
+    unique_lock<mutex> lk(_reqLock);
+    _data.inputs.clear();
+    _data.inputs = input;
+}
+void Request::setOutputs(Tensors output)
+{
+    unique_lock<mutex> lk(_reqLock);
+    _data.outputs.clear();
+    _data.outputs = output;
+}
+
 
 RequestMap::RequestMap()
 {

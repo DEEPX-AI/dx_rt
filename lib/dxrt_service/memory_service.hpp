@@ -9,6 +9,7 @@
 #include <vector>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include "dxrt/common.h"
 #include "dxrt/memory.h"
 
@@ -30,6 +31,7 @@ class MemoryService
     dxrt::Memory* _mem;
     std::map<pid_t, std::set<uint64_t> > _allocInfo;
     static std::vector<MemoryService*> _instances;
+    std::mutex _lock;
 };
 
 }  // namespace dxrt

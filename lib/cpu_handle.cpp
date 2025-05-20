@@ -239,8 +239,8 @@ CpuHandle::CpuHandle(void* data_, int64_t size_, string name_)
             _initDynamicThreads = 3;
         }
     }
-    _totalNumThreads += (_numThreads+_initDynamicThreads);
-    LOG_DXRT_DBG<<"Task "<<name_<<" is set to "<<to_string(_numThreads+_initDynamicThreads)<<" threads (total : "<<to_string(_totalNumThreads)<<")"<<endl;
+    _totalNumThreads.fetch_add(_numThreads + _initDynamicThreads);
+    LOG_DXRT_DBG<<"Task "<<name_<<" is set to "<<to_string(_numThreads + _initDynamicThreads)<<" threads (total : "<<to_string(_totalNumThreads.load())<<")"<<endl;
 }
 
 CpuHandle::~CpuHandle()
@@ -260,8 +260,8 @@ void CpuHandle::SetDynamicCpuThread() {
         dynamic_cpu_thread_env = false;
     }
 
-    _dynamicCpuThread = Configuration::GetInstance()->GetEnable(Configuration::ITEM::DYNAMIC_CPU_THREAD);
-    Configuration::GetInstance()->LockEnable(Configuration::ITEM::DYNAMIC_CPU_THREAD);
+    _dynamicCpuThread = Configuration::GetInstance().GetEnable(Configuration::ITEM::DYNAMIC_CPU_THREAD);
+    Configuration::GetInstance().LockEnable(Configuration::ITEM::DYNAMIC_CPU_THREAD);
 
     if(dynamic_cpu_thread_env||_dynamicCpuThread)
         _dynamicCpuThread=true;
@@ -297,7 +297,7 @@ void CpuHandle::Run(RequestPtr req)
         task->inputs(req->inputs().front().data());
     }
     //req->outputs() = task->outputs( _buffer->Get(task->GetOutputSize()) );
-    req->outputs() = task->outputs(req->getData()->output_ptr);
+    req->setOutputs(task->outputs(req->getData()->output_ptr));
 
     vector<Ort::Value> inputTensors, outputTensors;
     Ort::MemoryInfo memoryInfo = 

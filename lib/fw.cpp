@@ -52,20 +52,47 @@ string ParseFwLog(dxrt_device_log_t &log)
         case dxrt::dxrt_fwlog_cmd_t::FW_LOG_DXRT_DEQUEUE_IRQ:
             oss << "deque(irq)  id:" << log.args[0] << ", "
                 << "front:" << log.args[1] << ", rear:" << log.args[2] << ", "
-                << "poped: " << log.args[3] << ", count: " << log.args[4] << ", "
+                << "locked: " << log.args[3] << ", count: " << log.args[4] << ", "
                 << "access_count: " << log.args[5] << endl;
             break;
         case dxrt::dxrt_fwlog_cmd_t::FW_LOG_DXRT_DEQUEUE_POLLING:
             oss << "deque(poll)  id:" << log.args[0] << ", "
                 << "front:" << log.args[1] << ", rear:" << log.args[2] << ", "
-                << "poped: " << log.args[3] << ", count: " << log.args[4] << ", "
+                << "locked: " << log.args[3] << ", count: " << log.args[4] << ", "
                 << "access_count: " << log.args[5] << endl;
             break;
-        case FW_LOG_DXRT_DEQUEUE_POPED:
+        case dxrt::dxrt_fwlog_cmd_t::FW_LOG_DXRT_DEQUEUE_POPED:
             oss << " > poped id:" << log.args[0] << ", "
                 << "front:" << log.args[1] << ", rear:" << log.args[2] << ", "
-                << "poped: " << log.args[3] << ", count: " << log.args[4] << ", "
+                << "locked: " << log.args[3] << ", count: " << log.args[4] << ", "
                 << "access_count: " << log.args[5] << endl;
+            break;
+        case dxrt::dxrt_fwlog_cmd_t::FW_LOG_NORMAL_LOCK_IRQ:
+            oss << " > irq_lock flag:" << log.args[0] << ", "
+                << "locked:" << log.args[1] << ", count:" << log.args[2] << ", "
+                << "front: " << log.args[3] << ", rear: " << log.args[4] << endl;
+            break;
+        case dxrt::dxrt_fwlog_cmd_t::FW_LOG_NORMAL_UNLOCK_IRQ:
+            oss << " > irq_unlock flag:" << log.args[0] << ", "
+                << "locked:" << log.args[1] << ", count:" << log.args[2] << ", "
+                << "front: " << log.args[3] << ", rear: " << log.args[4] << endl;
+            break;
+        case dxrt::dxrt_fwlog_cmd_t::FW_LOG_HIGH_LOCK_IRQ:
+            oss << " > irq_lock(high) flag:" << log.args[0] << ", "
+                << "locked:" << log.args[1] << ", count:" << log.args[2] << ", "
+                << "front: " << log.args[3] << ", rear: " << log.args[4] << endl;
+            break;
+        case dxrt::dxrt_fwlog_cmd_t::FW_LOG_HIGH_UNLOCK_IRQ:
+            oss << " > irq_unlock(high) flag:" << log.args[0] << ", "
+                << "locked:" << log.args[1] << ", count:" << log.args[2] << ", "
+                << "front: " << log.args[3] << ", rear: " << log.args[4] << endl;
+            break;
+
+            case dxrt::dxrt_fwlog_cmd_t::FW_LOG_TASK_LOCK:
+            oss << " > task flag:" << log.args[0] << ", "
+                << "locked:" << log.args[1] << ", count:" << log.args[2] << ", "
+                << "front: " << log.args[3] << ", rear: " << log.args[4] << ", "
+                << "timeout: " << log.args[5] << endl;
             break;
         case dxrt::dxrt_cmd_t::DXRT_CMD_GET_STATUS:
         case dxrt::dxrt_cmd_t::DXRT_CMD_UPDATE_CONFIG:
@@ -192,6 +219,10 @@ string Fw::GetFwUpdateResult(uint32_t errCode)
                     break;
                 case static_cast<uint32_t>(fw_update_err_code_t::ERR_LOW_FW_VER):
                     errMsg += "Low firmware version error detected\n";
+                    break;
+                case static_cast<uint32_t>(fw_update_err_code_t::ERR_NOT_SUPPORT):
+                    errMsg += "Firmware version 2.x.x and above cannot be downgraded to version 1.x.x." +
+                            string("\nPlease upgrade to version 2.x.x or later\n");
                     break;
                 default:
                     errMsg += ("Unknown error detected("+ to_string(mask) +")");

@@ -16,6 +16,8 @@ This class abstracts runtime inference executor for user\textquotesingle{}s comp
 \begin{DoxyCompactList}\small\item\em Perform the task of loading the model and configuring the N\+PU to run. \end{DoxyCompactList}\item 
 Tensor\+Ptrs \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a88cea5324cbeb436034adb60cf31050f}{Run}} (void $\ast$input\+Ptr, void $\ast$user\+Arg=nullptr, void $\ast$output\+Ptr=nullptr)
 \begin{DoxyCompactList}\small\item\em Run inference engine using specific input pointer Synchronously. \end{DoxyCompactList}\item 
+std\+::vector$<$ Tensor\+Ptrs $>$ \mbox{\hyperlink{classdxrt_1_1InferenceEngine_ab54d666cc65cef4d6ae2fe4c300d7ba1}{Run}} (const std\+::vector$<$ void $\ast$ $>$ \&input\+Buffers, const std\+::vector$<$ void $\ast$ $>$ \&output\+Buffers, const std\+::vector$<$ void $\ast$ $>$ \&user\+Args=\{\})
+\begin{DoxyCompactList}\small\item\em Runs the inference engine using a specific input pointer vector. \end{DoxyCompactList}\item 
 int \mbox{\hyperlink{classdxrt_1_1InferenceEngine_af3006c9a7183f7e42d1528aa8a6fea24}{Run\+Async}} (void $\ast$input\+Ptr, void $\ast$user\+Arg=nullptr, void $\ast$output\+Ptr=nullptr)
 \begin{DoxyCompactList}\small\item\em Non-\/blocking call to request asynchronous inference by input pointer, and get job ID from inference engine. \end{DoxyCompactList}\item 
 float \mbox{\hyperlink{classdxrt_1_1InferenceEngine_ab0c6629f048341d62bfa3a400c90e827}{Run\+Bench\+Mark}} (int num, void $\ast$input\+Ptr=nullptr)
@@ -707,10 +709,34 @@ Register user callback function to be called by inference completion.
  & {\em user\+Arg} & user\+Arg given by \mbox{\hyperlink{classdxrt_1_1InferenceEngine_a88cea5324cbeb436034adb60cf31050f}{Run()}}; \\
 \hline
 \end{DoxyParams}
+\mbox{\Hypertarget{classdxrt_1_1InferenceEngine_ab54d666cc65cef4d6ae2fe4c300d7ba1}\label{classdxrt_1_1InferenceEngine_ab54d666cc65cef4d6ae2fe4c300d7ba1}} 
+\index{dxrt::InferenceEngine@{dxrt::InferenceEngine}!Run@{Run}}
+\index{Run@{Run}!dxrt::InferenceEngine@{dxrt::InferenceEngine}}
+\doxysubsubsection{\texorpdfstring{Run()}{Run()}\hspace{0.1cm}{\footnotesize\ttfamily [1/2]}}
+{\footnotesize\ttfamily std\+::vector$<$Tensor\+Ptrs$>$ dxrt\+::\+Inference\+Engine\+::\+Run (\begin{DoxyParamCaption}\item[{const std\+::vector$<$ void $\ast$ $>$ \&}]{input\+Buffers,  }\item[{const std\+::vector$<$ void $\ast$ $>$ \&}]{output\+Buffers,  }\item[{const std\+::vector$<$ void $\ast$ $>$ \&}]{user\+Args = {\ttfamily \{\}} }\end{DoxyParamCaption})}
+
+
+
+Runs the inference engine using a specific input pointer vector. 
+
+This function executes inference based on the provided input data pointer vector and returns a vector of output tensors. Users can optionally provide additional user-\/defined arguments and output pointer vectors. If user\+Args is used, the number of elements in input\+Ptrs must be the same as the number of elements in user\+Args. An Invalid\+Argument\+Exception is thrown if the size of input\+Ptrs and user\+Args are different. An Invalid\+Argument\+Exception is thrown if the size of input\+Ptrs and Output\+Ptrs are different. An Invalid\+Argument\+Exception is thrown if the size of input\+Ptrs is 0.
+
+
+\begin{DoxyParams}[1]{Parameters}
+\mbox{\texttt{ in}}  & {\em input\+Buffers} & Vector of input data pointers used for inference. \\
+\hline
+\mbox{\texttt{ out}}  & {\em output\+Buffers} & Vector of output data pointers. \\
+\hline
+\mbox{\texttt{ in}}  & {\em user\+Args} & Vector of user-\/defined arguments (e.\+g., original frame data, input metadata, etc.). (Optional)\\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+Vector of output tensors as smart pointer instances. 
+\end{DoxyReturn}
 \mbox{\Hypertarget{classdxrt_1_1InferenceEngine_a88cea5324cbeb436034adb60cf31050f}\label{classdxrt_1_1InferenceEngine_a88cea5324cbeb436034adb60cf31050f}} 
 \index{dxrt::InferenceEngine@{dxrt::InferenceEngine}!Run@{Run}}
 \index{Run@{Run}!dxrt::InferenceEngine@{dxrt::InferenceEngine}}
-\doxysubsubsection{\texorpdfstring{Run()}{Run()}}
+\doxysubsubsection{\texorpdfstring{Run()}{Run()}\hspace{0.1cm}{\footnotesize\ttfamily [2/2]}}
 {\footnotesize\ttfamily Tensor\+Ptrs dxrt\+::\+Inference\+Engine\+::\+Run (\begin{DoxyParamCaption}\item[{void $\ast$}]{input\+Ptr,  }\item[{void $\ast$}]{user\+Arg = {\ttfamily nullptr},  }\item[{void $\ast$}]{output\+Ptr = {\ttfamily nullptr} }\end{DoxyParamCaption})}
 
 

@@ -26,8 +26,8 @@ namespace dxrt
         void* _usrData;
         long _msgType;
         std::thread _thread;
-        std::atomic<bool> _threadRunning = {false};
-        std::atomic<bool> _stop = {false};
+        std::atomic<bool> _threadRunning{false};
+        std::atomic<bool> _stop{false};
         std::function<int32_t(IPCServerMessage&,void*)> _receiveCB;
         std::map<int, std::shared_ptr<std::promise<IPCServerMessage> > >_waitingCall;
         std::mutex _futureLock;

@@ -1,5 +1,3 @@
-![dxrt_r2](https://user-images.githubusercontent.com/79885630/198581277-3abc611a-a759-455f-9a81-5b4739727162.png)
-
 # DXRT (DEEPX Runtime) by DeepX
 **DXRT** is an inference framework designed for optimized execution of inference tasks using the DEEPX AI accelerator and DEEPX NPU.  
 With simple APIs compatible with various applications, DXRT empowers developers to achieve high-performance inference smoothly.  
@@ -15,8 +13,6 @@ With simple APIs compatible with various applications, DXRT empowers developers 
 ## Supported devices
 |Device|Type|  
 |---|---|  
-|DX_L1|Standalone device|  
-|DX_L2|Standalone device|  
 |DX_M1|AI Accelerator|  
 |DX_H1|AI Accelerator|  
 

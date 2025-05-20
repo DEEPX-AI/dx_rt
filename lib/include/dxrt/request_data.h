@@ -24,6 +24,7 @@ public:
     void* output_ptr;
 
     std::string _processedPU;
+    int _processedDevId;
     int _processedId;
 };
 

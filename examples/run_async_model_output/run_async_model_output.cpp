@@ -37,9 +37,22 @@ static int inferenceThreadFunc(dxrt::InferenceEngine& ie, int loopCount)
             // post processing
             // postProcessing(outputs);
             (void)outputs;
-            if ( outputs.front()->data() != reinterpret_cast<void*>(jobInfo.second) ) 
+
+            // check user buffer pointer
+            bool check_user_buffer = false;
+            for(auto output : outputs)
             {
-                std::cerr << "Output buffer pointer != user output pointer" << std::endl;
+                // Check if the pointer of any of the output buffers is the same as the starting address of the user buffer.
+                if ( output->data() == reinterpret_cast<void*>(jobInfo.second) )
+                {
+                    check_user_buffer = true;
+                    break;
+                }
+            }
+
+            if ( !check_user_buffer ) 
+            {
+                std::cerr << "The output buffer pointer and the user-provided output pointer do not match" << std::endl;
             }
             else 
             {
@@ -104,7 +117,7 @@ int main(int argc, char* argv[])
         auto start = std::chrono::high_resolution_clock::now();
 
         // inference loop
-        gOutputCount = 0;
+        gOutputCount.store(0);
         for(int i = 0; i < loop_count; ++i)
         {
             // no need user argument
@@ -137,7 +150,7 @@ int main(int argc, char* argv[])
         std::cout << "Average Latency: " << avg_latency << " ms" << std::endl;
         std::cout << "FPS: " << fps << " frames/sec" << std::endl;
         std::cout << "loop-count=" << loop_count << " output-count=" << gOutputCount << std::endl;
-        if ( gOutputCount == loop_count ) std::cout << "Success" << std::endl;
+        if ( gOutputCount.load() == loop_count ) std::cout << "Success" << std::endl;
         else std::cout << "Failure" << std::endl;
         std::cout << "-----------------------------------" << std::endl;
     }

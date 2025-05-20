@@ -16,6 +16,8 @@
     #include <cxxabi.h>
 #endif
 
+#include "resource/log_messages.h"
+
 using namespace std;
 using namespace rapidjson;
 using namespace deepx_rmapinfo;
@@ -134,8 +136,11 @@ int LoadBinaryInfo(deepx_binaryinfo::BinaryInfoDatabase& param, char *buffer, in
                 buffer[7] << 24);
     param._dxnnFileFormatVersion = dxnnFileFormatVersion;
 
-    //DXRT_ASSERT(verInfo >= 6, "No support for dxnn versions below 6.");
-    if ( dxnnFileFormatVersion < MIN_SINGLEFILE_VERSION ) throw ModelPasrsingException(string("No support for dxnn versions below "+MIN_SINGLEFILE_VERSION));
+    // if verInfo >= 6, "No support for dxnn versions below 6."
+    if ( dxnnFileFormatVersion < MIN_SINGLEFILE_VERSION )
+    {
+        throw ModelParsingException(EXCEPTION_MESSAGE(LogMessages::NotSupported_ModelFileFormatVersion(dxnnFileFormatVersion, MIN_SINGLEFILE_VERSION)));
+    }
     sizeInfo = 8192;
 
     headerInfo = string(buffer+offset,sizeInfo-offset);
@@ -957,7 +962,7 @@ std::tuple<int, int, int> convertVersion(const string& vers)
 }
 bool isSupporterModelVersion(const string& vers)
 {
-    auto min_version = convertVersion(std::string(MIN_CG_VERSION));
+    auto min_version = convertVersion(std::string(MIN_COMPILER_VERSION));
     auto this_version = convertVersion(vers);
     return this_version >= min_version;
 }

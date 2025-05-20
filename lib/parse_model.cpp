@@ -206,7 +206,7 @@ int ParseModel(string file)
     for (auto& taskData : dataList)
     {
         cout << dec << "  Task[" <<taskData._id << "] " << taskData._name
-            << ", " << taskData._processor << ", " << taskData._memUsage
+            << ", " << taskData._processor << ", memory-usage " << taskData._memUsage
             << " bytes (input " << taskData._inputSize << ", output " << taskData._outputSize << ")" << endl;
         cout << "    inputs" << endl;
         for (auto &tensor : taskData._inputTensors) cout << "      " << tensor << endl;

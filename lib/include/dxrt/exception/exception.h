@@ -99,10 +99,10 @@ namespace dxrt {
 
     };
 
-    class DXRT_API ModelPasrsingException : public Exception
+    class DXRT_API ModelParsingException : public Exception
     {
     public:
-        ModelPasrsingException(const std::string& msg = "");
+        ModelParsingException(const std::string& msg = "");
 
     };
     

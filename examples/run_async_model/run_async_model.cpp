@@ -8,7 +8,7 @@
 #include <iostream>
 
 
-static std::atomic<int> gCallbackCnt = {0};
+static std::atomic<int> gCallbackCnt{0};
 static ConcurrentQueue<int> gResultQueue(1);
 static std::mutex gCBMutex;
 
@@ -36,9 +36,10 @@ static int onInferenceCallbackFunc(dxrt::TensorPtrs &outputs, void *userArg)
         gCallbackCnt ++;
 
         // end of the loop
-        if ( user_data->second == gCallbackCnt ) // check loop count
+        int cbCount = gCallbackCnt.load();
+        if ( user_data->second == cbCount ) // check loop count
         {
-            gResultQueue.push(gCallbackCnt);
+            gResultQueue.push(cbCount);
         }
     }
 

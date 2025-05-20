@@ -8,7 +8,7 @@
 #include <string>
 #include <sstream>
 #include <algorithm>
-int dxrt_service_main();
+int dxrt_service_main(int argc, char* argv[]);
 
 
 
@@ -109,7 +109,7 @@ int main(int argc, char* argv[])
         return -1;
     }
 #ifdef USE_SERVICE
-    return dxrt_service_main();
+    return dxrt_service_main(argc, argv);
 #else
     std::cout << "USE_SERVICE is not set, so dxrt_service will not work" << std::endl;
     return -1;

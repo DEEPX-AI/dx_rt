@@ -52,11 +52,11 @@ int32_t IPCPipeClientWindows::deQue(IPCServerMessage& m)
 	unique_lock<mutex> lk(_queMt);
 	_queCv.wait(
 		lk, [this] {
-			return _que.size() || _stop;
+			return _que.size() || _stop.load();
 		}
 	);
 	// LOG_DXRT_DBG << threadName << " : wake up. (" << _que.size() << ") " << endl;
-	if (_stop) {
+	if (_stop.load()) {
 		// LOG_DXRT_DBG << threadName << " : requested to stop thread." << endl;
 		return -1; //
 	}
@@ -135,7 +135,7 @@ int32_t IPCPipeClientWindows::ReceiveFromServer(IPCServerMessage& serverMessage)
 // close the connection
 int32_t IPCPipeClientWindows::Close()
 {
-    if ( _threadRunning )	{
+    if ( _threadRunning.load() )	{
         RegisterReceiveCB(nullptr, nullptr);
     }
 	_pipe.Close();
@@ -145,9 +145,9 @@ int32_t IPCPipeClientWindows::Close()
 // register receive message callback function
 int32_t IPCPipeClientWindows::RegisterReceiveCB(std::function<int32_t(IPCServerMessage&,void*)> receiveCB, void* usrData)
 {
-    if ( _threadRunning )
+    if ( _threadRunning.load() )
     {
-        _threadRunning = false;
+        _threadRunning.store(false);
         /*if ( _thread.joinable() )
         {
             _thread.join();
@@ -162,7 +162,7 @@ int32_t IPCPipeClientWindows::RegisterReceiveCB(std::function<int32_t(IPCServerM
         _receiveCB = receiveCB;
         _usrData = usrData;
         if ( _receiveCB != nullptr )	{
-            _threadRunning = true;
+            _threadRunning.store(true);
             _thread = std::thread(IPCPipeClientWindows::ThreadFunc, this);
             LOG_DXRT_I_DBG << "IPCPipeClientWindows: Created Callback Thread" << std::endl;
         }
@@ -172,7 +172,7 @@ int32_t IPCPipeClientWindows::RegisterReceiveCB(std::function<int32_t(IPCServerM
 
 void IPCPipeClientWindows::ThreadFunc(IPCPipeClientWindows* _pipe)
 {
-    while(true)// mqClient->_threadRunning)
+    while(true)// mqClient->_threadRunning.load())
     {
         IPCServerMessage serverMessage;
         serverMessage.msgType = getpid();

@@ -42,7 +42,7 @@ namespace dxrt
         int32_t ReceiveFromServer(IPCServerMessage& serverMessage);
 
         // register receive message callback function
-        int32_t RegisterReceiveCB(std::function<int32_t(IPCServerMessage&,void*)> receiveCB, void* usrData);
+        int32_t RegisterReceiveCB(std::function<int32_t(const IPCServerMessage&,void*)> receiveCB, void* usrData);
 
         // clear all messages
         int32_t ClearMessages();

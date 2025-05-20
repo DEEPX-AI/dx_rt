@@ -32,7 +32,7 @@ static std::shared_ptr<SimpleCircularBufferPool<uint8_t>> gInputBufferPool_B;
 static std::shared_ptr<SimpleCircularBufferPool<uint8_t>> gFrameBufferPool;
 
 // total display count
-static std::atomic<int> gTotalDisplayCount = {0};
+static std::atomic<int> gTotalDisplayCount{0};
 
 
 static void postProcessingA(uint8_t* buffer, dxrt::TensorPtrs& outputA)
@@ -55,7 +55,7 @@ static void postProcessingB(dxrt::TensorPtrs& outputB)
 static int displayThreadFunc(int loopCount, dxrt::InferenceEngine& ieB)
 {
 
-    while(gTotalDisplayCount < loopCount)
+    while(gTotalDisplayCount.load() < loopCount)
     {
         // consumer framebuffer & jobIds
         auto frameJobId = gDisplayQueue.pop();
@@ -80,7 +80,7 @@ static int displayThreadFunc(int loopCount, dxrt::InferenceEngine& ieB)
 static int cpuOperationThreadFunc(int loopCount, dxrt::InferenceEngine& ieA, dxrt::InferenceEngine& ieB)
 {
 
-    while(gTotalDisplayCount < loopCount)
+    while(gTotalDisplayCount.load() < loopCount)
     {
         // consumer framebuffer & jobIds
         auto frameJobIdA = gCPUOPQueue.pop();
@@ -214,8 +214,8 @@ int main(int argc, char* argv[])
         std::cout << "Average Latency: " << avg_latency << " ms" << std::endl;
         std::cout << "FPS: " << fps << " frames/sec" << std::endl;
 
-        result = gTotalDisplayCount == loop_count;
-        std::cout << "Total count=(" << gTotalDisplayCount << "/" << loop_count << ") " 
+        result = gTotalDisplayCount.load() == loop_count;
+        std::cout << "Total count=(" << gTotalDisplayCount.load() << "/" << loop_count << ") " 
                 << ( result ? "Success" : "Failure") << std::endl;
         std::cout << "-----------------------------------" << std::endl;
 

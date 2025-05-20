@@ -124,7 +124,7 @@ static int onInferenceCallbackFunc(dxrt::TensorPtrs &outputs, void *userArg)
         std::lock_guard<std::mutex> lock(gCBMutex);
 
         gResultCount++;
-        if ( gResultCount == gTotalCount ) gResultQueue.push(0);
+        if ( gResultCount.load() == gTotalCount.load() ) gResultQueue.push(0);
     }
 
     // delete argument object
@@ -172,7 +172,7 @@ int main(int argc, char* argv[])
         // create temporary input buffer for example
         std::vector<uint8_t> inputPtr(ie.GetInputSize(), 0);
 
-        gTotalCount = loop_count * THREAD_COUNT;
+        gTotalCount.store(loop_count * THREAD_COUNT);
 
         // thread vector 
         std::vector<std::thread> thread_array;
@@ -196,7 +196,7 @@ int main(int argc, char* argv[])
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> duration = end - start;
 
-        result = (gResultCount == loop_count * THREAD_COUNT);
+        result = (gResultCount.load() == (loop_count * THREAD_COUNT));
 
         double total_time = duration.count();
         double avg_latency = total_time / static_cast<double>(loop_count);
@@ -206,7 +206,7 @@ int main(int argc, char* argv[])
         std::cout << "Total Time: " << total_time << " ms" << std::endl;
         std::cout << "Average Latency: " << avg_latency << " ms" << std::endl;
         std::cout << "FPS: " << fps << " frames/sec" << std::endl;
-        std::cout << "Total count=(" << gResultCount << "/" << loop_count * THREAD_COUNT << ") " 
+        std::cout << "Total count=(" << gResultCount.load() << "/" << loop_count * THREAD_COUNT << ") " 
                 << (result ? "Success" : "Failure") << std::endl;
         std::cout << "-----------------------------------" << std::endl;
 

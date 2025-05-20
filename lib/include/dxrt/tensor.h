@@ -7,9 +7,12 @@
 #include "dxrt/datatype.h"
 
 namespace dxrt {
+
 enum DataType;
 class Device;
 class Task;
+class InferenceEngine;
+
 /** \brief This class abstracts DXRT tensor object, which defines data array composed of uniform elements.
  * \details Generally, this should be connected to any inference engine objects.
  * \headerfile "dxrt/dxrt_api.h"
@@ -19,8 +22,11 @@ class DXRT_API Tensor
 public:
     Tensor(std::string name_, std::vector<int64_t> shape_, DataType type_, void *data_=nullptr);
     Tensor(const Tensor &tensor_, void *data_=nullptr);
+    Tensor& operator=(const dxrt::Tensor&) = default;
+    Tensor& operator= (Tensor&& tensor) = default;
+    Tensor (Tensor&& tensor) = default;
     ~Tensor();    
-    std::string &name();
+    const std::string &name() const;
     std::vector<int64_t> &shape();
     DataType &type();    
     void* &data(); // data pointer
@@ -37,7 +43,13 @@ public:
      * \return address of the element [N, height, width, channel] (N=1 for current ver.)
     */
     void* data(int height, int width, int channel);
+
     friend DXRT_API std::ostream& operator<<(std::ostream&, const Tensor&);
+    friend InferenceEngine;
+
+private:
+    void setDataReleaseFlag(bool flag);
+
 private:
     std::string _name;
     std::vector<int64_t> _shape;
@@ -46,6 +58,9 @@ private:
     uint64_t _phyAddr = 0;
     uint32_t _inc; // addr. increasement for shape[2]
     uint32_t _elemSize;
+
+    // release flag
+    bool _dataReleaseFlag = false;
 };
 using Tensors = std::vector<Tensor>;
 using TensorPtr = std::shared_ptr<Tensor>;

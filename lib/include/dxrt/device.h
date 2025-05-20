@@ -7,6 +7,7 @@
 #include <mutex>
 #include <atomic>
 #include <thread>
+#include <string>
 #include <condition_variable>
 #include "dxrt/common.h"
 #include "dxrt/request_data.h"
@@ -96,6 +97,7 @@ public:
     int UpdateFw(std::string fwFile, int subCmd = 0);
     int UploadFw(std::string fwFile, int subCmd = 0);
     int UpdateFwConfig(std::string jsonFile);
+    uint32_t UploadModel(std::string filePath, uint64_t base_addr);
     void DoCustomCommand(void *data, uint32_t subCmd, uint32_t size = 0);
     std::shared_ptr<FwLog> GetFwLog();
     int64_t Allocate(uint64_t size);
@@ -110,17 +112,22 @@ public:
     Tensors outputs(int taskId);
     friend DXRT_API std::ostream& operator<<(std::ostream &, const Device&);
 
-    dxrt_request_acc_t* peekInferenceAcc(int requestId);
-    dxrt_request_t* peekInferenceStd(int requestId);
-    void popInferenceStruct(int requestId);
+    dxrt_request_acc_t peekInferenceAcc(uint32_t requestId);
+    dxrt_request_t* peekInferenceStd(uint32_t requestId);
+    void popInferenceStruct(uint32_t requestId);
     void signalToWorker(int channel);
     void signalToDevice(npu_bound_op boundOp);
     void signalToDeviceDeInit(npu_bound_op boundOp);
     void Deallocate_npuBuf(int64_t addr, int taskId);
+    void StartDev();
+    bool isBlocked(){return _isBlocked.load();}
+    void block(){_isBlocked.store(true);}
+    void unblock(){_isBlocked.store(false);}
 #ifdef USE_SERVICE
     void SignalToService(dxrt_request_acc_t* npu_inference_acc);
     void ProcessResponseFromService(const dxrt_response_t& resp);
-#endif
+    #endif
+    std::unordered_map<int, std::vector< dxrt_model_t >> _npuModel;
 protected:
     int _id = 0;
     DeviceType _type = DeviceType::ACC_TYPE; /* 0: ACC type, 1: STD type */
@@ -140,7 +147,7 @@ protected:
     dxrt_device_status_t _status;
     dxrt_dev_info_t _devInfo;
     uint32_t _subCmd;
-    std::atomic<int> _load {0};
+    std::atomic<int> _load{0};
     int _inferenceCnt = 0;
     bool _hasWorkers = false;
     Profiler &_profiler;
@@ -150,7 +157,6 @@ protected:
     std::thread _thread;
     std::mutex _lock;
     std::atomic<bool> _stop {false};
-    std::unordered_map<int, std::vector< dxrt_model_t >> _npuModel;
     std::unordered_map<int, std::vector< dxrt_request_t >> _npuInference;
     std::unordered_map<int, std::vector< dxrt_request_acc_t >> _npuInferenceAcc;
     std::unordered_map<int, std::vector<Tensors>> _inputTensors;
@@ -166,8 +172,8 @@ protected:
     std::shared_ptr<DeviceEventWorker> _eventWorker = nullptr;
     //std::shared_ptr<Buffer> _buffer = nullptr;
     std::shared_ptr<DriverAdapter> _driverAdapter;
-    std::atomic<int> _readChannel = {0};
-    std::atomic<int> _writeChannel = {0};
+    std::atomic<int> _readChannel{0};
+    std::atomic<int> _writeChannel{0};
     int RegisterTask_STD(TaskData *task);
     int RegisterTask_ACC(TaskData *task);
     int InferenceRequest_STD(RequestData* req, npu_bound_op boundOp);
@@ -180,10 +186,12 @@ protected:
     NpuMemoryCacheManager _npuMemoryCacheManager;
     std::mutex _npuInferenceLock;
 
+    std::atomic<bool> _isBlocked = {false};
+
 };
 
 extern DXRT_API std::shared_ptr<Device> PickOneDevice(std::vector<std::shared_ptr<Device>> &devices_);
-extern DXRT_API std::vector<std::shared_ptr<Device>> CheckDevices(SkipMode skip = NONE, uint32_t subCmd = 0);
+extern DXRT_API std::vector<std::shared_ptr<Device>>& CheckDevices(SkipMode skip = NONE, uint32_t subCmd = 0);
 extern DXRT_API void WaitDeviceResponses(std::vector<std::shared_ptr<Device>> &devices_); // temp.
 DXRT_API std::ostream& operator<<(std::ostream&, const dxrt_device_status_t&);
 DXRT_API std::ostream& operator<<(std::ostream& os, const dxrt_device_info_t& info);

@@ -3,6 +3,7 @@ import os
 import numpy as np
 import argparse
 from dx_engine import InferenceEngine
+from dx_engine import InferenceOption
 from enum import Enum
 
 class RunModelMode(Enum):
@@ -30,7 +31,7 @@ def parseArgs():
     parser.add_argument("--benchmark", "-b", action="store_true", default=False, help="Perform a benchmark test (Maximum throughput)")
     parser.add_argument("--single", "-s", action="store_true", default=False, help="Perform a single run test (Sequential single-input inference on a single-core)")
     parser.add_argument("--loops", "-l", type=int, default=1, help="Loops to test")
-
+    parser.add_argument("--use_ort", action="store_true", default=False, help="use ONNX Runtime")
     args = parser.parse_args()
 
     if not os.path.exists(args.model):
@@ -53,7 +54,10 @@ if __name__ == "__main__":
     print(f"input file: {args.input}")
     print(f"output file: {args.output}")
 
-    ie = InferenceEngine(args.model)
+    io = InferenceOption()
+    io.set_use_ort(args.use_ort)
+
+    ie = InferenceEngine(args.model, io)
     input_dtype = ie.get_input_data_type()
     output_dtype = ie.get_output_data_type()
     input_size = ie.get_input_size()
