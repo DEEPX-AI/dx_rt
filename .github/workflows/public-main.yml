@@ -40,7 +40,7 @@ jobs:
             - name: Get to tag
               run: echo "TO_TAG=${{ github.event.head_commit.message }}" >> $GITHUB_ENV
    
-             - name: Get current release tag
+            - name: Get current release tag
               run: |
                 CURRENT_RELEASE_TAG=$(curl -s -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
                 "https://api.github.com/repos/DEEPX-AI/dx_rt/releases/latest" | jq -r .tag_name | cut -d+ -f1)
