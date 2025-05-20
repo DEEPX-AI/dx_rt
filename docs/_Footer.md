@@ -1,1 +1,0 @@
-Copyright 2022. dxrt team, All rights reserved.

@@ -136,4 +136,12 @@ class DXRT_API FWLogCommand : public CLICommand
     void doCommand(DevicePtr devicePtr) override;
 };
 
+class DXRT_API ShowVersionCommand : public CLICommand
+{
+ public:
+    explicit ShowVersionCommand(cxxopts::ParseResult &);
+ private:
+    void doCommand(DevicePtr devicePtr) override;
+};
+
 }  // namespace dxrt

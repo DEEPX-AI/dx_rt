@@ -35,7 +35,7 @@ using DevicePtr = std::shared_ptr<Device>;
 class DXRT_API DeviceStatus
 {
  public:
-    static DeviceStatus GetCurrentStatus(DevicePtr device);
+    static DeviceStatus GetCurrentStatus(DevicePtr& device);
     /**
      * @brief Retrieves the real-time status information for a specified device.
      * 
@@ -264,6 +264,11 @@ class DXRT_API DeviceStatus
      * @return A formatted string containing the status of the specified LPDDR memory channel.
      */
     std::string DdrStatusStr(int ch) const;
+
+    /**
+     * @brief Retrieves the count of lpddr Double-bit & Single-bit Error
+     */
+    std::string DdrBitErrStr(void) const;
 
     /**
      * @brief Retrieves the firmware version of the NPU.

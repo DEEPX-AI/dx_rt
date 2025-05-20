@@ -32,8 +32,13 @@ shared_ptr<DeviceInputWorker> DeviceInputWorker::Create(string name_, int numThr
 int DeviceInputWorker::request(int requestId)
 {
     unique_lock<mutex> lk(_lock);
+    RequestPtr req = Request::GetById(requestId); //for DEBUG
     _queue.push(requestId);
-    signalToWorker();
+    if(requestId%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || requestId%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
+    {
+        cout<<"[PROC         ][Job_"<<req->getData()->jobId<<"][Req_"<<requestId<<"][Dev_"<<_device->id()<<"][Buffer] Input Notify all"<<endl;
+    }
+    _cv.notify_all();
 
     return 0;
 }
@@ -41,42 +46,36 @@ int DeviceInputWorker::request(int requestId)
 void DeviceInputWorker::ThreadWork(int id)
 {
     string threadName = getName() +"_t"+ to_string(id);
-    thread::id thisId = this_thread::get_id();
+    //thread::id thisId = this_thread::get_id();
     int loopCnt = 0;  // int processCnt = 0;
     LOG_DXRT_DBG << getName() << " : Entry" << endl;
     int load;
     int ret;
     uint32_t type = _device->info().type;
     int deviceId = _device->id();
+    int dma_ch = _device->info().num_dma_ch;
+    bool cycle_ch = ((static_cast<size_t>(dma_ch) > _threads.size()) && (dma_ch > 1));
 #ifdef USE_PROFILER
     auto& profiler = dxrt::Profiler::GetInstance();
 #endif
     dxrt_cmd_t cmd = //static_cast<dxrt_cmd_t>(static_cast<int>(dxrt::dxrt_cmd_t::DXRT_CMD_WRITE_INPUT_DMA_CH0)+id);
         dxrt::dxrt_cmd_t::DXRT_CMD_NPU_RUN_REQ;
-    while (true)
+    while (_stop.load(memory_order_acquire) == false)
     {
         LOG_DXRT_DBG << threadName << " : wait" << endl;
         unique_lock<mutex> lk(_lock);
         _cv.wait(
             lk, [this] {
-                return _queue.size() || _stop;
+                return _queue.size() || _stop.load(std::memory_order_acquire);
             }
         );
-        if (_stop)
+        if (_stop.load(std::memory_order_acquire))
         {
             LOG_DXRT_DBG << threadName << " : requested to stop thread." << endl;
             while (!_queue.empty()) {
                 _queue.pop();
             }
-            auto it = find_if(_threads.begin(), _threads.end(),
-                [thisId](thread& t) { return t.get_id() == thisId; });
-            if (it != _threads.end()) {
-                LOG_DXRT_DBG<<threadName<<" Detaching..."<<endl;
-                it->detach();
-                _threads.erase(it);
-                LOG_DXRT_DBG << threadName << " : removed itself from input worker threads. Remaining: " 
-                    << _threads.size() <<endl;
-            }
+
             if (id == 0)
                 LOG << "NPU DEVICE [" << deviceId << "] Average Load: " << GetAverageLoad() <<"  (Load "<<DXRT_TASK_MAX_LOAD<<": high utilization; Load 1: low utilization)"<< endl;    
             break;
@@ -90,21 +89,31 @@ void DeviceInputWorker::ThreadWork(int id)
         if (type == static_cast<uint32_t>(DeviceType::ACC_TYPE))
         {
             auto inferenceAcc = _device->peekInferenceAcc(requestId);
-            inferenceAcc->dma_ch = id;
+            int channel = id;
+            
+            if (cycle_ch)
+            {
+                channel = loopCnt % dma_ch; 
+            }
+            inferenceAcc.dma_ch = channel;
             RequestPtr req = Request::GetById(requestId);
             if (SKIP_INFERENCE_IO != 1)
             {
                 TASK_FLOW("["+to_string(req->job_id())+"]"+req->taskData()->name()+" write input, load: "+to_string(load));
 #ifdef USE_PROFILER
-                profiler.Start("PCIe Write(" + to_string(inferenceAcc->dma_ch)+")");
+                profiler.Start("PCIe Write(" + to_string(inferenceAcc.dma_ch)+")");
 #endif
-                _device->Write(inferenceAcc->input, id);
+                _device->Write(inferenceAcc.input, channel);
+                if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
+                {
+                    cout<<"[    IN_W     ][Job_"<<req->getData()->jobId<<"][Req_"<<req->id()<<"][Dev_"<<deviceId<<"][Buffer] INPUT2DEV"<<endl;
+                }
 #ifdef USE_PROFILER
-                profiler.End("PCIe Write(" + to_string(inferenceAcc->dma_ch)+")");
+                profiler.End("PCIe Write(" + to_string(inferenceAcc.dma_ch)+")");
 #endif
             }
 #ifdef USE_SERVICE
-            if (Configuration::GetInstance()->GetEnable(Configuration::ITEM::SERVICE))
+            if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE))
             {
                 if (DEBUG_DATA > 0)
                 {
@@ -112,16 +121,21 @@ void DeviceInputWorker::ThreadWork(int id)
                 }
                 std::ignore = ret;
                 TASK_FLOW("["+to_string(req->job_id())+"]"+req->taskData()->name()+" signal to service input");
-                _device->SignalToService(inferenceAcc);
+
+                _device->SignalToService(&inferenceAcc);
+                if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
+                {
+                    cout<<"[    IN_W     ][Job_"<<req->getData()->jobId<<"][Req_"<<req->id()<<"][Dev_"<<deviceId<<"][Buffer] SIG2SVC"<<endl;
+                }
             }
             else
 #endif
             {
-                while (true)
+                while (_stop.load(memory_order_acquire) == false)
                 {
-                    ret = _device->Process(cmd, inferenceAcc);
-                    LOG_DXRT_DBG << "Input signalled " << id << " " << inferenceAcc->req_id<< endl;
-                    if (ret == 0 || _stop)
+                    ret = _device->Process(cmd, &inferenceAcc);
+                    LOG_DXRT_DBG << "Input signalled " << id << " " << inferenceAcc.req_id<< endl;
+                    if (ret == 0 || _stop.load())
                     {
                         if (DEBUG_DATA > 0)
                         {
@@ -137,7 +151,7 @@ void DeviceInputWorker::ThreadWork(int id)
                     if (ret != ERROR_BUSY)
 #endif
                     {
-                        inferenceAcc->input.data = 0;
+                        inferenceAcc.input.data = 0;
                     }
                 }
             }
@@ -162,6 +176,7 @@ void DeviceInputWorker::ThreadWork(int id)
 
 void DeviceInputWorker::signalToWorker()
 {
+    std::unique_lock<std::mutex> lock (_lock);
     _cv.notify_all();
 }
 

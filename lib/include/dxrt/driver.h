@@ -16,8 +16,10 @@ namespace dxrt {
 /* RT/driver sync     */
 
 typedef enum {
+    DXRT_EVENT_NONE,
     DXRT_EVENT_ERROR,
     DXRT_EVENT_NOTIFY_THROT,
+    DXRT_EVENT_RECOVERY,
     DXRT_EVENT_NUM,
 } dxrt_event_t;
 
@@ -72,6 +74,13 @@ typedef enum _npu_bound_op {
     N_BOUND_INF_2_NPU_02,   /* Infrence with 2-npu */
     N_BOUND_INF_MAX,
 } npu_bound_op;
+
+typedef enum {
+    DXRT_RECOV_RMAP     = 1,
+    DXRT_RECOV_WEIGHT   = 2,
+    DXRT_RECOV_CPU      = 3,
+    DXRT_RECOV_DONE     = 4,
+} dxrt_recov_t;
 
 typedef struct _dx_pcie_dev_err {
     uint32_t err_code;
@@ -131,6 +140,17 @@ typedef struct _dx_pcie_dev_ntfy_throt {
     uint32_t throt_temper;
 } dx_pcie_dev_ntfy_throt_t;
 
+typedef struct {
+    uint32_t action;
+} dx_pcie_dev_recovery_t;
+
+/* CMD : DXRT_CMD_CUSTOM, SUBCMD : WEIGHT_INFO */
+typedef struct {
+    uint32_t address;   /* weight base address of device memory */
+    uint32_t size;      /* weight size */
+    uint32_t checksum;  /* Bitwiase XOR */
+} dxrt_custom_weight_info_t;
+
 #pragma pack(push, 1)
 typedef struct otp_info {
     uint32_t    JEP_ID : 8;
@@ -156,6 +176,7 @@ typedef struct _dx_pcie_dev_event {
     union {
         dx_pcie_dev_err_t           dx_rt_err;
         dx_pcie_dev_ntfy_throt_t    dx_rt_ntfy_throt;
+        dx_pcie_dev_recovery_t      dx_rt_recv;
     };
 } dx_pcie_dev_event_t;
 
@@ -177,6 +198,7 @@ typedef struct device_info {
     uint16_t interface_value = 0;
 #endif
     char     fw_info[64] = "";
+    uint16_t chip_offset = 0;
 } dxrt_device_info_t;
 
 typedef struct _dxrt_meminfo_t {
@@ -287,6 +309,7 @@ typedef enum {
     DXRT_CMD_UPDATE_CONFIG_JSON ,
     DXRT_CMD_RECOVERY           ,
     DXRT_CMD_CUSTOM             , /* Sub-command */
+    DXRT_CMD_START              ,
     DXRT_CMD_MAX,
 } dxrt_cmd_t;
 
@@ -310,6 +333,10 @@ typedef enum {
     DX_SET_DDR_FREQ         = 1,
     DX_GET_OTP              = 2,
     DX_SET_OTP              = 3,
+    DX_SET_LED              = 4,
+    DX_ADD_WEIGHT_INFO      = 5,
+    DX_DEL_WEIGHT_INFO      = 6,
+    DX_UPLOAD_MODEL         = 100,
 } dxrt_custom_sub_cmt_t;
 
 typedef enum device_type

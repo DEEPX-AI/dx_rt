@@ -7,7 +7,7 @@
 option(ENABLE_CODE_COVERAGE "Enable code coverage inspection" OFF)
 option(ENABLE_ADDRESS_COVERAGE "Enable address coverage inspection(overflow, use-after-free..)" OFF)
 option(ENABLE_MEMORY_COVERAGE "Enable memory coverage inspection(uninit memory)" OFF)
-option(ENABLE_MEMORY_LEAKEAGE "Enable memory leakeage inspection" OFF)
+option(ENABLE_MEMORY_LEAKAGE "Enable memory leakage inspection" OFF)
 option(ENABLE_UNDEFINED_BEHAVIOR "Enable undefined behavior inspection" OFF)
 option(ENABLE_THREAD_COVERAGE "Enable thread inspection for race condition" OFF)
 
@@ -36,7 +36,7 @@ if (ENABLE_MEMORY_COVERAGE)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=memory")
 endif()
 
-if (ENABLE_MEMORY_LEAKEAGE)
+if (ENABLE_MEMORY_LEAKAGE)
     message(STATUS "Using LSAN(leak sanitizer) for memory analysis")
 
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=leak -fno-omit-frame-pointer -g")
@@ -59,4 +59,3 @@ if (ENABLE_THREAD_COVERAGE)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=thread -g")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=thread")
 endif()
-

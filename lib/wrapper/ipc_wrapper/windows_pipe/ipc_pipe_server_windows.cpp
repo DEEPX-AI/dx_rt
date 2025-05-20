@@ -159,11 +159,11 @@ int32_t IPCPipeServerWindows::deQue(IPCClientMessage& m)
 	unique_lock<mutex> lk(_queMt);
 	_queCv.wait(
 		lk, [this] {
-			return _que.size() || _stop;
+			return _que.size() || _stop.load();
 		}
 	);
 	// LOG_DXRT_DBG << threadName << " : wake up. (" << _que.size() << ") " << endl;
-	if (_stop) {
+	if (_stop.load()) {
 		// LOG_DXRT_DBG << threadName << " : requested to stop thread." << endl;
 		return -1; //
 	}

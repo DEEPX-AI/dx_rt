@@ -5,6 +5,7 @@
 #include "dxrt/device_version.h"
 #include "dxrt/driver.h"
 #include "dxrt/exception/exception.h"
+#include "resource/log_messages.h"
 
 using namespace std;
 
@@ -18,6 +19,7 @@ DxDeviceVersion::DxDeviceVersion(Device *device, uint16_t fw_ver, int type, int 
     _variant   = variant;
     _type      = static_cast<dxrt_device_type_t>(type);
     _interface = static_cast<dxrt_device_interface_t>(interface_value);
+    memset(&devInfo,0, sizeof(dxrt_dev_info_t));
 }
 
 dxrt_dev_info_t DxDeviceVersion::GetVersion(void)
@@ -57,28 +59,31 @@ void DxDeviceVersion::CheckVersion(void)
     LOG_DXRT_DBG << " ** DeepX version Check ** " << endl;
     {
         (void)GetVersion();
-        // cout << "[ Fw Ver:" << _fw_ver << ", Rt Ver:"<< devInfo.rt_drv_ver <<", PCIe Ver:" << devInfo.pcie.driver_version << " ]" << endl;
+
         if (_interface == DEVICE_INTERFACE_FPGA)
         {
-            //DXRT_ASSERT(!(devInfo.rt_drv_ver < RT_DRV_VERSION_CHECK), 
-            //    "The current device driver version " +  to_string(devInfo.rt_drv_ver) + " must be higher than recommended ( > " + to_string(RT_DRV_VERSION_CHECK) + " ).");
             if ( devInfo.rt_drv_ver < RT_DRV_VERSION_CHECK ) 
-                throw InvalidOperationException(EXCEPTION_MESSAGE("The current device driver version " +  to_string(devInfo.rt_drv_ver) + " must be higher than recommended ( > " + to_string(RT_DRV_VERSION_CHECK) + " )"));
+            {
+                throw InvalidOperationException(EXCEPTION_MESSAGE(LogMessages::NotSupported_DeviceDriverVersion(devInfo.rt_drv_ver, RT_DRV_VERSION_CHECK)));
+            }
         }
+
         if((_interface == DEVICE_INTERFACE_ASIC) && (_type == DEVICE_TYPE_ACCELERATOR))
         {
-            uint16_t fw_ver = 0;
-            //DXRT_ASSERT(!(devInfo.pcie.driver_version < PCIE_VERSION_CHECK),
-            //    "The current PCIE driver version " +  to_string(devInfo.pcie.driver_version) + " must be higher than recommended ( > " + to_string(PCIE_VERSION_CHECK) + " ).");
+            if ( devInfo.rt_drv_ver < RT_DRV_VERSION_CHECK ) 
+            {
+                throw InvalidOperationException(EXCEPTION_MESSAGE(LogMessages::NotSupported_DeviceDriverVersion(devInfo.rt_drv_ver, RT_DRV_VERSION_CHECK)));
+            }
+
             if ( devInfo.pcie.driver_version < PCIE_VERSION_CHECK )
-                throw InvalidOperationException(EXCEPTION_MESSAGE("The current PCIE driver version " +  to_string(devInfo.pcie.driver_version) + " must be higher than recommended ( > " + to_string(PCIE_VERSION_CHECK) + " )"));
+            {
+                throw InvalidOperationException(EXCEPTION_MESSAGE(LogMessages::NotSupported_PCIEDriverVersion(devInfo.pcie.driver_version, PCIE_VERSION_CHECK)));
+            }
 
-
-            fw_ver = FW_VERSION_CHECK;
-            //DXRT_ASSERT(!(_fw_ver < fw_ver),
-            //    "The current firmware version " +  to_string(_fw_ver) + " must be higher than recommended ( > " + to_string(fw_ver) + " )");
-            if ( _fw_ver < fw_ver )
-                throw InvalidOperationException(EXCEPTION_MESSAGE("The current firmware version " +  to_string(_fw_ver) + " must be higher than recommended ( > " + to_string(fw_ver) + " )"));
+            if ( _fw_ver < FW_VERSION_CHECK )
+            {
+                throw InvalidOperationException(EXCEPTION_MESSAGE(LogMessages::NotSupported_FirmwareVersion(_fw_ver, FW_VERSION_CHECK)));
+            }
         }
     }
 }

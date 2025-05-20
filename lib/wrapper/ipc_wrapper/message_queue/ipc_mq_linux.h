@@ -34,7 +34,7 @@ namespace dxrt
     private:
 
         int _msgId;
-        std::atomic<bool> _stop = {false};
+        std::atomic<bool> _stop{false};
     public:
 
         IPCMessageQueueLinux();

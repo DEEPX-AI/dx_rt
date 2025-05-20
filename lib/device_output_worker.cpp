@@ -47,6 +47,10 @@ void DeviceOutputWorker::ThreadWork(int id)
 {
     std::string threadName = getName() +"_t"+ to_string(id);
     thread::id this_id = this_thread::get_id();
+    std::ignore = this_id;
+    int dma_ch = _device->info().num_dma_ch;
+    bool cycle_ch = ((static_cast<size_t>(dma_ch) > _threads.size()) && (dma_ch > 1));
+
     int loopCnt = 0, ret=0;
     std::shared_ptr<TimePoint> tp = nullptr;
     LOG_DXRT_DBG << getName() << " : Entry" << endl;
@@ -56,18 +60,25 @@ void DeviceOutputWorker::ThreadWork(int id)
 #endif
     dxrt_cmd_t cmd = //static_cast<dxrt_cmd_t>(static_cast<int>(dxrt::dxrt_cmd_t::DXRT_CMD_READ_OUTPUT_DMA_CH0)+id);
         dxrt::dxrt_cmd_t::DXRT_CMD_NPU_RUN_RESP;
-    while (true)
+
+
+#ifdef USE_SERVICE
+    if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE) == false)
+#endif
+    _useSystemCall = true;
+
+
+    while (_stop.load(memory_order_acquire) == false)
     {
         LOG_DXRT_DBG << threadName << " : wait" << endl;
         dxrt_response_t response;
 #ifdef USE_SERVICE
-        std::unique_lock<std::mutex> lk(_lock, std::defer_lock);
-        if (Configuration::GetInstance()->GetEnable(Configuration::ITEM::SERVICE))
+        if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE))
         {
-            lk.lock();
+            std::unique_lock<std::mutex> lk(_lock);
             _cv.wait(
                 lk, [this] {
-                    return _queue.size() || _stop;
+                    return _queue.size() || _stop.load(std::memory_order_acquire);
                 }
             );
             LOG_DXRT_DBG << threadName << " : wake up. " << endl;
@@ -75,25 +86,18 @@ void DeviceOutputWorker::ThreadWork(int id)
             tp = std::make_shared<TimePoint>();
             tp->end = ProfilerClock::now();
 #endif
-            if (_stop)
+            if (_stop.load(std::memory_order_acquire))
             {
-                LOG_DXRT_DBG << threadName << " : requested to stop thread." << endl;
+                LOG_DXRT_DBG << threadName << " : requested to stop thread." << this_id << endl;
                 while (!_queue.empty()) {
                     _queue.pop();
                 }
-                auto it = find_if(_threads.begin(), _threads.end(),
-                    [this_id](thread& t) { return t.get_id() == this_id; });
-                if (it != _threads.end()) {
-                    LOG_DXRT_DBG<<threadName<<" Detaching..."<<endl;
-                    it->detach();
-                    _threads.erase(it);
-                    LOG_DXRT_DBG << threadName << " : removed itself from output worker threads. Remaining: " 
-                        << _threads.size() <<endl;
-                }
+
                 break;
             }
             response = _queue.front();
             _queue.pop();
+            
         }
         else
 #endif
@@ -123,21 +127,12 @@ void DeviceOutputWorker::ThreadWork(int id)
                 }
                 DataDumpBin(_dumpFile, dump.data(), dump.size());
                 DataDumpTxt(_dumpFile+".txt", dump.data(), 1, dump.size()/2, 2, true);
-                _stop = true;
+                _stop.store(true);
                 DXRT_ASSERT(false, "");
             }
-            if (_stop)
+            if (_stop.load(std::memory_order_acquire))
             {
                 LOG_DXRT_DBG << threadName << " : requested to stop thread." << endl;
-                auto it = find_if(_threads.begin(), _threads.end(),
-                    [this_id](thread& t) { return t.get_id() == this_id; });
-                if (it != _threads.end()) {
-                    LOG_DXRT_DBG<<threadName<<" Detaching..."<<endl;
-                    it->detach();
-                    _threads.erase(it);
-                    LOG_DXRT_DBG << threadName << " : removed itself from output worker threads. Remaining: " 
-                        << _threads.size() <<endl;
-                }
                 break;
             }
         }
@@ -150,21 +145,18 @@ void DeviceOutputWorker::ThreadWork(int id)
             LOG_DXRT << "response from other process reqid: " << response.req_id << ", pid:" << response.proc_id << endl;
             continue;
         }
-        int reqId = response.req_id;
-        dxrt_request_acc_t* request_acc = _device->peekInferenceAcc(reqId);
+        uint32_t reqId = response.req_id;
+        dxrt_request_acc_t request_acc = _device->peekInferenceAcc(reqId);
         auto req = Request::GetById(reqId);
-        req->set_processed_unit("NPU_"+to_string(deviceId),response.dma_ch);
-        if (request_acc == nullptr)
-        {
-            DXRT_ASSERT(false, "request_acc is nullptr "+std::to_string(reqId));
-        }
+
         if (req == nullptr)
         {
             DXRT_ASSERT(false, "req is nullptr "+std::to_string(reqId));
         }
-        if ((request_acc != nullptr) && (req != nullptr))
+        if ( (req != nullptr))
         {
-            dxrt_meminfo_t output = request_acc->output;
+            req->set_processed_unit("NPU_"+to_string(deviceId),deviceId,response.dma_ch);
+            dxrt_meminfo_t output = request_acc.output;
             if (SKIP_INFERENCE_IO != 1 || req->model_type() != 1)
             {
 #ifdef USE_PROFILER
@@ -172,12 +164,19 @@ void DeviceOutputWorker::ThreadWork(int id)
                 profiler.AddTimePoint("NPU Core_" + to_string(response.dma_ch), tp);
                 profiler.Start("PCIe Read(" + to_string(response.dma_ch)+")");
 #endif
-                int ret = _device->Read(output, id);
+                int read_ch = id;
+                if (cycle_ch)
+                {
+                    read_ch = loopCnt % dma_ch;
+                }
+                memset(reinterpret_cast<void*>(output.data),0, output.size );
+                int ret = _device->Read(output, read_ch);
 #ifdef USE_PROFILER
                 profiler.End("PCIe Read(" + to_string(response.dma_ch)+")");
 #endif
                 DXRT_ASSERT(ret == 0, "Failed to read output, errno="+ to_string(ret) +
                     ", reqId=" + to_string(reqId) + ",ch:" + to_string(id));
+
             }
             if (DEBUG_DATA == 1)
             {
@@ -193,23 +192,39 @@ void DeviceOutputWorker::ThreadWork(int id)
             if (req->model_type() == 1)
             {
                 //LOG_VALUE(resp.argmax);
-                *(static_cast<uint16_t *>(req->outputs().front().data())) = response.argmax;
+                *(static_cast<uint16_t *>(req->getData()->outputs.front().data())) = response.argmax;
                 if (DEBUG_DATA > 0)
                     DataDumpBin(req->taskData()->name() + "_output.argmax.bin", req->outputs());
             }
             else if (req->model_type() == 2)
             {
                 //LOG_VALUE(resp.ppu_filter_num);
+               
                 vector<int64_t> shape{1, response.ppu_filter_num};
-                req->outputs().front().shape() = shape;
+                Tensors newOutput;
+                Tensors oldOutput = req->outputs();
+                auto fronts = oldOutput.front();
+                newOutput.emplace_back(fronts.name(), shape, fronts.type(), fronts.data());
+                for(size_t i = 1; i < oldOutput.size(); i++)
+                {
+                    newOutput.push_back(oldOutput[i]);
+                }
+                req->setOutputs(newOutput);
+                DXRT_ASSERT(req->getData()->outputs.front().shape()[1] == response.ppu_filter_num, "PPU MODEL OUTPUT NOT VALID SET");
+                
                 if (DEBUG_DATA > 0)
                     DataDumpBin(req->taskData()->name() + "_output.ppu.bin", req->outputs());
             }
+ 
             _device->CallBack();
+            if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
+            {
+                cout<<"[        OUT_W][Job_"<<req->getData()->jobId<<"][Req_"<<req->id()<<"](---_"<<deviceId<<")[Buffer] Device Released"<<endl;
+            }
             TASK_FLOW("["+to_string(req->job_id())+"]"+req->taskData()->name()+" output is ready, load :"+to_string(_device->load()));
             Profiler::GetInstance().End(_device->name());
 
-            _device->Deallocate_npuBuf(request_acc->input.offset, req->taskData()->id());
+            _device->Deallocate_npuBuf(request_acc.input.offset, req->taskData()->id());
             ProcessResponse(req, &response);
 
             _device->popInferenceStruct(reqId);

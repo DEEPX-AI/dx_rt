@@ -95,7 +95,7 @@ DeviceStatus::DeviceStatus(int id, dxrt_device_info_t info, dxrt_device_status_t
 {
 }
 
-DeviceStatus DeviceStatus::GetCurrentStatus(DevicePtr device)
+DeviceStatus DeviceStatus::GetCurrentStatus(DevicePtr& device)
 {
     int deviceId = device->id();
     auto info = device->info();
@@ -105,7 +105,7 @@ DeviceStatus DeviceStatus::GetCurrentStatus(DevicePtr device)
 }
 DeviceStatus DeviceStatus::GetCurrentStatus(int id)
 {
-    auto devices = CheckDevices(dxrt::SkipMode::COMMON_SKIP);
+    auto& devices = CheckDevices(dxrt::SkipMode::COMMON_SKIP);
     if (devices.size() <= static_cast<unsigned int>(id))
     {
         throw dxrt::InvalidArgumentException("Not exist device id:"+ std::to_string(id));
@@ -158,6 +158,15 @@ string DeviceStatus::DdrStatusStr(int ch) const
     }
     snprintf(buf, CHARBUFFER_SIZE, "LPDDR CH[%d]: RM: 0x%x(%u.%ux)%s",
             ch, _status.ddr_status[ch], rm_1, rm_0, (derate ? " with de-rating" : ""));
+    return string(buf);
+}
+
+string DeviceStatus::DdrBitErrStr(void) const
+{
+    char buf[CHARBUFFER_SIZE];
+    snprintf(buf, CHARBUFFER_SIZE, "SBE[%u, %u, %u, %u] DBE[%u, %u, %u, %u]",
+        _status.ddr_sbe_cnt[0], _status.ddr_sbe_cnt[1], _status.ddr_sbe_cnt[2], _status.ddr_sbe_cnt[3],
+        _status.ddr_dbe_cnt[0], _status.ddr_dbe_cnt[1], _status.ddr_dbe_cnt[2], _status.ddr_dbe_cnt[3]);
     return string(buf);
 }
 
@@ -233,6 +242,7 @@ std::ostream& DeviceStatus::InfoToStream(std::ostream& os) const
       << MemorySizeStrBinaryPrefix() << endl;
     os << " * Board  : "<< BoardTypeStr();
     os << std::fixed << std::setprecision(1) << ", Rev " << static_cast<double>(Info().bd_rev)/10.0 << endl;
+    os << " * Chip Offset : " << _info.chip_offset << endl;
     if (_info.type == static_cast<uint32_t>(DeviceType::ACC_TYPE))
     {
         os << " * PCIe   : "<<
@@ -270,6 +280,7 @@ std::ostream&DeviceStatus::DebugStatusToStream(std::ostream& os) const
     {
         os << DdrStatusStr(i) << endl;
     }
+    os << DdrBitErrStr() << endl;
     os << "=======================================================" << endl;
     return os;
 }

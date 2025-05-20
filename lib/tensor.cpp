@@ -26,10 +26,15 @@ Tensor::Tensor(const Tensor &tensor_, void *data_)
 }
 Tensor::~Tensor()
 {
-    // LOG_DXRT_DBG << this << endl;
-    // LOG_DXRT_DBG << _name << endl;
+    // delete data buffer if _dataReleaseFlag is true
+    if ( _data != nullptr && _dataReleaseFlag )
+    {
+        //std::cout << "Tensor::~Tensor() ptr=" << _data << std::endl;
+        delete[] reinterpret_cast<uint8_t*>(_data);
+        _data = nullptr;
+    }
 }
-string &Tensor::name()
+const string &Tensor::name() const
 {
     return _name;
 }
@@ -60,6 +65,13 @@ void* Tensor::data(int h, int w, int c)
     }
     uint8_t *ptr = static_cast<uint8_t*>(_data) + h*_shape[2]*_inc + w*_inc + _elemSize*c;
     return static_cast<void*>(ptr);
+}
+
+// private functions
+// set data release flag, if flag is true, the data is deleted in the destructor
+void Tensor::setDataReleaseFlag(bool flag)
+{
+    _dataReleaseFlag = flag;
 }
 
 ostream& operator<<(ostream& os, const Tensor& tensor)
@@ -110,6 +122,7 @@ void DataDumpBin(std::string filename, std::vector<std::shared_ptr<dxrt::Tensor>
     }
     out.close();
 }
+
 void DataDumpBin(std::string filename, std::vector<Tensor> tensors)
 {
     // DXRT_ASSERT(!filename.empty(), string(__func__)+": filename is empty");

@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <map>
 #include <chrono>
+#include <cstring>
 
 #include "dxrt/common.h"
 #include "dxrt/driver.h"
@@ -88,6 +89,11 @@ namespace dxrt
         long msgType; // for message queue
         int seqId;
         dxrt::dxrt_request_acc_t npu_acc;
+        IPCClientMessage()
+        : code(REQUEST_CODE::REGISTESR_PROCESS), deviceId(0), data(0), pid(0), msgType(0), seqId(0)
+        {
+            npu_acc = dxrt::dxrt_request_acc_t{};
+        }
     };
 
     struct IPCServerMessage
@@ -99,6 +105,11 @@ namespace dxrt
         long msgType; // for message queue
         int seqId;
         dxrt::dxrt_response_t npu_resp;
+        IPCServerMessage()
+        : code(RESPONSE_CODE::CLOSE), deviceId(0), result(0), data(0), msgType(0), seqId(0)
+        {
+            npu_resp = dxrt::dxrt_response_t{};
+        }
     };
 
     struct IPCRegisterTask

@@ -74,7 +74,7 @@ class DXRT_API ServiceDevice
 {
  public:
     explicit ServiceDevice(const std::string &);
-    ~ServiceDevice(void);
+    virtual ~ServiceDevice(void);
     std::string name() const { return _name; }
     int id() const { return _id; }
     int load();
@@ -84,7 +84,7 @@ class DXRT_API ServiceDevice
     int Process(dxrt_cmd_t, void*, uint32_t size = 0, uint32_t sub_cmd = 0);
 
 
-    int InferenceRequest(dxrt_request_acc_t* req);
+    virtual int InferenceRequest(dxrt_request_acc_t* req);
     int Write(dxrt_meminfo_t &);
     int Read(dxrt_meminfo_t &);
     int Wait();

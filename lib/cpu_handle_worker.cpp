@@ -45,10 +45,10 @@ CpuHandleWorker::~CpuHandleWorker()
             return;
         }
         {
-            _dynamicStopCnt=_dynamicThreads.size();
-            if(_dynamicStopCnt>0)
+            _dynamicStopCnt.store(_dynamicThreads.size());
+            if(_dynamicStopCnt.load() > 0)
             {
-                LOG_DXRT_DBG<<" _dynamicStopCnt is set to "<<_dynamicStopCnt <<", notify_all"<<endl;
+                LOG_DXRT_DBG<<" _dynamicStopCnt is set to "<<_dynamicStopCnt.load() <<", notify_all"<<endl;
                 _cv.notify_all();
             }
 
@@ -80,23 +80,23 @@ void CpuHandleWorker::ThreadWork(int id)
     LOG_DXRT_DBG << threadName << " : Entry ( dynamic : " << isDynamic <<")"<<endl;
     thread::id this_id = this_thread::get_id();
     bool dynamicStop = false;
-    while (true)
+    while (_stop.load(memory_order_acquire) == false)
     {
         LOG_DXRT_DBG << threadName << " : wait" << endl;
         unique_lock<mutex> lk(_lock);
 
         _cv.wait(lk, [this, &isDynamic, &dynamicStop] {
             if (isDynamic) {
-                if (_dynamicStopCnt > 0) 
+                if (_dynamicStopCnt.load() > 0) 
                 { 
                     _dynamicStopCnt--; 
                     dynamicStop = true;
                     return true; 
                 }
             }
-            return !_queue.empty() || _stop;
+            return !_queue.empty() || _stop.load();
         });
-        if (_stop && !isDynamic)
+        if (_stop.load(memory_order_acquire) && !isDynamic)
         {
             LOG_DXRT_DBG << threadName << " : requested to stop thread." << endl;
             while (!_queue.empty()) {
@@ -123,7 +123,7 @@ void CpuHandleWorker::ThreadWork(int id)
                 _dynamicThreads.erase(it);
                 CpuHandle::_totalNumThreads--;
                 LOG_DXRT_DBG << threadName << " : removed itself from dynamic threads. Remaining: " 
-                    << _dynamicThreads.size() + _numThreads <<"(total : "<<CpuHandle::_totalNumThreads<<"), _dynamicStopCnt : "<< _dynamicStopCnt << endl;
+                    << _dynamicThreads.size() + _numThreads <<"(total : "<<CpuHandle::_totalNumThreads.load() <<"), _dynamicStopCnt : "<< _dynamicStopCnt.load() << endl;
                 break;
             }
             else {
@@ -132,12 +132,12 @@ void CpuHandleWorker::ThreadWork(int id)
             }
         }
         load = _queue.size();
-        LOG_DXRT_DBG<< threadName <<" wakeup, load: "<<to_string(load)<<", isDynamic : "<<to_string(isDynamic)<<" _dynamicStopCnt: "<<to_string(_dynamicStopCnt)<<endl;;
+        LOG_DXRT_DBG<< threadName <<" wakeup, load: "<<to_string(load)<<", isDynamic : "<<to_string(isDynamic)<<" _dynamicStopCnt: "<<to_string(_dynamicStopCnt.load())<<endl;;
         UpdateQueueStats(load);
 
         if (!_queue.empty()) {
             auto req = _queue.front();
-            req->set_processed_unit(getName(), id);
+            req->set_processed_unit(getName(), 0, id);
             TASK_FLOW("["+to_string(req->job_id())+"] cpu worker "+to_string(id) +" wakeup, load: "+to_string(load));
             _queue.pop();
             if (DEBUG_DATA > 0)
@@ -163,7 +163,7 @@ void CpuHandleWorker::ThreadWork(int id)
 
 int CpuHandleWorker::request(shared_ptr<Request> req)
 {
-    if (_stop) {
+    if (_stop.load()) {
         LOG_DXRT_DBG << "Thread stopped. Ignoring request for job_id: " << req->job_id() << endl;
         return -1; 
     }
@@ -207,7 +207,7 @@ int CpuHandleWorker::request(shared_ptr<Request> req)
 
                 CpuHandle::_totalNumThreads++;
                 LOG_DXRT_DBG << getName() << " Added a new thread, current threads: " 
-                    << _dynamicThreads.size() + _numThreads << "(total: " << CpuHandle::_totalNumThreads 
+                    << _dynamicThreads.size() + _numThreads << "(total: " << CpuHandle::_totalNumThreads.load() 
                     << "), avgLoad: " << avgLoad << endl;
                 _threadControlInterval = std::chrono::milliseconds(10);
                 _lastThreadControlTime = chrono::steady_clock::now();
@@ -223,13 +223,13 @@ int CpuHandleWorker::request(shared_ptr<Request> req)
             if (timeSinceLastIdle > _idleInterval){
                 if (dynamicThreads > 0 && dynamicThreads + _numThreads > _minThreads) 
                 {
-                    if (dynamicThreads>_dynamicStopCnt)
+                    if (dynamicThreads > _dynamicStopCnt.load())
                     {
-                        _dynamicStopCnt += 1;
+                        _dynamicStopCnt ++;
                     }
     
                     LOG_DXRT_DBG << getName() << " Remove one unnecessary thread. Remaining: " 
-                        << dynamicThreads <<" + "<< _numThreads << ", avgLoad: " << avgLoad << ", dynamicStopCnt: " << _dynamicStopCnt <<endl;
+                        << dynamicThreads <<" + "<< _numThreads << ", avgLoad: " << avgLoad << ", dynamicStopCnt: " << _dynamicStopCnt.load() <<endl;
 
                     _cv.notify_all();
                     lk.unlock();

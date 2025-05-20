@@ -25,7 +25,7 @@ namespace dxrt
         IPCMessageQueueLinux _messageQueueToClient;
         void* _usrData;
         std::thread _thread;
-        std::atomic<bool> _threadRunning = {false};
+        std::atomic<bool> _threadRunning{false};
         std::function<int32_t(IPCClientMessage&,void*,int32_t)> _receiveCB;
 
     public:

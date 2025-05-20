@@ -12,62 +12,67 @@
 
 namespace dxrt {
 
-    class InferenceJob;
-    using RequestWeakPtr = std::weak_ptr<Request>;
-    using InferenceJobPtr = std::shared_ptr<InferenceJob>;
-    using InferenceJobWeakPtr = std::weak_ptr<InferenceJob>;
+   class InferenceJob;
+   using RequestWeakPtr = std::weak_ptr<Request>;
+   using InferenceJobPtr = std::shared_ptr<InferenceJob>;
+   using InferenceJobWeakPtr = std::weak_ptr<InferenceJob>;
 
-    class ObjectsPool
-    {
-    public:
-        // static
-        static constexpr int REQUEST_MAX_COUNT = 50000;
-        static constexpr int INFERENCE_JOB_MAX_COUNT = 5000;
-
-    private:
-        // member
-        std::shared_ptr<CircularDataPool<Request>> _requestPool;
-        std::shared_ptr<CircularDataPool<InferenceJob>> _inferenceJobPool;
-        std::vector<std::shared_ptr<Device>> _devices;
-        std::once_flag _initDevicesOnceFlag;
-
-        bool _device_identified = false;
-        std::mutex _devicesLock;
-        int _curDevIdx = 0;
+   class ObjectsPool
+   {
+   public:
+      // static
+      static constexpr int REQUEST_MAX_COUNT = 5000;
+      static constexpr int INFERENCE_JOB_MAX_COUNT = 5000;
 
 
-        ObjectsPool();
-        void makeDeviceList();
-        void InitDevices_once(SkipMode skip, uint32_t subCmd);
+   private:
 
-    public:
-        
-        static ObjectsPool* GetInstance() 
-        {
-            static ObjectsPool instance;
+      ObjectsPool();
+      ~ObjectsPool();
 
-            return &instance;
-        }
-
-        RequestPtr PickRequest(); // new one
-        RequestPtr GetRequestById(int id); // find one by id
-
-        InferenceJobPtr PickInferenceJob(); // new one
-        InferenceJobPtr GetInferenceJobById(int id); // find one by id
-
-        DevicePtr GetDevice(int id){ return _devices[id]; }
-        int DeviceCount(){ return _devices.size(); }
-        void InitDevices(SkipMode skip, uint32_t subCmd);
-        shared_ptr<Device> PickOneDevice(const vector<int> &device_ids_);
-        vector<shared_ptr<Device>> CheckDevices();
+      // Delete copy constructor and assignment operator
+      ObjectsPool(const ObjectsPool&) = delete;
+      ObjectsPool& operator=(const ObjectsPool&) = delete;
 
 
+      void makeDeviceList();
+      void InitDevices_once(SkipMode skip, uint32_t subCmd);
 
-        // devices (workers)
-        // cpu handle
-        // request pool
-        // inference-job pool
 
-    };
+      // member variable
+      std::shared_ptr<CircularDataPool<Request>> _requestPool;
+      std::shared_ptr<CircularDataPool<InferenceJob>> _inferenceJobPool;
+      std::vector<std::shared_ptr<Device>> _devices;
+      std::once_flag _initDevicesOnceFlag;
+
+      bool _device_identified = false;
+      size_t _curDevIdx = 0;
+      std::mutex _methodMutex;           // Mutex for synchoronizing method access
+      std::mutex _checkDeviceMutex;
+      std::mutex _getRequestByIdMutex;
+      std::mutex _pickRequestMutex;
+
+   public:
+
+      // member functions
+      static ObjectsPool& GetInstance();
+
+      RequestPtr PickRequest(); // new one
+      RequestPtr GetRequestById(int id); // find one by id
+
+      InferenceJobPtr PickInferenceJob(); // new one
+      InferenceJobPtr GetInferenceJobById(int id); // find one by id
+
+      DevicePtr GetDevice(int id);
+
+      int DeviceCount();
+
+      void InitDevices(SkipMode skip, uint32_t subCmd);
+
+      std::shared_ptr<Device> PickOneDevice(const vector<int> &device_ids_);
+
+      std::vector<shared_ptr<Device>>& CheckDevices();
+
+   };
 
 }

@@ -58,7 +58,7 @@ namespace dxrt {
 #ifdef USE_SERVICE
 shared_ptr<MultiprocessMemory> Device::_sMulti_mems;
 #endif
-std::atomic<bool> Device::_sNpuValidateOpt = {false}; 
+std::atomic<bool> Device::_sNpuValidateOpt{false}; 
 
 static SharedMutex requestsLock;
 Device::Device(const string &file_)
@@ -70,11 +70,15 @@ Device::Device(const string &file_)
 #elif _WIN32
     // _driverAdapter = make_shared<WindowsDriverAdapter>(_file);
 #endif
+    _status = dxrt_device_status_t{};
+    _info = dxrt_device_info_t{};
+    _devInfo = dxrt_dev_info_t{};
 }
 
 Device::~Device(void)
 {
-    _stop = true;
+    LOG_DXRT_DBG << "Device " << _id << " start to destruction." << endl;
+    _stop.store(true);
     if ((_type == DeviceType::ACC_TYPE) && (_skip == SkipMode::NONE))
     {
 
@@ -107,7 +111,7 @@ void *Device::input_buf(int taskId, int bufId)
 int Device::load()
 {
     unique_lock<mutex> lk(_lock);
-    return _load;
+    return _load.load();
 }
 
 void Device::pick()
@@ -134,6 +138,7 @@ HANDLE Device::fd()
 #endif
 dxrt_device_status_t Device::status()
 {
+    _status = dxrt_device_status_t{};
     Process(dxrt::dxrt_cmd_t::DXRT_CMD_GET_STATUS, &_status);
     return _status;
 }
@@ -153,11 +158,6 @@ int Device::Process(dxrt_cmd_t cmd, void *data, uint32_t size, uint32_t sub_cmd)
 
 int Device::InferenceRequest(RequestData* req, npu_bound_op boundOp)
 {
-    // cout << "InferenceRequest, load:" << _load << endl;
-    // while (_load >= 6)
-    // {
-    //     continue;
-    // }
 
     if(_type == DeviceType::ACC_TYPE)
     {
@@ -245,6 +245,7 @@ int Device::InferenceRequest_ACC(RequestData* req, npu_bound_op boundOp)
     int bufId = 0;
     auto task = req->taskData;
     int taskId = task->id();
+    int requestId = req->requestId;
     
     bufId = _bufIdx[taskId];
     (++_bufIdx[taskId]) %= DEVICE_NUM_BUF;
@@ -284,7 +285,7 @@ int Device::InferenceRequest_ACC(RequestData* req, npu_bound_op boundOp)
             }
         }
         //npu_inference_acc.output.data = reinterpret_cast<uint64_t>(_buffer->Get(task->_outputSize));
-        if(Device::_sNpuValidateOpt)
+        if(Device::_sNpuValidateOpt.load())
         {
             _load++;
             dxrt::RequestPtr reqPtr = Request::GetById(req->requestId);
@@ -304,11 +305,14 @@ int Device::InferenceRequest_ACC(RequestData* req, npu_bound_op boundOp)
         npu_inference_acc.status = 0;
         npu_inference_acc.proc_id = getpid();
         npu_inference_acc.bound = boundOp;
-        req->outputs = task->outputs(reinterpret_cast<void*>(npu_inference_acc.output.data));
+        {
+            ObjectsPool::GetInstance().GetRequestById(requestId)->setOutputs(
+                task->outputs(reinterpret_cast<void*>(npu_inference_acc.output.data)));
+        }
         {
             UniqueLock lk2(requestsLock);
             _ongoingRequestsAcc[req->requestId] = npu_inference_acc;
-            if(Device::_sNpuValidateOpt)
+            if(Device::_sNpuValidateOpt.load())
             {
                 Request::GetById(req->requestId)->setNpuInferenceAcc(npu_inference_acc);
             }
@@ -316,9 +320,11 @@ int Device::InferenceRequest_ACC(RequestData* req, npu_bound_op boundOp)
         LOG_DXRT_DBG << "Device " << _id << " Request : " << npu_inference_acc << "Bound:" << boundOp << endl;
         // req->dev_arg() = (void*)(&_npuInferenceAcc[taskId][bufId]);
         //DXRT_ASSERT(npu_inference_acc.input.offset != 0, "wrong inferenceRequest_ACC");
-
+        DXRT_ASSERT(ObjectsPool::GetInstance().GetRequestById(requestId)->id() == requestId, "Request ID Mismatch");
         ret = _inputWorker->request(req->requestId);
+#ifdef USE_PROFILER
         Profiler::GetInstance().Start(_name);
+#endif
 
         LOG_DXRT_DBG << "request to input worker returned " << ret << endl;
     }
@@ -410,8 +416,9 @@ int Device::Response(dxrt_response_t &response)
 
 int Device::Write(dxrt_meminfo_t &meminfo)
 {
-    int ch = _writeChannel;
-    _writeChannel = (_writeChannel+1)%3;
+    int ch = _writeChannel.load();
+    //_writeChannel = (_writeChannel+1)%3;
+    _writeChannel.store((ch + 1) % 3);
     return Write(meminfo, ch);
 }
 
@@ -435,8 +442,9 @@ int Device::Write(dxrt_meminfo_t &meminfo, int ch)
 
 int Device::Read(dxrt_meminfo_t &meminfo)
 {
-    int ch = _readChannel;
-    _readChannel = (_readChannel+1)%3;
+    int ch = _readChannel.load();
+    //_readChannel = (_readChannel+1)%3;
+    _readChannel.store((ch + 1) % 3);
     return Read(meminfo, ch);
 }
 
@@ -519,7 +527,7 @@ void Device::Identify(int id_, SkipMode skip, uint32_t subCmd)
     }
 #endif
 #ifdef USE_SERVICE
-    if (Configuration::GetInstance()->GetEnable(Configuration::ITEM::SERVICE))
+    if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE))
     {
         if (_sMulti_mems == nullptr)
         {
@@ -527,7 +535,7 @@ void Device::Identify(int id_, SkipMode skip, uint32_t subCmd)
         }
     }
 #endif
-    _info = dxrt_device_info_t();
+    _info = dxrt_device_info_t{};
     _info.type = 0;
     _skip = skip;
     if (skip == SkipMode::IDENTIFY_SKIP) return;
@@ -579,6 +587,7 @@ void Device::Identify(int id_, SkipMode skip, uint32_t subCmd)
         if (_type == DeviceType::ACC_TYPE)
         {
             int num_ch = _info.num_dma_ch;
+
 #ifdef __linux__
             if (_info.interface == DEVICE_INTERFACE_ASIC)
 #elif _WIN32
@@ -606,7 +615,7 @@ void Device::Identify(int id_, SkipMode skip, uint32_t subCmd)
 
 void Device::Terminate()
 {
-    LOG_DXRT_DBG << "Device " << _id << " terminate" << endl;
+    //LOG_DXRT_DBG << "Device " << _id << " terminate" << endl;
 
     uint32_t i;
 
@@ -623,13 +632,19 @@ void Device::Reset(int opt)
 {
     DisplayCountdown(2, "Please wait until the device reset is complete.");
 #ifdef USE_SERVICE
-    if (Configuration::GetInstance()->GetEnable(Configuration::ITEM::SERVICE))
+    if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE))
     {
         _sMulti_mems->SignalDeviceReset(_id);
     }
 #endif
     Process(dxrt::dxrt_cmd_t::DXRT_CMD_RESET, &opt, 4);
     LOG_DXRT << "Device reset is complete!" << endl;
+}
+
+void Device::StartDev()
+{
+    uint32_t start = 1;
+    Process(dxrt::dxrt_cmd_t::DXRT_CMD_START, &start, sizeof(start));
 }
 
 void Device::ResetBuffer(int opt)
@@ -661,6 +676,22 @@ int Device::UpdateFwConfig(string jsonFile)
     DataFromFile(jsonFile, buf.data());
     Process(dxrt::dxrt_cmd_t::DXRT_CMD_UPDATE_CONFIG_JSON, buf.data(), buf.size());
     return buf[0];
+}
+
+uint32_t Device::UploadModel(string filePath, uint64_t base_addr)
+{
+    dxrt_meminfo_t mem;
+    DXRT_ASSERT(fileExists(filePath), filePath + " doesn't exist.");
+    vector<uint8_t> buf(getFileSize(filePath));
+    DataFromFile(filePath, buf.data());
+    mem.data = reinterpret_cast<uint64_t>(buf.data());
+    mem.size = buf.size();
+    mem.offset = 0;
+    mem.base = base_addr;
+
+    int ret = Write(mem);
+    if (ret < 0) return 0;
+    return mem.size;
 }
 
 void Device::DoCustomCommand(void *data, uint32_t subCmd, uint32_t size)
@@ -700,6 +731,24 @@ void Device::DoCustomCommand(void *data, uint32_t subCmd, uint32_t size)
                     sCmd);
             break;
         }
+        case DX_SET_LED:
+        {
+            uint32_t ledVal = *static_cast<uint32_t *>(data);
+            Process(dxrt::dxrt_cmd_t::DXRT_CMD_CUSTOM,
+                    &ledVal,
+                    sizeof(uint32_t),
+                    sCmd);
+            break;
+        }
+        case DX_UPLOAD_MODEL:
+        {
+            uint32_t *model_info = static_cast<uint32_t *>(data);
+            Process(dxrt::dxrt_cmd_t::DXRT_CMD_CUSTOM,
+                    model_info,
+                    sizeof(uint32_t)*3,
+                    sCmd);
+            break;
+        }
         default:
             LOG_DXRT_ERR("Unknown sub command: " << sCmd);
             break;
@@ -712,7 +761,7 @@ int64_t Device::Allocate(uint64_t size)
     unique_lock<mutex> lk(_lock);
 
 #ifdef USE_SERVICE
-    if (Configuration::GetInstance()->GetEnable(Configuration::ITEM::SERVICE))
+    if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE))
     {
         if (_type == DeviceType::ACC_TYPE)
         {
@@ -736,7 +785,7 @@ void Device::Deallocate(uint64_t addr)
     unique_lock<mutex> lk(_lock);
 
 #ifdef USE_SERVICE
-    if (Configuration::GetInstance()->GetEnable(Configuration::ITEM::SERVICE))
+    if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE))
     {
         if (_type == DeviceType::ACC_TYPE)
         {
@@ -760,7 +809,7 @@ void Device::Deallocate_npuBuf(int64_t addr, int taskId)
     else
     {
 #ifdef USE_SERVICE
-        if (Configuration::GetInstance()->GetEnable(Configuration::ITEM::SERVICE))
+        if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE))
         {
             _sMulti_mems->Deallocate(_id, addr);
         }
@@ -784,17 +833,17 @@ void Device::ThreadImpl(void)
     LOG_DXRT_DBG << "Device " << _id << " thread start. " << endl;
     while (true)
     {
-        if (_stop) break;
+        if (_stop.load()) break;
         dxrt_response_t response;
         response.req_id = 0;
         LOG_DXRT_DBG << "Device " << _id << " wait. " << endl;
         ret = Wait();
         // cout << "Device " << _id << " wakeup : " << ret << endl;
-        if (_stop) break;
+        if (_stop.load()) break;
         // LOG_VALUE(ret);
         _profiler.End(_name);
         ret = Response(response);
-        if (_stop) break;
+        if (_stop.load()) break;
         LOG_DXRT_DBG << "Device " << _id << " got response " << response.req_id << endl;
 		if (ret == 0)// && response.req_id >= 0)
         {
@@ -983,7 +1032,7 @@ int Device::RegisterTask_ACC(TaskData* task)
         model.weight.base = _memory->start();
 
 #ifdef USE_SERVICE
-        if (Configuration::GetInstance()->GetEnable(Configuration::ITEM::SERVICE))
+        if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE))
         {
             model.weight.offset = _sMulti_mems->BackwardAllocate(_id, model.weight.size);
             model.cmd.offset = _sMulti_mems->BackwardAllocate(_id, model.cmd.size);
@@ -1081,8 +1130,8 @@ int Device::RegisterTask_ACC(TaskData* task)
     {
         auto model = _npuModel[id][i];
         vector<vector<uint8_t>> readData;
-        readData.emplace_back(vector<uint8_t>(model.cmd.size));
-        readData.emplace_back(vector<uint8_t>(model.weight.size));
+        readData.emplace_back(vector<uint8_t>(model.cmd.size,0));
+        readData.emplace_back(vector<uint8_t>(model.weight.size,0));
         dxrt_meminfo_t cmd(model.cmd);
         dxrt_meminfo_t weight(model.weight);
         cmd.data = reinterpret_cast<uint64_t>(readData[0].data());
@@ -1110,7 +1159,7 @@ void Device::CallBack()
     _load--;
     _inferenceCnt++;
 #ifdef USE_SERVICE
-    if (Configuration::GetInstance()->GetEnable(Configuration::ITEM::SERVICE))
+    if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE))
         _sMulti_mems->SignalEndJobs(_id);
 #endif
 }
@@ -1129,18 +1178,18 @@ vector<Tensors> Device::inputs(int taskId)
     return _inputTensors[taskId];
 }
 
-dxrt_request_acc_t* Device::peekInferenceAcc(int requestId)
+dxrt_request_acc_t Device::peekInferenceAcc(uint32_t requestId)
 {
     SharedLock lk(requestsLock);
     auto it = _ongoingRequestsAcc.find(requestId);
     if (it == _ongoingRequestsAcc.end())
     {
-        return nullptr;
+        DXRT_ASSERT(false, "peekInferenceAcc Failed "+std::to_string(requestId));
     }
-    return &it->second;
+    return it->second;
 }
 
-dxrt_request_t* Device::peekInferenceStd(int requestId)
+dxrt_request_t* Device::peekInferenceStd(uint32_t requestId)
 {
     SharedLock lk(requestsLock);
     auto it = _ongoingRequestsStd.find(requestId);
@@ -1151,7 +1200,7 @@ dxrt_request_t* Device::peekInferenceStd(int requestId)
     return &it->second;
 }
 
-void Device::popInferenceStruct(int requestId)
+void Device::popInferenceStruct(uint32_t requestId)
 {
     UniqueLock lk(requestsLock);
     _ongoingRequestsAcc.erase(requestId);
@@ -1160,7 +1209,7 @@ void Device::popInferenceStruct(int requestId)
 
 ostream& operator<<(ostream &os, const Device& device)
 {
-    os << "    Device[" << dec << device._id << "] " << device._name << ", load " << device._load
+    os << "    Device[" << dec << device._id << "] " << device._name << ", load " << device._load.load()
         << ", type " << ((device._type == DeviceType::STD_TYPE)? "STD" : "ACC")
         << hex << ", variant " << device._info.variant
         << ", @ " << device._info.mem_addr << " ~ " << device._info.mem_addr + device._info.mem_size << dec << endl;
@@ -1169,13 +1218,13 @@ ostream& operator<<(ostream &os, const Device& device)
     return os;
 }
 
-vector<shared_ptr<Device>> CheckDevices(SkipMode skip, uint32_t subCmd)
+vector<shared_ptr<Device>>& CheckDevices(SkipMode skip, uint32_t subCmd)
 {
     LOG_DXRT_DBG << endl;
     
-    auto inst = ObjectsPool::GetInstance();
-    inst->InitDevices(skip,subCmd);
-    return inst->CheckDevices();
+    auto& inst = ObjectsPool::GetInstance();
+    inst.InitDevices(skip,subCmd);
+    return inst.CheckDevices();
 
 }
 
@@ -1213,7 +1262,7 @@ void Device::signalToWorker(int ch)
 void Device::signalToDevice(npu_bound_op boundOp)
 {
 #ifdef USE_SERVICE
-    if (Configuration::GetInstance()->GetEnable(Configuration::ITEM::SERVICE))
+    if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE))
         _sMulti_mems->SignalDeviceInit(_id, boundOp);
 #else
     (void)boundOp;

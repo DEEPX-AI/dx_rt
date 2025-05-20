@@ -3,6 +3,8 @@
 
 #include "dxrt/common.h"
 #include "dxrt/worker.h"
+#include "dxrt/exception/exception.h"
+#include "dxrt/device.h"
 
 using std::string;
 using std::endl;
@@ -15,11 +17,25 @@ Worker::Worker(string name_, Type type_, int numThreads, Device *device_, CpuHan
     LOG_DXRT_DBG << name_ << " will be created." << endl;
 }
 
-void Worker::DoThread(int id)
+Worker::Worker()
 {
-    ThreadWork(id);
+    LOG_DXRT_DBG << endl;
 }
 
+void Worker::DoThread(int id)
+{
+    try {
+        ThreadWork(id);
+    } catch (dxrt::Exception& e) {
+        e.printTrace();
+        LOG_DXRT << "worker error " << _name <<  endl;
+    }catch (std::exception& e) {
+        LOG_DXRT << e.what() << " std callback error " << _name << endl;
+    } catch (...) {
+        LOG_DXRT << "callback error unknown " << _name << endl;
+    }
+    _stopCount++;
+}
 void Worker::InitializeThread()
 {
     for (size_t i=0; i < _threads.size(); i++)
@@ -29,24 +45,34 @@ void Worker::InitializeThread()
     LOG_DXRT_DBG << _name << " created." << endl;
 }
 
-Worker::Worker()
-{
-    LOG_DXRT_DBG << endl;
+float Worker::GetAverageLoad() {
+    std::unique_lock<std::mutex> lk(_statsLock);
+    return (_checkQueueCnt.load() > 0) ? static_cast<float>(_accumulatedQueueSize.load()) / _checkQueueCnt.load() : 0.0f;
 }
 
 Worker::~Worker()
 {
-    std::unique_lock<std::mutex> lk(_lock);
+    
     LOG_DXRT_DBG << "Destroying " << _name << endl;
-    Stop();
+    _stop.store(true);
 
     for (auto &t : _threads)
     {
         LOG_DXRT_DBG << "Detach a thread, threads :" << _threads.size()<< endl;
-        t.detach();
-    }
+        {
+            std::unique_lock<std::mutex> lk(_lock);
+            _cv.notify_all();
+        }
+        if (t.joinable())
+        {
+            t.join();
+        }
+        else
+        {
+            DXRT_ASSERT(false, "CANNOT JOIN WORKER "+ _name);
+        }
 
-    _threads.clear();
+    }
 }
 
 void Worker::Stop()
@@ -56,8 +82,24 @@ void Worker::Stop()
     {
         return;
     }
-    _stop = true;
-    _cv.notify_all();
+    _stop.store(true);
+    int i = 0;
+    if (_useSystemCall)
+    {
+        do
+        {
+            _device->Terminate();
+            std::this_thread::yield();
+            std::this_thread::sleep_for(std::chrono::microseconds(50));
+            i++;
+        } while (_stopCount == 0);
+    }
+}
+
+void Worker::UpdateQueueStats(int queueSize) {
+    std::unique_lock<std::mutex> lk(_statsLock);
+    _checkQueueCnt++;
+    _accumulatedQueueSize.fetch_add(queueSize);
 }
 
 }  // namespace dxrt

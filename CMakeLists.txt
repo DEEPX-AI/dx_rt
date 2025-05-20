@@ -43,6 +43,9 @@ endif()
 
 # cmake options
 include(dxrt.cfg)
+if (${USE_CLANG})
+    include(dxrt.clang)
+endif()
 
 # functions
 include(dxrt.function)
@@ -59,7 +62,8 @@ endif()
 if (MSVC)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /DWIN32 /D_WINDOWS /W3 /GR /EHsc")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /DWIN32 /D_WINDOWS /W3 /GR /EHsc")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS /DEBUG:FULL")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /DEBUG:FULL")
     
     add_compile_options(-D_CRT_SECURE_NO_WARNINGS)
 

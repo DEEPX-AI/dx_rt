@@ -11,6 +11,8 @@
 #include "rapidjson/document.h"
 #include "rapidjson/istreamwrapper.h"
 #include "dxrt/objects_pool.h"
+#include "../lib/resource/log_messages.h"
+#include "dxrt/device_version.h"
 
 using namespace std;
 using namespace rapidjson;
@@ -81,7 +83,7 @@ void CLICommand::Run(void)
 
     if (_withDevice)
     {
-        auto devicesAll = CheckDevices(_checkDeviceSkip, _subCmd);
+        auto& devicesAll = CheckDevices(_checkDeviceSkip, _subCmd);
         if (_deviceId == -1)
         {
             devices = devicesAll;
@@ -387,9 +389,24 @@ void FWLogCommand::doCommand(DevicePtr devicePtr)
     cout << fwLog->str() << endl;
 }
 
+ShowVersionCommand::ShowVersionCommand(cxxopts::ParseResult &cmd)
+: CLICommand(cmd)
+{
+    _withDevice = false;
+}
+void ShowVersionCommand::doCommand(DevicePtr devicePtr)
+{
+    std::ignore = devicePtr;
+    cout << "DXRT " DXRT_VERSION << endl;
+    cout << "Minimum Driver Versions" << endl;
+    cout << "  Device Driver: v" << dxrt::LogMessages::ConvertIntToVersion(RT_DRV_VERSION_CHECK) << endl;
+    cout << "  PCIe Driver: v" << dxrt::LogMessages::ConvertIntToVersion(PCIE_VERSION_CHECK) << endl;
+    cout << "  Firmware: v" << dxrt::LogMessages::ConvertIntToVersion(FW_VERSION_CHECK) << endl;
 
-
-
+    cout << "Minimum Compiler Versions" << endl;
+    cout << "  Compiler: v" << MIN_COMPILER_VERSION << endl;
+    cout << "  .dxnn File Format: v" << MIN_SINGLEFILE_VERSION << endl;
+}
 
 }  // namespace dxrt
 

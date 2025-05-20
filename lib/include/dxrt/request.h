@@ -10,10 +10,10 @@
 #include "dxrt/request_data.h"
 #include <unordered_map>
 #include <mutex>
+#include <atomic>
 
 #define REQUEST_ID_INIT_VALUE 1
 // #define REQUEST_ID_MAX_VALUE 5000
-#define REQUEST_ID_MAX_VALUE 50000
 // #define REQUEST_ID_MAX_VALUE 50
 
 namespace dxrt {
@@ -25,6 +25,9 @@ using RequestWeakPtr = std::weak_ptr<Request>;
 struct TimePoint;
 using TimePointPtr = std::shared_ptr<TimePoint>;
 
+template<typename T>
+class CircularDataPool;
+class InferenceJob;
 
 class DXRT_API Request
 {
@@ -51,7 +54,7 @@ public:
     void CheckTimePoint(int opt);
     int id() const;
     int job_id() const;
-    void set_processed_unit(std::string processedPU, int processedId);
+    void set_processed_unit(std::string processedPU, int processedDevId, int processedId);
     std::string processed_pu() const;
     int processed_id() const;
     void Reset();
@@ -59,8 +62,8 @@ public:
     TaskData* taskData();
     Task* task();
     std::string requestor_name() const;
-    Tensors &inputs();
-    Tensors &outputs();
+    Tensors inputs();
+    Tensors outputs();
     void* input_ptr();
     void* output_ptr();
     void* user_arg() const;
@@ -75,14 +78,17 @@ public:
     bool &latency_valid();
     bool &validate_device();
     int16_t &model_type();
+    void setInputs(Tensors input);
+    void setOutputs(Tensors output);
 
     void setNpuInferenceAcc(dxrt_request_acc_t npuInferenceAcc);
-    void setCallback(std::function<void(RequestPtr)> func);  // works for start next request or complete whole inference
+    void setInferenceJob(InferenceJob* job);  // works for start next request or complete whole inference
     void onRequestComplete(RequestPtr req);
 
     RequestData* getData();
     const RequestData* getData() const;
     friend DXRT_API std::ostream& operator<<(std::ostream&, const Request&);
+    friend class CircularDataPool<Request>;
 private:
 
     RequestData _data;
@@ -96,15 +102,16 @@ private:
     dxrt_request_t _npuInference;
     dxrt_request_t *_npuInferencePtr;
     dxrt_request_acc_t _npuInferenceAcc;
-    Status _status = REQ_IDLE;
-    std::mutex _statusLock;
+    std::atomic<Status> _status = {REQ_IDLE};
     std::shared_ptr<TimePoint> _timePoint;
     int _latency;
     bool _latencyValid;
     bool _validateDevice = false;
     int16_t _modelType;
     uint32_t _infTime;
-    std::function<void(RequestPtr)> _callback;
+    InferenceJob*  _job;
+    std::atomic<bool> _use_flag = {false};
+    static std::mutex _reqLock;
     
 
 };

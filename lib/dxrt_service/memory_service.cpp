@@ -56,6 +56,7 @@ MemoryService::MemoryService(uint64_t start, uint64_t size)
 
 uint64_t MemoryService::Allocate(uint64_t size, pid_t pid)
 {
+    std::lock_guard<std::mutex> lk(_lock);
     uint64_t addr = _mem->Allocate(size);
     _allocInfo[pid].insert(addr);
     LOG_DXRT_S_DBG << hex << addr << dec  << " is allocated, size:" << size << endl;
@@ -63,6 +64,7 @@ uint64_t MemoryService::Allocate(uint64_t size, pid_t pid)
 }
 uint64_t MemoryService::BackwardAllocate(uint64_t size, pid_t pid)
 {
+    std::lock_guard<std::mutex> lk(_lock);
     uint64_t addr = _mem->BackwardAllocate(size);
     _allocInfo[pid].insert(addr);
     LOG_DXRT_S_DBG << hex << addr << dec  << " is allocated, size:" << size << endl;
@@ -70,6 +72,7 @@ uint64_t MemoryService::BackwardAllocate(uint64_t size, pid_t pid)
 }
 bool MemoryService::Deallocate(uint64_t addr, pid_t pid)
 {
+    std::lock_guard<std::mutex> lk(_lock);
     auto it1 = _allocInfo.find(pid);
     if (it1 == _allocInfo.end())
     {
@@ -90,6 +93,7 @@ bool MemoryService::Deallocate(uint64_t addr, pid_t pid)
 }
 void MemoryService::DeallocateAll(pid_t pid)
 {
+    std::lock_guard<std::mutex> lk(_lock);
     auto it1 = _allocInfo.find(pid);
     if (it1 == _allocInfo.end())
     {

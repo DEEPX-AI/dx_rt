@@ -13,6 +13,8 @@ typedef struct DXRT_API device_status
     uint32_t dvfs_maxfreq;
     uint32_t count[4];
     uint32_t boot_state;
+    uint32_t ddr_sbe_cnt[4];
+    uint32_t ddr_dbe_cnt[4];
 } dxrt_device_status_t;
 
 struct DXRT_API deepx_pcie_info {

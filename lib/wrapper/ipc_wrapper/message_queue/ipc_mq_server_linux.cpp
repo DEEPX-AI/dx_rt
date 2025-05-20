@@ -44,6 +44,29 @@ int32_t IPCMessageQueueServerLinux::Initialize()
     {
         return ret;
     }
+    ret = _messageQueueToServer.Delete();
+    if (ret != 0)
+    {
+        return ret;
+    }
+    ret = _messageQueueToServer.Initialize(IPCMessageQueueLinux::SERVER_MSG_TYPE, IPCMessageQueueDirection::TO_SERVER);
+    if (ret != 0)
+    {
+        _messageQueueToServer.Delete();
+        return ret;
+    }
+    ret = _messageQueueToClient.Initialize(IPCMessageQueueLinux::SERVER_MSG_TYPE, IPCMessageQueueDirection::TO_CLIENT);
+    if (ret != 0)
+    {
+        _messageQueueToServer.Delete();
+        return ret;
+    }
+    ret = _messageQueueToClient.Delete();
+    if (ret != 0)
+    {
+        _messageQueueToServer.Delete();
+        return ret;
+    }
     return _messageQueueToClient.Initialize(IPCMessageQueueLinux::SERVER_MSG_TYPE, IPCMessageQueueDirection::TO_CLIENT);
 
 }
@@ -96,9 +119,9 @@ int32_t IPCMessageQueueServerLinux::RegisterReceiveCB(std::function<int32_t(IPCC
 {
 
     
-    if ( _threadRunning )
+    if ( _threadRunning.load() )
     {
-        _threadRunning = false;
+        _threadRunning.store(false);
         /*if ( _thread.joinable() )
         {
             _thread.join();
@@ -117,7 +140,7 @@ int32_t IPCMessageQueueServerLinux::RegisterReceiveCB(std::function<int32_t(IPCC
 
         if ( _receiveCB != nullptr ) 
         {
-            _threadRunning = true;
+            _threadRunning.store(true);
             _thread = std::thread(IPCMessageQueueServerLinux::ThreadFunc, this);
             LOG_DXRT_I_DBG << "IPCMessageQueueServerLinux: Created Callback Thread" << std::endl;
         }
@@ -129,7 +152,7 @@ int32_t IPCMessageQueueServerLinux::RegisterReceiveCB(std::function<int32_t(IPCC
 // Close
 int32_t IPCMessageQueueServerLinux::Close()
 {
-    if ( _threadRunning )
+    if ( _threadRunning.load() )
     {
         RegisterReceiveCB(nullptr, nullptr);
     }
@@ -141,6 +164,12 @@ int32_t IPCMessageQueueServerLinux::Close()
         LOG_DXRT_I_DBG << "IPCMessageQueueServerLinux::Close" << std::endl;
     }
 
+    if ( _messageQueueToClient.IsAvailable() )
+    {
+        _messageQueueToClient.Delete();
+        LOG_DXRT_I_DBG << "IPCMessageQueueServerLinux::Close" << std::endl;
+    }
+
     return 0;
 }
 
@@ -149,7 +178,7 @@ void IPCMessageQueueServerLinux::ThreadFunc(IPCMessageQueueServerLinux* mqServer
 {
 
 
-    while(mqServer->_threadRunning)
+    while(mqServer->_threadRunning.load())
     {
         
         IPCClientMessage clientMessage;

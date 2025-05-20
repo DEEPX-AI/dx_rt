@@ -28,6 +28,7 @@ function install_dep()
     install_cmake=false
     if [ "$install_dep" == true ]; then
         echo " Install dependence package tools "
+	sudo apt-get update
         sudo apt-get -y install build-essential make zlib1g-dev libcurl4-openssl-dev wget tar zip cmake git
         echo ""
         echo " Install python libraries" 
@@ -80,7 +81,7 @@ function install_onnx()
         mkdir -p $DX_SRC_DIR/util
         cd $DX_SRC_DIR/util
         rm -rf $DX_SRC_DIR/util/onnxruntime_$target_arch
-        wget https://github.com/microsoft/onnxruntime/releases/download/v1.20.1/onnxruntime-linux-$onnxruntime_arch-1.20.1.tgz
+        wget https://github.com/microsoft/onnxruntime/releases/download/v1.20.1/onnxruntime-linux-$onnxruntime_arch-1.20.1.tgz --no-check-certificate
         mkdir onnxruntime_$target_arch
         tar -zxvf onnxruntime-linux-$onnxruntime_arch-1.20.1.tgz -C onnxruntime_$target_arch --strip-components=1 
         if [ $(uname -m) != "$target_arch" ]; then

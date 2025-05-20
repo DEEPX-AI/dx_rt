@@ -41,7 +41,7 @@ void PrintInfResult(const string& inputFile, const string& outputFile, const str
     //lines.push_back("* Model Used : " + modelFile);
     if ((bounding > 0 && bounding < 4) || (mode == SINGLE_MODE))
     {
-        lines.push_back("* Benchmark Result(1 Core)"); //- NPU" + to_string(bounding-1));
+        lines.push_back("* Benchmark Result"); //- NPU" + to_string(bounding-1));
         if (infTimeMs)
             lines.push_back("  - NPU Processing Time  : " + to_string(infTimeMs) + " ms");
         else
@@ -57,9 +57,9 @@ void PrintInfResult(const string& inputFile, const string& outputFile, const str
     else
     {
         if (bounding == 0)
-            lines.push_back("* Benchmark Result(3 Cores)");
+            lines.push_back("* Benchmark Result");
         else if (bounding > 3)
-            lines.push_back("* Benchmark Result(2 Cores)");
+            lines.push_back("* Benchmark Result");
         else
             lines.push_back("* Unknown Bounding Option");
         if (fps)
@@ -102,6 +102,7 @@ int main(int argc, char *argv[])
     int targetFps = 0;  // Target FPS
     int core_count = 0;
     bool skip_inference_io = false;
+    bool use_ort = false;
     cxxopts::Options options("run_model", APP_NAME);
     options.add_options()
         ("m, model", "Model file (.dxnn)" , cxxopts::value<string>(modelFile))
@@ -123,15 +124,34 @@ int main(int argc, char *argv[])
         ("f, fps", "Target frames per second", cxxopts::value<int>(targetFps) )
         ("skip-io", "Skip Inference I/O(Benchmark mode only)", cxxopts::value<bool>(skip_inference_io)->default_value("false"))
         ("c, core_count", "how many NPUs used", cxxopts::value<int>(core_count)->default_value("0"))
+#ifdef USE_ORT
+        ("use-ort", "use ONNX Runtime", cxxopts::value<bool>(use_ort)->default_value("false"))
+#endif
         ("h, help", "Print usage" )
     ;
 
-    auto cmd = options.parse(argc, argv);
-    if (cmd.count("help"))
+    try
+    {
+        auto cmd = options.parse(argc, argv);
+        if (cmd.count("help"))
+        {
+            cout << options.help() << endl;
+            exit(0);
+        }
+    }
+    catch (std::exception& e)
+    {
+        std::cerr << "Error: " << e.what() << std::endl;
+        cout << options.help() << endl;
+        exit(0);
+    }
+
+    if ( modelFile.length() == 0)
     {
         cout << options.help() << endl;
         exit(0);
     }
+
     LOG_VALUE(modelFile);
     LOG_VALUE(inputFile);
     LOG_VALUE(outputFile);
@@ -144,7 +164,7 @@ int main(int argc, char *argv[])
     }
     else if (core_count > 0)
     {
-        for(int i = 0; i < core_count; i++)
+        for (int i = 0; i < core_count; i++)
         {
             op.devices.push_back(i);
         }
@@ -155,6 +175,7 @@ int main(int argc, char *argv[])
         cout << "[ERR] Please check bounding option" << endl;
         return -1;
     }
+    op.useORT = use_ort;
 
     try{
         dxrt::InferenceEngine ie(modelFile, op);
@@ -167,7 +188,7 @@ int main(int argc, char *argv[])
 
         SetRunModelMode(single, targetFps);
 
-        if(skip_inference_io)
+        if (skip_inference_io)
         {
             if (benchmark == false)
             {
@@ -217,6 +238,7 @@ int main(int argc, char *argv[])
                 callback_cnt = 0;
                 ie.RegisterCallback(postProcCallBack);
 
+                auto start_clock = std::chrono::steady_clock::now();
                 profiler.Start("TargetFps");
                 for (int i = 0; i < loops; i++)
                 {
@@ -245,8 +267,9 @@ int main(int argc, char *argv[])
                     }
                 }
                 profiler.End("TargetFps");
+                auto end_clock = std::chrono::steady_clock::now();
                 ie.Wait(loops);
-                infTime = profiler.Get("TargetFps");
+                infTime = std::chrono::duration_cast<chrono::microseconds>(end_clock - start_clock).count();
                 fps = 1000000.0 * loops/infTime;
                 PrintInfResult(inputFile, outputFile, modelFile, 0, 0, fps);
 #ifdef TARGET_FPS_DEBUG

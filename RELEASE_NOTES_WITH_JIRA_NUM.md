@@ -1,15 +1,67 @@
 # RELEASE_NOTES
 
+## v2.9.0 / 2025-05-19
+### 1. Changed
+- Minimum Driver & Compiler versions
+   - RT Driver version : v1.5.0
+   - PCIe Driver version : v1.4.0
+   - Firmware version : v2.0.5
+   - .dxnn File Format Version : v6
+   - Compiler : v1.15.2
+- Minimum Driver & Compiler versions
+   - RT Driver version   : v1.5.0
+   - PCIe Driver version : v1.3.1
+   - Firmware version : v2.0.5
+   - .dxnn File Format Version : v6
+   - Compiler : v1.15.2
+### 2. Fixed
+- None
+### 3. Added
+- None
+## v2.8.4 / 2025-05-12
+### 1. Changed
+- Modify the build.sh script according to cmake options
+  - CMake option USE_ORT=ON, running build.sh --clean installs ONNX Runtime.
+  - CMake option USE_PYTHON=ON, running build.sh installs the Python package.
+  - CMake option USE_SERVICE=ON, running build.sh starts or restarts the service.
+- Improved callback handling by removing std::async, potentially leading to more predictable execution
+- Enhanced concurrency by making key variables atomic, resolving potential race conditions.
+- Addressed multithreading issues by implementing additional locks, improving stability under heavy load.
+- Removed obsolete code, streamlining the codebase
+### 2. Fixed
+  - Fix crash on multi-device environment with more than 2 H1 cards(>=8 devices)
+  - Resolved data corruption errors that could occur in different scenarios, ensuring data integrity.
+  - Fix profiler bugs
+  - Addressed issues identified by static analysis and other tools, enhancing code quality and reliability.
+### 3. Added
+- USE_ORT Option for Python BItmatch.py
+- Add --use_ort flag to the run_model.py example for ONNX Runtime
+ - Implemented profiler on/off functionality (by Configuration)
+ -  Implemented a check to prevent tasks from being started multiple times, ensuring correct execution flow.
+ - Implemented device blocking device on error
+ - Implemented page alignment for buffers to address some I/O issues.
+
+## v2.8.3 / 2025-04-11
+### 1. Changed
+- Improve driver, firmware, and file format version check messages
+### 2. Fixed
+- None
+### 3. Added
+- Add --all option to build.sh
+
 ## v2.8.2 / 2025-03-21
 ### 1. Changed
+- Modified the run_async_model_output example to improve the passing condition.
 - Modify Inference Engine to be used with 'with' statements, and update relevant examples.
-- None
 ### 2. Fixed
 - failed to read output -70 bug [RTFRM-465](https://deepx.atlassian.net/browse/RTFRM-465)
 ### 3. Added
+- Round Robin,Shortest Job First scheduler added
+- Implemented C++ Run (Batch) function within the InferenceEngine for batched inference execution.
+- Added a new example, run_batch_model, demonstrating the usage of the batch inference function.
+- Display the memory usage of the loaded model.
 - Add Python inference option interface with the following configurations
    * NPU Device Selection / NPU Bound Option / ORT Usage Flag 
-- None
 
 ## v2.7.1 / 2025-03-11
 ### 1. Changed

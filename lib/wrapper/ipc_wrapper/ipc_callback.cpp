@@ -120,18 +120,18 @@ std::ostream& operator<< (std::ostream& os, REQUEST_CODE code)
 
 
 
-int ipc_callBack(IPCServerMessage& outResponseServerMessage, void* usrData)
+int ipc_callBack(const IPCServerMessage& outResponseServerMessage, void* usrData)
 {
     (void)usrData;
 
     LOG_DXRT_I_DBG << "callback " << outResponseServerMessage.code << endl;
-    //int deviceId = outResponseServerMessage.deviceId;
+    // int deviceId = outResponseServerMessage.deviceId;
     switch (outResponseServerMessage.code)
     {
         case RESPONSE_CODE::CONFIRM_MEMORY_ALLOCATION:
         case RESPONSE_CODE::CONFIRM_MEMORY_ALLOCATION_AND_TRANSFER_MODEL:
             return 234;
-            break;
+
         case RESPONSE_CODE::CONFIRM_MEMORY_FREE:
             break;
         case RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH0:
@@ -139,11 +139,19 @@ int ipc_callBack(IPCServerMessage& outResponseServerMessage, void* usrData)
         case RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH2:
             {
 #ifdef USE_SERVICE
-                DevicePtr devicePtr = CheckDevices()[outResponseServerMessage.deviceId];
-                devicePtr->ProcessResponseFromService(outResponseServerMessage.npu_resp);
+                auto& devices = CheckDevices();
+                if ( outResponseServerMessage.deviceId < static_cast<uint32_t>(devices.size()) )
+                {
+                    DevicePtr& devicePtr = CheckDevices()[outResponseServerMessage.deviceId];
+                    devicePtr->ProcessResponseFromService(outResponseServerMessage.npu_resp);
+                }
+                else
+                {
+                    LOG_DXRT_I_ERR("the device id is out of the devices range.");
+                }
 #endif
             }
-            
+
             break;
         case RESPONSE_CODE::ERROR_REPORT: {
             cout << "============================================================" << endl;

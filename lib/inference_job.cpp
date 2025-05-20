@@ -21,11 +21,8 @@ namespace dxrt
 
 bool debug_all_output = false;
 
-std::mutex InferenceJob::_sTensorsMapLock;
-std::mutex InferenceJob::_sRequestsLock;
-std::mutex InferenceJob::_sInferenceJobsLock;
 
-std::atomic<int> InferenceJob::_sNextInferenceJobId = {0};
+std::atomic<int> InferenceJob::_sNextInferenceJobId{0};
 
 
 // static functions
@@ -35,94 +32,59 @@ void InferenceJob::InitInferenceJob()
 
 std::shared_ptr<InferenceJob> InferenceJob::GetById(int id)
 {
-    ObjectsPool* instance = ObjectsPool::GetInstance();
-    return instance->GetInferenceJobById(id);
+    return ObjectsPool::GetInstance().GetInferenceJobById(id);
 }
 
 std::shared_ptr<InferenceJob> InferenceJob::Pick()
 {
-    int id;
-    {
-        std::unique_lock<std::mutex> lk(_sInferenceJobsLock);
-        while (true)
-        {
-            id = _sNextInferenceJobId++;
-            if (_sNextInferenceJobId >= INFERENCE_ID_MAX_VALUE)
-                _sNextInferenceJobId = 0;
-            break;
-        }
-    }
-    ObjectsPool* instance = ObjectsPool::GetInstance();
-    InferenceJobPtr jobRef = instance->GetInferenceJobById(id);
-    jobRef->Clear();
-    return jobRef;
+    return ObjectsPool::GetInstance().PickInferenceJob();
 }
 // static functions
-
 
 void InferenceJob::onRequestComplete(RequestPtr req)
 {
     bool allRequestComplete = false;
     Task* thisTask = req->task();
+
     {
-        std::unique_lock<std::mutex> lk(_sTensorsMapLock);
-        for (Tensor& output : req->outputs()) {
+        std::unique_lock<std::mutex> lk(_lock);
+
+        // 1. _tensors udpate
+        for (const Tensor& output : req->outputs()) {
             auto name = output.name();
+            DXRT_ASSERT(_tensors.find(name) == _tensors.end(), "not cleared");
             _tensors.insert(make_pair(name, output));
         }
         _doneCount++;
-        if (_doneCount == _outputCount)
+        if (_doneCount.load() == _outputCount.load())
+        {
             allRequestComplete = true;
+        }
         _latency += req->latency();
         _infTime += req->inference_time();
+
+        // processed task status update
+        auto completedTaskIt = _taskStatusMap.find(thisTask->name());
+        if (completedTaskIt != _taskStatusMap.end()) 
+        {
+            completedTaskIt->second = Status::TASK_DONE;
+        }
+        else
+        {
+            throw InvalidOperationException(EXCEPTION_MESSAGE("The task name was not found in this job."));
+        }
+        TASK_FLOW_FINISH("["+to_string(_jobId)+"]"+thisTask->name());
     }
 
     if (thisTask->is_tail() == false)
     {
-        for (auto& nextTask : thisTask->nexts())
+        for (auto& nextTaskPtr : thisTask->nexts())
         {
-            auto required_tensors = nextTask->inputs();
-            bool allPrepared = true;
-            Tensors nexts;
-            for (auto& required : required_tensors)
+            // 2. _taskStatusMap update (TASK_IDLE -> TASK_READY)
+            if (checkAndSetTaskReady(nextTaskPtr))
             {
-                {
-                    std::unique_lock<std::mutex> lk(_sTensorsMapLock);
-                    auto it = _tensors.find(required.name());
-
-                    if (it == _tensors.end())
-                    {
-                        allPrepared = false;
-                        break;
-                    }
-                    else
-                    {
-                        nexts.push_back(it->second);
-                    }
-                }
-            }
-            if (allPrepared)
-            {
-                //DXRT_ASSERT(nextTask.get() != nullptr, "nexttask null");
-                if ( nextTask.get() == nullptr )
-                    throw InvalidOperationException(EXCEPTION_MESSAGE("next task is null"));
-                    
-                //auto nextReq = Request::Create(nextTask.get(), std::move(nexts), {}, _userArg);
-                auto nextReq = Request::Create(nextTask.get(), nexts, {}, _userArg, _jobId);
-                nextReq->setCallback(onRequestCompleteFunction());  // on each request complete, do next request or complete whole inference
-                if (nextTask->nexts().empty())
-                {
-                    nextReq->getData()->output_ptr = _outputPtr;
-                }
-                nextReq->SetStatus(Request::Status::REQ_BUSY);
-                nextReq->requestor_name() = req->task()->name();
-                {
-                    std::unique_lock<std::mutex> lk(_sRequestsLock);
-                    _requests.push_back(nextReq);
-                }
-                TASK_FLOW_FINISH("["+to_string(_jobId)+"]"+thisTask->name());
-                TASK_FLOW_START("["+to_string(_jobId)+"]"+nextTask->name()+"");
-                InferenceRequest(nextReq);
+                // 3. ready task inference request
+                processReadyTask(nextTaskPtr);
             }
         }
     }
@@ -131,8 +93,86 @@ void InferenceJob::onRequestComplete(RequestPtr req)
         TASK_FLOW_FINISH("["+to_string(_jobId)+"]"+thisTask->name()+" (Tail Task)");
         if (allRequestComplete)
         {
-           onAllRequestComplete();
+            onAllRequestComplete();
         }
+    }
+}
+
+bool InferenceJob::checkAndSetTaskReady(TaskPtr taskPtr)
+{
+    std::unique_lock<std::mutex> lk(_lock);
+    auto it = _taskStatusMap.find(taskPtr->name());
+    if (it == _taskStatusMap.end())
+    {
+        throw InvalidOperationException(EXCEPTION_MESSAGE("The task name was not found in this job."));
+    }
+    if (it->second == Status::TASK_IDLE)
+    {
+        auto required_tensors = taskPtr->inputs();
+        bool allPrepared = true;
+        for (const auto& required : required_tensors)
+        {
+            if (_tensors.find(required.name()) == _tensors.end())
+            {
+                allPrepared = false;
+                break;
+            }
+        }
+        if (allPrepared)
+        {
+            it->second = Status::TASK_READY;
+            return true;
+        }
+    }
+    return false;
+}
+
+void InferenceJob::processReadyTask(TaskPtr taskPtr)
+{
+    RequestPtr nextReq;
+    {
+        std::unique_lock<std::mutex> lk(_lock);
+        auto it = _taskStatusMap.find(taskPtr->name());
+        if (it == _taskStatusMap.end())
+        {
+            throw InvalidOperationException(EXCEPTION_MESSAGE("The task name was not found in this job."));
+        }
+        if (it->second == Status::TASK_READY)
+        {
+            Tensors nexts;
+            auto required_tensors = taskPtr->inputs();
+            for (const auto& required : required_tensors)
+            {
+                auto tensor_it = _tensors.find(required.name());
+                if (tensor_it == _tensors.end()) {
+                    // This should ideally not happen if checkAndSetTaskReady worked correctly
+                    LOG_DXRT_ERR("Required tensor '" + required.name() + "' not found for task '" + taskPtr->name() + "'");
+                    return;
+                }
+                nexts.push_back(tensor_it->second); // Call this function only when allPrepared is true
+            }
+
+            nextReq = Request::Create(taskPtr.get(), nexts, {}, _userArg, _jobId);
+            nextReq->setInferenceJob(this);
+            if ((taskPtr->nexts().empty()) && (_outputPtr != nullptr))
+            {
+                uint8_t* _offsetPtr = static_cast<uint8_t*>(_outputPtr) + taskPtr->getTailOffset();
+                nextReq->setOutputs(taskPtr->outputs(_offsetPtr));
+                nextReq->getData()->output_ptr = _offsetPtr;
+            }
+            nextReq->SetStatus(Request::Status::REQ_BUSY);
+            nextReq->requestor_name() = taskPtr->name(); // Record which Task made the request
+            _requests.push_back(nextReq);
+
+            it->second = Status::TASK_BUSY; // Create request and change to BUSY
+
+            TASK_FLOW_START("["+to_string(_jobId)+"]"+taskPtr->name()+"");
+        } else {
+            return; // Not READY, no request to process
+        }
+    }
+    if (nextReq) {
+        InferenceRequest(nextReq);
     }
 }
 
@@ -145,74 +185,93 @@ void InferenceJob::onAllRequestComplete()
 {
     TASK_FLOW("["+to_string(_jobId)+"] ALL COMPLETE")
 #ifdef USE_PROFILER
-    _inferenceEnginePtr->UpdateLatencyStatistics(latency());
-    _inferenceEnginePtr->UpdateInferenceTimeStatistics(inference_time());
-    _inferenceEnginePtr->PushLatency(latency());
-    _inferenceEnginePtr->PushInferenceTime(inference_time());
+    _inferenceEnginePtr->getTimer()->UpdateLatencyStatistics(latency());
+    _inferenceEnginePtr->getTimer()->UpdateInferenceTimeStatistics(inference_time());
+    _inferenceEnginePtr->getTimer()->PushLatency(latency());
+    _inferenceEnginePtr->getTimer()->PushInferenceTime(inference_time());
 #endif
 
     if(_storeResult)
     {
         setReturnOutputs();
     }
-
+    //for (auto it : _tensors) cout << it.first << "," << it.second << endl;
     if (_infEngCallback !=nullptr)
     {
         LOG_DXRT_DBG << "task callback" << endl;
         if (debug_all_output)
         {
-            async(launch::async, [this](void){
-                TensorPtrs ret;
-                for (auto it : _tensors)
-                {
-                    ret.emplace_back(
-                        make_shared<Tensor>(it.second));
+            //std::thread([this](void){
+                try {
+                    TensorPtrs ret;
+                    {
+                        std::unique_lock<std::mutex> lk(_lock);
+                        for (auto it : _tensors)
+                        {
+                            ret.emplace_back(
+                                make_shared<Tensor>(it.second));
+                        }
+                    }
+                    _infEngCallback(ret, _userArg, _jobId);  // callback registered by inference_engine
+                    setStatus(Request::Status::REQ_DONE);
+                    ReleaseAllOutputBuffer();
+                } catch (dxrt::Exception& e) {
+                    e.printTrace();
+                    LOG_DXRT << "callback error " << endl;
+                }catch (std::exception& e) {
+                    LOG_DXRT << e.what() << " std callback error " << endl;
+                } catch (...) {
+                    LOG_DXRT << "callback error unknown " << endl;
                 }
-                _infEngCallback(ret, _userArg, _jobId);  // callback registered by inference_engine
-                ReleaseAllOutputBuffer();
-            });
+            //}).detach();
         }
         else
         {
-            DXRT_ASSERT(_doneCount == _outputCount , "outputcnt mismatch");
-            future<void> result = async(launch::async, [this](void){
-                TensorPtrs ret;
-                for (auto &name : _outputs)
-                {
-                    ret.emplace_back(
-                        make_shared<Tensor>(_tensors.find(name)->second));
-                }
-                if (DEBUG_DATA > 0)
-                {
-                    DataDumpBin("output.bin", ret);
-                }
-                _infEngCallback(ret, _userArg, _jobId);  // callback registered by inference_engine
-                ReleaseAllOutputBuffer();
+            DXRT_ASSERT(_doneCount.load() == _outputCount.load() , "output-count mismatch");
+            //std::thread([this](void){
+                try {
+                    TensorPtrs ret;
+                    {
+                        std::unique_lock<std::mutex> lk(_lock);
+                        for (auto &name : _outputs)
+                        {
+                            auto it = _tensors.find(name);
+                            DXRT_ASSERT(it != _tensors.end(), "output name NOT FOUND" + name);
+                            ret.emplace_back(
+                                make_shared<Tensor>(it->second));
+                        }
+                    }
+                    if (DEBUG_DATA > 0)
+                    {
+                        DataDumpBin("output.bin", ret);
+                    }
+                    _infEngCallback(ret, _userArg, _jobId);  // callback registered by inference_engine
+                    setStatus(Request::Status::REQ_DONE);
 
-            });
+                    ReleaseAllOutputBuffer();
+                } catch (dxrt::Exception& e) {
+                    e.printTrace();
+                    LOG_DXRT << "callback error " << endl;
+                }catch (std::exception& e) {
+                    LOG_DXRT << e.what() << " std callback error " << endl;
+                } catch (...) {
+                    LOG_DXRT << "callback error unknown " << endl;
+                }
+            //}).detach();
         }
     }
     else
     {
+        setStatus(Request::Status::REQ_DONE);
         ReleaseAllOutputBuffer();
     }
-
-    for (auto it : _requests)
-    {
-        RequestPtr req = it.lock();
-        if (req)
-        {
-            req->Reset();
-        }
-    }
-    _requests.clear();
-    _status = Request::Status::REQ_DONE;
 }
 
 void InferenceJob::SetInferenceJob(std::vector<std::shared_ptr<Task>>& tasks_, std::shared_ptr<Task> head_, std::vector<string> lastOutputOrder)
 {
+    Clear();
     _headTask = head_;
-    _doneCount = 0;
+    _doneCount.store(0);
     _latency = 0;
     _infTime = 0;
 
@@ -220,7 +279,7 @@ void InferenceJob::SetInferenceJob(std::vector<std::shared_ptr<Task>>& tasks_, s
     _outputs.clear();
     _outputs = lastOutputOrder; 
 
-    _outputCount = tasks_.size();
+    _outputCount.store(tasks_.size());
     for (std::shared_ptr<Task>& it :  tasks_)
     {
         //int taskId = it->id();
@@ -234,14 +293,8 @@ void InferenceJob::SetInferenceJob(std::vector<std::shared_ptr<Task>>& tasks_, s
         }
         //_tasks.emplace(taskId, std::move(it));
         //_tasks.emplace(taskId, it);
+        _taskStatusMap.insert(make_pair(it->name(), Status::TASK_IDLE));
     }
-}
-
-std::function<void(RequestPtr)> InferenceJob::onRequestCompleteFunction()
-{
-    return [this](RequestPtr req) {
-        onRequestComplete(req);
-    };
 }
 
 int InferenceJob::startJob(void *inputPtr, void *userArg, void *outputPtr)
@@ -252,51 +305,101 @@ int InferenceJob::startJob(void *inputPtr, void *userArg, void *outputPtr)
         return -1;
     }
     RequestPtr req = Request::Create(task.get(), inputPtr, outputPtr, userArg, _jobId);
-    _status = Request::Status::REQ_BUSY;
+    setStatus(Request::Status::REQ_BUSY);
+
     _userArg = userArg;
     req->requestor_name() = "";
     req->SetStatus(Request::Status::REQ_BUSY);
-    req->setCallback(onRequestCompleteFunction());  // on each request complete, do next request or complete whole inference
+    req->setInferenceJob(this);  // on each request complete, do next request or complete whole inference
     _requests.push_back(req);
     _outputPtr = outputPtr;
-    if(_headTask.lock()->nexts().empty())
+    if((_headTask.lock()->nexts().empty()) && (_outputPtr != nullptr))
     {
-        req->getData()->output_ptr = _outputPtr;
+        uint8_t* _offsetPtr = static_cast<uint8_t*>(_outputPtr) + task->getTailOffset();
+        req->setOutputs(task->outputs(_offsetPtr));
+        req->getData()->output_ptr = _offsetPtr;
     }
     else
         req->getData()->output_ptr = nullptr;
+    //if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
+    //    cout<<"[PROC         ][Job_"<<_jobId<<"][Req_"<<req->id()<<"] Inference Request"<<endl;
+
     InferenceRequest(req);
     return _jobId;
 }
 
+// void InferenceJob::setReturnOutputs()
+// {
+//     TensorPtrs ret;
+
+//     //int output_size_increment = 0;
+//     for (auto &name : _outputs)
+//     {
+//         std::unique_lock<std::mutex> lock(_lock);
+//         auto it = _tensors.find(name);
+//         DXRT_ASSERT(it != _tensors.end(), "Failed to find tensor: setReturnOutputs");
+
+//         auto output = it->second;
+//         int output_size = output.elem_size();
+        
+//         for(int size: output.shape())
+//         {
+//             output_size *= size;
+//         }
+//         shared_ptr<vector<uint8_t> > memory = make_shared<vector<uint8_t> >(output_size);
+//         memcpy(memory->data(), output.data(),output_size);
+//         shared_ptr<Tensor> ptr =  std::shared_ptr<Tensor>(new Tensor(it->second,memory->data()),
+//             [memory](Tensor* p){
+//                 delete p;
+//                 memory->clear();
+//             });
+
+//         ret.emplace_back(
+//             make_shared<Tensor>(it->second));
+//         //output_size_increment += output_size;
+//     }
+//     _returnOutputs = ret;
+// }
 
 void InferenceJob::setReturnOutputs()
 {
-    TensorPtrs ret;
+    TensorPtrs ret_tensor_ptrs;
 
     //int output_size_increment = 0;
-    for (auto &name : _outputs)
+    for (const auto &name : _outputs)
     {
-        auto output = _tensors.find(name)->second;
-        int output_size = output.elem_size();
-        
-        for(int size: output.shape())
-        {
-            output_size *= size;
-        }
-        shared_ptr<vector<uint8_t> > memory = make_shared<vector<uint8_t> >(output_size);
-        memcpy(memory->data(), output.data(),output_size);
-        shared_ptr<Tensor> ptr =  std::shared_ptr<Tensor>(new Tensor(_tensors.find(name)->second,memory->data()),
-            [memory](Tensor* p){
-                delete p;
-                memory->clear();
-            });
+        std::unique_lock<std::mutex> lock(_lock);
+        auto it = _tensors.find(name);
+        DXRT_ASSERT(it != _tensors.end(), "Failed to find tensor: setReturnOutputs");
 
-        ret.emplace_back(
-            make_shared<Tensor>(_tensors.find(name)->second));
-        //output_size_increment += output_size;
+        auto &output_tensor = it->second;
+        size_t output_size = output_tensor.elem_size();
+
+        if (_outputPtr == nullptr)
+        {
+            for(int size: output_tensor.shape())
+            {
+                output_size *= size;
+            }
+            shared_ptr<vector<uint8_t> > memory = make_shared<vector<uint8_t> >(output_size);
+            std::memcpy(memory->data(), output_tensor.data(),output_size);
+
+            auto copied_tensor = std::make_shared<Tensor>(output_tensor, memory->data());
+            copied_tensor.reset(new Tensor(*copied_tensor), [memory](Tensor* p) {
+                    delete p;
+                    memory->clear();
+                });
+
+            ret_tensor_ptrs.push_back(copied_tensor);
+        }
+        else
+        {
+            ret_tensor_ptrs.push_back(std::make_shared<Tensor>(output_tensor));
+        }
     }
-    _returnOutputs = ret;
+
+    //std::cout << "InferenceJob::setReturnOutputs output-tensor-ptrs-size=" << ret_tensor_ptrs.size() << std::endl;
+    _returnOutputs = ret_tensor_ptrs;
 }
 
 TensorPtrs InferenceJob::getOutput()
@@ -309,26 +412,28 @@ void InferenceJob::SetStoreResult(bool storeResult)
     _storeResult = storeResult;
 }
 
-void InferenceJob::setInferenceEngineInterface(InferenceTimer* ptr)
+void InferenceJob::setInferenceEngineInterface(InferenceEngine* ptr)
 {
     _inferenceEnginePtr = ptr;
 }
 
 void InferenceJob::setCallBack(std::function<int(TensorPtrs &outputs, void *userArg, int jobId)> func)
 {
+    std::unique_lock<std::mutex> lk(_lock);
     _infEngCallback = func;
 }
 
 void InferenceJob::Clear()
 {
+    std::unique_lock<std::mutex> lk(_lock);
     //_requests.clear();
     _tensors.clear();
     //_tasks.clear();
     //_head.reset();
     //_headTask.reset();
-    _status = Request::Status::REQ_IDLE;
-    _outputCount = 0;
-    _doneCount = 0;
+    setStatus(Request::Status::REQ_IDLE);
+    _outputCount.store(0);
+    _doneCount.store(0);
     //_outputs.clear();
     _userArg = nullptr;
     _latency = 0;
@@ -336,6 +441,7 @@ void InferenceJob::Clear()
     _inferenceEnginePtr = nullptr;
     _infEngCallback = nullptr;
     _outputPtr = nullptr;
+    _storeResult = false;
 }
 
 InferenceJob::~InferenceJob()
@@ -345,12 +451,16 @@ InferenceJob::~InferenceJob()
 
 void InferenceJob::ReleaseAllOutputBuffer()
 {
-    std::unique_lock<std::mutex> lk(_sInferenceJobsLock);
+    
+    std::unique_lock<std::mutex> lk(_lock);
+    int head_req_id = -1;
+    int head_req_processed_dev_id = -1;
     for (auto& req_weak_ptr :  _requests)
     {
         RequestPtr req = req_weak_ptr.lock();
         if (req)
         {
+
             if (DEBUG_DATA > 0 && req->task()->processor()==Processor::CPU)
             {
                 int id = req->id();
@@ -360,8 +470,51 @@ void InferenceJob::ReleaseAllOutputBuffer()
             if((_outputPtr == nullptr) || (req->task()->is_tail()==false))
             {
                 req->task()->ReleaseOutputBuffer(req->output_ptr());
+                if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
+                    cout<<"[        OUT_W][Job_"<<_jobId<<"][Req_"<<req->id()<<"]{xxx_"<<req->getData()->_processedDevId<<"}{xxxxxx} Buffer Released"<<endl;
             }
         }
+        else
+        {
+            DXRT_ASSERT(false, "ReleaseAllOutputBuffer lock failed");
+        }
     }
+    for (auto& it : _requests)
+    {
+        RequestPtr req = it.lock();
+        if (head_req_id == -1)
+        {
+            head_req_id = req->id();
+            head_req_processed_dev_id = req->getData()->_processedDevId;
+        }
+        if (req)
+        {
+            req->Reset();
+        }
+        else
+        {
+            DXRT_ASSERT(false, "ReleaseAllOutputBuffer lock failed");
+        }
+    }
+    _requests.clear();
+    _use_flag.store(false);
+    if(head_req_id%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || head_req_id%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
+        cout<<"[        OUT_W][Job_"<<_jobId<<"]{xxx_"<<head_req_id<<"}{xxx_"<<head_req_processed_dev_id<<"}{xxxxxx} use_flag reset"<<endl;
+
 }
+
+void InferenceJob::setStatus(Request::Status status)
+{
+    _status.store(status);
+}
+
+int InferenceJob::getId()
+{
+    return _jobId;
+}
+Request::Status InferenceJob::getStatus()
+{
+    return _status.load();
+}
+
 }  // namespace dxrt

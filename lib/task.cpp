@@ -2,6 +2,9 @@
 // Licensed under the MIT License.
 
 #include "dxrt/common.h"
+
+#include <algorithm>
+#include <future>
 #include "dxrt/task.h"
 #include "dxrt/device.h"
 #include "dxrt/request.h"
@@ -13,10 +16,8 @@
 #include "dxrt/fixed_size_buffer.h"
 #include "dxrt/configuration.h"
 
-#include <algorithm>
-#include <future>
 
-using namespace std;
+
 
 namespace dxrt {
 
@@ -27,10 +28,11 @@ struct TaskStatsInstances
     ~TaskStatsInstances()
     {
         LOG_DXRT_DBG << endl;
-        for(auto &pair:_map)
+        for (const auto& pair : _map)
         {
-            auto &stats = pair.second;
-            cout << "Task" << stats.id << " , " << stats.name << " : latency " << stats.latency_us << " us, inference time " << stats.inference_time_us << " us" << endl;
+            const auto& stats = pair.second;
+            cout << "Task" << stats.id << " , " << stats.name << " : latency " << stats.latency_us
+                << " us, inference time " << stats.inference_time_us << " us" << endl;
         }
     }
     std::unordered_map<int, TaskStats> _map;
@@ -47,34 +49,36 @@ Task::Task(string name_, vector<rmapinfo> rmapInfos_, std::vector<std::vector<ui
 {
 
 }
-Task::Task(std::string name_, vector<rmapinfo> rmapInfos_, std::vector<std::vector<uint8_t>>&& data_, npu_bound_op boundOp, std::vector<DevicePtr> devices_)
+Task::Task(std::string name_, vector<rmapinfo> rmapInfos_, std::vector<std::vector<uint8_t>>&& data_,
+    npu_bound_op boundOp, std::vector<DevicePtr>& devices_)
 : _taskData(nextId, name_, rmapInfos_), _data(std::move(data_)), _boundOp(boundOp)
 {
     nextId++;
-    _inferenceCnt = 0;
+    _inferenceCnt.store(0);
     if (_taskData._infos.empty() == false)
     {
-        //DXRT_ASSERT(_data.size() == 2 || _data.size() == 4,
+        // DXRT_ASSERT(_data.size() == 2 || _data.size() == 4,
         //    "invalid npu task " + name() + ": " + to_string(data_.size()));
-        if (_data.size() != 2 && _data.size() != 4 ) 
-            throw InvalidModelException(EXCEPTION_MESSAGE("invalid npu task " + name() + ": " + to_string(data_.size())));
+        if (_data.size() != 2 && _data.size() != 4 )
+            throw InvalidModelException(EXCEPTION_MESSAGE(
+                "invalid npu task " + name() + ": " + to_string(data_.size())));
 
         _taskData.set_from_npu(_data);
         LOG_DXRT_DBG << "NPU Task: imported npu parameters" << endl;
-        SetOutputBuffer(devices_.size() * DXRT_TASK_MAX_LOAD);
-        for (auto device: devices_)
+        SetOutputBuffer(devices_.size() * DXRT_TASK_MAX_LOAD * 2);
+        for (auto device : devices_)
         {
             _device_ids.push_back(device->id());
         }
         LOG_DXRT_DBG << "NPU Task: checked devices" << endl;
         for (auto &device : devices_)
         {
-            //DXRT_ASSERT(device->RegisterTask(getData()) == 0, "failed to register task");
+            // DXRT_ASSERT(device->RegisterTask(getData()) == 0, "failed to register task");
             if ( device->RegisterTask(getData()) != 0 )
                 throw InvalidModelException(EXCEPTION_MESSAGE("failed to register task"));
 
 #ifdef USE_SERVICE
-            if (Configuration::GetInstance()->GetEnable(Configuration::ITEM::SERVICE))
+            if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE))
             {
                 device->signalToDevice(static_cast<npu_bound_op>(_boundOp));
             }
@@ -109,21 +113,23 @@ Task::Task()
 Task::~Task(void)
 {
     LOG_DXRT_DBG << endl;
-    if(_cpuHandle) 
+    if (_cpuHandle)
     {
         _cpuHandle->Terminate();
         LOG_DXRT_DBG <<" Done (CPU)"<< endl;
     }
     else
     {
-        for(int device_id: _device_ids)
+        for (int device_id : _device_ids)
         {
-            auto device = ObjectsPool::GetInstance()->GetDevice(device_id);
-        #ifdef USE_SERVICE
-        if (Configuration::GetInstance()->GetEnable(Configuration::ITEM::SERVICE))
-            device->signalToDeviceDeInit(static_cast<npu_bound_op>(_boundOp));
-        else
-        #endif
+            auto device = ObjectsPool::GetInstance().GetDevice(device_id);
+#ifdef USE_SERVICE
+            if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE))
+            {
+                device->signalToDeviceDeInit(static_cast<npu_bound_op>(_boundOp));
+            }
+            else
+#endif
             {
                 device->BoundOption(DX_SCHED_DELETE, static_cast<npu_bound_op>(_boundOp));
             }
@@ -146,7 +152,7 @@ void Task::RegisterCallBack(function<int(TensorPtrs &outputs, void *userArg)> f)
 //     int ret = 0;
 //     for(const auto &device : _devices)
 //     {
-//         // LOG_VALUE(device->load());        
+//         // LOG_VALUE(device->load());
 //         for(auto &model:_npuModel[device->id()])
 //         {
 //             device->Deallocate(model.cmd.offset);
@@ -194,7 +200,6 @@ Tensors Task::inputs(void* ptr, uint64_t phyAddr)
         }
         return ret;
     }
-    return _taskData._inputTensors;
 }
 
 Tensors Task::outputs(void* ptr, uint64_t phyAddr)
@@ -215,7 +220,6 @@ Tensors Task::outputs(void* ptr, uint64_t phyAddr)
         }
         return ret;
     }
-    return _taskData._outputTensors;
 }
 
 Processor Task::processor()
@@ -344,7 +348,7 @@ void Task::SetOutputBuffer(int size)
 void* Task::GetOutputBuffer()
 {
     LOG_DXRT_DBG << "Task " << id() << " Output Buffer GET " << std::endl;
-    void* retval = _taskOutputBuffer->getBuffer(); // Process as Conditional variable
+    void* retval = _taskOutputBuffer->getBuffer();  // Process as Conditional variable
     return retval;
 }
 void Task::ReleaseOutputBuffer(void* ptr)
@@ -370,15 +374,39 @@ int Task::getNpuBoundOp()
 {
     return _boundOp;
 }
+void Task::setLastOutput(Tensors t)
+{
+    std::lock_guard<std::mutex> lock(_lastOutputLock);
+    _lastOutput = t;
+}
+Tensors Task::getLastOutput()
+{
+    std::lock_guard<std::mutex> lock(_lastOutputLock);
+    return _lastOutput;
+}
+bool Task::has_next()
+{
+    return _nextTasks.empty() == false;
+}
+void Task::setTailOffset(int64_t n)
+{
+    _tailOffset = n;
+}
+int64_t Task::getTailOffset()
+{
+    return _tailOffset;
+}
+
 
 ostream& operator<<(ostream& os, const Task& task)
 {
     os << dec << "  Task[" << task._taskData._id << "] " << task._taskData._name << ", " << task._taskData._processor
-        << ", " << task._taskData._memUsage << "bytes (input " << task._taskData._inputSize << ", output " << task._taskData._outputSize << ")" << endl;
+        << ", memory-usage " << task._taskData._memUsage << " bytes (input " << task._taskData._inputSize
+        << ", output " << task._taskData._outputSize << ")" << endl;
     os << "    inputs" << endl;
-    for (auto &tensor : task._taskData._inputTensors) os << "      " << tensor << endl;
+    for (const auto& tensor : task._taskData._inputTensors) os << "      " << tensor << endl;
     os << "    outputs" << endl;
-    for (auto &tensor : task._taskData._outputTensors) os << "      " << tensor << endl;
+    for (const auto& tensor : task._taskData._outputTensors) os << "      " << tensor << endl;
     /*for(auto &device : task._devices)
     {
         // os << *device << endl;

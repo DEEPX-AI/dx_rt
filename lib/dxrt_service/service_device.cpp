@@ -64,13 +64,15 @@ ServiceDevice::ServiceDevice(const string &file_)
 
 ServiceDevice::~ServiceDevice(void)
 {
-    _stop = true;
+    _stop.store(true);
 
     Terminate();
-
-    _thread[0].join();
-    _thread[1].join();
-    _thread[2].join();
+    if (_thread[0].joinable())
+    {
+        _thread[0].join();
+        _thread[1].join();
+        _thread[2].join();
+    }
 }
 
 // #define ServiceDevice_DEBUG
@@ -223,7 +225,7 @@ int ServiceDevice::WaitThread(int ids)
     while (true)
     {
         //LOG_DXRT_DBG << threadName << " : wait" << endl;
-        if (_stop)
+        if (_stop.load())
         {
             LOG_DXRT_DBG << threadName << " : requested to stop thread." << endl;
             break;
@@ -235,11 +237,17 @@ int ServiceDevice::WaitThread(int ids)
 #endif
         ret = Process(cmd, &response);
         // cout << response << endl; // for debug.
+
 #ifdef USE_PROFILER
         //profiler.End(threadName);
 #endif
-        if (ret == 0 && !_stop)
+        if (ret == 0 && !_stop.load())
         {
+            // if(response.req_id%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || response.req_id%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
+            // {
+            //     cout<<"[     WAIT_T] THREAD : "<<ids<<" - DEVICE : "<<_id<<" - PROCESS_ID : "<<response.proc_id<<" - REQ_ID : "<<response.req_id<<endl;//AGING LOG
+            //     //cout<<"[WAIT_THREAD ] REQ_ID "<< response << endl; // for debug.
+            // }
             if (response.status != 0)
             {
                 LOG_VALUE(response.status);
@@ -255,7 +263,7 @@ int ServiceDevice::WaitThread(int ids)
                 }
                 DataDumpBin(_dumpFile, dump.data(), dump.size());
                 DataDumpTxt(_dumpFile+".txt", dump.data(), 1, dump.size()/2, 2, true);
-                _stop = true;
+                _stop.store(true);
                 DXRT_ASSERT(false, "");
             }
             else
@@ -277,9 +285,14 @@ int ServiceDevice::WaitThread(int ids)
 #endif // _WIN32
             }
         }
-        //else {
-        //    LOG_DXRT_S_ERR("DXRT_CMD_NPU_RUN_RESP ret !=0");	// for debug
-        //}
+        else {
+            //LOG_DXRT_S_ERR("DXRT_CMD_NPU_RUN_RESP ret !=0");	// for debug
+            // if(response.req_id%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || response.req_id%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
+            // {
+            //     cout<<"[     WAIT_T] - err_"<<ret<<" - THREAD : "<<ids<<" - DEVICE : "<<_id<<" - PROCESS_ID : "<<response.proc_id<<" - REQ_ID : "<<response.req_id<<endl;//AGING LOG
+            //     //cout<<"[ERROR][WAIT_THREAD ] REQ_ID "<< response << endl; // for debug.
+            // }
+        }
         loopCnt++;
 #ifdef USE_PROFILER
         profiler.End(threadName);

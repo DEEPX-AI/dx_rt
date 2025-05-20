@@ -16,6 +16,7 @@
 #include <unordered_map>
 #include <map>
 #include <cstdarg>
+#include <mutex>
 
 namespace dxrt {
 using rmapinfo = deepx_rmapinfo::RegisterInfoDatabase;
@@ -41,7 +42,7 @@ class DXRT_API Task
 {    
 public:
     Task(std::string name_, std::vector<rmapinfo>, std::vector<std::vector<uint8_t>>&&, npu_bound_op boundOp = N_BOUND_NORMAL);
-    Task(std::string name_, std::vector<rmapinfo>, std::vector<std::vector<uint8_t>>&&, npu_bound_op boundOp, std::vector<std::shared_ptr<Device>> devices_);
+    Task(std::string name_, std::vector<rmapinfo>, std::vector<std::vector<uint8_t>>&&, npu_bound_op boundOp, std::vector<std::shared_ptr<Device>>& devices_);
 
     Task();
     ~Task(void);
@@ -80,6 +81,7 @@ public:
     bool &is_tail();
     bool &is_PPU();
     bool &is_argmax();
+    bool has_next();
     std::function<int(TensorPtrs&, void*)> callback();
     void PushLatency(int latency);
     void PushInferenceTime(uint32_t infTime);
@@ -99,6 +101,12 @@ public:
     int getNpuBoundOp();
 
     TaskData* getData() {return &_taskData;}
+    void setLastOutput(Tensors t);
+    Tensors getLastOutput();
+
+    void setTailOffset(int64_t n);
+    int64_t getTailOffset();
+
     friend DXRT_API std::ostream& operator<<(std::ostream&, const Task&);
 private:
 
@@ -129,9 +137,12 @@ private:
     InferenceTimer _taskTimer;
     InferenceTimer* _inferenceEngineTimer;
     std::shared_ptr<FixedSizeBuffer> _taskOutputBuffer;
+    Tensors _lastOutput;
+    std::mutex _lastOutputLock;
 
     int _completeCnt = 1;
     int _boundOp = 0;
+    int64_t _tailOffset = 0;
     static int nextId;
 };
 } // namespace dxrt

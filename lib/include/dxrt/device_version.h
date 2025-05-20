@@ -8,9 +8,13 @@
 #include "dxrt/common.h"
 #include "dxrt/device.h"
 
-#define RT_DRV_VERSION_CHECK (1300)
-#define FW_VERSION_CHECK     (163)
-#define PCIE_VERSION_CHECK   (1201)
+#if _WIN32
+#define RT_DRV_VERSION_CHECK (1301) // 1.3.1 for windows signed driver
+#else
+#define RT_DRV_VERSION_CHECK (1500) // 1.5.0
+#endif
+#define PCIE_VERSION_CHECK   (1400) // 1.4.0
+#define FW_VERSION_CHECK     (205)  // 2.0.5
 
 namespace dxrt {
 

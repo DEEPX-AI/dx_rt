@@ -9,6 +9,8 @@
 #include "dxrt/dxrt_api.h"
 #include "dxrt/cli.h"
 #include "cxxopts.hpp"
+#include "dxrt/exception/exception.h"
+
 
 using namespace std;
 
@@ -27,6 +29,7 @@ int main(int argc, char *argv[])
         ("p, dump", "Dump device internals to a file", cxxopts::value<string>() )
         ("l, fwlog", "Extract firmware logs to a file", cxxopts::value<string>() )
         ("C, fwconfig_json", "Update firmware settings from [JSON]", cxxopts::value<string>())
+        ("v, version", "Print minimum versions")
 
         ("h, help", "Print usage");
     try{
@@ -92,11 +95,30 @@ int main(int argc, char *argv[])
             dxrt::FWLogCommand cli(cmd);
             cli.Run();
         }
+        else if (cmd.count("version"))
+        {
+            dxrt::ShowVersionCommand cli(cmd);
+            cli.Run();
+        }
+        else 
+        {
+            cout << options.help() << endl;
+        }
+
         return 0;
     }
     catch(cxxopts::exceptions::exception& e)
     {
         cout << e.what() << endl;
     }
+    catch(const dxrt::Exception& e)
+    {
+        cout << e.what() << endl;
+    }
+    catch(const std::exception& e)
+    {
+        cout << e.what() << endl;
+    }
+    
     return 0;
 }

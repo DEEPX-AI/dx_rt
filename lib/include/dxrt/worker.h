@@ -41,11 +41,7 @@ public:
     virtual ~Worker();
     static std::shared_ptr<Worker> Create(std::string name_, Type type_, int numThreads = 1, Device *device_ = nullptr, CpuHandle *cpuHandle_ = nullptr);
     virtual void Stop();
-    void UpdateQueueStats(int queueSize) {
-        std::unique_lock<std::mutex> lk(_statsLock);
-        _checkQueueCnt++;
-        _accumulatedQueueSize += queueSize;
-    }
+    void UpdateQueueStats(int queueSize);
 
 protected:
     const std::string& getName() const {return _name;}
@@ -56,20 +52,19 @@ protected:
     std::condition_variable _cv;
     std::atomic<bool> _stop {false};
     std::vector<std::thread> _threads;
+    bool _useSystemCall = false;;
 
     void InitializeThread();
-    float GetAverageLoad() {
-        std::unique_lock<std::mutex> lk(_statsLock);
-        return (_checkQueueCnt > 0) ? static_cast<float>(_accumulatedQueueSize) / _checkQueueCnt : 0.0f;
-    }
+    float GetAverageLoad();
     virtual void ThreadWork(int id) = 0;
+    std::atomic<unsigned int> _stopCount {0};
 private:
     void DoThread(int id);
     std::string _name;
     Type _type;
     int _queueMaxSize = 1000;
-    std::atomic<int> _checkQueueCnt = {0};
-    std::atomic<int> _accumulatedQueueSize = {0};
+    std::atomic<int> _checkQueueCnt{0};
+    std::atomic<int> _accumulatedQueueSize{0};
     //std::queue<std::shared_ptr<Request>> _queue;
 
 };
@@ -86,7 +81,6 @@ public:
 private:
     std::queue<int> _queue;
     void ThreadWork(int id) override;
-    std::condition_variable _cv;
 };
 class DeviceOutputWorker : public Worker
 {
@@ -101,7 +95,6 @@ private:
     void ThreadWork(int id) override;
 #ifdef USE_SERVICE
     std::queue<dxrt_response_t> _queue;
-    std::condition_variable _cv;
 #endif
 
 };

@@ -98,6 +98,7 @@ int32_t IPCMessageQueueClientLinux::SendToServer(IPCClientMessage& clientMessage
     LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux::SendToServer" << std::endl;
 
     IPCMessageQueueLinux::Message mq_message;
+    memset(&mq_message, 0, sizeof(mq_message));
     mq_message.msgType = IPCMessageQueueLinux::SERVER_MSG_TYPE;
 
     clientMessage.msgType = _msgType;
@@ -128,10 +129,10 @@ int32_t IPCMessageQueueClientLinux::RegisterReceiveCB(std::function<int32_t(IPCS
     // review
     //std::lock_guard<std::mutex> lock(_funcLock);
         
-    if ( _threadRunning )
+    if ( _threadRunning.load() )
     {
 
-        _threadRunning = false;
+        _threadRunning.store(false);
 
         IPCServerMessage serverMessage;
         serverMessage.code = dxrt::RESPONSE_CODE::CLOSE;
@@ -158,7 +159,7 @@ int32_t IPCMessageQueueClientLinux::RegisterReceiveCB(std::function<int32_t(IPCS
 
         if ( _receiveCB != nullptr ) 
         {
-            _threadRunning = true;
+            _threadRunning.store(true);
             _thread = std::thread(IPCMessageQueueClientLinux::ThreadFunc, this);
             LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux: Created Callback Thread" << std::endl;
         }
@@ -173,7 +174,7 @@ int32_t IPCMessageQueueClientLinux::Close()
     // review
     //std::lock_guard<std::mutex> lock(_funcLock);
 
-    if ( _threadRunning )
+    if ( _threadRunning.load() )
     {
         RegisterReceiveCB(nullptr, nullptr);
     }
@@ -187,7 +188,7 @@ int32_t IPCMessageQueueClientLinux::Close()
 void IPCMessageQueueClientLinux::ThreadFunc(IPCMessageQueueClientLinux* mqClient)
 {
 
-    while (mqClient->_threadRunning)
+    while ( mqClient->_threadRunning.load() )
     {
         IPCServerMessage serverMessage;
         serverMessage.msgType = getpid();
@@ -206,7 +207,8 @@ void IPCMessageQueueClientLinux::ThreadFunc(IPCMessageQueueClientLinux* mqClient
             }
 
         } else {
-            LOG_DXRT_I_ERR("ReceiveFromServer fail");
+            LOG_DXRT_I_ERR("ReceiveFromServer fail, errno = "+ std::to_string(errno));
+            break;
         }
 
     }
