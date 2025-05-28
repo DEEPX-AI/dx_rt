@@ -34,10 +34,10 @@ int DeviceInputWorker::request(int requestId)
     unique_lock<mutex> lk(_lock);
     RequestPtr req = Request::GetById(requestId); //for DEBUG
     _queue.push(requestId);
-    if(requestId%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || requestId%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
-    {
-        cout<<"[PROC         ][Job_"<<req->getData()->jobId<<"][Req_"<<requestId<<"][Dev_"<<_device->id()<<"][Buffer] Input Notify all"<<endl;
-    }
+    //if(requestId%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || requestId%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
+    //{
+    //    cout<<"[PROC         ][Job_"<<req->getData()->jobId<<"][Req_"<<requestId<<"][Dev_"<<_device->id()<<"][Buffer] Input Notify all"<<endl;
+    //}
     _cv.notify_all();
 
     return 0;
@@ -104,10 +104,10 @@ void DeviceInputWorker::ThreadWork(int id)
                 profiler.Start("PCIe Write(" + to_string(inferenceAcc.dma_ch)+")");
 #endif
                 _device->Write(inferenceAcc.input, channel);
-                if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
-                {
-                    cout<<"[    IN_W     ][Job_"<<req->getData()->jobId<<"][Req_"<<req->id()<<"][Dev_"<<deviceId<<"][Buffer] INPUT2DEV"<<endl;
-                }
+                //if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
+                //{
+                //    cout<<"[    IN_W     ][Job_"<<req->getData()->jobId<<"][Req_"<<req->id()<<"][Dev_"<<deviceId<<"][Buffer] INPUT2DEV"<<endl;
+                //}
 #ifdef USE_PROFILER
                 profiler.End("PCIe Write(" + to_string(inferenceAcc.dma_ch)+")");
 #endif
@@ -123,10 +123,10 @@ void DeviceInputWorker::ThreadWork(int id)
                 TASK_FLOW("["+to_string(req->job_id())+"]"+req->taskData()->name()+" signal to service input");
 
                 _device->SignalToService(&inferenceAcc);
-                if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
-                {
-                    cout<<"[    IN_W     ][Job_"<<req->getData()->jobId<<"][Req_"<<req->id()<<"][Dev_"<<deviceId<<"][Buffer] SIG2SVC"<<endl;
-                }
+                //if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
+                //{
+                //    cout<<"[    IN_W     ][Job_"<<req->getData()->jobId<<"][Req_"<<req->id()<<"][Dev_"<<deviceId<<"][Buffer] SIG2SVC"<<endl;
+                //}
             }
             else
 #endif

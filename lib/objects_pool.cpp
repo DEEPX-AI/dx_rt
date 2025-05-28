@@ -37,7 +37,6 @@ ObjectsPool::ObjectsPool()
 
 ObjectsPool::~ObjectsPool()
 {
-
     LOG_DXRT_DBG << "~ObjectPool start" << std::endl;
     _devices.clear();
     _inferenceJobPool = nullptr;
@@ -48,7 +47,7 @@ ObjectsPool::~ObjectsPool()
 
     // delete configuration
     Configuration::deleteInstance();
-
+  
     LOG_DXRT_DBG << "~ObjectPool end" << std::endl;
 }
 
@@ -106,27 +105,25 @@ constexpr int ObjectsPool::INFERENCE_JOB_MAX_COUNT;
 
 RequestPtr ObjectsPool::PickRequest()  // new one
 {
-    //std::lock_guard<std::mutex> lock(_methodMutex);
-    std::lock_guard<std::mutex> lock(_pickRequestMutex);
+    //std::lock_guard<std::mutex> lock(_pickRequestMutex);
     return _requestPool->pick();
 }
 
 RequestPtr ObjectsPool::GetRequestById(int id)  // find one by id
 {
-    //std::lock_guard<std::mutex> lock(_methodMutex);
-    std::lock_guard<std::mutex> lock(_getRequestByIdMutex);
+    //std::lock_guard<std::mutex> lock(_getRequestByIdMutex);
     return _requestPool->GetById(id);
 }
 
 InferenceJobPtr ObjectsPool::PickInferenceJob()  // new one
 {
-    std::lock_guard<std::mutex> lock(_methodMutex);
+    //std::lock_guard<std::mutex> lock(_methodMutex);
     return _inferenceJobPool->pick();
 }
 
 InferenceJobPtr ObjectsPool::GetInferenceJobById(int id)  // find one by id
 {
-    std::lock_guard<std::mutex> lock(_methodMutex);
+    //std::lock_guard<std::mutex> lock(_methodMutex);
     return _inferenceJobPool->GetById(id);
 }
 
@@ -153,7 +150,11 @@ void ObjectsPool::InitDevices_once(SkipMode skip, uint32_t subCmd)
 shared_ptr<Device> ObjectsPool::PickOneDevice(const vector<int> &device_ids)
 {
     std::lock_guard<std::mutex> lock(_methodMutex);
-#if 1
+    return WaitDevice(device_ids);
+
+
+#if 0
+    std::lock_guard<std::mutex> lock(_methodMutex);
     LOG_DXRT_DBG << endl;
     shared_ptr<Device> pick = nullptr;
     int load = numeric_limits<int>::max();
@@ -189,43 +190,13 @@ shared_ptr<Device> ObjectsPool::PickOneDevice(const vector<int> &device_ids)
     //cout << "dev " << pick->id() << ", " << pick->load() << endl;
     LOG_DXRT_DBG << " pick device " << pick->id() << endl;
     return pick;
-#else
-    //unique_lock<mutex> lk(_devicesLock);
-    shared_ptr<Device> pick = nullptr;
-    int block_count = 0;
-    for(int i = 0; i < device_id_size; i++)
-    {
-        int idx = (i + _curDevIdx) % device_id_size;
-        _curDevIdx++;
-        int device_id = device_ids[idx];
-        if (_devices[device_id]->isBlocked())
-        {
-            block_count++;
-            continue;
-        }
-        else
-        {
-            pick = devices_[device_id];
-            break;
-        }
-    }
-    DXRT_ASSERT(block_count < device_id_size, "ALL DEVICE BLOCKED");
+#endif // busy waiting.. 
 
-    //pick = devices_[(curDevIdx++)%devices_.size()];
-    pick->pick();
-    while(pick->load()>=DXRT_TASK_MAX_LOAD)
-    {
-        std::this_thread::sleep_for(std::chrono::microseconds(1));
-    }
-    // cout << "dev " << pick->id() << ", " << pick->load() << endl;
-    return pick;
-#endif
 }
 
 vector<shared_ptr<Device>>& ObjectsPool::CheckDevices()
 {
-    //std::lock_guard<std::mutex> lock(_methodMutex);
-    std::lock_guard<std::mutex> lock(_checkDeviceMutex);
+    //std::lock_guard<std::mutex> lock(_checkDeviceMutex);
     return _devices;
 }
 
@@ -247,9 +218,67 @@ DevicePtr ObjectsPool::GetDevice(int id)
 
 int ObjectsPool::DeviceCount()
 {
-    std::lock_guard<std::mutex> lock(_methodMutex);
+    //std::lock_guard<std::mutex> lock(_methodMutex);
     return static_cast<int>(_devices.size());
 }
+
+// wait and awake
+std::shared_ptr<Device> ObjectsPool::WaitDevice(const vector<int> &device_ids)
+{
+    std::unique_lock<std::mutex> lock(_deviceMutex);
+    _deviceCV.wait(lock, [this, &device_ids]{
+        _currentPickDevice = pickDeviceIndex(device_ids);
+        return _currentPickDevice >= 0;
+    });
+
+    auto pick = _devices[_currentPickDevice];
+    pick->pick();
+
+    return pick;
+}
+
+void ObjectsPool::AwakeDevice(size_t devIndex)
+{
+    std::unique_lock<std::mutex> lock(_deviceMutex);
+    //_curDevIdx = devIndex;
+    std::ignore = devIndex;
+    _curDevIdx = 0;
+    _deviceCV.notify_all();
+}
+      
+
+int ObjectsPool::pickDeviceIndex(const vector<int> &device_ids)
+{
+    int device_index = -1;
+    int load = numeric_limits<int>::max();
+    int curDeviceLoad;
+    int device_id_size = device_ids.size();
+    int block_count = 0;
+    for(int i = 0; i < device_id_size; i++)
+    {
+        int idx = (i + _curDevIdx) % device_id_size;
+        int device_id = device_ids[idx];
+        if (_devices[device_id]->isBlocked())
+        {
+            block_count++;
+            continue;
+        }
+        curDeviceLoad = _devices[device_id]->load();
+        if(curDeviceLoad < DXRT_TASK_MAX_LOAD && curDeviceLoad < load)
+        {
+            load = curDeviceLoad;
+            device_index = device_id;
+        }
+    }
+
+    _curDevIdx++;
+    
+    DXRT_ASSERT(block_count < device_id_size, "ALL DEVICE BLOCKED");
+    //std::cout << "device-index=" << device_index << std::endl;
+    
+    return device_index;
+}
+
 
 
 }  // namespace dxrt

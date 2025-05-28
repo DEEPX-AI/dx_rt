@@ -299,7 +299,7 @@ typedef enum {
     DXRT_CMD_READ_OUTPUT_DMA_CH0,
     DXRT_CMD_READ_OUTPUT_DMA_CH1,
     DXRT_CMD_READ_OUTPUT_DMA_CH2,
-    DXRT_CMD_TERMINATE          ,
+    DXRT_CMD_TERMINATE_EVENT    ,
     DXRT_CMD_EVENT              ,
     DXRT_CMD_DRV_INFO           , /* Sub-command */
     DXRT_CMD_SCHEDULE           , /* Sub-command */
@@ -310,6 +310,7 @@ typedef enum {
     DXRT_CMD_RECOVERY           ,
     DXRT_CMD_CUSTOM             , /* Sub-command */
     DXRT_CMD_START              ,
+    DXRT_CMD_TERMINATE          ,
     DXRT_CMD_MAX,
 } dxrt_cmd_t;
 

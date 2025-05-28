@@ -478,11 +478,13 @@ private:
 
     std::function<int(TensorPtrs &outputs, void *userArg)> _userCallback;
     std::vector<bool> _occupiedInferenceJobs;
-    std::mutex _occupiedInferenceJobsLock;
-
+    
     void disposeOnce();
     std::once_flag _disposeOnceFlag;
     bool _isDisposed = false;
+
+private:
+    static std::mutex _sOccupiedInferenceJobsLock;
 };
 
 } /* namespace dxrt */

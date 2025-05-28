@@ -85,7 +85,7 @@ static int cpuOperationThreadFunc(int loopCount, dxrt::InferenceEngine& ieA, dxr
         // consumer framebuffer & jobIds
         auto frameJobIdA = gCPUOPQueue.pop();
 
-        // output data of ieB
+        // output data of ieA
         auto outputA = ieA.Wait(frameJobIdA.jobId_A);
 
         // post-processing w/ outputA

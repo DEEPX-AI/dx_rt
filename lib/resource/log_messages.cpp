@@ -7,14 +7,11 @@ namespace dxrt {
 
     std::string LogMessages::NotSupported_ModelCompilerVersion(
         const std::string& currentCompilerVersion, 
-        const std::string& requiredCompilerVersion,
-        const std::string& supportedRTVersion)
+        const std::string& requiredCompilerVersion)
     {
         return "The model's compiler version(" 
             + currentCompilerVersion
-            + ") is not compatible in this RT library. Please downgrade the RT library version to " 
-            + supportedRTVersion 
-            + " or use a model file generated with a compiler version " 
+            + ") is not compatible in this RT library. Please use a model file generated with a compiler version " 
             + requiredCompilerVersion
             + " or higher.";
     }

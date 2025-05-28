@@ -25,11 +25,11 @@ int InferenceRequest(RequestPtr req)
     {
         LOG_DXRT_DBG << "[" << req->id() << "] " << "N) Req " << req->id() << ": "
             << req->requestor_name() << " -> " << req->task()->name() << std::endl;
-        if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
-            cout<<"[PROC         ][Job_"<<req->getData()->jobId<<"][Req_"<<req->id()<<"] wait device..."<<endl;
+        //if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
+        //    cout<<"[PROC         ][Job_"<<req->getData()->jobId<<"][Req_"<<req->id()<<"] wait device..."<<endl;
         auto device = ObjectsPool::GetInstance().PickOneDevice(req->task()->getDeviceIds());
-        if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
-            cout<<"[PROC         ][Job_"<<req->getData()->jobId<<"][Req_"<<req->id()<<"][Dev_"<<device->id()<<"] DEV GET"<<endl;
+        //if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
+        //    cout<<"[PROC         ][Job_"<<req->getData()->jobId<<"][Req_"<<req->id()<<"][Dev_"<<device->id()<<"] DEV GET"<<endl;
         //cout<<"[PROC         ][Job_"<<req->getData()->jobId<<"][Req_"<<req->id()<<"][Dev_"<<device->id()<<"]"<<endl;
         TASK_FLOW("["+to_string(req->job_id())+"]"+req->task()->name()+" picks device");
 #ifdef USE_PROFILER
@@ -38,11 +38,11 @@ int InferenceRequest(RequestPtr req)
         req->model_type() = req->taskData()->_npuModel.front().type;
         if(req->getData()->output_ptr == nullptr)
         {
-            if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
-                cout<<"[PROC         ][Job_"<<req->getData()->jobId<<"][Req_"<<req->id()<<"][Dev_"<<device->id()<<"] wait buffer..."<<endl;
+            //if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
+            //    cout<<"[PROC         ][Job_"<<req->getData()->jobId<<"][Req_"<<req->id()<<"][Dev_"<<device->id()<<"] wait buffer..."<<endl;
             req->getData()->output_ptr = req->task()->GetOutputBuffer();
-            if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
-                cout<<"[PROC         ][Job_"<<req->getData()->jobId<<"][Req_"<<req->id()<<"][Dev_"<<device->id()<<"][BUFFER] BUFFER GET"<<endl;
+            //if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
+            //    cout<<"[PROC         ][Job_"<<req->getData()->jobId<<"][Req_"<<req->id()<<"][Dev_"<<device->id()<<"][BUFFER] BUFFER GET"<<endl;
             //cout<<"[PROC         ][Job_"<<req->getData()->jobId<<"][Req_"<<req->id()<<"][Dev_"<<device->id()<<"][GETBUFFER]"<<endl;
         }
         device->InferenceRequest(req->getData(), static_cast<npu_bound_op>(req->task()->getNpuBoundOp()));

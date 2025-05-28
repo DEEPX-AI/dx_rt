@@ -217,10 +217,10 @@ void DeviceOutputWorker::ThreadWork(int id)
             }
  
             _device->CallBack();
-            if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
-            {
-                cout<<"[        OUT_W][Job_"<<req->getData()->jobId<<"][Req_"<<req->id()<<"](---_"<<deviceId<<")[Buffer] Device Released"<<endl;
-            }
+            //if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
+            //{
+            //    cout<<"[        OUT_W][Job_"<<req->getData()->jobId<<"][Req_"<<req->id()<<"](---_"<<deviceId<<")[Buffer] Device Released"<<endl;
+            //}
             TASK_FLOW("["+to_string(req->job_id())+"]"+req->taskData()->name()+" output is ready, load :"+to_string(_device->load()));
             Profiler::GetInstance().End(_device->name());
 

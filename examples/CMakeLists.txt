@@ -1,5 +1,8 @@
 add_subdirectory(display_async_wait)
 add_subdirectory(display_async_pipe)
+add_subdirectory(display_async_thread)
+add_subdirectory(display_async_models_1)
+add_subdirectory(display_async_models_2)
 add_subdirectory(run_async_model)
 add_subdirectory(run_async_model_thread)
 add_subdirectory(run_async_model_wait)

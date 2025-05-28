@@ -72,7 +72,7 @@ def onInferenceCallbackFunc(outputs, user_arg):
     # to ensure that callback functions are thread-safe.
     with lock:
         # user data type casting
-        index, loop_count = user_arg.value
+        index, loop_count = user_arg
     
 
         # post processing
@@ -163,9 +163,9 @@ def onInferenceCallbackFunc(outputs, user_arg):
     # to ensure that callback functions are thread-safe.
     with lock:
         # user data type casting
-        index = user_arg.value[0]
-        loop_count = user_arg.value[1]
-        thread_index = user_arg.value[2]
+        index = user_arg[0]
+        loop_count = user_arg[1]
+        thread_index = user_arg[2]
 
         # post processing
         #postProcessing(outputs);
@@ -355,13 +355,13 @@ if __name__ == "__main__":
     print("Inference Options:")
 
     # select devices
-    option.set_devices([0])
+    option.devices = [0]
 
     # NPU bound opion (NPU_ALL or NPU_0 or NPU_1 or NPU_2)
-    option.set_bound_option(InferenceOption.BOUND_OPTION.NPU_ALL)
+    option.bound_option = InferenceOption.BOUND_OPTION.NPU_ALL
 
     # use ONNX Runtime (True or False)
-    option.set_use_ort(False)
+    option.use_ort = False
    
     # create inference engine instance with model
     with InferenceEngine(modelPath, option) as ie:

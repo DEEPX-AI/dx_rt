@@ -126,6 +126,7 @@ private:
 
     std::mutex _reqLock;
     std::mutex _completeCntLock;
+    std::mutex _outputBufferLock;
 
     bool _isHead = false;
     bool _isTail = false;
@@ -144,5 +145,7 @@ private:
     int _boundOp = 0;
     int64_t _tailOffset = 0;
     static int nextId;
+    static std::mutex _nextIdLock;
+    static int getNextId();
 };
 } // namespace dxrt

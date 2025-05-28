@@ -148,10 +148,10 @@ void SchedulerService::doInference(int deviceId, int procId, int reqId)
         _loads[deviceId]++;
         // do inference
 
-        if(reqId%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || reqId%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
-        {
-            cout<<"[DoINF      ]              DEVICE : "<<deviceId<<" - PROCESS_ID : "<<procId<<" - REQ_ID : "<<reqId<<" - LOAD : "<<_loads[deviceId]<<endl;//AGING LOG
-        }
+        //if(reqId%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || reqId%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
+        //{
+        //    cout<<"[DoINF      ]              DEVICE : "<<deviceId<<" - PROCESS_ID : "<<procId<<" - REQ_ID : "<<reqId<<" - LOAD : "<<_loads[deviceId]<<endl;//AGING LOG
+        //}
 
         dxrt::dxrt_request_acc_t new_req = _map[procId][reqId];
         int retval = _devices[deviceId]->InferenceRequest(&new_req);

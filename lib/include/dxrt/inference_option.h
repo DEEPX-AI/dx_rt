@@ -24,8 +24,11 @@ class DXRT_API InferenceOption
     enum BOUND_OPTION {
         NPU_ALL = 0,
         NPU_0,
-        NPU_1, 
-        NPU_2
+        NPU_1,
+        NPU_2,
+        NPU_01,
+        NPU_12,
+        NPU_02
     };
 
     /** @brief device ID list to use 

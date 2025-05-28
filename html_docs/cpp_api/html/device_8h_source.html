@@ -259,16 +259,17 @@ $(function() {
 <div class="line"><a name="l00187"></a><span class="lineno">  187</span>&#160;    std::mutex _npuInferenceLock;</div>
 <div class="line"><a name="l00188"></a><span class="lineno">  188</span>&#160; </div>
 <div class="line"><a name="l00189"></a><span class="lineno">  189</span>&#160;    std::atomic&lt;bool&gt; _isBlocked = {<span class="keyword">false</span>};</div>
-<div class="line"><a name="l00190"></a><span class="lineno">  190</span>&#160; </div>
-<div class="line"><a name="l00191"></a><span class="lineno">  191</span>&#160;};</div>
-<div class="line"><a name="l00192"></a><span class="lineno">  192</span>&#160; </div>
-<div class="line"><a name="l00193"></a><span class="lineno">  193</span>&#160;<span class="keyword">extern</span> DXRT_API std::shared_ptr&lt;Device&gt; PickOneDevice(std::vector&lt;std::shared_ptr&lt;Device&gt;&gt; &amp;devices_);</div>
-<div class="line"><a name="l00194"></a><span class="lineno">  194</span>&#160;<span class="keyword">extern</span> DXRT_API std::vector&lt;std::shared_ptr&lt;Device&gt;&gt;&amp; CheckDevices(SkipMode skip = NONE, uint32_t subCmd = 0);</div>
-<div class="line"><a name="l00195"></a><span class="lineno">  195</span>&#160;<span class="keyword">extern</span> DXRT_API <span class="keywordtype">void</span> WaitDeviceResponses(std::vector&lt;std::shared_ptr&lt;Device&gt;&gt; &amp;devices_); <span class="comment">// temp.</span></div>
-<div class="line"><a name="l00196"></a><span class="lineno">  196</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> dxrt_device_status_t&amp;);</div>
-<div class="line"><a name="l00197"></a><span class="lineno">  197</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp; os, <span class="keyword">const</span> dxrt_device_info_t&amp; info);</div>
-<div class="line"><a name="l00198"></a><span class="lineno">  198</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp; os, <span class="keyword">const</span> dx_pcie_dev_ntfy_throt_t&amp; notify);</div>
-<div class="line"><a name="l00199"></a><span class="lineno">  199</span>&#160;} <span class="comment">// namespace dxrt</span></div>
+<div class="line"><a name="l00190"></a><span class="lineno">  190</span>&#160;    SharedMutex _registerTaskMutex;</div>
+<div class="line"><a name="l00191"></a><span class="lineno">  191</span>&#160; </div>
+<div class="line"><a name="l00192"></a><span class="lineno">  192</span>&#160;};</div>
+<div class="line"><a name="l00193"></a><span class="lineno">  193</span>&#160; </div>
+<div class="line"><a name="l00194"></a><span class="lineno">  194</span>&#160;<span class="keyword">extern</span> DXRT_API std::shared_ptr&lt;Device&gt; PickOneDevice(std::vector&lt;std::shared_ptr&lt;Device&gt;&gt; &amp;devices_);</div>
+<div class="line"><a name="l00195"></a><span class="lineno">  195</span>&#160;<span class="keyword">extern</span> DXRT_API std::vector&lt;std::shared_ptr&lt;Device&gt;&gt;&amp; CheckDevices(SkipMode skip = NONE, uint32_t subCmd = 0);</div>
+<div class="line"><a name="l00196"></a><span class="lineno">  196</span>&#160;<span class="keyword">extern</span> DXRT_API <span class="keywordtype">void</span> WaitDeviceResponses(std::vector&lt;std::shared_ptr&lt;Device&gt;&gt; &amp;devices_); <span class="comment">// temp.</span></div>
+<div class="line"><a name="l00197"></a><span class="lineno">  197</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, <span class="keyword">const</span> dxrt_device_status_t&amp;);</div>
+<div class="line"><a name="l00198"></a><span class="lineno">  198</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp; os, <span class="keyword">const</span> dxrt_device_info_t&amp; info);</div>
+<div class="line"><a name="l00199"></a><span class="lineno">  199</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp; os, <span class="keyword">const</span> dx_pcie_dev_ntfy_throt_t&amp; notify);</div>
+<div class="line"><a name="l00200"></a><span class="lineno">  200</span>&#160;} <span class="comment">// namespace dxrt</span></div>
 </div><!-- fragment --></div><!-- contents -->
 <div class="ttc" id="anamespacedxrt_html"><div class="ttname"><a href="namespacedxrt.html">dxrt</a></div><div class="ttdoc">DXRT C++ APIs are provided in this namespace.</div><div class="ttdef"><b>Definition:</b> buffer.h:8</div></div>
 <!-- start footer part -->
