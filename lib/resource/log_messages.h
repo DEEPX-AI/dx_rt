@@ -10,8 +10,7 @@ namespace dxrt {
         static std::string ConvertIntToVersion(int version);
 
         static std::string NotSupported_ModelCompilerVersion(const std::string& currentCompilerVersion, 
-                                                            const std::string& requiredCompilerVersion,
-                                                            const std::string& supportedRTVersion);
+                                                            const std::string& requiredCompilerVersion);
 
         static std::string NotSupported_ModelFileFormatVersion(int currentFileFormatVersion, 
                                                             int requiredFileFormatVersion);

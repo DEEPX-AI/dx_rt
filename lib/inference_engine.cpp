@@ -42,6 +42,7 @@ struct BatchArgument
 };
 
 static const int SUB_BATCH_MAX_COUNT = 128;
+std::mutex InferenceEngine::_sOccupiedInferenceJobsLock;
 
 InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &option_)
 :_modelFile(path_), _option(option_)
@@ -96,15 +97,7 @@ InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &opti
             );
             // cout << modelData.deepx_binary.rmap_info(0).name() << endl;
         }
-        // auto graphs = _modelData.deepx_graph.m_graph();
-        // for(auto &order : topoSort_order )
-        // {
-        //     for(auto &graph : graphs)
-        //     {
-        //         cout << graph.name() << endl;
-        //     }
-        // }
-        // exit(1);
+
         for (auto &order : orgTaskOrder )
         {
             std::vector<dxrt::rmapinfo> rmapInfos;
@@ -119,20 +112,7 @@ InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &opti
                     break;
                 }
             }
-            // for(int j=0; j<_modelData.deepx_graph.m_graph().size(); j++)
-            // {
-            //     auto &graph = _modelData.deepx_graph.m_graph(j);
-            //     // auto graphs = modelData.deepx_graph.m_graph();
-            //     // for(auto &graph:graphs)
-            //     {
-            //         if(order == graph.name())
-            //         {
-            //             cout << order << endl;
-            //         }
-            //         // cout << graph.name() << endl;
-            //     }
-            // }
-            // cout << "check " << order << endl;
+
             for(size_t j=0; j<_modelData.deepx_binary.rmap_info().size(); j++)
             {
                 if(order == _modelData.deepx_binary.rmap_info(j).name())
@@ -143,7 +123,7 @@ InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &opti
                     // version check
                     std::string version_str = _modelData.deepx_binary._compilerVersion;
                     if ( !isSupporterModelVersion(version_str) ) 
-                        throw InvalidModelException(EXCEPTION_MESSAGE(LogMessages::NotSupported_ModelCompilerVersion(version_str, MIN_COMPILER_VERSION, "2.7.0")));
+                        throw InvalidModelException(EXCEPTION_MESSAGE(LogMessages::NotSupported_ModelCompilerVersion(version_str, MIN_COMPILER_VERSION)));
 
 
                     if(_graphMap.find(order)!=_graphMap.end())
@@ -168,9 +148,6 @@ InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &opti
                 {
                     if(order == _modelData.deepx_binary.cpu_models(j).name())
                     {
-// #ifndef USE_ORT
-//                         DXRT_ASSERT(false, "Multi-task model is not supported if USE_ORT is disabled in dx-rt.");
-// #endif
                         // cout << "found " << order << endl;
                         const auto& bufferSource =_modelData.deepx_binary.cpu_models(j).buffer();
                         data.emplace_back(bufferSource.begin(), bufferSource.end());
@@ -352,21 +329,10 @@ InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &opti
         }
     }
 
-    /*
-    LOG << "Last Output Tensors: ";
-    for (size_t i = 0; i < _lastOutputOrder.size(); ++i) {
-        cout << _lastOutputOrder[i];
-        if (i < _lastOutputOrder.size() - 1) {
-            cout << ", ";
-        }
-    }
-    cout << endl;
-    */
     LOG_DBG("_numTails : "+std::to_string(_numTails));
     //DXRT_ASSERT(_numTails==1, "Invalid Graph : check the number of tail task (The final inference output aggregation for multi-tail tasks is not yet supported.)");
     
-    InferenceJob::InitInferenceJob(); // static
-    _occupiedInferenceJobs = std::vector<bool>(ObjectsPool::INFERENCE_JOB_MAX_COUNT);
+    _occupiedInferenceJobs = std::vector<bool>(ObjectsPool::INFERENCE_JOB_MAX_COUNT, false);
 #ifdef PRINT_ALL_INFERENCE_ENGINE
     for (auto &task : _tasks)
     {
@@ -400,7 +366,7 @@ TensorPtrs InferenceEngine::Run(void *inputPtr, void *userArg, void *outputPtr)
     {
         throw InvalidOperationException("InferenceEngine already Disposed");
     }
-    std::shared_ptr<InferenceJob> infJob = InferenceJob::Pick(); 
+    std::shared_ptr<InferenceJob> infJob = ObjectsPool::GetInstance().PickInferenceJob();
 
     infJob->SetInferenceJob(_tasks, _head, _lastOutputOrder);
     infJob->setInferenceEngineInterface(this);
@@ -412,7 +378,7 @@ TensorPtrs InferenceEngine::Run(void *inputPtr, void *userArg, void *outputPtr)
             retval = _userCallback(outputs, userArg);
         }
         {
-            std::lock_guard<std::mutex> lock(_occupiedInferenceJobsLock);
+            std::lock_guard<std::mutex> lock(_sOccupiedInferenceJobsLock);
             // unoccupired inference job id
             this->_occupiedInferenceJobs[jobId] = false;
         }
@@ -422,7 +388,7 @@ TensorPtrs InferenceEngine::Run(void *inputPtr, void *userArg, void *outputPtr)
 
     int jobId = infJob->startJob(inputPtr, userArg, outputPtr);
     {
-        std::lock_guard<std::mutex> lock(_occupiedInferenceJobsLock);
+        std::lock_guard<std::mutex> lock(_sOccupiedInferenceJobsLock);
         // occupired inference job id
         _occupiedInferenceJobs[jobId] = true;
     }
@@ -541,7 +507,6 @@ void InferenceEngine::runSubBatch(std::vector<TensorPtrs>& result, int batchCoun
             int batch_index = -1;
 
             try {
-            
                 // find batch_index by jobId
                 batch_index = batch_arg->resultIndex;
                 //std::cout << "callback batch-index=" << batch_index << std::endl;
@@ -616,7 +581,7 @@ int InferenceEngine::runAsync(void *inputPtr, void *userArg, void *outputPtr,
         throw InvalidOperationException("InferenceEngine already Disposed");
     }
     // return InferenceJob instance from InferenceJob pool (reused)
-    std::shared_ptr<InferenceJob> infJob = InferenceJob::Pick(); 
+    std::shared_ptr<InferenceJob> infJob = ObjectsPool::GetInstance().PickInferenceJob();
 
     infJob->SetInferenceJob(_tasks, _head, _lastOutputOrder);
     infJob->setInferenceEngineInterface(this);
@@ -642,7 +607,7 @@ int InferenceEngine::runAsync(void *inputPtr, void *userArg, void *outputPtr,
                 batchCallback(outputs, userArg, jobId);
             }
             {
-                std::lock_guard<std::mutex> lock(_occupiedInferenceJobsLock);
+                std::lock_guard<std::mutex> lock(_sOccupiedInferenceJobsLock);
                 // unoccupired inference job id
                 this->_occupiedInferenceJobs[jobId] = false;
             }
@@ -654,14 +619,14 @@ int InferenceEngine::runAsync(void *inputPtr, void *userArg, void *outputPtr,
     {
         infJob->SetStoreResult(true);
     }
-    if(infJob->getId()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || infJob->getId()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
-        cout<<"[PROC         ][Job_"<<infJob->getId()<<"] Start"<<endl;
+    //if(infJob->getId()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || infJob->getId()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
+    //    cout<<"[PROC         ][Job_"<<infJob->getId()<<"] Start"<<endl;
 
     int jobId = infJob->startJob(inputPtr, userArg, outputPtr);
 
     // occupired inference job id
     {
-        std::lock_guard<std::mutex> lock(_occupiedInferenceJobsLock);
+        std::lock_guard<std::mutex> lock(_sOccupiedInferenceJobsLock);
         _occupiedInferenceJobs[jobId] = true;
     }
 
@@ -682,7 +647,6 @@ float InferenceEngine::RunBenchmark(int num, void *inputPtr)
     float sum = 0.;
     auto& profiler = dxrt::Profiler::GetInstance();
     std::vector<float> fps;
-    int todo = max(30, num);
 
     std::atomic<int> done_count;
     auto callBack = [&done_count](TensorPtrs &outputs, void *userArg) -> int{
@@ -694,10 +658,10 @@ float InferenceEngine::RunBenchmark(int num, void *inputPtr)
     RegisterCallback(callBack);
     bool isStandalone = (dxrt::DeviceStatus::GetCurrentStatus(0).GetDeviceType() == DeviceType::STD_TYPE);
 
-    while (todo > 0)
+    while (num > 0)
     {
         uint64_t infTime = 0;
-        int infCnt = min(todo, ObjectsPool::REQUEST_MAX_COUNT);
+        int infCnt = min(num, ObjectsPool::REQUEST_MAX_COUNT);
         done_count = 0;
         profiler.Start("benchmark");
         auto start_clock = std::chrono::steady_clock::now();
@@ -711,13 +675,13 @@ float InferenceEngine::RunBenchmark(int num, void *inputPtr)
             RunAsync(inputPtr);
         }
         // profiler.End("req");
-        while (done_count < infCnt)
+        while (done_count.load() < infCnt)
         {
             std::this_thread::sleep_for(std::chrono::microseconds(1));
         }
         auto end_clock = std::chrono::steady_clock::now();
         infTime = std::chrono::duration_cast<chrono::microseconds>(end_clock - start_clock).count();
-        todo -= infCnt;
+        num -= infCnt;
         //LOG_VALUE(infTime);
         //LOG_VALUE(infCnt);
         fps.emplace_back(1000000.0 * infCnt/infTime);
@@ -739,7 +703,6 @@ float InferenceEngine::RunBenchMarkWindows(int num, void* inputPtr)
     float sum = 0.;
     auto& profiler = dxrt::Profiler::GetInstance();
     std::vector<float> fps;
-    int todo = max(10, num);
 
     std::atomic<int> done_count, i_last, done_todo;
     auto callBack = [&done_count, &i_last,&done_todo](const TensorPtrs& outputs, void* userArg) -> int {
@@ -754,10 +717,10 @@ float InferenceEngine::RunBenchMarkWindows(int num, void* inputPtr)
         };  // callback used to count inference
     RegisterCallback(callBack);
     done_todo = 0;
-    while (todo > 0)
+    while (num > 0)
     {
         uint64_t infTime = 0;
-        int infCnt = min(todo, REQUEST_ID_MAX_VALUE);
+        int infCnt = min(num, REQUEST_ID_MAX_VALUE);
         done_count = 0; i_last = 0;
         profiler.Start("benchmark");
         // profiler.Start("req");
@@ -773,7 +736,7 @@ float InferenceEngine::RunBenchMarkWindows(int num, void* inputPtr)
         // while (done_count < infCnt || (i_last!=(infCnt-1)) )continue;
         profiler.End("benchmark");
         infTime = profiler.Get("benchmark");
-        todo -= infCnt;
+        num -= infCnt;
         done_todo += infCnt;
         fps.emplace_back(1000000.0 * infCnt / infTime);
     }
@@ -821,23 +784,12 @@ TensorPtrs InferenceEngine::ValidateDevice(void *inputPtr, int deviceId)
 TensorPtrs InferenceEngine::Wait(int jobId)
 {
     LOG_DXRT_DBG << jobId << endl;
-    
-    // if unoccupied inference job id, return empty value
-    //if ( _occupiedInferenceJobs[jobId] == false ) {
-    //    return {};
-    //}
 
-    std::shared_ptr<InferenceJob> infJob = InferenceJob::GetById(jobId);
-    while (infJob->getStatus() == Request::Status::REQ_BUSY)
-    {
-        this_thread::sleep_for(chrono::microseconds(1));
-//#ifdef __linux__
-//        usleep(1);
-//#elif _WIN32
-//        this_thread::sleep_for(chrono::microseconds(1));
-//#endif
-        continue;
-    }
+    std::shared_ptr<InferenceJob> infJob = ObjectsPool::GetInstance().GetInferenceJobById(jobId);
+    infJob->Wait();
+    //this_thread::sleep_for(chrono::microseconds(1));
+    // while (infJob->getStatus() == Request::Status::REQ_BUSY)
+    // {    this_thread::sleep_for(chrono::microseconds(1)); }
 
     LOG_DXRT_DBG << jobId << " done" << endl;
     return infJob->getOutput();
@@ -1041,8 +993,9 @@ void InferenceEngine::disposeOnce()
 {
     _isDisposed = true;
     LOG_DXRT_DBG << endl;
-    std::unique_lock<std::mutex> lock(_occupiedInferenceJobsLock);
+    std::unique_lock<std::mutex> lock(_sOccupiedInferenceJobsLock);
 
+    // wait for all inference jobs to complete
     for (size_t i = 0; i < _occupiedInferenceJobs.size(); ++i)
     {
         // wait for the job to finish
@@ -1052,12 +1005,14 @@ void InferenceEngine::disposeOnce()
             lock.lock();
         }
     }
-    for (size_t i = 0; i < _occupiedInferenceJobs.size(); ++i)
-    {
-        if ( !_occupiedInferenceJobs[i] ) {
-            InferenceJob::GetById(i)->Clear();
-        }
-    }
+    
+    // for (size_t i = 0; i < _occupiedInferenceJobs.size(); ++i)
+    // {
+    //     if ( _occupiedInferenceJobs[i] ) {
+    //         InferenceJob::GetById(i)->Clear();
+    //     }
+    // }
+
     for (auto &task : _tasks)
     {
         // cout << *task << endl;
@@ -1071,7 +1026,6 @@ void InferenceEngine::disposeOnce()
     _head.reset();
     _tails.clear();
     _userCallback = nullptr;
-    Request::Clear();
     LOG_DXRT_DBG <<" Done"<< endl;
 
 }

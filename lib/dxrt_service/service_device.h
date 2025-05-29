@@ -99,6 +99,7 @@ class DXRT_API ServiceDevice
     void Identify(int id_, dxrt::SkipMode skip);
     void SetCallback(std::function<void(const dxrt_response_t&)> f);
     static vector<shared_ptr<ServiceDevice>> CheckServiceDevices(SkipMode skip = SkipMode::NONE, uint32_t subCmd = 0);
+    bool isBlocked(){return _isBlocked;}
 
  protected:
     int _id = 0;
@@ -132,6 +133,7 @@ class DXRT_API ServiceDevice
     std::shared_ptr<DriverAdapter> _driverAdapter;
 
     std::function<void(const dxrt_response_t&)> _callBack;
+    bool _isBlocked = false;
 };
 
 

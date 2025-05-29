@@ -36,9 +36,9 @@ def onInferenceCallbackFunc(outputs, user_arg):
     # to ensure that callback functions are thread-safe.
     with lock:
         # user data type casting
-        index = user_arg.value[0]
-        loop_count = user_arg.value[1]
-        thread_index = user_arg.value[2]
+        index = user_arg[0]
+        loop_count = user_arg[1]
+        thread_index = user_arg[2]
 
         # post processing
         #postProcessing(outputs);

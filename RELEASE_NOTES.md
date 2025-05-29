@@ -1,5 +1,22 @@
 # RELEASE_NOTES
 
+## v2.9.1 / 2025-05-29
+### 1. Changed
+- Modified Python tensor info dictionary results. Removed 'size_in_bytes' and added 'elem_size' to the dictionaries returned by get_input_tensors_info() and get_output_tensors_info().
+- Set the service to launch after a reboot when service=ON is built.
+- Updated the run_model option and its description.
+  - Changed the way device and NPU bounding options are configured.
+  - Provided more detailed inference result information.
+  - Added full support for Python run_model.
+### 2. Fixed
+- Fixed incorrect 'dtype' in Python tensor info functions. Corrected the 'dtype' reported by get_input_tensors_info(), get_output_tensors_info(), and similar functions.
+### 3. Added
+- Improved usability for python InferenceOption(). Users can now directly set the option variable without needing a separate method.
+- Improved the Python API
+  - InferenceOption is now supported identically to the C++ API.
+  - Callback functions registered via register_callback now accept user_arg of custom types.
+  - run() now supports both single-input and batch-input modes, depending on the input format.
+- Add display_async_models examples
 ## v2.9.0 / 2025-05-19
 ### 1. Changed
 - Minimum Driver & Compiler versions

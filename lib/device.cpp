@@ -618,14 +618,18 @@ void Device::Terminate()
     //LOG_DXRT_DBG << "Device " << _id << " terminate" << endl;
 
     uint32_t i;
-
-    for(i=0;i<_info.num_dma_ch;i++)
+    do
     {
-        dxrt_response_t data;
-        data.req_id = i;
-        int ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_TERMINATE, &data);
-        std::ignore = ret;
+        for(i=0;i<_info.num_dma_ch;i++)
+        {
+            dxrt_response_t data;
+            data.req_id = i;
+            int ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_TERMINATE_EVENT, &data);
+            std::ignore = ret;
+        }
+        std::this_thread::sleep_for(std::chrono::microseconds(1));
     }
+    while(_eventWorker->isStopped() == false);
 }
 
 void Device::Reset(int opt)
@@ -1012,6 +1016,7 @@ int Device::RegisterTask_STD(TaskData* task)
 
 int Device::RegisterTask_ACC(TaskData* task)
 {
+    SharedLock lk(_registerTaskMutex);
     LOG_DXRT_DBG << "Device " << _id << endl;
     int ret = 0;
     int id = task->id();
@@ -1162,6 +1167,10 @@ void Device::CallBack()
     if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE))
         _sMulti_mems->SignalEndJobs(_id);
 #endif
+
+    // notify all
+    _lk.unlock();
+    ObjectsPool::GetInstance().AwakeDevice(_id);
 }
 
 vector<dxrt_model_t> Device::npu_model(int taskId)

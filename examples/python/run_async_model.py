@@ -23,7 +23,7 @@ def onInferenceCallbackFunc(outputs, user_arg):
     with lock:
 
         # user data type casting
-        index, loop_count = user_arg.value
+        index, loop_count = user_arg
     
 
         # post processing

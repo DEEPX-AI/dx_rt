@@ -1,7 +1,15 @@
 This chapter provides an overview of the DEEPX SDK architecture and explains each core component and its role in the AI development workflow.  
 
 ## DEEPX SDK Architecture  
-![DEEPX SDK Architecture](./../resources/01_SDK_Architecture.drawio.png)
+
+<div class="center-text">
+<p align="center">
+<img src="./../resources/01_SDK_Architecture.drawio.png" alt="DEEPX SDK Architecture" width="650px">  
+<br>
+Figure. DEEPX SDK Architecture  
+<br><br>
+</p>
+</div>
 
 **DEEPX SDK** is an all-in-one software development platform that streamlines the process of compiling, optimizing, simulating, and deploying AI inference applications on DEEPX NPUs (Neural Processing Units). It provides a complete toolchain, from AI model creation to runtime deployment, optimized for edge and embedded systems, enabling developers to build high-performance AI applications with minimal effort.  
 
@@ -21,7 +29,14 @@ This chapter provides an overview of the DEEPX SDK architecture and explains eac
 
 Here is the inference flow of **DX-RT**.
 
-![Inference Flow of DXNN Runtime](./../resources/01_02_Inference_Flow_of_DXNN_Runtime.png){width=600px}
+<div class="center-text">
+<p align="center">
+<img src="./../resources/01_02_Inference_Flow_of_DXNN_Runtime.png" alt="Inference Flow of DXNN Runtime" width="900px">  
+<br>
+Figure. Inference Flow of DXNN Runtime  
+<br><br>
+</p>
+</div>
 
 This figure illustrates the inference workflow of the DXNN Runtime SDK, which integrates OpenCV-based input/output handling with efficient NPU-accelerated model execution.
 

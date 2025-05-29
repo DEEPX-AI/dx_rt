@@ -38,6 +38,6 @@ setuptools.setup(
             'dxrt_bitmatch = dx_engine.bitmatch.cli:main',
         ],
     },
-    python_requires=">=3.6",
+    python_requires=">=3.8",
     install_requires=["numpy"],
 )

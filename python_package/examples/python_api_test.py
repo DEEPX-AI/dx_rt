@@ -21,7 +21,7 @@ def parse_args():
 
 def callback_with_args(outputs, user_arg):
     with callback_lock:
-        print(f"Callback triggered for inference with user_arg({user_arg.value})")
+        print(f"Callback triggered for inference with user_arg({user_arg})")
         result_queue.get(timeout=5) 
         result_queue.task_done() 
     return 0
@@ -35,15 +35,15 @@ if __name__ == "__main__":
 
     # Initialize inference engine
     ie = InferenceEngine(args.model)
-    input_dtype = ie.get_input_data_type()
-    output_dtype = ie.get_output_data_type()
+    input_tensors_info = ie.get_input_tensors_info()
+    output_tensors_info = ie.get_output_tensors_info()
     input_size = ie.get_input_size()
     output_size = ie.get_output_size()
 
-    print(f"Input data type: {input_dtype}")
+    print(f"Input data type: {input_tensors_info}")
     print("\n------------------------------------------\n")
 
-    print(f"Output data type: {output_dtype}")
+    print(f"Output data type: {output_tensors_info}")
     print("\n------------------------------------------\n")
 
     print(f"Input size: {input_size}")
@@ -53,6 +53,7 @@ if __name__ == "__main__":
     print("\n------------------------------------------\n")
 
     input_data_list = [[np.zeros(input_size, dtype=np.uint8)],[np.zeros(input_size, dtype=np.uint8)]]
+    output_data_buffer = [[np.empty(output_size, dtype=np.uint8)],[np.empty(output_size, dtype=np.uint8)]]
     
     req_id = ie.run_async(input_data_list[0], user_arg=0)
     outputs = ie.wait(req_id)  
@@ -60,9 +61,13 @@ if __name__ == "__main__":
     print("\n------------------------------------------\n")
 
     outputs = ie.run(input_data_list[0])
-    print(f"run() => outputs[0].shape : {outputs[0].shape}")
+    print(f"run(single_input) => outputs[0].shape : {outputs[0].shape}")
     print("\n------------------------------------------\n")
     
+    outputs = ie.run(input_data_list, output_data_buffer)
+    print(f"run(batch_input) => return outputs[0][0].shape : {outputs[0][0].shape}, buffer outputs[0][0].shape : {output_data_buffer[0][0].shape}")
+    print("\n------------------------------------------\n")
+
     fps = ie.run_benchmark(30, input_data_list[0])
     print(f"run_benchmark() => fps : {fps}")
     print("\n------------------------------------------\n")
@@ -72,7 +77,6 @@ if __name__ == "__main__":
     print(f"validate_device() => outputs[0].shape : {outputs[0].shape}")
     print("\n------------------------------------------\n")
     
-
     ie.register_callback(callback_with_args)
 
     req_id = ie.run_async(input_data_list[0], user_arg=0)

@@ -72,7 +72,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#v290>_may>_2025" class="md-skip">
+        <a href="#v291>_may>_2025" class="md-skip">
           Skip to content
         </a>
       
@@ -741,9 +741,9 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#v290>_may>_2025" class="md-nav__link">
+  <a href="#v291>_may>_2025" class="md-nav__link">
     <span class="md-ellipsis">
-      v2.9.0 (May 2025)
+      v2.9.1 (May 2025)
     </span>
   </a>
   
@@ -784,27 +784,48 @@
 
   <h1>Change Log</h1>
 
-<h2 id="v290&gt;_may&gt;_2025">v2.9.0 (May 2025)<a class="headerlink" href="#v290&gt;_may&gt;_2025" title="Permanent link">&para;</a></h2>
+<h2 id="v291&gt;_may&gt;_2025">v2.9.1 (May 2025)<a class="headerlink" href="#v291&gt;_may&gt;_2025" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Modify the build.sh script according to cmake options.<br />
-    : CMake option USE_ORT=ON, running build.sh --clean installs ONNX Runtime.<br />
-    : CMake option USE_PYTHON=ON, running build.sh installs the Python package.<br />
-    : CMake option USE_SERVICE=ON, running build.sh starts or restarts the service.  </li>
+<li>Added full support for Python run_model.  </li>
+<li>Updated the run_model option and its description  </li>
+<li>Improve the Python API  <ul>
+<li>InferenceOption is now supported identically to the C++ API.  </li>
+<li>set_devices(...) → devices = [0]  </li>
+<li>set_bound_option(...) → bound_option = InferenceOption.BOUND_OPTION.NPU_ALL</li>
+<li>set_use_ort(...) → use_ort = True</li>
+<li>Callback functions registered via register_callback now accept user_arg of custom types. (removed .value)</li>
+<li>user_arg.value → user_arg</li>
+<li>run() now supports both single-input and batch-input modes, depending on the input format.</li>
+</ul>
+</li>
+<li>Modify the build.sh script according to cmake options.  <ul>
+<li>CMake option USE_ORT=ON, running build.sh --clean installs ONNX Runtime.  </li>
+<li>CMake option USE_PYTHON=ON, running build.sh installs the Python package.  </li>
+<li>CMake option USE_SERVICE=ON, running build.sh starts or restarts the service.  </li>
+</ul>
+</li>
+<li>Add dxrt-cli -v to display minimum driver &amp; compiler versions  </li>
 <li>Addressed multithreading issues by implementing additional locks, improving stability under heavy load.  </li>
 <li>Fix crash on multi-device environments with more than 2 H1 cards. (&gt;=8 devices)  </li>
 <li>Resolved data corruption errors that could occur in different scenarios, ensuring data integrity.  </li>
 <li>Fix profiler bugs.  </li>
 <li>Addressed issues identified by static analysis and other tools, enhancing code quality and reliability.  </li>
 <li>Add --use_ort flag to the run_model.py example for ONNX Runtime.  </li>
-<li>Add run batch function. (Python &amp; C++)<br />
-    : batch inference with multiple inputs and multiple outputs.  </li>
-<li>Minimum model file versions<br />
-    : .dxnn file format version &gt;= v6<br />
-    : compiler version &gt;= v1.15.2  </li>
-<li>Minimum Driver and Firmware versions<br />
-    : RT Driver Version &gt;= v1.5.0<br />
-    : PCIe Driver Version &gt;= v1.4.0<br />
-    : Firmware Version &gt;= v2.0.5  </li>
+<li>Add run batch function. (Python &amp; C++)  <ul>
+<li>batch inference with multiple inputs and multiple outputs.  </li>
+</ul>
+</li>
+<li>Minimum model file versions  <ul>
+<li>.dxnn file format version &gt;= v6  </li>
+<li>compiler version &gt;= v1.15.2  </li>
+</ul>
+</li>
+<li>Minimum Driver and Firmware versions  <ul>
+<li>RT Driver Version &gt;= v1.5.0  </li>
+<li>PCIe Driver Version &gt;= v1.4.0  </li>
+<li>Firmware Version &gt;= v2.0.5  </li>
+</ul>
+</li>
 </ul>
 <h2 id="v282&gt;_april&gt;_2025">v2.8.2 (April 2025)<a class="headerlink" href="#v282&gt;_april&gt;_2025" title="Permanent link">&para;</a></h2>
 <ul>
@@ -813,9 +834,11 @@
 <li>NPU Device Selection / NPU Bound Option / ORT Usage Flag  </li>
 <li>Display dxnn versions in parse_model (.dxnn file format version &amp; compiler version)  </li>
 <li>Added instructions on how to retrieve device status information  </li>
-<li>Driver and Firmware versions<br />
-    : RT Driver &gt;= v1.3.3<br />
-    : Firmware &gt;= v1.6.3  </li>
+<li>Driver and Firmware versions  <ul>
+<li>RT Driver &gt;= v1.3.3  </li>
+<li>Firmware &gt;= v1.6.3  </li>
+</ul>
+</li>
 </ul>
 <hr />
 

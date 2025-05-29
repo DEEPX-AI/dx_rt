@@ -52,7 +52,6 @@ float Worker::GetAverageLoad() {
 
 Worker::~Worker()
 {
-    
     LOG_DXRT_DBG << "Destroying " << _name << endl;
     _stop.store(true);
 
@@ -63,13 +62,20 @@ Worker::~Worker()
             std::unique_lock<std::mutex> lk(_lock);
             _cv.notify_all();
         }
-        if (t.joinable())
+        if ((_useSystemCall) && (_type == Worker::Type::DEVICE_OUTPUT))
         {
-            t.join();
+            t.detach();
         }
         else
         {
-            DXRT_ASSERT(false, "CANNOT JOIN WORKER "+ _name);
+            if (t.joinable())
+            {
+                t.join();
+            }
+            else
+            {
+                DXRT_ASSERT(false, "CANNOT JOIN WORKER "+ _name);
+            }
         }
 
     }
@@ -83,23 +89,18 @@ void Worker::Stop()
         return;
     }
     _stop.store(true);
-    int i = 0;
-    if (_useSystemCall)
-    {
-        do
-        {
-            _device->Terminate();
-            std::this_thread::yield();
-            std::this_thread::sleep_for(std::chrono::microseconds(50));
-            i++;
-        } while (_stopCount == 0);
-    }
+
 }
 
 void Worker::UpdateQueueStats(int queueSize) {
     std::unique_lock<std::mutex> lk(_statsLock);
     _checkQueueCnt++;
     _accumulatedQueueSize.fetch_add(queueSize);
+}
+
+bool Worker::isStopped()
+{
+    return (_stopCount.load() > 0);
 }
 
 }  // namespace dxrt

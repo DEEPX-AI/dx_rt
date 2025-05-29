@@ -61,11 +61,11 @@ class InferenceJob
 
     void Clear();
 
-    static std::shared_ptr<InferenceJob> GetById(int id);
-    static void InitInferenceJob();
-    static std::shared_ptr<InferenceJob> Pick();
     void SetStoreResult(bool storeResult);
     friend class CircularDataPool<InferenceJob>;
+
+    // wait for inference job to complete
+    void Wait();
 
  private:
     std::vector<RequestWeakPtr> _requests;
@@ -96,13 +96,11 @@ class InferenceJob
     // Limit access to shared resources to one thread at a time. 
     // Acquire the mutex when reading or writing the _status value, and release it after the operation is complete.
     std::atomic<Request::Status> _status = {Request::Status::REQ_IDLE};
-    
+    std::mutex _lock;
 
-   static std::vector<std::shared_ptr<InferenceJob> > _sInferenceJobs;
-
-   std::mutex _lock;
-
-   static std::atomic<int> _sNextInferenceJobId;
+    // wait for inference job to complete
+    std::condition_variable _waitCV;
+    std::mutex _waitMutex;
    
 };
 

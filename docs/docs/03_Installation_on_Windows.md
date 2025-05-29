@@ -13,7 +13,14 @@ This section describes the hardware and software requirements for running **DX-R
 
 The current version **only** supports **Single-process** and does **not** support Multi-process.  
 
-![](./../resources/02_DX-M1_M.2_LPDDR5x2.png){ width=600px }
+<div class="center-text">
+<p align="center">
+<img src="./../resources/02_DX-M1_M.2_LPDDR5x2.png" alt="DX-M1 M.2 Module" width="700px">  
+<br>
+Figure. DX-M1 M.2 Module  
+<br><br>
+</p>
+</div>
 
 ---
 

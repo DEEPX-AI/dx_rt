@@ -18,7 +18,14 @@ This file is used directly for inference on DEEPX hardware or simulator.
 
 Here the inference workflow using the DXNN Runtime as follows.  
 
-![Inference Workflow](./../resources/04_02_Inference_Workflow.png){ width=600px }
+<div class="center-text">
+<p align="center">
+<img src="./../resources/04_02_Inference_Workflow.png" alt="Inference Workflow" width="800px">  
+<br>
+Figure. Inference Workflow  
+<br><br>
+</p>
+</div>
 
 - **1**. Compiled Model and optional InferenceOption are provided to initialize the InferenceEngine.  
 - **2**. Pre-processed Input Tensors are passed to the InferenceEngine for inference.  
@@ -185,7 +192,14 @@ python3 tool/profiler/plot.py --input profiler.json
 
 This generates an image file named `profiler.png`, providing a detailed view of runtime event timing for performance analysis. 
 
-![DX-RT Profiling Report](./../resources/04_05_03_DX-RT_Profiling_Report.png){ width=600px }
+<div class="center-text">
+<p align="center">
+<img src="./../resources/04_05_03_DX-RT_Profiling_Report.png" alt="DX-RT Profiling Report" width="700px">  
+<br>
+Figure. DX-RT Profiling Report  
+<br><br>
+</p>
+</div>
 
 
 **Script Usage:** `tool/profiler/plot.py`  
@@ -240,7 +254,7 @@ using namespace std;
 
 int main(int argc, char *argv[])
 {
- auto devices = dxrt::CheckDevices();
+ auto& devices = dxrt::CheckDevices();
  cout << "hello, world" << endl;
  return 0;
 }

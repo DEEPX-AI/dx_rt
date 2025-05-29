@@ -264,6 +264,7 @@ int ServiceDevice::WaitThread(int ids)
                 DataDumpBin(_dumpFile, dump.data(), dump.size());
                 DataDumpTxt(_dumpFile+".txt", dump.data(), 1, dump.size()/2, 2, true);
                 _stop.store(true);
+                _isBlocked = true;
                 DXRT_ASSERT(false, "");
             }
             else

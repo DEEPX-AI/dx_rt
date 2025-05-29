@@ -173,6 +173,8 @@ if [ $CMAKE_USE_SERVICE == "true" ]; then
         sudo systemctl start dxrt.service
         sudo systemctl enable dxrt.service
         echo '[Registration of the dxrt service (dxrtd) - end]'
+    else
+        sudo systemctl enable dxrt.service
     fi
 else
     echo '[Stoped the dxrt service (dxrtd)]'

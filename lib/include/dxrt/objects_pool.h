@@ -21,7 +21,7 @@ namespace dxrt {
    {
    public:
       // static
-      static constexpr int REQUEST_MAX_COUNT = 5000;
+      static constexpr int REQUEST_MAX_COUNT = 15000;
       static constexpr int INFERENCE_JOB_MAX_COUNT = 5000;
 
 
@@ -72,6 +72,17 @@ namespace dxrt {
       std::shared_ptr<Device> PickOneDevice(const vector<int> &device_ids_);
 
       std::vector<shared_ptr<Device>>& CheckDevices();
+
+      // wait and awake
+      std::shared_ptr<Device> WaitDevice(const vector<int> &device_ids);
+      void AwakeDevice(size_t devIndex);
+      
+
+   private:
+      std::condition_variable _deviceCV;
+      std::mutex _deviceMutex;
+      int _currentPickDevice;
+      int pickDeviceIndex(const vector<int> &device_ids);
 
    };
 

@@ -43,6 +43,7 @@ void DeviceEventWorker::ThreadWork(int id)
         dxrt::dx_pcie_dev_event_t eventInfo;
         memset(&eventInfo, 0, sizeof(dxrt::dx_pcie_dev_event_t));
         _device->Process(cmd, &eventInfo); //Waiting in kernel. (device::terminate())
+        
         // LOG_VALUE((int)errInfo.err_code);
         if (static_cast<dxrt::dxrt_event_t>(eventInfo.event_type)==dxrt::dxrt_event_t::DXRT_EVENT_ERROR)
         {
@@ -55,7 +56,8 @@ void DeviceEventWorker::ThreadWork(int id)
         }
         else if (static_cast<dxrt::dxrt_event_t>(eventInfo.event_type)==dxrt::dxrt_event_t::DXRT_EVENT_NOTIFY_THROT)
         {
-            LOG_DXRT << eventInfo.dx_rt_ntfy_throt << endl;
+            if ( Configuration::GetInstance().GetEnable(Configuration::ITEM::LOG_THROTTLING) )
+                LOG_DXRT << eventInfo.dx_rt_ntfy_throt << endl;
         }
         else if (static_cast<dxrt::dxrt_event_t>(eventInfo.event_type)==dxrt::dxrt_event_t::DXRT_EVENT_RECOVERY)
         {

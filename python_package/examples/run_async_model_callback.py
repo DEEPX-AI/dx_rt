@@ -30,7 +30,7 @@ def parse_args():
 def callback_with_args(outputs, user_arg):
     global callback_cnt
     with callback_lock:
-        print(f"Callback triggered for inference with user_arg({user_arg.value})")
+        print(f"Callback triggered for inference with user_arg({user_arg})")
         callback_cnt += 1
         result_queue.get(timeout=5) 
         result_queue.task_done() 
@@ -45,8 +45,8 @@ if __name__ == "__main__":
 
     # Initialize inference engine
     ie = InferenceEngine(args.model)
-    input_dtype = ie.get_input_data_type()
-    output_dtype = ie.get_output_data_type()
+    input_dtype = ie.get_input_tensors_info()[0]['dtype']
+    output_dtype = ie.get_output_tensors_info()[0]['dtype']
     input_size = ie.get_input_size()
     output_size = ie.get_output_size()
 

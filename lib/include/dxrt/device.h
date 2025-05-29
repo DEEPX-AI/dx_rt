@@ -187,6 +187,7 @@ protected:
     std::mutex _npuInferenceLock;
 
     std::atomic<bool> _isBlocked = {false};
+    SharedMutex _registerTaskMutex;
 
 };
 
