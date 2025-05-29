@@ -879,7 +879,7 @@
 <a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>    # to ensure that callback functions are thread-safe.
 <a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>    with lock:
 <a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>        # user data type casting
-<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>        index, loop_count = user_arg.value
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>        index, loop_count = user_arg
 <a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>
 <a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>
 <a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>        # post processing
@@ -966,9 +966,9 @@
 <a id="__codelineno-2-33" name="__codelineno-2-33" href="#__codelineno-2-33"></a>    # to ensure that callback functions are thread-safe.
 <a id="__codelineno-2-34" name="__codelineno-2-34" href="#__codelineno-2-34"></a>    with lock:
 <a id="__codelineno-2-35" name="__codelineno-2-35" href="#__codelineno-2-35"></a>        # user data type casting
-<a id="__codelineno-2-36" name="__codelineno-2-36" href="#__codelineno-2-36"></a>        index = user_arg.value[0]
-<a id="__codelineno-2-37" name="__codelineno-2-37" href="#__codelineno-2-37"></a>        loop_count = user_arg.value[1]
-<a id="__codelineno-2-38" name="__codelineno-2-38" href="#__codelineno-2-38"></a>        thread_index = user_arg.value[2]
+<a id="__codelineno-2-36" name="__codelineno-2-36" href="#__codelineno-2-36"></a>        index = user_arg[0]
+<a id="__codelineno-2-37" name="__codelineno-2-37" href="#__codelineno-2-37"></a>        loop_count = user_arg[1]
+<a id="__codelineno-2-38" name="__codelineno-2-38" href="#__codelineno-2-38"></a>        thread_index = user_arg[2]
 <a id="__codelineno-2-39" name="__codelineno-2-39" href="#__codelineno-2-39"></a>
 <a id="__codelineno-2-40" name="__codelineno-2-40" href="#__codelineno-2-40"></a>        # post processing
 <a id="__codelineno-2-41" name="__codelineno-2-41" href="#__codelineno-2-41"></a>        #postProcessing(outputs);
@@ -1155,13 +1155,13 @@
 <a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>    print(&quot;Inference Options:&quot;)
 <a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>
 <a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>    # select devices
-<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>    option.set_devices([0])
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>    option.devices = [0]
 <a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>
 <a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a>    # NPU bound opion (NPU_ALL or NPU_0 or NPU_1 or NPU_2)
-<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a>    option.set_bound_option(InferenceOption.BOUND_OPTION.NPU_ALL)
+<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a>    option.bound_option = InferenceOption.BOUND_OPTION.NPU_ALL
 <a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a>
 <a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a>    # use ONNX Runtime (True or False)
-<a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a>    option.set_use_ort(False)
+<a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a>    option.use_ort = False
 <a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a>
 <a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a>    # create inference engine instance with model
 <a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a>    with InferenceEngine(modelPath, option) as ie:

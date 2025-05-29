@@ -42,6 +42,7 @@ public:
     static std::shared_ptr<Worker> Create(std::string name_, Type type_, int numThreads = 1, Device *device_ = nullptr, CpuHandle *cpuHandle_ = nullptr);
     virtual void Stop();
     void UpdateQueueStats(int queueSize);
+    bool isStopped();
 
 protected:
     const std::string& getName() const {return _name;}

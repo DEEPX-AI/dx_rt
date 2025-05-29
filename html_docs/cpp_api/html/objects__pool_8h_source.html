@@ -93,7 +93,7 @@ $(function() {
 <div class="line"><a name="l00021"></a><span class="lineno">   21</span>&#160;   {</div>
 <div class="line"><a name="l00022"></a><span class="lineno">   22</span>&#160;   <span class="keyword">public</span>:</div>
 <div class="line"><a name="l00023"></a><span class="lineno">   23</span>&#160;      <span class="comment">// static</span></div>
-<div class="line"><a name="l00024"></a><span class="lineno">   24</span>&#160;      <span class="keyword">static</span> constexpr <span class="keywordtype">int</span> REQUEST_MAX_COUNT = 5000;</div>
+<div class="line"><a name="l00024"></a><span class="lineno">   24</span>&#160;      <span class="keyword">static</span> constexpr <span class="keywordtype">int</span> REQUEST_MAX_COUNT = 15000;</div>
 <div class="line"><a name="l00025"></a><span class="lineno">   25</span>&#160;      <span class="keyword">static</span> constexpr <span class="keywordtype">int</span> INFERENCE_JOB_MAX_COUNT = 5000;</div>
 <div class="line"><a name="l00026"></a><span class="lineno">   26</span>&#160; </div>
 <div class="line"><a name="l00027"></a><span class="lineno">   27</span>&#160; </div>
@@ -145,9 +145,20 @@ $(function() {
 <div class="line"><a name="l00073"></a><span class="lineno">   73</span>&#160; </div>
 <div class="line"><a name="l00074"></a><span class="lineno">   74</span>&#160;      std::vector&lt;shared_ptr&lt;Device&gt;&gt;&amp; CheckDevices();</div>
 <div class="line"><a name="l00075"></a><span class="lineno">   75</span>&#160; </div>
-<div class="line"><a name="l00076"></a><span class="lineno">   76</span>&#160;   };</div>
-<div class="line"><a name="l00077"></a><span class="lineno">   77</span>&#160; </div>
-<div class="line"><a name="l00078"></a><span class="lineno">   78</span>&#160;}</div>
+<div class="line"><a name="l00076"></a><span class="lineno">   76</span>&#160;      <span class="comment">// wait and awake</span></div>
+<div class="line"><a name="l00077"></a><span class="lineno">   77</span>&#160;      std::shared_ptr&lt;Device&gt; WaitDevice(<span class="keyword">const</span> vector&lt;int&gt; &amp;device_ids);</div>
+<div class="line"><a name="l00078"></a><span class="lineno">   78</span>&#160;      <span class="keywordtype">void</span> AwakeDevice(<span class="keywordtype">size_t</span> devIndex);</div>
+<div class="line"><a name="l00079"></a><span class="lineno">   79</span>&#160;      </div>
+<div class="line"><a name="l00080"></a><span class="lineno">   80</span>&#160; </div>
+<div class="line"><a name="l00081"></a><span class="lineno">   81</span>&#160;   <span class="keyword">private</span>:</div>
+<div class="line"><a name="l00082"></a><span class="lineno">   82</span>&#160;      std::condition_variable _deviceCV;</div>
+<div class="line"><a name="l00083"></a><span class="lineno">   83</span>&#160;      std::mutex _deviceMutex;</div>
+<div class="line"><a name="l00084"></a><span class="lineno">   84</span>&#160;      <span class="keywordtype">int</span> _currentPickDevice;</div>
+<div class="line"><a name="l00085"></a><span class="lineno">   85</span>&#160;      <span class="keywordtype">int</span> pickDeviceIndex(<span class="keyword">const</span> vector&lt;int&gt; &amp;device_ids);</div>
+<div class="line"><a name="l00086"></a><span class="lineno">   86</span>&#160; </div>
+<div class="line"><a name="l00087"></a><span class="lineno">   87</span>&#160;   };</div>
+<div class="line"><a name="l00088"></a><span class="lineno">   88</span>&#160; </div>
+<div class="line"><a name="l00089"></a><span class="lineno">   89</span>&#160;}</div>
 </div><!-- fragment --></div><!-- contents -->
 <div class="ttc" id="anamespacedxrt_html"><div class="ttname"><a href="namespacedxrt.html">dxrt</a></div><div class="ttdoc">DXRT C++ APIs are provided in this namespace.</div><div class="ttdef"><b>Definition:</b> buffer.h:8</div></div>
 <!-- start footer part -->

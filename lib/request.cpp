@@ -18,7 +18,6 @@ using namespace std;
 namespace dxrt
 {
 
-std::mutex Request::_reqLock;
 
 Request::Request(void)
 {
@@ -47,12 +46,6 @@ Request::~Request()
 {
     // LOG_DXRT_DBG << id() << endl;
     // LOG_DXRT << id() << endl;
-}
-
-void Request::Init()
-{
-    //LOG_DXRT_DBG << endl;
-
 }
 
 RequestPtr Request::Create(Task *task_, Tensors inputs_, Tensors outputs_, void *userArg, int jobId)
@@ -117,20 +110,19 @@ void Request::ShowAll()
         cout << dec << "(" << request.use_count() << ") " << *request << endl;
     }
 }
-void Request::Clear()
-{
-    LOG_DXRT_DBG << endl;
-}
+
 void Request::Wait()
 {
     LOG_DXRT_DBG << "request " << id() << endl;
     while( status() == Request::Status::REQ_BUSY );
 }
+
 void Request::SetStatus(Request::Status status)
 {
     LOG_DXRT_DBG << id() << ", " << status << endl;
     _status.store(status);
 }
+
 void Request::CheckTimePoint(int opt)
 {
     LOG_DXRT_DBG << endl;

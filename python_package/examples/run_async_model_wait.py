@@ -48,8 +48,8 @@ if __name__ == "__main__":
 
     # Initialize inference engine
     ie = InferenceEngine(args.model)
-    input_dtype = ie.get_input_data_type()
-    output_dtype = ie.get_output_data_type()
+    input_dtype = ie.get_input_tensors_info()[0]['dtype']
+    output_dtype = ie.get_output_tensors_info()[0]['dtype']
     input_size = ie.get_input_size()
     output_size = ie.get_output_size()
 

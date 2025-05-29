@@ -4,7 +4,14 @@
 
 The synchronous Run method uses a single NPU core to perform inference in a blocking manner. It can be configured to utilize multiple NPU cores simultaneously by employing threads to run each core independently.
 
-![Synchronous Inference Operation](./../resources/06_01_01_Sync_Inference_Operation.png){ width=200px }
+<div class="center-text">
+<p align="center">
+<img src="./../resources/06_01_01_Sync_Inference_Operation.png" alt="Synchronous Inference Operation" width="250px">  
+<br>
+Figure. Synchronous Inference Operation  
+<br><br>
+</p>
+</div>
 
 Inference Engine Run synchronous  
 
@@ -62,7 +69,14 @@ int main()
 
 The asynchronous Run mode is a method that performs inference asynchronously while utilizing multiple NPU cores simultaneously. It can be implemented to maximize NPU resources through a callback function or a thread wait mechanism.
 
-![Asynchronous Inference Operation](./../resources/06_01_02_Async_Inference_Operation.png){ width=700px }
+<div class="center-text">
+<p align="center">
+<img src="./../resources/06_01_02_Async_Inference_Operation.png" alt="Asynchronous Inference Operation" width="900px">  
+<br>
+Figure. Asynchronous Inference Operation  
+<br><br>
+</p>
+</div>
 
 Inference Engine RunAsync, Callback, User Argument  
 
@@ -530,7 +544,14 @@ The method for converting a synchronous inference approach using one NPU core in
 - Thread-Safe Data Exchange  
     : For data exchange between threads or callbacks, use a thread-safe queue or structured data mechanisms to avoid race conditions and ensure integrity.  
 
-![Converting Run(Sync) to RunAsync](./../resources/06_01_03_Converting_Run_Sync_to_RunAcync.png){ width=700px }
+<div class="center-text">
+<p align="center">
+<img src="./../resources/06_01_03_Converting_Run_Sync_to_RunAcync.png" alt="Converting Run(Sync) to RunAsync" width="1000px">  
+<br>
+Figure. Converting Run(Sync) to RunAsync  
+<br><br>
+</p>
+</div>
 
 ### Inference Option
 
@@ -616,9 +637,15 @@ int main()
 
 The following is an example of a pattern that performs inference using two models on a single camera input and combines the results from both models for display.
 
-![Multi-model and Multi-output](./../resources/06_01_04_Multi-model_and_Multi-output.png){ width=700px }
-
-
+<div class="center-text">
+<p align="center">
+<img src="./../resources/06_01_04_Multi-model_and_Multi-output.png" alt="Multi-model and Multi-output" width="800px">  
+<br>
+Figure. Multi-model and Multi-output  
+<br><br>
+</p>
+</div>
+  
 Multi-model, Async, Wait Thread `(CPU_1 → {NPU_1 + NPU_2} → CPU_2`
 
 `display_async_wait.cpp`
@@ -753,7 +780,14 @@ int main(int argc, char* argv[])
 
 The following is an example of a pattern that sequentially performs operations using two models and CPU processing. The inference result from Model A is processed through CPU computation and then used as input data for Model B. Finally, the result from Model B is handled for display.
 
-![CPU and NPU Pipeline Operation](./../resources/06_01_05_CPU_and_NPU_Pipeline_Operation.png){ width=700px }
+<div class="center-text">
+<p align="center">
+<img src="./../resources/06_01_05_CPU_and_NPU_Pipeline_Operation.png" alt="CPU and NPU Pipeline Operation" width="780px">  
+<br>
+Figure. CPU and NPU Pipeline Operation  
+<br><br>
+</p>
+</div>
 
 Multi-model, Async, Wait Thread `(CPU_1 → NPU_1 → CPU_2 → NPU_2 → CPU_3)`
 
@@ -821,7 +855,7 @@ static int cpuOperationThreadFunc(int loopCount, dxrt::InferenceEngine& ieA, dxr
         // consumer framebuffer & jobIds
         auto frameJobIdA = gCPUOPQueue.pop();
 
-        // output data of ieB
+        // output data of ieA
         auto outputA = ieA.Wait(frameJobIdA.jobId_A);
 
         // post-processing w/ outputA
@@ -974,6 +1008,12 @@ The examples provided earlier are actual code samples that can be executed. Plea
     : An example using `[CPU_1 → {NPU_1 + NPU_2} → CPU_2]` pattern  
 - `display_async_wait`  
     : An example using `[CPU_1 → NPU_1 → CPU_2 → NPU_2 → CPU_3]` pattern  
+- `display_async_thread`  
+    : An example using single model and multi threads  
+- `display_async_models_1`  
+    : An example using multi models and multi threads (Inference Engine is created within each thread)  
+- `display_async_models_2`  
+    : An example using multi models and multi threads (Inference Engine is created in the main thread)  
 - `run_async_model`  
     : A performance-optimized example using a callback function  
 - `run_async_model_thread`  

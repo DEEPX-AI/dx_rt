@@ -86,7 +86,7 @@ uint64_t MultiprocessMemory::Allocate(int deviceId, uint64_t required)
         }
         std::this_thread::sleep_for(chrono::seconds(2));
     }
-    DXRT_ASSERT(isDone,"allocate timeout");
+    DXRT_ASSERT(isDone,"ran out of NPU memory");
     LOG_DXRT_DBG << std::hex << serverMessage.data << std::dec << " is allocated from service\n";
     DXRT_ASSERT(static_cast<int64_t>(serverMessage.data) != -1,"allocate error");
     //DXRT_ASSERT(static_cast<int64_t>(serverMessage.data) != 0,"allocate error");

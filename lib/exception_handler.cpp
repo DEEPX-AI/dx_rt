@@ -23,6 +23,7 @@ namespace dxrt {
 #ifdef __linux__
 static void signalHandler(int signo)
 {
+    std::ignore = signo;
 #ifdef DXRT_SHOW_STACKTRACE_ON_HANDLER
     void* array[22];
     size_t size;

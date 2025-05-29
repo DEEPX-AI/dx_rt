@@ -40,7 +40,8 @@ namespace dxrt {
             PROFILER,
             SERVICE,
             DYNAMIC_CPU_THREAD,
-            TASK_FLOW
+            TASK_FLOW,
+            LOG_THROTTLING
         };
 
         // ATTRIBUTE

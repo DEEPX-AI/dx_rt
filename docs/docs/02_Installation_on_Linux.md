@@ -16,13 +16,20 @@ This section describes the hardware and software requirements for running **DX-R
 
 **Hardware and Software Requirements**  
 
-- **CPU:** aarch64, x86_64
+- **CPU:** aarch64, x86_64, riscv64
 - **RAM:** 8GB RAM (16GB RAM or higher is recommended)
 - **Storage:** 4GB or higher available disk space
-- **OS:** Ubuntu 20.04 / 22.04 / 24.04 (x64 / aarch64)
+- **OS:** Ubuntu 20.04 / 22.04 / 24.04 (x64 / aarch64 / riscv64)
 - **Hardware:** The system **must** support connection to an **M1 M.2** module with the **M.2 interface** on the host PC. 
 
-![](./../resources/02_DX-M1_M.2_LPDDR5x2.png){ width=600px }
+<div class="center-text">
+<p align="center">
+<img src="./../resources/02_DX-M1_M.2_LPDDR5x2.png" alt="DX-M1 M.2 Module" width="700px">  
+<br>
+Figure. DX-M1 M.2 Module  
+<br><br>
+</p>
+</div>
 
 ---
 

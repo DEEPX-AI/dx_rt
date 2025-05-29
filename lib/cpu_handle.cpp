@@ -247,7 +247,11 @@ CpuHandle::~CpuHandle()
 {
     LOG_DXRT_DBG << endl;
     if (_worker != nullptr)
+    {
         _worker->Stop();
+        _worker = nullptr;
+    }
+   
     LOG_DXRT_DBG <<" Done"<< endl;
 }
 

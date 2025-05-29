@@ -121,15 +121,11 @@ DeviceStatusMonitor::DeviceStatusMonitor(cxxopts::ParseResult &cmd)
 void DeviceStatusMonitor::doCommand(DevicePtr devicePtr)
 {
     uint32_t delay = _cmd["monitor"].as<uint32_t>();
+    if ( delay < 1 ) delay = 1;
 
     while (true) {
         DeviceStatus::GetCurrentStatus(devicePtr).StatusToStream(cout);
         std::this_thread::sleep_for(chrono::seconds(delay));
-//#ifdef __linux__
-//        sleep(delay);
-//#elif _WIN32
-//        Sleep(delay*1000);
-//#endif
     }
 }
 

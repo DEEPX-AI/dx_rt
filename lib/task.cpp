@@ -22,6 +22,7 @@
 namespace dxrt {
 
 int Task::nextId = 0;
+std::mutex Task::_nextIdLock;
 
 struct TaskStatsInstances
 {
@@ -51,9 +52,8 @@ Task::Task(string name_, vector<rmapinfo> rmapInfos_, std::vector<std::vector<ui
 }
 Task::Task(std::string name_, vector<rmapinfo> rmapInfos_, std::vector<std::vector<uint8_t>>&& data_,
     npu_bound_op boundOp, std::vector<DevicePtr>& devices_)
-: _taskData(nextId, name_, rmapInfos_), _data(std::move(data_)), _boundOp(boundOp)
+: _taskData(getNextId(), name_, rmapInfos_), _data(std::move(data_)), _boundOp(boundOp)
 {
-    nextId++;
     _inferenceCnt.store(0);
     if (_taskData._infos.empty() == false)
     {
@@ -100,13 +100,11 @@ Task::Task(std::string name_, vector<rmapinfo> rmapInfos_, std::vector<std::vect
         _cpuHandle->Start();
         LOG_DXRT_DBG << "CPU Task created" << endl;
     }
-    Request::Init();
 }
 
 Task::Task()
-: _taskData(nextId, "EMPTY", {})
+: _taskData(getNextId(), "EMPTY", {})
 {
-    nextId++;
     LOG_DBG("Task created.");
 }
 
@@ -115,7 +113,7 @@ Task::~Task(void)
     LOG_DXRT_DBG << endl;
     if (_cpuHandle)
     {
-        _cpuHandle->Terminate();
+        _cpuHandle = nullptr;
         LOG_DXRT_DBG <<" Done (CPU)"<< endl;
     }
     else
@@ -353,11 +351,13 @@ void* Task::GetOutputBuffer()
 }
 void Task::ReleaseOutputBuffer(void* ptr)
 {
+    std::lock_guard<std::mutex> lock(_outputBufferLock);
     LOG_DXRT_DBG << "Task "<< id() <<" Output Buffer RELEASE " << std::endl;
-    _taskOutputBuffer->releaseBuffer(ptr);
+    if ( _taskOutputBuffer != nullptr ) _taskOutputBuffer->releaseBuffer(ptr);
 }
 void Task::ClearOutputBuffer()
 {
+    std::lock_guard<std::mutex> lock(_outputBufferLock);
     LOG_DXRT_DBG << "Task "<< id() <<" Output Buffer CLEAR " << std::endl;
     _taskOutputBuffer = nullptr;
 }
@@ -395,6 +395,11 @@ void Task::setTailOffset(int64_t n)
 int64_t Task::getTailOffset()
 {
     return _tailOffset;
+}
+int Task::getNextId()
+{
+    std::lock_guard<std::mutex> lk(_nextIdLock);
+    return nextId++;
 }
 
 

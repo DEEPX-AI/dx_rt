@@ -22,25 +22,6 @@ namespace dxrt
 bool debug_all_output = false;
 
 
-std::atomic<int> InferenceJob::_sNextInferenceJobId{0};
-
-
-// static functions
-void InferenceJob::InitInferenceJob()
-{
-}
-
-std::shared_ptr<InferenceJob> InferenceJob::GetById(int id)
-{
-    return ObjectsPool::GetInstance().GetInferenceJobById(id);
-}
-
-std::shared_ptr<InferenceJob> InferenceJob::Pick()
-{
-    return ObjectsPool::GetInstance().PickInferenceJob();
-}
-// static functions
-
 void InferenceJob::onRequestComplete(RequestPtr req)
 {
     bool allRequestComplete = false;
@@ -278,6 +259,8 @@ void InferenceJob::SetInferenceJob(std::vector<std::shared_ptr<Task>>& tasks_, s
     //_tasks.clear();
     _outputs.clear();
     _outputs = lastOutputOrder; 
+    
+    _taskStatusMap.clear();
 
     _outputCount.store(tasks_.size());
     for (std::shared_ptr<Task>& it :  tasks_)
@@ -470,8 +453,8 @@ void InferenceJob::ReleaseAllOutputBuffer()
             if((_outputPtr == nullptr) || (req->task()->is_tail()==false))
             {
                 req->task()->ReleaseOutputBuffer(req->output_ptr());
-                if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
-                    cout<<"[        OUT_W][Job_"<<_jobId<<"][Req_"<<req->id()<<"]{xxx_"<<req->getData()->_processedDevId<<"}{xxxxxx} Buffer Released"<<endl;
+                //if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
+                //    cout<<"[        OUT_W][Job_"<<_jobId<<"][Req_"<<req->id()<<"]{xxx_"<<req->getData()->_processedDevId<<"}{xxxxxx} Buffer Released"<<endl;
             }
         }
         else
@@ -498,14 +481,17 @@ void InferenceJob::ReleaseAllOutputBuffer()
     }
     _requests.clear();
     _use_flag.store(false);
-    if(head_req_id%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || head_req_id%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
-        cout<<"[        OUT_W][Job_"<<_jobId<<"]{xxx_"<<head_req_id<<"}{xxx_"<<head_req_processed_dev_id<<"}{xxxxxx} use_flag reset"<<endl;
+    //if(head_req_id%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || head_req_id%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
+    //    cout<<"[        OUT_W][Job_"<<_jobId<<"]{xxx_"<<head_req_id<<"}{xxx_"<<head_req_processed_dev_id<<"}{xxxxxx} use_flag reset"<<endl;
+    (void)head_req_processed_dev_id; // avoid 'not used' warning
 
 }
 
 void InferenceJob::setStatus(Request::Status status)
 {
+    std::unique_lock<std::mutex> lock(_waitMutex);
     _status.store(status);
+    _waitCV.notify_one();
 }
 
 int InferenceJob::getId()
@@ -515,6 +501,12 @@ int InferenceJob::getId()
 Request::Status InferenceJob::getStatus()
 {
     return _status.load();
+}
+
+void InferenceJob::Wait()
+{
+    std::unique_lock<std::mutex> lock(_waitMutex);
+    _waitCV.wait(lock, [this]{ return _status.load() != Request::Status::REQ_BUSY; });
 }
 
 }  // namespace dxrt

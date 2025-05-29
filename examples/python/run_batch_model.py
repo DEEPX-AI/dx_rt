@@ -35,7 +35,7 @@ if __name__ == "__main__":
         output_buffers = []
         index = 0
         for b in range(batch_count):
-            input_buffers.append([np.array([np.random.randint(0, 255)], dtype=np.uint8)])
+            input_buffers.append([np.zeros(ie.get_input_size(), dtype=np.uint8)])
             output_buffers.append([np.zeros(ie.get_output_size(), dtype=np.uint8)])
             index = index + 1
 

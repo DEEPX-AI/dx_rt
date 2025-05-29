@@ -1,5 +1,9 @@
 // Copyright (c) 2022 DEEPX Corporation. All rights reserved.
 // Licensed under the MIT License.
+#include <string>
+#include <vector>
+#include <sstream>
+#include <algorithm> 
 
 #include "dxrt/dxrt_api.h"
 #include "cxxopts.hpp"
@@ -29,56 +33,77 @@ std::ostream& operator<<(std::ostream& os, RunModelMode mode) {
     return os;
 }
 
-void PrintInfResult(const string& inputFile, const string& outputFile, const string& modelFile, float latencyMs, float infTimeMs, float fps) {
-    vector<string> lines;
+std::string float_to_string_fixed(float value, int precision) {
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(precision) << value;
+    return oss.str();
+}
 
-    (void)modelFile;
+void PrintInfResult(const std::string& inputFile, const std::string& outputFile, const std::string& modelFile,
+                    float latencyMs, float infTimeMs, float fps_val, int loops, RunModelMode current_mode) {
+    std::vector<std::string> lines;
+    (void)modelFile; 
+
+    const std::string desc_npu_time = "Actual NPU core computation time for a single request";
+    const std::string desc_latency = "End-to-end time measured individually for each specific request within the engine, including data transfer and system overheads";
+    const std::string desc_fps = "Overall user-observed inference throughput (inputs/second), reflecting perceived speed";
+
+    const int description_parenthesis_start_column = 45;
+
+    auto build_formatted_line =
+        [&](const std::string& label,        // e.g., "  - NPU Processing Time  : "
+            const std::string& value_str,    // e.g., "2.819"
+            const std::string& unit_str,     // e.g., "ms" or ""
+            const std::string& description) -> std::string {
+        std::string value_with_unit = value_str + (unit_str.empty() ? "" : " " + unit_str);
+        std::string core_content = label + value_with_unit;
+
+        std::string line = core_content;
+        int current_length = core_content.length();
+        int spaces_to_add = description_parenthesis_start_column - current_length;
+
+        if (spaces_to_add <= 0) {
+            spaces_to_add = 1; // Ensure at least one space if content is too long or exact
+        }
+        
+        line += std::string(spaces_to_add, ' '); // Add calculated padding
+        line += "(" + description + ")";
+        return line;
+    };
+
+    std::string infTimeStr = float_to_string_fixed(infTimeMs, 3); // 3 decimal places for ms
+    std::string latencyStr = float_to_string_fixed(latencyMs, 3); // 3 decimal places for ms
+    std::string fpsStr     = float_to_string_fixed(fps_val, 2);   // 2 decimal places for FPS
 
     if (!inputFile.empty()) {
         lines.push_back("* Processing File : " + inputFile);
         lines.push_back("* Output Saved As : " + outputFile);
     }
-    //lines.push_back("* Model Used : " + modelFile);
-    if ((bounding > 0 && bounding < 4) || (mode == SINGLE_MODE))
-    {
-        lines.push_back("* Benchmark Result"); //- NPU" + to_string(bounding-1));
-        if (infTimeMs)
-            lines.push_back("  - NPU Processing Time  : " + to_string(infTimeMs) + " ms");
-        else
-            lines.push_back("  - NPU Processing Time  : " + to_string(1000. / fps) + " ms");
-        if (latencyMs)
-            lines.push_back("  - Total Latency        : " + to_string(latencyMs) + " ms");
-        
-        if (fps)
-            lines.push_back("  - FPS                  : " + to_string(fps));
-        else
-            lines.push_back("  - FPS                  : " + to_string(1000/infTimeMs));
-}
-    else
-    {
-        if (bounding == 0)
-            lines.push_back("* Benchmark Result");
-        else if (bounding > 3)
-            lines.push_back("* Benchmark Result");
-        else
-            lines.push_back("* Unknown Bounding Option");
-        if (fps)
-            lines.push_back("  - FPS : " + to_string(fps));
-        else
-            lines.push_back("  - FPS : " + to_string(1000/infTimeMs));
+
+    if (current_mode == SINGLE_MODE) { // Use the passed 'current_mode'
+        lines.push_back("* Benchmark Result (single input)");
+        lines.push_back(build_formatted_line("  - NPU Processing Time  : ", infTimeStr, "ms", desc_npu_time));
+        lines.push_back(build_formatted_line("  - Latency              : ", latencyStr, "ms", desc_latency));
+        lines.push_back(build_formatted_line("  - FPS                  : ", fpsStr,     "",   desc_fps));
+    } else { // BENCHMARK_MODE or TARGET_FPS_MODE
+        lines.push_back("* Benchmark Result (" + std::to_string(loops) + " inputs)");
+        lines.push_back(build_formatted_line("  - NPU Processing Time Average : ", infTimeStr, "ms", desc_npu_time));
+        lines.push_back(build_formatted_line("  - Latency Average             : ", latencyStr, "ms", desc_latency));
+        lines.push_back(build_formatted_line("  - Total FPS                   : ", fpsStr,     "",   desc_fps));
     }
 
     size_t maxLength = 0;
     for (const auto& line : lines) {
-        maxLength = max(maxLength, line.size());
+        maxLength = std::max(maxLength, line.length());
     }
 
-    cout << string(maxLength, '=') << endl;
+    std::cout << std::string(maxLength, '=') << std::endl;
     for (const auto& line : lines) {
-        cout << setprecision(3) << line << endl;
+        std::cout << line << std::endl;
     }
-    cout << string(maxLength, '=') << endl;
+    std::cout << std::string(maxLength, '=') << std::endl;
 }
+
 
 void SetRunModelMode(bool single, int targetFps)
 {
@@ -98,9 +123,8 @@ int main(int argc, char *argv[])
     bool benchmark = false;
     bool single = false;
     int loops = 1;
-    int device = -1;
-    int targetFps = 0;  // Target FPS
-    int core_count = 0;
+    string devices_spec;
+    int targetFps = 0; 
     bool skip_inference_io = false;
     bool use_ort = false;
     cxxopts::Options options("run_model", APP_NAME);
@@ -108,24 +132,24 @@ int main(int argc, char *argv[])
         ("m, model", "Model file (.dxnn)" , cxxopts::value<string>(modelFile))
         ("i, input", "Input data file", cxxopts::value<string>(inputFile))
         ("o, output", "Output data file", cxxopts::value<string>(outputFile)->default_value("output.bin"))
-        ("b, benchmark", "Perform a benchmark test (Maximum throughput)", cxxopts::value<bool>(benchmark)->default_value("false"))
+        ("b, benchmark", "Perform a benchmark test (Maximum throughput, This is the default mode if --single or --fps > 0 are not specified)", cxxopts::value<bool>(benchmark)->default_value("false"))
         ("s, single", "Perform a single run test (Sequential single-input inference on a single-core)", cxxopts::value<bool>(single)->default_value("false"))
-        ("n, npu",
+        ("n, npu", 
             "NPU bounding (default:0)\n"
-            " - Bounding value 0 : inference with all NPU\n"
-            " - Bounding value 1 : inference with NPU0\n"
-            " - Bounding value 2 : inference with NPU1\n"
-            " - Bounding value 3 : inference with NPU2\n"
-            " - Bounding value 4 : inference with NPU0/1\n"
-            " - Bounding value 5 : inference with NPU1/2\n"
-            " - Bounding value 6 : inference with NPU0/2", cxxopts::value<int>(bounding) )
-        ("l, loops", "Loops to test", cxxopts::value<int>(loops)->default_value("1") )
-        ("d, device", "device to use(blank: all)", cxxopts::value<int>(device)->default_value("-1"))
-        ("f, fps", "Target frames per second", cxxopts::value<int>(targetFps) )
-        ("skip-io", "Skip Inference I/O(Benchmark mode only)", cxxopts::value<bool>(skip_inference_io)->default_value("false"))
-        ("c, core_count", "how many NPUs used", cxxopts::value<int>(core_count)->default_value("0"))
+            "  0: NPU_ALL\n  1: NPU_0\n  2: NPU_1\n  3: NPU_2\n"
+            "  4: NPU_0/1\n  5: NPU_1/2\n  6: NPU_0/2", cxxopts::value<int>(bounding) ) 
+        ("l, loops", "Number of inference loops to perform (default: 30)", cxxopts::value<int>(loops)->default_value("30") )
+        ("d, devices",
+            "Specify target NPU devices. Examples:\n"
+            "  'all' (default): Use all available/bound NPUs.\n"
+            "  '0': Use NPU0 only.\n"
+            "  '0,1,2': Use NPU0, NPU1, and NPU2.\n"
+            "  'count:N': Use the first N NPUs (e.g., 'count:2' for NPU0, NPU1).",
+            cxxopts::value<std::string>(devices_spec)->default_value("all"))
+        ("f, fps", "arget FPS for TARGET_FPS_MODE (enables this mode if > 0 and --single is not set, default: 0)", cxxopts::value<int>(targetFps) )
+        ("skip-io", "Attempt to skip Inference I/O (Benchmark mode only)", cxxopts::value<bool>(skip_inference_io)->default_value("false"))
 #ifdef USE_ORT
-        ("use-ort", "use ONNX Runtime", cxxopts::value<bool>(use_ort)->default_value("false"))
+        ("use-ort", "Enable ONNX Runtime for CPU tasks in the model graph. If disabled, only NPU tasks operate", cxxopts::value<bool>(use_ort)->default_value("false"))
 #endif
         ("h, help", "Print usage" )
     ;
@@ -158,21 +182,90 @@ int main(int argc, char *argv[])
     LOG_VALUE(benchmark);
     LOG_VALUE(loops);
     dxrt::InferenceOption op;
-    if (device >= 0)
+
+    if (devices_spec.empty() || devices_spec == "all") 
     {
-        op.devices = {device};
-    }
-    else if (core_count > 0)
-    {
-        for (int i = 0; i < core_count; i++)
+        cout << "Device specification: 'all' (default)" << endl;
+    } 
+    else if (devices_spec.rfind("count:", 0) == 0) 
+    { 
+        try 
         {
-            op.devices.push_back(i);
+            string count_str = devices_spec.substr(6);
+            int count = std::stoi(count_str);
+            if (count > 0) 
+            {
+                for (int i = 0; i < count; ++i) 
+                {
+                    op.devices.push_back(i);
+                }
+                cout << "Device specification: First " << count << " NPU(s) {";
+                for(size_t i = 0; i < op.devices.size(); ++i) 
+                {
+                    cout << op.devices[i] << (i == op.devices.size() - 1 ? "" : ", ");
+                }
+                cout << "}" << endl;
+            } 
+            else 
+            {
+                std::cerr << "[ERR] Device count in '" << devices_spec << "' must be positive." << std::endl;
+                return -1;
+            }
+        } 
+        catch (const std::invalid_argument& ia) 
+        {
+            std::cerr << "[ERR] Invalid number in '" << devices_spec << "' for 'count:N' format." << std::endl;
+            return -1;
+        } 
+        catch (const std::out_of_range& oor) 
+        {
+            std::cerr << "[ERR] Number out of range in '" << devices_spec << "' for 'count:N' format." << std::endl;
+            return -1;
         }
     }
-    if (bounding >= 0 && bounding < dxrt::N_BOUND_INF_MAX) {
+    else 
+    {
+        std::stringstream ss(devices_spec);
+        std::string segment;
+        bool first_device = true;
+        cout << "Device specification: Specific NPU(s) {";
+        while(std::getline(ss, segment, ',')) 
+        {
+            try 
+            {
+                segment.erase(std::remove_if(segment.begin(), segment.end(), ::isspace), segment.end());
+                if (segment.empty()) continue;
+                int device_id = std::stoi(segment);
+                op.devices.push_back(device_id);
+                if (!first_device) cout << ", ";
+                cout << device_id;
+                first_device = false;
+            } 
+            catch (const std::invalid_argument& ia) 
+            {
+                std::cerr << "[ERR] Invalid device ID '" << segment << "' in --devices list." << std::endl;
+                return -1;
+            } 
+            catch (const std::out_of_range& oor) 
+            {
+                std::cerr << "[ERR] Device ID '" << segment << "' out of range in --devices list." << std::endl;
+                return -1;
+            }
+        }
+        cout << "}" << endl;
+        if (op.devices.empty() && !devices_spec.empty() && devices_spec != "all") 
+        {
+            std::cerr << "[WARN] No valid device IDs parsed from --devices string: '" << devices_spec << "'. Defaulting to 'all'." << std::endl;
+        }
+    }
+
+    if (bounding >= 0 && bounding < dxrt::N_BOUND_INF_MAX) 
+    { 
         op.boundOption = bounding;
-    } else {
-        cout << "[ERR] Please check bounding option" << endl;
+    } 
+    else 
+    {
+        cout << "[ERR] Please check bounding option value. Must be between 0 and " << (dxrt::N_BOUND_INF_MAX -1) << endl;
         return -1;
     }
     op.useORT = use_ort;
@@ -203,17 +296,21 @@ int main(int argc, char *argv[])
             dxrt::SKIP_INFERENCE_IO = 1;
         }
 
-
-
         switch (mode)
         {
             case SINGLE_MODE: {
+                uint64_t infTime = 0;
+                float fps = 0.0;
                 for (int i = 0; i < loops; i++)
                 {
+                    auto start_clock = std::chrono::steady_clock::now();
                     auto outputs = ie.Run(inputBuf.data());
+                    auto end_clock = std::chrono::steady_clock::now();
+                    infTime = std::chrono::duration_cast<chrono::microseconds>(end_clock - start_clock).count();
+                    fps = 1000000.0 * loops/infTime;
                     if (!inputFile.empty())
-                        dxrt::DataDumpBin(outputFile, outputs.front()->data(), ie.GetOutputSize()); /* TODO: sparse tensor */
-                    PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatency()/1000., ie.GetNpuInferenceTime()/1000., 0);
+                        dxrt::DataDumpBin(outputFile, outputs.front()->data(), ie.GetOutputSize());
+                    PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatency()/1000., ie.GetNpuInferenceTime()/1000., fps, 1, mode);
                 }
                 break;
             }
@@ -271,7 +368,8 @@ int main(int argc, char *argv[])
                 ie.Wait(loops);
                 infTime = std::chrono::duration_cast<chrono::microseconds>(end_clock - start_clock).count();
                 fps = 1000000.0 * loops/infTime;
-                PrintInfResult(inputFile, outputFile, modelFile, 0, 0, fps);
+                PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatencyMean()/1000., ie.GetNpuInferenceTimeMean()/1000., fps, loops, mode);
+
 #ifdef TARGET_FPS_DEBUG
                 for (const auto& result : results) {
                     cout << result << endl;
@@ -287,7 +385,8 @@ int main(int argc, char *argv[])
                     auto outputs = ie.Run(inputBuf.data());
                     dxrt::DataDumpBin(outputFile, outputs.front()->data(), ie.GetOutputSize());  /* TODO: sparse tensor */
                 }
-                PrintInfResult(inputFile, outputFile, modelFile, 0.0, 0.0, fps);
+                PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatencyMean()/1000., ie.GetNpuInferenceTimeMean()/1000., fps, loops, mode);
+
                 break;
             }
             default:

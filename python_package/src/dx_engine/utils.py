@@ -1,31 +1,30 @@
 import numpy as np
 import warnings
-from typing import List
+from typing import Sequence, Union
 import dx_engine.capi._pydxrt as C
 
 def parse_model(model_path) -> str:
     return C.parse_model(model_path)
 
-
-def ensure_contiguous(input_feed_list: List[np.ndarray]) -> List[np.ndarray]:
-    """Ensure all input arrays are contiguous, issuing a warning if conversion is needed."""
-    contiguous_input = []
-    
-    for i, inp in enumerate(input_feed_list):
-        if not inp.flags['C_CONTIGUOUS']:
+def ensure_contiguous(
+    data: Union[np.ndarray, Sequence]
+) -> Union[np.ndarray, list]:
+    if isinstance(data, np.ndarray):
+        if not data.flags['C_CONTIGUOUS']:
             warnings.warn(
-                f"Warning: Input at index {i} is not contiguous. "
-                f"Automatically converting to a contiguous array, which may introduce memory copy overhead and reduce performance.",
+                f"ndarray(shape={data.shape}, dtype={data.dtype}) is not contiguous; converting.",
                 UserWarning
             )
             try:
-                contiguous_input.append(np.ascontiguousarray(inp))
+                return np.ascontiguousarray(data)
             except MemoryError:
                 raise MemoryError(
-                    f"Failed to allocate contiguous memory for input shape {inp.shape}, dtype {inp.dtype}. "
-                    "Reduce input size or optimize memory usage."
+                    f"Unable to allocate contiguous array for shape {data.shape}"
                 )
-        else:
-            contiguous_input.append(inp)
+        return data
 
-    return contiguous_input
+    if isinstance(data, (list, tuple)):
+        converted = [ensure_contiguous(elem) for elem in data]
+        return type(data)(converted)
+
+    raise TypeError(f"Unsupported type for ensure_contiguous: {type(data)}")

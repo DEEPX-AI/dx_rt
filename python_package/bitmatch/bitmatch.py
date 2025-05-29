@@ -27,6 +27,19 @@ def main():
     parser.add_argument("--performance", "-p", action='store_true', help="Enable performance mode")
     parser.add_argument("--multi_processing", "-mp", action='store_true', help="Enable multi_processing mode")
     parser.add_argument("--use-ort", action='store_true', help="use ONNX Runtime")
+    parser.add_argument("--npu", "-n", type=int, default=0, help="NPU bounding (default:0)\n"
+                                                                " - Bounding value 0 : inference with all NPU\n"
+                                                                " - Bounding value 1 : inference with NPU0\n"
+                                                                " - Bounding value 2 : inference with NPU1\n"
+                                                                " - Bounding value 3 : inference with NPU2\n"
+                                                                " - Bounding value 4 : inference with NPU0/1\n"
+                                                                " - Bounding value 5 : inference with NPU1/2\n"
+                                                                " - Bounding value 6 : inference with NPU0/2",)
+    parser.add_argument("--devices", type=str, default="all", help="Specify target NPU devices (default: 'all'). Examples:\n"
+                                                                "  'all': Use all available/bound NPUs.\n"
+                                                                "  '0': Use NPU0 only.\n"
+                                                                "  '0,1,2': Use NPU0, NPU1, and NPU2.\n"
+                                                                "  'count:N': Use the first N NPUs (e.g., 'count:2' for NPU0, NPU1).")
     args = parser.parse_args()
     
     if args.multi_processing:

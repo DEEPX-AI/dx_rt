@@ -111,7 +111,7 @@ private:
     uint32_t _infTime;
     InferenceJob*  _job;
     std::atomic<bool> _use_flag = {false};
-    static std::mutex _reqLock;
+    std::mutex _reqLock;
     
 
 };

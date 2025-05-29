@@ -42,7 +42,7 @@ run_model -m <model_dir> -i <input_bin> -o <output_bin> -r <reference output_bin
 - `-o, --output`: Output file to save inference results  
 - `-r, --ref`: Reference output file to compare results  
 - `-l, --loop`:	Number of inference iteration to run (loop test)
-- `-use-ort `: use ONNX Runtime
+- `--use-ort `: use ONNX Runtime
 - `-h, --help`:	Show help message  
 
 **Example**
@@ -67,7 +67,7 @@ dxrt-cli <option> <argument>
 
 - `-s, --status`: Get current device status  
 - `-i, --info`:	Display basic device information  
-- `-m, --monitor`: Monitor device status every n seconds  
+- `-m, --monitor`: Monitoring device status every [arg] seconds (arg > 0)  
 - `-r, --reset`: Reset device (0: NPU only, 1: full device) (default: 0)  
 - `-d, --device`: Specify device ID (default: -1 for all device)  
 - `-u, --fwupdate`: Update firmware with a Deepx firmware file (options: force:, unreset)  

@@ -56,7 +56,7 @@ class DxrtService
 
     std::set<pid_t> _pid_set;
     /* process id / device id / bounding option */
-    std::unordered_map<int, std::unordered_map<int, std::unordered_set<int>>> _devInfo;
+    std::unordered_map<int, std::unordered_map<int, std::unordered_map<int, int>>> _devInfo;
 };
 
 DxrtService::DxrtService(std::vector<std::shared_ptr<dxrt::ServiceDevice> > devices_,DXRT_Schedule scheduler_option)
@@ -208,7 +208,7 @@ void DxrtService::Process(dxrt::IPCClientMessage& clientMessage)
                 {
                     LOG_DXRT_S_ERR("Process " + std::to_string(clientMessage.pid) + " device " + std::to_string(clientMessage.deviceId)
                          + ": unregistered bound " + std::to_string(clientMessage.npu_acc.bound));
-                    return;
+                    //return;
                 }
             }
             _scheduler->AddScheduler(clientMessage.npu_acc, clientMessage.deviceId);
@@ -222,7 +222,7 @@ void DxrtService::Process(dxrt::IPCClientMessage& clientMessage)
             InitDevice(deviceId, static_cast<dxrt::npu_bound_op>(bound));
             {
                 std::lock_guard<std::mutex> lock(_deviceMutex);
-                _devInfo[clientMessage.pid][deviceId].insert(bound);
+                _devInfo[clientMessage.pid][deviceId][bound]++;
             }
             return;
         }
@@ -231,7 +231,12 @@ void DxrtService::Process(dxrt::IPCClientMessage& clientMessage)
             int bound = clientMessage.data;
             {
                 std::lock_guard<std::mutex> lock(_deviceMutex);
-                _devInfo[clientMessage.pid][deviceId].erase(bound);
+                _devInfo[clientMessage.pid][deviceId][bound]--;
+                if (_devInfo[clientMessage.pid][deviceId][bound] == 0)
+                {
+                    _devInfo[clientMessage.pid][deviceId].erase(bound);
+                }
+
             }
             DeInitDevice(deviceId, static_cast<dxrt::npu_bound_op>(bound));
             return;
@@ -280,6 +285,26 @@ void DxrtService::Process(dxrt::IPCClientMessage& clientMessage)
             serverMessage.msgType = clientMessage.msgType;
             break;
         }
+        case dxrt::REQUEST_CODE::VIEW_AVAILABLE_DEVICE:
+        {
+            uint64_t result = 0;
+            uint64_t mask = 1;
+            for (size_t i = 0; i < _devices.size(); i++)
+            {
+                if (_devices[i]->isBlocked() == false)
+                {
+                    result |= mask;
+                }
+                mask = mask << 1;
+            }
+            serverMessage.code = dxrt::RESPONSE_CODE::VIEW_AVAILABLE_DEVICE_RESULT;
+            serverMessage.data = result;
+            serverMessage.result = 0;
+            
+            serverMessage.deviceId = clientMessage.deviceId;
+            serverMessage.msgType = clientMessage.msgType;
+            break;
+        }
         default: {
             serverMessage.msgType = clientMessage.msgType;
             serverMessage.code = dxrt::RESPONSE_CODE::INVALID_REQUEST_CODE;
@@ -319,7 +344,7 @@ int DxrtService::GetDeviceIdByProcId(int procId)
     int deviceId = -1;
 
     if (it != _devInfo.end()) {
-        std::unordered_map<int, std::unordered_set<int>> &deviceMap = it->second;
+        auto &deviceMap = it->second;
         for (const auto &device : deviceMap) {
             deviceId = device.first;
         }
@@ -411,9 +436,10 @@ long DxrtService::ClearDevice(int procId)
             for (const auto& dev : _devInfo[procId])
             {
                 devId = dev.first;
-                const unordered_set<int>& bounds = dev.second;
-                for (int bound : bounds)
+                const auto& bounds = dev.second;
+                for (auto boundIt : bounds)
                 {
+                    int bound = boundIt.first;
                     LOG_DXRT_S << "DevId : " << devId << ", delete bound : " << bound << endl;
                     int ret = _devices[devId]->BoundOption(
                         dxrt::DX_SCHED_DELETE, static_cast<dxrt::npu_bound_op>(bound));
