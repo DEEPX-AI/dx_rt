@@ -129,6 +129,7 @@ namespace dxrt {
     };
 
     extern uint8_t DEBUG_DATA;
+    extern uint8_t DXRT_API SHOW_PROFILE;
     extern uint8_t DXRT_API SKIP_INFERENCE_IO;
 
 } // namespace dxrt

@@ -304,3 +304,13 @@ After a successful build, run the generated executable.
 You now successfully create and build a CMake project using the **DX-RT** library. 
 
 ---
+## (Optional) Improving CPU Task Throughput with DXRT_DYNAMIC_CPU_THREAD
+
+The USE_ORT option allows for enabling ONNX Runtime to handle operations that are not supported by the NPU. 
+When this option is active, the model's CPU tasks are executed via ONNX Runtime. 
+
+To mitigate potential bottlenecks in these CPU tasks, especially under varying Host CPU conditions, an optional dynamic multi-threading feature is provided. This feature monitors the input queue load to identify CPU task congestion. If a high load is detected, it dynamically increases the number of threads allocated to CPU tasks, thereby improving their throughput. This dynamic CPU threading can be enabled by setting the DXRT_DYNAMIC_CPU_THREAD=ON environment variable (e.g., export DXRT_DYNAMIC_CPU_THREAD=ON). 
+
+Additionally, if the system observes that CPU tasks are experiencing significant load, it will display a message: "To improve FPS, set: 'export DXRT_DYNAMIC_CPU_THREAD=ON'", recommending the activation of this feature for better performance.
+
+Warning: Enabling the DXRT_DYNAMIC_CPU_THREAD=ON option does not always guarantee an FPS increase; its effectiveness can vary depending on the specific workload and system conditions.

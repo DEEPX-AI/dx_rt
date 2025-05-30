@@ -23,11 +23,10 @@ CpuHandleWorker::CpuHandleWorker(string name_, int numThreads, int initDynamicTh
     InitializeThread();
 
     if (CpuHandle::_dynamicCpuThread ) {
-        // Add a new thread (if the excess load persists for 'threshold' seconds)
         for(int i=0; i < _initDynamicThreads; i++)
         {                
             _dynamicThreads.emplace_back([this,i]() {
-                this->ThreadWork(( i + 1 ) + (_numThreads - 1)); //if _numThreads is 1, but initial thread id is 0 (Worker::InitializeThread)
+                this->ThreadWork(( i + 1 ) + (_numThreads - 1)); 
             });
             LOG_DXRT_DBG <<getName()<< " Added a new thread, current number of threads: " << _dynamicThreads.size() + _numThreads <<endl;
         }
@@ -36,33 +35,32 @@ CpuHandleWorker::CpuHandleWorker(string name_, int numThreads, int initDynamicTh
 
 CpuHandleWorker::~CpuHandleWorker()
 {
-    LOG_DXRT_DBG<<endl;
+    LOG_DXRT_DBG << endl;
     if (CpuHandle::_dynamicCpuThread) {
-        unique_lock<mutex> lk(_lock);
-        if (_dynamicThreads.empty())
-        {
-            LOG_DXRT_DBG<<" _dynamicThreads is empty - return"<<endl;
-            return;
-        }
-        {
+        { 
+            unique_lock<mutex> lk(_lock);
+            if (_dynamicThreads.empty()) {
+                LOG_DXRT_DBG << " _dynamicThreads is empty - return" << endl;
+                return;
+            }
             _dynamicStopCnt.store(_dynamicThreads.size());
-            if(_dynamicStopCnt.load() > 0)
-            {
-                LOG_DXRT_DBG<<" _dynamicStopCnt is set to "<<_dynamicStopCnt.load() <<", notify_all"<<endl;
-                _cv.notify_all();
-            }
+            LOG_DXRT_DBG << " _dynamicStopCnt is set to " << _dynamicStopCnt.load() << ", notify_all" << endl;
+            _cv.notify_all();
+        } 
 
-            for (auto &t : _dynamicThreads)
-            {
-                LOG_DXRT_DBG<<" one thread detach in _dynamicThreads"<<endl;
-                t.detach();
+        for (auto &t : _dynamicThreads) {
+            if (t.joinable()) {
+                LOG_DXRT_DBG << "Joining a dynamic thread: " << t.get_id() << endl;
+                t.join();
             }
-            
-            LOG_DXRT_DBG<<"_dynamicThreads.clear()"<<endl;
-            _dynamicThreads.clear();
         }
+        LOG_DXRT_DBG << "_dynamicThreads all joined." << endl;
+        
+        unique_lock<mutex> lk(_lock); 
+        _dynamicThreads.clear();
+        LOG_DXRT_DBG << "_dynamicThreads.clear() done." << endl;
     }
-    LOG_DXRT_DBG<<" DONE"<<endl;
+    LOG_DXRT_DBG << " DONE" << endl;
 }
 
 shared_ptr<CpuHandleWorker> CpuHandleWorker::Create(string name_, int numThreads, int initDynamicThreads, CpuHandle *cpuHandle_)
@@ -78,7 +76,7 @@ void CpuHandleWorker::ThreadWork(int id)
     size_t load;
     bool isDynamic = (static_cast<size_t>(id) >= _numThreads);
     LOG_DXRT_DBG << threadName << " : Entry ( dynamic : " << isDynamic <<")"<<endl;
-    thread::id this_id = this_thread::get_id();
+    //thread::id this_id = this_thread::get_id();
     bool dynamicStop = false;
     while (_stop.load(memory_order_acquire) == false)
     {
@@ -103,17 +101,28 @@ void CpuHandleWorker::ThreadWork(int id)
                 _queue.pop();
             }
             LOG_DXRT_DBG<<"Queue is flushed"<<endl;
-            CpuHandle::_totalNumThreads--;
+            CpuHandle::_totalNumThreads--; 
+            if (id == 0 && (GetAverageLoad() > 2 || CpuHandle::_dynamicCpuThread || SHOW_PROFILE))
+                LOG << "CPU TASK [" << getName() << "], Average Input Queue Load : " << ((GetAverageLoad()-1)/(DXRT_TASK_MAX_LOAD-1)*100)
+                << "%  (DXRT_DYNAMIC_CPU_THREAD: " << (CpuHandle::_dynamicCpuThread ? "ON" : "OFF") << ")"
+                << (GetAverageLoad() > 2 && !(CpuHandle::_dynamicCpuThread) ? " - To improve FPS, set: \'export DXRT_DYNAMIC_CPU_THREAD=ON\'" : "")
+                << endl;
+            /*
             if (id == 0)
-                LOG << "CPU TASK [" << getName() << "] Average Load: " << GetAverageLoad() 
-                << "  (Dynamic Threading: " << (CpuHandle::_dynamicCpuThread ? "ON" : "OFF") << ")"
+                LOG << "CPU TASK [" << getName() << "] Average Wait Load : " << ((GetAverageLoad()-1)/(DXRT_TASK_MAX_LOAD-1)*100)
+                << "%  (DXRT_DYNAMIC_CPU_THREAD: " << (CpuHandle::_dynamicCpuThread ? "ON" : "OFF") << ")"
                 << (GetAverageLoad() > 2 && !(CpuHandle::_dynamicCpuThread) ? " - Enable \'DXRT_DYNAMIC_CPU_THREAD\' for higher FPS." : "")
                 << endl;
+            */
             break;
         }
         else if (isDynamic && dynamicStop) 
         {
             LOG_DXRT_DBG << threadName << " : requested to dynamic stop thread." << endl;
+            CpuHandle::_totalNumThreads--;
+            LOG_DXRT_DBG << threadName << " : dynamic thread exiting." << endl;
+            break;
+            /*
             dynamicStop=false;
             auto it = find_if(_dynamicThreads.begin(), _dynamicThreads.end(),
                 [this_id](thread& t) { return t.get_id() == this_id; });
@@ -129,7 +138,7 @@ void CpuHandleWorker::ThreadWork(int id)
             else {
                 LOG_DXRT_DBG << "Error: Attempted to remove a non-existent thread!" << endl;
                 break;
-            }
+            }*/
         }
         load = _queue.size();
         LOG_DXRT_DBG<< threadName <<" wakeup, load: "<<to_string(load)<<", isDynamic : "<<to_string(isDynamic)<<" _dynamicStopCnt: "<<to_string(_dynamicStopCnt.load())<<endl;;

@@ -52,15 +52,24 @@ InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &opti
     LOG_DXRT_DBG <<_modelFile << endl;
     LOG_DXRT_DBG << getAbsolutePath(_modelFile) << endl;
     LOG_DXRT_DBG << _modelDir << endl;
-    const char* env = getenv("DXRT_DEBUG_DATA");
-
-    if (env != nullptr) {
+    const char* dxrt_debug_data_env = getenv("DXRT_DEBUG_DATA");
+    const char* dxrt_show_profile_env = getenv("DXRT_SHOW_PROFILE");
+    if (dxrt_debug_data_env != nullptr) {
         try {
-            DEBUG_DATA = std::stoi(env);
+            DEBUG_DATA = std::stoi(dxrt_debug_data_env);
         } catch (const std::invalid_argument&) {
             cerr << "Environment variable DXRT_DEBUG_DATA is not a valid integer.\n";
         } catch (const std::out_of_range&) {
             cerr << "Environment variable DXRT_DEBUG_DATA is out of range.\n";
+        }
+    }
+    if (dxrt_show_profile_env != nullptr) {
+        try {
+            SHOW_PROFILE = std::stoi(dxrt_show_profile_env);
+        } catch (const std::invalid_argument&) {
+            cerr << "Environment variable DXRT_SHOW_PROFILE is not a valid integer.\n";
+        } catch (const std::out_of_range&) {
+            cerr << "Environment variable DXRT_SHOW_PROFILE is out of range.\n";
         }
     }
     if (DEBUG_DATA == 1 )
@@ -644,56 +653,43 @@ float InferenceEngine::RunBenchmark(int num, void *inputPtr)
 #ifdef _WIN32
     return RunBenchMarkWindows(num, inputPtr);
 #endif
-    float sum = 0.;
-    auto& profiler = dxrt::Profiler::GetInstance();
-    std::vector<float> fps;
-
-    std::atomic<int> done_count;
-    auto callBack = [&done_count](TensorPtrs &outputs, void *userArg) -> int{
+    float fps;
+    int done_count = 0;
+    std::mutex cv_mutex;
+    std::condition_variable cv;
+    auto callBack = [&done_count, num, &cv_mutex, &cv](TensorPtrs &outputs, void *userArg) -> int{
         std::ignore = outputs;
         std::ignore = userArg;
+        std::unique_lock<std::mutex> lock(cv_mutex);
         done_count++;
+        if (num == done_count){
+            cv.notify_one();
+        }
         return 0;
     }; //callback used to count inference
     RegisterCallback(callBack);
     bool isStandalone = (dxrt::DeviceStatus::GetCurrentStatus(0).GetDeviceType() == DeviceType::STD_TYPE);
 
-    while (num > 0)
+    uint64_t infTime = 0;
+    int infCnt = max(1,num);
+    auto start_clock = std::chrono::steady_clock::now();
+    for (int i=0 ; i < infCnt ; i++)
     {
-        uint64_t infTime = 0;
-        int infCnt = min(num, ObjectsPool::REQUEST_MAX_COUNT);
-        done_count = 0;
-        profiler.Start("benchmark");
-        auto start_clock = std::chrono::steady_clock::now();
-        for (int i=0 ; i < infCnt ; i++)
+        if (isStandalone)
         {
-            if (isStandalone)
-            {
-                while ((i-done_count) >= DEVICE_NUM_BUF) continue;
-                //usleep(20000);
-            }
-            RunAsync(inputPtr);
+            while ((i-done_count) >= DEVICE_NUM_BUF) continue;
+            //usleep(20000);
         }
-        // profiler.End("req");
-        while (done_count.load() < infCnt)
-        {
-            std::this_thread::sleep_for(std::chrono::microseconds(1));
-        }
-        auto end_clock = std::chrono::steady_clock::now();
-        infTime = std::chrono::duration_cast<chrono::microseconds>(end_clock - start_clock).count();
-        num -= infCnt;
-        //LOG_VALUE(infTime);
-        //LOG_VALUE(infCnt);
-        fps.emplace_back(1000000.0 * infCnt/infTime);
+        RunAsync(inputPtr);
     }
-    profiler.Erase("benchmark");
-    for (auto &val : fps)
-    {
-        sum += val;
-        //cout << "fps: " << val << endl;
-    }
+    
+    std::unique_lock<std::mutex> lock(cv_mutex);
+    cv.wait(lock,[num, &done_count]{return num == done_count;});
+    auto end_clock = std::chrono::steady_clock::now();
+    infTime = std::chrono::duration_cast<chrono::microseconds>(end_clock - start_clock).count();
+    fps = 1000000.0 * infCnt/infTime;
     RegisterCallback(nullptr);
-    return sum / fps.size();
+    return fps;
 }
 
 #ifdef _WIN32
