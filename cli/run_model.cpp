@@ -40,9 +40,12 @@ std::string float_to_string_fixed(float value, int precision) {
 }
 
 void PrintInfResult(const std::string& inputFile, const std::string& outputFile, const std::string& modelFile,
-                    float latencyMs, float infTimeMs, float fps_val, int loops, RunModelMode current_mode) {
+                    float latencyMs, float infTimeMs, float fps_val, int loops, RunModelMode current_mode, bool verbose) {
     std::vector<std::string> lines;
     (void)modelFile; 
+    
+    if (dxrt::SHOW_PROFILE)
+        verbose=true;
 
     const std::string desc_npu_time = "Actual NPU core computation time for a single request";
     const std::string desc_latency = "End-to-end time measured individually for each specific request within the engine, including data transfer and system overheads";
@@ -51,9 +54,9 @@ void PrintInfResult(const std::string& inputFile, const std::string& outputFile,
     const int description_parenthesis_start_column = 45;
 
     auto build_formatted_line =
-        [&](const std::string& label,        // e.g., "  - NPU Processing Time  : "
-            const std::string& value_str,    // e.g., "2.819"
-            const std::string& unit_str,     // e.g., "ms" or ""
+        [&](const std::string& label,
+            const std::string& value_str,
+            const std::string& unit_str,
             const std::string& description) -> std::string {
         std::string value_with_unit = value_str + (unit_str.empty() ? "" : " " + unit_str);
         std::string core_content = label + value_with_unit;
@@ -63,33 +66,44 @@ void PrintInfResult(const std::string& inputFile, const std::string& outputFile,
         int spaces_to_add = description_parenthesis_start_column - current_length;
 
         if (spaces_to_add <= 0) {
-            spaces_to_add = 1; // Ensure at least one space if content is too long or exact
+            spaces_to_add = 1;
         }
         
-        line += std::string(spaces_to_add, ' '); // Add calculated padding
-        line += "(" + description + ")";
+        line += std::string(spaces_to_add, ' '); 
+        if (verbose) 
+            line += "(" + description + ")";
         return line;
     };
 
-    std::string infTimeStr = float_to_string_fixed(infTimeMs, 3); // 3 decimal places for ms
-    std::string latencyStr = float_to_string_fixed(latencyMs, 3); // 3 decimal places for ms
-    std::string fpsStr     = float_to_string_fixed(fps_val, 2);   // 2 decimal places for FPS
+    std::string infTimeStr = float_to_string_fixed(infTimeMs, 3);
+    std::string latencyStr = float_to_string_fixed(latencyMs, 3); 
+    std::string fpsStr     = float_to_string_fixed(fps_val, 2); 
 
     if (!inputFile.empty()) {
         lines.push_back("* Processing File : " + inputFile);
         lines.push_back("* Output Saved As : " + outputFile);
     }
 
-    if (current_mode == SINGLE_MODE) { // Use the passed 'current_mode'
+    if (current_mode == SINGLE_MODE) { 
         lines.push_back("* Benchmark Result (single input)");
-        lines.push_back(build_formatted_line("  - NPU Processing Time  : ", infTimeStr, "ms", desc_npu_time));
-        lines.push_back(build_formatted_line("  - Latency              : ", latencyStr, "ms", desc_latency));
-        lines.push_back(build_formatted_line("  - FPS                  : ", fpsStr,     "",   desc_fps));
-    } else { // BENCHMARK_MODE or TARGET_FPS_MODE
+        if (verbose) {
+            lines.push_back(build_formatted_line("  - NPU Processing Time  : ", infTimeStr, "ms", desc_npu_time));
+            lines.push_back(build_formatted_line("  - Latency              : ", latencyStr, "ms", desc_latency));
+            lines.push_back(build_formatted_line("  - FPS                  : ", fpsStr, "", desc_fps));
+        }
+        else {
+            lines.push_back(build_formatted_line("  - FPS : ", fpsStr, "", desc_fps));
+        }
+    } else {
         lines.push_back("* Benchmark Result (" + std::to_string(loops) + " inputs)");
-        lines.push_back(build_formatted_line("  - NPU Processing Time Average : ", infTimeStr, "ms", desc_npu_time));
-        lines.push_back(build_formatted_line("  - Latency Average             : ", latencyStr, "ms", desc_latency));
-        lines.push_back(build_formatted_line("  - Total FPS                   : ", fpsStr,     "",   desc_fps));
+        if (verbose) {
+            lines.push_back(build_formatted_line("  - NPU Processing Time Average : ", infTimeStr, "ms", desc_npu_time));
+            lines.push_back(build_formatted_line("  - Latency Average             : ", latencyStr, "ms", desc_latency));
+            lines.push_back(build_formatted_line("  - FPS                         : ", fpsStr, "", desc_fps));
+        }
+        else {
+            lines.push_back(build_formatted_line("  - FPS : ", fpsStr, "", desc_fps));
+        }
     }
 
     size_t maxLength = 0;
@@ -127,29 +141,31 @@ int main(int argc, char *argv[])
     int targetFps = 0; 
     bool skip_inference_io = false;
     bool use_ort = false;
+    bool verbose = false;
     cxxopts::Options options("run_model", APP_NAME);
     options.add_options()
         ("m, model", "Model file (.dxnn)" , cxxopts::value<string>(modelFile))
         ("i, input", "Input data file", cxxopts::value<string>(inputFile))
         ("o, output", "Output data file", cxxopts::value<string>(outputFile)->default_value("output.bin"))
-        ("b, benchmark", "Perform a benchmark test (Maximum throughput, This is the default mode if --single or --fps > 0 are not specified)", cxxopts::value<bool>(benchmark)->default_value("false"))
-        ("s, single", "Perform a single run test (Sequential single-input inference on a single-core)", cxxopts::value<bool>(single)->default_value("false"))
+        ("b, benchmark", "Perform a benchmark test (Maximum throughput)\n(This is the default mode,\n if --single or --fps > 0 are not specified)", cxxopts::value<bool>(benchmark)->default_value("false"))
+        ("s, single", "Perform a single run test\n(Sequential single-input inference on a single-core)", cxxopts::value<bool>(single)->default_value("false"))
+        ("v, verbose", "Shows NPU Processing Time and Latency", cxxopts::value<bool>(verbose)->default_value("false"))
         ("n, npu", 
             "NPU bounding (default:0)\n"
             "  0: NPU_ALL\n  1: NPU_0\n  2: NPU_1\n  3: NPU_2\n"
             "  4: NPU_0/1\n  5: NPU_1/2\n  6: NPU_0/2", cxxopts::value<int>(bounding) ) 
-        ("l, loops", "Number of inference loops to perform (default: 30)", cxxopts::value<int>(loops)->default_value("30") )
+        ("l, loops", "Number of inference loops to perform", cxxopts::value<int>(loops)->default_value("30") )
         ("d, devices",
-            "Specify target NPU devices. Examples:\n"
-            "  'all' (default): Use all available/bound NPUs.\n"
-            "  '0': Use NPU0 only.\n"
-            "  '0,1,2': Use NPU0, NPU1, and NPU2.\n"
-            "  'count:N': Use the first N NPUs (e.g., 'count:2' for NPU0, NPU1).",
+            "Specify target NPU devices.\nExamples:\n"
+            "  'all' (default): Use all available/bound NPUs\n"
+            "  '0': Use NPU0 only\n"
+            "  '0,1,2': Use NPU0, NPU1, and NPU2\n"
+            "  'count:N': Use the first N NPUs\n  (e.g., 'count:2' for NPU0, NPU1)",
             cxxopts::value<std::string>(devices_spec)->default_value("all"))
-        ("f, fps", "arget FPS for TARGET_FPS_MODE (enables this mode if > 0 and --single is not set, default: 0)", cxxopts::value<int>(targetFps) )
+        ("f, fps", "Target FPS for TARGET_FPS_MODE (default: 0)\n(enables this mode if > 0 and --single is not set)", cxxopts::value<int>(targetFps) )
         ("skip-io", "Attempt to skip Inference I/O (Benchmark mode only)", cxxopts::value<bool>(skip_inference_io)->default_value("false"))
 #ifdef USE_ORT
-        ("use-ort", "Enable ONNX Runtime for CPU tasks in the model graph. If disabled, only NPU tasks operate", cxxopts::value<bool>(use_ort)->default_value("false"))
+        ("use-ort", "Enable ONNX Runtime for CPU tasks in the model graph\nIf disabled, only NPU tasks operate", cxxopts::value<bool>(use_ort)->default_value("false"))
 #endif
         ("h, help", "Print usage" )
     ;
@@ -175,6 +191,7 @@ int main(int argc, char *argv[])
         cout << options.help() << endl;
         exit(0);
     }
+
 
     LOG_VALUE(modelFile);
     LOG_VALUE(inputFile);
@@ -307,10 +324,10 @@ int main(int argc, char *argv[])
                     auto outputs = ie.Run(inputBuf.data());
                     auto end_clock = std::chrono::steady_clock::now();
                     infTime = std::chrono::duration_cast<chrono::microseconds>(end_clock - start_clock).count();
-                    fps = 1000000.0 * loops/infTime;
+                    fps = 1000000.0/infTime;
                     if (!inputFile.empty())
                         dxrt::DataDumpBin(outputFile, outputs.front()->data(), ie.GetOutputSize());
-                    PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatency()/1000., ie.GetNpuInferenceTime()/1000., fps, 1, mode);
+                    PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatency()/1000., ie.GetNpuInferenceTime()/1000., fps, 1, mode, verbose);
                 }
                 break;
             }
@@ -368,7 +385,7 @@ int main(int argc, char *argv[])
                 ie.Wait(loops);
                 infTime = std::chrono::duration_cast<chrono::microseconds>(end_clock - start_clock).count();
                 fps = 1000000.0 * loops/infTime;
-                PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatencyMean()/1000., ie.GetNpuInferenceTimeMean()/1000., fps, loops, mode);
+                PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatencyMean()/1000., ie.GetNpuInferenceTimeMean()/1000., fps, loops, mode, verbose);
 
 #ifdef TARGET_FPS_DEBUG
                 for (const auto& result : results) {
@@ -385,7 +402,7 @@ int main(int argc, char *argv[])
                     auto outputs = ie.Run(inputBuf.data());
                     dxrt::DataDumpBin(outputFile, outputs.front()->data(), ie.GetOutputSize());  /* TODO: sparse tensor */
                 }
-                PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatencyMean()/1000., ie.GetNpuInferenceTimeMean()/1000., fps, loops, mode);
+                PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatencyMean()/1000., ie.GetNpuInferenceTimeMean()/1000., fps, loops, mode, verbose);
 
                 break;
             }

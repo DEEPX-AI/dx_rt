@@ -8,7 +8,7 @@
 #if __cplusplus > 201103L
 #include <random>
 #endif
-
+#include <locale>
 #include <thread>
 #include <chrono>
 
@@ -58,6 +58,16 @@ vector<string> StringSplit(string s, string divid)
         v.emplace_back("");
     }
 	return v;
+}
+
+std::string format_number_with_commas(long long num) {
+    std::ostringstream oss;
+    try {
+        oss.imbue(std::locale(""));
+    } catch (const std::exception& e) {
+    }
+    oss << num;
+    return oss.str();
 }
 
 ///////////////////// Data Compare Logic using npu param file information /////////////////////////

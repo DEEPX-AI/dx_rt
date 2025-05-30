@@ -19,7 +19,7 @@
 #include "rapidjson/pointer.h"
 #include "rapidjson/rapidjson.h"
 
-#define MIN_COMPILER_VERSION "1.15.2"
+#define MIN_COMPILER_VERSION "1.18.1"
 #define MIN_SINGLEFILE_VERSION 6
 using namespace std;
 namespace deepx_binaryinfo {

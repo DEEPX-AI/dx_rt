@@ -77,7 +77,12 @@ void DeviceInputWorker::ThreadWork(int id)
             }
 
             if (id == 0)
-                LOG << "NPU DEVICE [" << deviceId << "] Average Load: " << GetAverageLoad() <<"  (Load "<<DXRT_TASK_MAX_LOAD<<": high utilization; Load 1: low utilization)"<< endl;    
+            {
+                if (SHOW_PROFILE)
+                    LOG << "NPU DEVICE [" << deviceId << "] Average Input Queue Load : " << ((GetAverageLoad()-1)/(DXRT_TASK_MAX_LOAD-1)*100) <<"%"<< endl;
+                else
+                    LOG_DXRT_DBG << "NPU DEVICE [" << deviceId << "] Average Input Queue Load : " << ((GetAverageLoad()-1)/(DXRT_TASK_MAX_LOAD-1)*100) <<"%"<< endl;
+            }
             break;
         }
         load = _device->load();

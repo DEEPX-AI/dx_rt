@@ -42,9 +42,10 @@ callback_sync_lock = threading.Lock()
 
 def print_inf_result(input_file: str, output_file: str, model_file: str,
                      latency_ms: float, inf_time_ms: float, fps_val: float,
-                     loops: int, current_mode: RunModelMode): # Renamed fps to fps_val, mode to current_mode
+                     loops: int, current_mode: RunModelMode, verbose: bool): # Renamed fps to fps_val, mode to current_mode
     lines = []
-    
+    if os.environ.get("DXRT_SHOW_PROFILE")=='1':
+        verbose=True
     desc_npu_time = "Actual NPU core computation time for a single request"
     desc_latency = ("End-to-end time measured individually for each specific request "
                     "within the engine, including data transfer and system overheads")
@@ -53,10 +54,11 @@ def print_inf_result(input_file: str, output_file: str, model_file: str,
 
     description_parenthesis_start_column = 45
 
-    def build_formatted_line(label: str,        # e.g., "  - NPU Processing Time  : "
-                             value_str: str,    # e.g., "2.819"
-                             unit_str: str,     # e.g., "ms" or ""
-                             description: str) -> str:
+    def build_formatted_line(label: str,   
+                             value_str: str,   
+                             unit_str: str,  
+                             description: str,
+                             verbose: bool) -> str:
         value_with_unit = value_str + (f" {unit_str}" if unit_str else "")
         core_content = label + value_with_unit
 
@@ -68,8 +70,9 @@ def print_inf_result(input_file: str, output_file: str, model_file: str,
         if spaces_to_add <= 0:
             spaces_to_add = 1 
         
-        line += ' ' * spaces_to_add 
-        line += f"({description})"  
+        line += ' ' * spaces_to_add
+        if verbose:
+            line += f"({description})"  
         return line
 
     inf_time_str = f"{inf_time_ms:.3f}" # 3 decimal places for ms
@@ -82,15 +85,21 @@ def print_inf_result(input_file: str, output_file: str, model_file: str,
 
     if current_mode == RunModelMode.SINGLE_MODE:
         lines.append("* Benchmark Result (single input)")
-        lines.append(build_formatted_line("  - NPU Processing Time  : ", inf_time_str, "ms", desc_npu_time))
-        lines.append(build_formatted_line("  - Latency              : ", latency_str, "ms", desc_latency))
-        lines.append(build_formatted_line("  - FPS                  : ", fps_str,     "",   desc_fps))
-    else: # BENCHMARK_MODE or TARGET_FPS_MODE
+        if verbose:
+            lines.append(build_formatted_line("  - NPU Processing Time  : ", inf_time_str, "ms", desc_npu_time, True))
+            lines.append(build_formatted_line("  - Latency              : ", latency_str, "ms", desc_latency, True))
+            lines.append(build_formatted_line("  - FPS                  : ", fps_str,     "",   desc_fps, True))
+        else:
+            lines.append(build_formatted_line("  - FPS : ", fps_str,     "",   desc_fps, False))
+    else:
         lines.append(f"* Benchmark Result ({loops} inputs)")
-        lines.append(build_formatted_line("  - NPU Processing Time Average : ", inf_time_str, "ms", desc_npu_time))
-        lines.append(build_formatted_line("  - Latency Average             : ", latency_str, "ms", desc_latency))
-        lines.append(build_formatted_line("  - Total FPS                   : ", fps_str,     "",   desc_fps))
-    
+        if verbose:
+            lines.append(build_formatted_line("  - NPU Processing Time Average : ", inf_time_str, "ms", desc_npu_time, True))
+            lines.append(build_formatted_line("  - Latency Average             : ", latency_str, "ms", desc_latency, True))
+            lines.append(build_formatted_line("  - FPS                         : ", fps_str,     "",   desc_fps, True))
+        else:
+            lines.append(build_formatted_line("  - FPS : ", fps_str,     "",   desc_fps, False))
+
     max_line_len = 0
     for line_item in lines:
         max_line_len = max(max_line_len, len(line_item))
@@ -117,22 +126,23 @@ def parse_arguments():
     parser.add_argument("-m", "--model", type=str, required=True, help="Model file (.dxnn)")
     parser.add_argument("-i", "--input", type=str, default="", help="Input data file (optional)")
     parser.add_argument("-o", "--output", type=str, default="output.bin", help="Output data file (default: output.bin)")
-    parser.add_argument("-b", "--benchmark", action="store_true", default=False, help="Perform a benchmark test. This is the default mode if --single or --fps > 0 are not specified")
-    parser.add_argument("-s", "--single", action="store_true", default=False, help="Perform a single run test. (Sequential single-input inference on a single-core)")
+    parser.add_argument("-b", "--benchmark", action="store_true", default=False, help="Perform a benchmark test (Maximum throughput)\n(This is the default mode,\n if --single or --fps > 0 are not specified)")
+    parser.add_argument("-s", "--single", action="store_true", default=False, help="Perform a single run test\n(Sequential single-input inference on a single-core)")
+    parser.add_argument("-v", "--verbose", action="store_true", default=False, help="Shows NPU Processing Time and Latency")
     parser.add_argument("-n", "--npu", type=int, default=0,
-                        help="NPU bounding option (default: 0 for NPU_ALL).\n"
+                        help="NPU bounding option (default: 0 for NPU_ALL)\n"
                              "  0: NPU_ALL\n  1: NPU_0\n  2: NPU_1\n  3: NPU_2\n"
                              "  4: NPU_0/1\n  5: NPU_1/2\n  6: NPU_0/2")
     parser.add_argument("-l", "--loops", type=int, default=30, help="Number of inference loops to perform (default: 30)")
     parser.add_argument("-d", "--devices", type=str, default="all",
-                        help="Specify target NPU devices (default: 'all'). Examples:\n"
-                             "  'all': Use all available/bound NPUs.\n"
-                             "  '0': Use NPU0 only.\n"
-                             "  '0,1,2': Use NPU0, NPU1, and NPU2.\n"
-                             "  'count:N': Use the first N NPUs (e.g., 'count:2' for NPU0, NPU1).")
-    parser.add_argument("-f", "--fps", type=int, default=0, help="Target FPS for TARGET_FPS_MODE (enables this mode if > 0 and --single is not set, default: 0)")
+                        help="Specify target NPU devices (default: 'all')\nExamples:\n"
+                             "  'all': Use all available/bound NPUs\n"
+                             "  '0': Use NPU0 only\n"
+                             "  '0,1,2': Use NPU0, NPU1, and NPU2\n"
+                             "  'count:N': Use the first N NPUs\n  (e.g., 'count:2' for NPU0, NPU1)")
+    parser.add_argument("-f", "--fps", type=int, default=0, help="Target FPS for TARGET_FPS_MODE\n(enables this mode if > 0 and --single is not set, default: 0)")
     parser.add_argument("--skip-io", action="store_true", default=False, help="Attempt to skip Inference I/O (Benchmark mode only)")
-    parser.add_argument("--use-ort", action="store_true", default=False, help="Enable ONNX Runtime for CPU tasks in the model graph. If disabled, only NPU tasks operate")
+    parser.add_argument("--use-ort", action="store_true", default=False, help="Enable ONNX Runtime for CPU tasks in the model graph\nIf disabled, only NPU tasks operate")
     
     args = parser.parse_args()
 
@@ -258,7 +268,7 @@ def main():
                                  current_npu_time_us / 1000.0,
                                  loop_fps,
                                  1, 
-                                 current_run_mode)
+                                 current_run_mode, args.verbose)
             if args.loops > 1:
                  avg_latency_ms = (total_latency_us_accumulator / args.loops) / 1000.0
                  avg_npu_ms = (total_npu_time_us_accumulator / args.loops) / 1000.0
@@ -320,7 +330,7 @@ def main():
 
             print_inf_result(args.input, args.output, args.model,
                              latency_mean_ms, npu_time_mean_ms, actual_fps,
-                             args.loops, current_run_mode)
+                             args.loops, current_run_mode, args.verbose)
 
         elif current_run_mode == RunModelMode.BENCHMARK_MODE:
             measured_fps = ie.run_benchmark(args.loops, input_buf_list)
@@ -335,7 +345,7 @@ def main():
 
             print_inf_result(args.input, args.output, args.model,
                              latency_mean_ms, npu_time_mean_ms, measured_fps,
-                             args.loops, current_run_mode)
+                             args.loops, current_run_mode, args.verbose)
         else:
             print(f"[ERR] Unknown run model mode: {current_run_mode}", file=sys.stderr)
             sys.exit(-1)
