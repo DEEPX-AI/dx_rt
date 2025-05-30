@@ -402,35 +402,44 @@ int Task::getNextId()
     return nextId++;
 }
 
-
-ostream& operator<<(ostream& os, const Task& task)
+std::ostream& operator<<(std::ostream& os, const Task& task)
 {
-    os << dec << "  Task[" << task._taskData._id << "] " << task._taskData._name << ", " << task._taskData._processor
-        << ", memory-usage " << task._taskData._memUsage << " bytes (input " << task._taskData._inputSize
-        << ", output " << task._taskData._outputSize << ")" << endl;
-    os << "    inputs" << endl;
-    for (const auto& tensor : task._taskData._inputTensors) os << "      " << tensor << endl;
-    os << "    outputs" << endl;
-    for (const auto& tensor : task._taskData._outputTensors) os << "      " << tensor << endl;
-    /*for(auto &device : task._devices)
+    if (task._taskData._processor == Processor::NPU)
     {
-        // os << *device << endl;
-        // int id = device->id();
-        // auto &models = task._npuModel;
-        // auto &inferences = task._npuInference.at(id);
-        // for(auto &model : models)
-        // {
-        //     os << "      npu_model " << model << endl;
-        // }
-        // for(auto &inference : inferences)
-        // {
-        //     os << "      npu_inference " << inference << endl;
-        // }
+        long long mem_usage = 0;
+        if (task._taskData._processor == Processor::NPU) 
+        {
+            mem_usage += task._taskData._memUsage;
+            mem_usage += (task._taskData._inputSize * DXRT_TASK_MAX_LOAD);
+            mem_usage += (task._taskData._outputMemSize * DXRT_TASK_MAX_LOAD);
+        }
+
+        os << std::dec << "  Task[" << task._taskData._id << "] "
+           << task._taskData._name << ", " << task._taskData._processor
+           << ", NPU memory usage " << format_number_with_commas(mem_usage)
+           << " bytes (input " << format_number_with_commas(task._taskData._inputSize)
+           << " bytes, output " << format_number_with_commas(task._taskData._outputSize)
+           << " bytes)" << std::endl;
+
+
+        os << "   inputs" << std::endl;
+        for (const auto& tensor : task._taskData._inputTensors) os << "     " << tensor << std::endl;
+        os << "   outputs" << std::endl;
+        for (const auto& tensor : task._taskData._outputTensors) os << "     " << tensor << std::endl;
     }
-    if(task._cpuHandle)
+    else if (task._taskData._processor == Processor::CPU)
     {
-        // os << *task._cpuHandle << endl;
-    }*/
+        os << std::dec << "  Task[" << task._taskData._id << "] "
+           << task._taskData._name << ", " << task._taskData._processor
+           << ", input " << format_number_with_commas(task._taskData._inputSize)
+           << " bytes, output " << format_number_with_commas(task._taskData._outputSize)
+           << " bytes" << std::endl;
+
+        os << "   inputs" << std::endl;
+        for (const auto& tensor : task._taskData._inputTensors) os << "     " << tensor << std::endl;
+        os << "   outputs" << std::endl;
+        for (const auto& tensor : task._taskData._outputTensors) os << "     " << tensor << std::endl;
+    }
     return os;
 }
 

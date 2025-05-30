@@ -229,7 +229,7 @@ CpuHandle::CpuHandle(void* data_, int64_t size_, string name_)
             _outputOffsets.push_back(_outputSize);
         }
     }
-
+    //To be replaced by a modeling method in the future
     if (_dynamicCpuThread) {
         if (size_ <= 64 * 1024) {
             _initDynamicThreads = 0;

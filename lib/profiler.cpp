@@ -332,6 +332,7 @@ namespace dxrt
         }
     }
     uint8_t DEBUG_DATA = 0;
+    uint8_t SHOW_PROFILE = 0;
     uint8_t SKIP_INFERENCE_IO = 0;
 
 }  // namespace dxrt

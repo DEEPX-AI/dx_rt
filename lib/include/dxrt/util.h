@@ -27,6 +27,7 @@ namespace dxrt {
 DXRT_API std::vector<int> RandomSequence(int n);
 DXRT_API unsigned int RandomValue();
 DXRT_API std::vector<std::string> StringSplit(std::string s, std::string divid);
+DXRT_API std::string format_number_with_commas(long long num);
 //int GetDataSize(deepx_rmapinfo::DataType dType);
 DXRT_API int DataFromFile(std::string f, void *d);
 DXRT_API void DataFromFile(std::string f, void *d, unsigned int size);

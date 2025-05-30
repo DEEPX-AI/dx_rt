@@ -63,7 +63,6 @@ private:
     void DoThread(int id);
     std::string _name;
     Type _type;
-    int _queueMaxSize = 1000;
     std::atomic<int> _checkQueueCnt{0};
     std::atomic<int> _accumulatedQueueSize{0};
     //std::queue<std::shared_ptr<Request>> _queue;

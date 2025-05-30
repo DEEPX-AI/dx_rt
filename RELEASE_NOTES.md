@@ -1,5 +1,13 @@
 # RELEASE_NOTES
 
+## v2.9.2 / 2025-05-30
+### 1. Changed
+- None
+### 2. Fixed
+- None
+### 3. Added
+- Included details about DXRT_DYNAMIC_CPU_THREAD usage in the model inference documentation (04_Model_Inference.md)
+
 ## v2.9.1 / 2025-05-29
 ### 1. Changed
 - Modified Python tensor info dictionary results. Removed 'size_in_bytes' and added 'elem_size' to the dictionaries returned by get_input_tensors_info() and get_output_tensors_info().
