@@ -40,7 +40,7 @@ class DxrtService
     explicit DxrtService(DXRT_Schedule scheduler_option = DXRT_Schedule::FIFO);
     explicit DxrtService(std::vector<std::shared_ptr<dxrt::ServiceDevice> > devices_, DXRT_Schedule scheduler_option);
     void onCompleteInference(const dxrt::dxrt_response_t& response, int deviceId);
-    void ErrorBroadCastToClient(dxrt::dxrt_server_err_t err, uint32_t errCode);
+    void ErrorBroadCastToClient(dxrt::dxrt_server_err_t err, uint32_t errCode, int deviceId);
 
     void InitDevice(int devId, dxrt::npu_bound_op bound);
     void DeInitDevice(int devId, dxrt::npu_bound_op bound);
@@ -93,8 +93,8 @@ DxrtService::DxrtService(std::vector<std::shared_ptr<dxrt::ServiceDevice> > devi
     _scheduler->SetCallback([this](const dxrt::dxrt_response_t& resp_, int deviceId) {
         onCompleteInference(resp_, deviceId);
     });
-    _scheduler->SetErrorCallback([this](dxrt::dxrt_server_err_t err, uint32_t errCode) {
-        ErrorBroadCastToClient(err, errCode);
+    _scheduler->SetErrorCallback([this](dxrt::dxrt_server_err_t err, uint32_t errCode, int deviceId) {
+        ErrorBroadCastToClient(err, errCode, deviceId);
     });
     LOG_DXRT_S << "Initialized Scheduler" << std::endl;
 
@@ -132,10 +132,10 @@ dxrt::RESPONSE_CODE get_ch() {
     }
 }
 
-void DxrtService::ErrorBroadCastToClient(dxrt::dxrt_server_err_t err, uint32_t errCode)
+void DxrtService::ErrorBroadCastToClient(dxrt::dxrt_server_err_t err, uint32_t errCode, int deviceId)
 {
     for (auto pid : _pid_set) {
-        _srvErr->ErrorReportToClient(err, pid, errCode);
+        _srvErr->ErrorReportToClient(err, pid, errCode, deviceId);
     }
 }
 
@@ -362,7 +362,7 @@ void DxrtService::InitDevice(int devId, dxrt::npu_bound_op bound)
     ret = _devices[devId]->BoundOption(dxrt::DX_SCHED_ADD, static_cast<dxrt::npu_bound_op>(bound));
     if (ret != 0)
     {
-        ErrorBroadCastToClient(dxrt::dxrt_server_err_t::S_ERR_SERVICE_DEV_BOUND_ERR, ret);
+        ErrorBroadCastToClient(dxrt::dxrt_server_err_t::S_ERR_SERVICE_DEV_BOUND_ERR, ret, devId);
     }
     // DXRT_ASSERT(ret==0, "failed to apply bound option to device");
 }
@@ -375,7 +375,7 @@ void DxrtService::DeInitDevice(int devId, dxrt::npu_bound_op bound)
     ret = _devices[devId]->BoundOption(dxrt::DX_SCHED_DELETE, static_cast<dxrt::npu_bound_op>(bound));
     if (ret != 0)
     {
-        ErrorBroadCastToClient(dxrt::dxrt_server_err_t::S_ERR_SERVICE_DEV_BOUND_ERR, ret);
+        ErrorBroadCastToClient(dxrt::dxrt_server_err_t::S_ERR_SERVICE_DEV_BOUND_ERR, ret, devId);
     }
 }
 
@@ -486,11 +486,11 @@ void DxrtService::handle_process_die(DxrtService *service)
                     if (errCode != 0)
                     {
                         if (errCode == 1)
-                            ErrorBroadCastToClient(dxrt::dxrt_server_err_t::S_ERR_SERVICE_TERMINATION, errCode);
+                            ErrorBroadCastToClient(dxrt::dxrt_server_err_t::S_ERR_SERVICE_TERMINATION, errCode, -1);
                         if (errCode == 2)
-                            ErrorBroadCastToClient(dxrt::dxrt_server_err_t::S_ERR_SERVICE_DEV_BOUND_ERR, errCode);
+                            ErrorBroadCastToClient(dxrt::dxrt_server_err_t::S_ERR_SERVICE_DEV_BOUND_ERR, errCode, -1);
                         else
-                            ErrorBroadCastToClient(dxrt::dxrt_server_err_t::S_ERR_SERVICE_UNKNOWN_ERR, errCode);
+                            ErrorBroadCastToClient(dxrt::dxrt_server_err_t::S_ERR_SERVICE_UNKNOWN_ERR, errCode, -1);
                         // DXRT_ASSERT(false, "failed device termination");
                     }
                 }

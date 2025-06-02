@@ -158,8 +158,13 @@ void ServiceDevice::Identify(int id_, dxrt::SkipMode skip, uint32_t subCmd )
     _info = dxrt_device_info_t();
     _info.type = 0;
     ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_IDENTIFY_DEVICE, reinterpret_cast<void*>(&_info), 0, subCmd);
-    DXRT_ASSERT(ret == 0, "failed to identify device");
+    if (ret != 0)
+    {
+        LOG_DXRT << "failed to identify device " << id_ << endl;
+        _isBlocked = true;
+        return;
 
+    }
     //_skip = skip;
     if (skip != VERSION_CHECK)
     {
@@ -265,7 +270,7 @@ int ServiceDevice::WaitThread(int ids)
                 DataDumpTxt(_dumpFile+".txt", dump.data(), 1, dump.size()/2, 2, true);
                 _stop.store(true);
                 _isBlocked = true;
-                DXRT_ASSERT(false, "");
+                _errCallBack(dxrt_server_err_t::S_ERR_DEVICE_RESPONSE_FAULT, response.status, id() );
             }
             else
             {
@@ -312,7 +317,10 @@ void ServiceDevice::SetCallback(std::function<void(const dxrt_response_t&)> f)
 {
     _callBack = f;
 }
-
+void ServiceDevice::SetErrorCallback(std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)> f)
+{
+    _errCallBack = f;
+}
 
 
 #define DEVICE_FILE "dxrt"

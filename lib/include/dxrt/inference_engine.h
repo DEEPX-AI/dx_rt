@@ -59,6 +59,10 @@ struct TimePoint;
 */
 class DXRT_API InferenceEngine
 {
+    // static
+public:
+    static constexpr int INFERENCE_JOB_MAX_COUNT = 20; // max job count per device
+
 public:
     /** @brief Perform the task of loading the model and configuring the NPU to run.
      * @param[in] modelPath model path
@@ -483,8 +487,12 @@ private:
     std::once_flag _disposeOnceFlag;
     bool _isDisposed = false;
 
+    // inference job for IE
+    std::shared_ptr<CircularDataPool<InferenceJob>> _inferenceJobPool;
+
 private:
-    static std::mutex _sOccupiedInferenceJobsLock;
+    std::mutex _occupiedInferenceJobsLock;
+    static std::mutex _sInferenceEngineMutex;
 };
 
 } /* namespace dxrt */

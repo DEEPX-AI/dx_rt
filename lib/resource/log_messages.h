@@ -20,6 +20,7 @@ namespace dxrt {
         static std::string NotSupported_FirmwareVersion(int currentVersion, int requiredVersion);
 
         static std::string DeviceNotFound();
+        static std::string AllDeviceBlocked();
     };
 
 }

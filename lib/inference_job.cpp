@@ -42,7 +42,8 @@ void InferenceJob::onRequestComplete(RequestPtr req)
             allRequestComplete = true;
         }
         _latency += req->latency();
-        _infTime += req->inference_time();
+        if (req->task()->processor() == Processor::NPU) 
+            _infTime += req->inference_time();
 
         // processed task status update
         auto completedTaskIt = _taskStatusMap.find(thisTask->name());
@@ -194,8 +195,10 @@ void InferenceJob::onAllRequestComplete()
                         }
                     }
                     _infEngCallback(ret, _userArg, _jobId);  // callback registered by inference_engine
-                    setStatus(Request::Status::REQ_DONE);
+
                     ReleaseAllOutputBuffer();
+                    setStatus(Request::Status::REQ_DONE);
+                   
                 } catch (dxrt::Exception& e) {
                     e.printTrace();
                     LOG_DXRT << "callback error " << endl;
@@ -227,9 +230,11 @@ void InferenceJob::onAllRequestComplete()
                         DataDumpBin("output.bin", ret);
                     }
                     _infEngCallback(ret, _userArg, _jobId);  // callback registered by inference_engine
-                    setStatus(Request::Status::REQ_DONE);
 
                     ReleaseAllOutputBuffer();
+                    setStatus(Request::Status::REQ_DONE);
+
+                    
                 } catch (dxrt::Exception& e) {
                     e.printTrace();
                     LOG_DXRT << "callback error " << endl;
@@ -243,8 +248,9 @@ void InferenceJob::onAllRequestComplete()
     }
     else
     {
-        setStatus(Request::Status::REQ_DONE);
         ReleaseAllOutputBuffer();
+        setStatus(Request::Status::REQ_DONE);
+        
     }
 }
 
@@ -425,6 +431,8 @@ void InferenceJob::Clear()
     _infEngCallback = nullptr;
     _outputPtr = nullptr;
     _storeResult = false;
+
+    _occupiedJob.store(false);
 }
 
 InferenceJob::~InferenceJob()

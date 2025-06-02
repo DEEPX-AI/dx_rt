@@ -67,6 +67,10 @@ class InferenceJob
     // wait for inference job to complete
     void Wait();
 
+    // inference job for IE
+    bool GetOccupiedJob() { return _occupiedJob.load(); }
+    void SetOccupiedJob(bool occupied) { _occupiedJob.store(occupied); }
+
  private:
     std::vector<RequestWeakPtr> _requests;
     std::unordered_map<std::string, Tensor> _tensors;
@@ -101,6 +105,8 @@ class InferenceJob
     // wait for inference job to complete
     std::condition_variable _waitCV;
     std::mutex _waitMutex;
+
+    std::atomic<bool> _occupiedJob {false};
    
 };
 

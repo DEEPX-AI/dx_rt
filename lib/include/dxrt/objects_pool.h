@@ -16,14 +16,13 @@ namespace dxrt {
    using RequestWeakPtr = std::weak_ptr<Request>;
    using InferenceJobPtr = std::shared_ptr<InferenceJob>;
    using InferenceJobWeakPtr = std::weak_ptr<InferenceJob>;
-
+   using MultiprocessMemoryPtr = std::shared_ptr<MultiprocessMemory>;
+   
    class ObjectsPool
    {
    public:
       // static
       static constexpr int REQUEST_MAX_COUNT = 15000;
-      static constexpr int INFERENCE_JOB_MAX_COUNT = 5000;
-
 
    private:
 
@@ -43,6 +42,7 @@ namespace dxrt {
       std::shared_ptr<CircularDataPool<Request>> _requestPool;
       std::shared_ptr<CircularDataPool<InferenceJob>> _inferenceJobPool;
       std::vector<std::shared_ptr<Device>> _devices;
+      std::shared_ptr<MultiprocessMemory> _multiProcessMemory;
       std::once_flag _initDevicesOnceFlag;
 
       bool _device_identified = false;
@@ -60,11 +60,10 @@ namespace dxrt {
       RequestPtr PickRequest(); // new one
       RequestPtr GetRequestById(int id); // find one by id
 
-      InferenceJobPtr PickInferenceJob(); // new one
-      InferenceJobPtr GetInferenceJobById(int id); // find one by id
-
       DevicePtr GetDevice(int id);
 
+      MultiprocessMemoryPtr GetMultiProcessMemory();
+      
       int DeviceCount();
 
       void InitDevices(SkipMode skip, uint32_t subCmd);

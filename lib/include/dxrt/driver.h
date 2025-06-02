@@ -128,8 +128,8 @@ typedef struct _dx_pcie_dev_err {
     uint32_t ddr_mr_reg[4];
     uint16_t ddr_freq;
     uint16_t ddr_type;
-    uint32_t ddr_dbe_ch;
-    uint32_t reserved_ddr[8];
+    uint32_t dbe_cnt[4];
+    uint32_t reserved_ddr[5];
 } dx_pcie_dev_err_t;
 
 typedef struct _dx_pcie_dev_ntfy_throt {

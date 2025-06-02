@@ -73,14 +73,14 @@ int ProcessResponse(RequestPtr req, dxrt_response_t *response)
     if (req->task()->processor() == Processor::NPU) 
     {
         req->inference_time() = response->inf_time;
+        req->task()->PushInferenceTime(req->inference_time());
     }
     else
     {
-        req->inference_time() = req->latency();
+        req->inference_time() = 0;
     }
 #ifdef USE_PROFILER
     req->task()->PushLatency(req->latency());
-    req->task()->PushInferenceTime(req->inference_time());
 #endif
     req->onRequestComplete(req);
     return 0;

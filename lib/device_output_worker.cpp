@@ -148,7 +148,6 @@ void DeviceOutputWorker::ThreadWork(int id)
         uint32_t reqId = response.req_id;
         dxrt_request_acc_t request_acc = _device->peekInferenceAcc(reqId);
         auto req = Request::GetById(reqId);
-
         if (req == nullptr)
         {
             DXRT_ASSERT(false, "req is nullptr "+std::to_string(reqId));
@@ -191,6 +190,10 @@ void DeviceOutputWorker::ThreadWork(int id)
             }
             if (req->model_type() == 1)
             {
+#ifdef USE_PROFILER
+                tp->start = tp->end - std::chrono::microseconds(response.inf_time);
+                profiler.AddTimePoint("NPU Core_" + to_string(response.dma_ch), tp);
+#endif
                 //LOG_VALUE(resp.argmax);
                 *(static_cast<uint16_t *>(req->getData()->outputs.front().data())) = response.argmax;
                 if (DEBUG_DATA > 0)

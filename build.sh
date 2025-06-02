@@ -11,6 +11,7 @@ function help()
     echo "    --arch       target CPU architecture : [ x86_64, aarch64, riscv64 ]"
     echo "    --install    install path"
     echo "    --uninstall  uninstall dx-rt files"
+    echo "    --docker     build in docker environment"
     echo "    --clang      compiler using clang"
 }
 
@@ -71,6 +72,7 @@ build_mode="Release Build"
 install=""
 uninstall=false
 clang=false
+build_in_docker=false
 
 [ $# -gt 0 ] && \
 while (( $# )); do
@@ -92,6 +94,7 @@ while (( $# )); do
             shift;;
         --uninstall) uninstall=true; shift;;
         --clang) clang=true; shift;;
+        --docker) build_in_docker=true; shift;;
         *)       echo "Invalid argument : " $1 ; help; exit 1;;
     esac
 done
@@ -163,24 +166,28 @@ if [ $CMAKE_USE_PYTHON == "true" ]; then
     echo '[Installed python package]'
 fi
 
-# start or restart dxrt system service (dxrtd)
-if [ $CMAKE_USE_SERVICE == "true" ]; then
-    echo '[Restarted the dxrt service (dxrtd)]'
-    sudo systemctl restart dxrt.service
-    if [ $? -ne 0 ]; then
-        echo '[Registration of the dxrt service (dxrtd) - start]'
-        sudo cp ./service/dxrt.service /etc/systemd/system/
-        sudo systemctl start dxrt.service
-        sudo systemctl enable dxrt.service
-        echo '[Registration of the dxrt service (dxrtd) - end]'
+
+if [ $build_in_docker == "false" ]; then
+    # start or restart dxrt system service (dxrtd)
+    if [ $CMAKE_USE_SERVICE == "true" ]; then
+        echo '[Restarted the dxrt service (dxrtd)]'
+        sudo systemctl restart dxrt.service
+        if [ $? -ne 0 ]; then
+            echo '[Registration of the dxrt service (dxrtd) - start]'
+            sudo cp ./service/dxrt.service /etc/systemd/system/
+            sudo systemctl start dxrt.service
+            sudo systemctl enable dxrt.service
+            echo '[Registration of the dxrt service (dxrtd) - end]'
+        else
+            sudo systemctl enable dxrt.service
+        fi
     else
-        sudo systemctl enable dxrt.service
+        echo '[Stoped the dxrt service (dxrtd)]'
+        sudo systemctl stop dxrt.service
+        sudo systemctl disable dxrt.service
+        if [ $? -ne 0 ]; then
+            echo '[No registered the dxrt service (dxrtd)]'
+        fi
     fi
-else
-    echo '[Stoped the dxrt service (dxrtd)]'
-    sudo systemctl stop dxrt.service
-    sudo systemctl disable dxrt.service
-    if [ $? -ne 0 ]; then
-        echo '[No registered the dxrt service (dxrtd)]'
-    fi
-fi
+fi # not build_in_docker
+

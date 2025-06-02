@@ -55,9 +55,6 @@ using namespace std;
 
 namespace dxrt {
 
-#ifdef USE_SERVICE
-shared_ptr<MultiprocessMemory> Device::_sMulti_mems;
-#endif
 std::atomic<bool> Device::_sNpuValidateOpt{false}; 
 
 static SharedMutex requestsLock;
@@ -526,21 +523,20 @@ void Device::Identify(int id_, SkipMode skip, uint32_t subCmd)
         return;
     }
 #endif
-#ifdef USE_SERVICE
-    if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE))
-    {
-        if (_sMulti_mems == nullptr)
-        {
-            _sMulti_mems = make_shared<MultiprocessMemory>();
-        }
-    }
-#endif
+
     _info = dxrt_device_info_t{};
     _info.type = 0;
     _skip = skip;
     if (skip == SkipMode::IDENTIFY_SKIP) return;
     ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_IDENTIFY_DEVICE, reinterpret_cast<void*>(&_info), 0, subCmd);
-    DXRT_ASSERT(ret == 0, "failed to identify device "+ to_string(id_));
+    //DXRT_ASSERT(ret == 0, "failed to identify device "+ to_string(id_));
+    if (ret != 0)
+    {
+        LOG_DXRT << "failed to identify device " << id_ << endl;
+        _isBlocked = true;
+        return;
+
+    }
 
     {
 #ifdef __linux__
@@ -618,6 +614,7 @@ void Device::Terminate()
     //LOG_DXRT_DBG << "Device " << _id << " terminate" << endl;
 
     uint32_t i;
+    if (_eventWorker == nullptr) return;
     do
     {
         for(i=0;i<_info.num_dma_ch;i++)
@@ -638,7 +635,7 @@ void Device::Reset(int opt)
 #ifdef USE_SERVICE
     if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE))
     {
-        _sMulti_mems->SignalDeviceReset(_id);
+        ObjectsPool::GetInstance().GetMultiProcessMemory()->SignalDeviceReset(_id);
     }
 #endif
     Process(dxrt::dxrt_cmd_t::DXRT_CMD_RESET, &opt, 4);
@@ -769,7 +766,7 @@ int64_t Device::Allocate(uint64_t size)
     {
         if (_type == DeviceType::ACC_TYPE)
         {
-            return _sMulti_mems->Allocate(id(), size);
+            return ObjectsPool::GetInstance().GetMultiProcessMemory()->Allocate(id(), size);
         }
     }
 #endif
@@ -793,7 +790,7 @@ void Device::Deallocate(uint64_t addr)
     {
         if (_type == DeviceType::ACC_TYPE)
         {
-            _sMulti_mems->Deallocate(_id, addr);
+            ObjectsPool::GetInstance().GetMultiProcessMemory()->Deallocate(_id, addr);
             return;
         }
     }
@@ -815,7 +812,7 @@ void Device::Deallocate_npuBuf(int64_t addr, int taskId)
 #ifdef USE_SERVICE
         if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE))
         {
-            _sMulti_mems->Deallocate(_id, addr);
+            ObjectsPool::GetInstance().GetMultiProcessMemory()->Deallocate(_id, addr);
         }
         else
 #endif
@@ -1039,6 +1036,7 @@ int Device::RegisterTask_ACC(TaskData* task)
 #ifdef USE_SERVICE
         if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE))
         {
+            const auto _sMulti_mems = ObjectsPool::GetInstance().GetMultiProcessMemory();
             model.weight.offset = _sMulti_mems->BackwardAllocate(_id, model.weight.size);
             model.cmd.offset = _sMulti_mems->BackwardAllocate(_id, model.cmd.size);
             if (model.cmd.offset > model.weight.offset)
@@ -1165,7 +1163,7 @@ void Device::CallBack()
     _inferenceCnt++;
 #ifdef USE_SERVICE
     if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE))
-        _sMulti_mems->SignalEndJobs(_id);
+        ObjectsPool::GetInstance().GetMultiProcessMemory()->SignalEndJobs(_id);
 #endif
 
     // notify all
@@ -1230,9 +1228,9 @@ ostream& operator<<(ostream &os, const Device& device)
 vector<shared_ptr<Device>>& CheckDevices(SkipMode skip, uint32_t subCmd)
 {
     LOG_DXRT_DBG << endl;
-    
+
     auto& inst = ObjectsPool::GetInstance();
-    inst.InitDevices(skip,subCmd);
+    inst.InitDevices(skip, subCmd);
     return inst.CheckDevices();
 
 }
@@ -1240,9 +1238,9 @@ vector<shared_ptr<Device>>& CheckDevices(SkipMode skip, uint32_t subCmd)
 void WaitDeviceResponses(vector<shared_ptr<Device>> &devices_) // temp.
 {
     LOG_DXRT_DBG << endl;
-    for(auto &device:devices_)
+    for (auto &device : devices_)
     {
-        while(device->load()>0)
+        while (device->load() > 0)
         {
             LOG_DXRT << *device << endl;
             // LOG_VALUE(device->load());
@@ -1272,7 +1270,7 @@ void Device::signalToDevice(npu_bound_op boundOp)
 {
 #ifdef USE_SERVICE
     if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE))
-        _sMulti_mems->SignalDeviceInit(_id, boundOp);
+        ObjectsPool::GetInstance().GetMultiProcessMemory()->SignalDeviceInit(_id, boundOp);
 #else
     (void)boundOp;
 #endif
@@ -1281,7 +1279,7 @@ void Device::signalToDevice(npu_bound_op boundOp)
 void Device::signalToDeviceDeInit(npu_bound_op boundOp)
 {
 #ifdef USE_SERVICE
-    _sMulti_mems->SignalDeviceDeInit(_id, boundOp);
+    ObjectsPool::GetInstance().GetMultiProcessMemory()->SignalDeviceDeInit(_id, boundOp);
 #else
     (void)boundOp;
 #endif
@@ -1290,13 +1288,25 @@ void Device::signalToDeviceDeInit(npu_bound_op boundOp)
 #ifdef USE_SERVICE
 void Device::SignalToService(dxrt_request_acc_t* npu_inference_acc)
 {
-    _sMulti_mems->SignalScheduller(_id, *npu_inference_acc);
+    ObjectsPool::GetInstance().GetMultiProcessMemory()->SignalScheduller(_id, *npu_inference_acc);
 }
 
 void Device::ProcessResponseFromService(const dxrt_response_t& resp)
 {
     _outputWorker->PushWork(resp);
 }
+void Device::ProcessErrorFromService(dxrt_server_err_t err, int value)
+{
+    cout << "============================================================" << endl;
+    cout << "error occured in device " << id() << endl;
+    cout << " ** Reason : " <<  err <<
+        "(value: " << value << ")" << endl;
+    cout << " ** Take error message from server" << endl;
+    cout << " ** Please restart daemon and applications" << endl;
+    cout << "============================================================" << endl;
+    block();
+}
 #endif
+
 
 }  // namespace dxrt

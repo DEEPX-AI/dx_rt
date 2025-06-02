@@ -42,6 +42,12 @@ namespace dxrt {
             _dataPool.clear();
         }
 
+        size_t GetSize()
+        {
+            std::lock_guard<std::mutex> lock(_mutex);
+            return _dataPool.size();
+        }
+
         // reuse buffer pointer
         std::shared_ptr<T> pick()
         {
