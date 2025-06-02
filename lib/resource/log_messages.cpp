@@ -103,6 +103,11 @@ namespace dxrt {
     {
         return "Device not found";
     }
+    std::string LogMessages::AllDeviceBlocked()
+    {
+        return "All Devices are blocked";
+    }
+
 
 
 } // namespace dxrt

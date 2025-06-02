@@ -4,6 +4,8 @@
 ### 1. Changed
 - None
 ### 2. Fixed
+- Fixed a bug where GetNpuInferenceTime related APIs returned incorrect values
+- Fixed a bug where the task load could be displayed as a negative value
 - None
 ### 3. Added
 - Included details about DXRT_DYNAMIC_CPU_THREAD usage in the model inference documentation (04_Model_Inference.md)

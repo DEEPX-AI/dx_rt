@@ -68,11 +68,13 @@ Task::Task(std::string name_, vector<rmapinfo> rmapInfos_, std::vector<std::vect
         SetOutputBuffer(devices_.size() * DXRT_TASK_MAX_LOAD * 2);
         for (auto device : devices_)
         {
+            if (device->isBlocked()) continue;
             _device_ids.push_back(device->id());
         }
         LOG_DXRT_DBG << "NPU Task: checked devices" << endl;
         for (auto &device : devices_)
         {
+            if (device->isBlocked()) continue;
             // DXRT_ASSERT(device->RegisterTask(getData()) == 0, "failed to register task");
             if ( device->RegisterTask(getData()) != 0 )
                 throw InvalidModelException(EXCEPTION_MESSAGE("failed to register task"));

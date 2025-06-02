@@ -126,7 +126,7 @@ void SchedulerService::SetCallback(std::function<void(const dxrt::dxrt_response_
     _callBack = f;
 }
 
-void SchedulerService::SetErrorCallback(std::function<void(dxrt::dxrt_server_err_t, uint32_t)> f)
+void SchedulerService::SetErrorCallback(std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)> f)
 {
     _errCallBack = f;
 }
@@ -165,10 +165,16 @@ void SchedulerService::doInference(int deviceId, int procId, int reqId)
         if (retval != 0)
         {
             LOG_DXRT_S << "Report error message to client:" << retval << endl;
-            _errCallBack(dxrt::dxrt_server_err_t::S_ERR_SCHEDULE_REQ, retval);
+            _errCallBack(dxrt::dxrt_server_err_t::S_ERR_SCHEDULE_REQ, retval, deviceId);
         }
         DXRT_ASSERT(retval == 0, "IOCTL FAILED err: "+ to_string(retval));
     }
+}
+
+void SchedulerService::SendError(int deviceId, dxrt::dxrt_server_err_t err, uint32_t errCode)
+{
+    LOG_DXRT_S << "Report error message to client:" << errCode << endl;
+    _errCallBack(err, errCode, deviceId);
 }
 
 void SchedulerService::updateTaskInferenceTime(int procId, int taskId, uint32_t time)

@@ -326,7 +326,7 @@ int main(int argc, char *argv[])
                     infTime = std::chrono::duration_cast<chrono::microseconds>(end_clock - start_clock).count();
                     fps = 1000000.0/infTime;
                     if (!inputFile.empty())
-                        dxrt::DataDumpBin(outputFile, outputs.front()->data(), ie.GetOutputSize());
+                        dxrt::DataDumpBin(outputFile, outputs);
                     PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatency()/1000., ie.GetNpuInferenceTime()/1000., fps, 1, mode, verbose);
                 }
                 break;
@@ -400,7 +400,7 @@ int main(int argc, char *argv[])
                 if (!inputFile.empty())
                 {
                     auto outputs = ie.Run(inputBuf.data());
-                    dxrt::DataDumpBin(outputFile, outputs.front()->data(), ie.GetOutputSize());  /* TODO: sparse tensor */
+                    dxrt::DataDumpBin(outputFile, outputs);  /* TODO: sparse tensor */
                 }
                 PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatencyMean()/1000., ie.GetNpuInferenceTimeMean()/1000., fps, loops, mode, verbose);
 

@@ -9,7 +9,7 @@ dxrt::DxrtServiceErr::DxrtServiceErr(dxrt::IPCServerWrapper *ipcServerWrapper)
 
 }
 
-void dxrt::DxrtServiceErr::ErrorReportToClient(dxrt_server_err_t err, long procId, uint32_t errCode)
+void dxrt::DxrtServiceErr::ErrorReportToClient(dxrt_server_err_t err, long procId, uint32_t errCode, int deviceId)
 {
     dxrt::IPCServerMessage serverMessage;
 
@@ -17,6 +17,7 @@ void dxrt::DxrtServiceErr::ErrorReportToClient(dxrt_server_err_t err, long procI
     serverMessage.data = static_cast<uint64_t>(err);
     serverMessage.result = errCode;
     serverMessage.msgType = procId;
+    serverMessage.deviceId = deviceId;
 
     _ipcServerWrapper->SendToClient(serverMessage);
 }

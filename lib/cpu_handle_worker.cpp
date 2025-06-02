@@ -103,10 +103,18 @@ void CpuHandleWorker::ThreadWork(int id)
             LOG_DXRT_DBG<<"Queue is flushed"<<endl;
             CpuHandle::_totalNumThreads--; 
             if (id == 0 && (GetAverageLoad() > 2 || CpuHandle::_dynamicCpuThread || SHOW_PROFILE))
-                LOG << "CPU TASK [" << getName() << "], Average Input Queue Load : " << ((GetAverageLoad()-1)/(DXRT_TASK_MAX_LOAD-1)*100)
+            {
+                double avgLoad = GetAverageLoad();
+                double loadPercent = 0.0;
+
+                if (avgLoad > 1) {
+                    loadPercent = (avgLoad - 1) / (DXRT_TASK_MAX_LOAD - 1) * 100;
+                }
+                LOG << "CPU TASK [" << getName() << "], Average Input Queue Load : " << loadPercent
                 << "%  (DXRT_DYNAMIC_CPU_THREAD: " << (CpuHandle::_dynamicCpuThread ? "ON" : "OFF") << ")"
-                << (GetAverageLoad() > 2 && !(CpuHandle::_dynamicCpuThread) ? " - To improve FPS, set: \'export DXRT_DYNAMIC_CPU_THREAD=ON\'" : "")
+                << (avgLoad > 2 && !(CpuHandle::_dynamicCpuThread) ? " - To improve FPS, set: \'export DXRT_DYNAMIC_CPU_THREAD=ON\'" : "")
                 << endl;
+            }
             /*
             if (id == 0)
                 LOG << "CPU TASK [" << getName() << "] Average Wait Load : " << ((GetAverageLoad()-1)/(DXRT_TASK_MAX_LOAD-1)*100)

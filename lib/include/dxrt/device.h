@@ -17,6 +17,7 @@
 #include "dxrt/driver_adapter/driver_adapter.h"
 #include "dxrt/task_data.h"
 #include "dxrt/npu_memory_cache.h"
+#include "dxrt/exception/server_err.h"
 
 #define DEVICE_NUM_BUF 2
 
@@ -121,11 +122,13 @@ public:
     void Deallocate_npuBuf(int64_t addr, int taskId);
     void StartDev();
     bool isBlocked(){return _isBlocked.load();}
-    void block(){_isBlocked.store(true);}
+    void block(){_isBlocked.store(true);cout << "BLOCKED\n";}
     void unblock(){_isBlocked.store(false);}
+
 #ifdef USE_SERVICE
     void SignalToService(dxrt_request_acc_t* npu_inference_acc);
     void ProcessResponseFromService(const dxrt_response_t& resp);
+    void ProcessErrorFromService(dxrt_server_err_t err, int value);
     #endif
     std::unordered_map<int, std::vector< dxrt_model_t >> _npuModel;
 protected:
@@ -179,7 +182,6 @@ protected:
     int InferenceRequest_STD(RequestData* req, npu_bound_op boundOp);
     int InferenceRequest_ACC(RequestData* req, npu_bound_op boundOp);
 
-    static std::shared_ptr<MultiprocessMemory> _sMulti_mems;
     bool _isBoundOptionSet = false;
     npu_bound_op _setBoundOption;
 

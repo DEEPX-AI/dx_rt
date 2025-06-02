@@ -25,6 +25,7 @@
 #include "dxrt/util.h"
 #include "dxrt/filesys_support.h"
 #include "dxrt/device_version.h"
+#include "service_error.h"
 #include "dxrt/fw.h"
 #include "dxrt/multiprocess_memory.h"
 #include "dxrt/driver_adapter/linux_driver_adapter.h"
@@ -98,6 +99,7 @@ class DXRT_API ServiceDevice
     int WaitThread(int ids);
     void Identify(int id_, dxrt::SkipMode skip);
     void SetCallback(std::function<void(const dxrt_response_t&)> f);
+    void SetErrorCallback(std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)> f);
     static vector<shared_ptr<ServiceDevice>> CheckServiceDevices(SkipMode skip = SkipMode::NONE, uint32_t subCmd = 0);
     bool isBlocked(){return _isBlocked;}
 
@@ -133,6 +135,8 @@ class DXRT_API ServiceDevice
     std::shared_ptr<DriverAdapter> _driverAdapter;
 
     std::function<void(const dxrt_response_t&)> _callBack;
+
+    std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)> _errCallBack;
     bool _isBlocked = false;
 };
 

@@ -4,6 +4,7 @@
 #include "dxrt/objects_pool.h"
 #include "dxrt/filesys_support.h"
 #include "dxrt/configuration.h"
+#include "dxrt/multiprocess_memory.h"
 #include "dxrt/profiler.h"
 #include "dxrt/exception/exception.h"
 #include "resource/log_messages.h"
@@ -28,8 +29,18 @@ ObjectsPool::ObjectsPool()
     // create profiler
     Profiler::GetInstance();
 
+    // create multiprocess_memory
+    #ifdef USE_SERVICE
+        if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE))
+        {
+            if (_multiProcessMemory == nullptr)
+            {
+                 _multiProcessMemory = std::make_shared<MultiprocessMemory>();
+            }
+        }
+    #endif
+    
     _requestPool = std::make_shared<CircularDataPool<Request>>(ObjectsPool::REQUEST_MAX_COUNT);
-    _inferenceJobPool = std::make_shared<CircularDataPool<InferenceJob>>(ObjectsPool::INFERENCE_JOB_MAX_COUNT);
 
     makeDeviceList();
     
@@ -39,8 +50,10 @@ ObjectsPool::~ObjectsPool()
 {
     LOG_DXRT_DBG << "~ObjectPool start" << std::endl;
     _devices.clear();
-    _inferenceJobPool = nullptr;
     _requestPool = nullptr;
+
+    // delete multiprocess_memory
+    _multiProcessMemory = nullptr;
 
     // delete profiler
     Profiler::deleteInstance();
@@ -99,9 +112,6 @@ void ObjectsPool::makeDeviceList()
         }
     }
 }
-constexpr int ObjectsPool::REQUEST_MAX_COUNT;
-constexpr int ObjectsPool::INFERENCE_JOB_MAX_COUNT;
-
 
 RequestPtr ObjectsPool::PickRequest()  // new one
 {
@@ -114,20 +124,6 @@ RequestPtr ObjectsPool::GetRequestById(int id)  // find one by id
     //std::lock_guard<std::mutex> lock(_getRequestByIdMutex);
     return _requestPool->GetById(id);
 }
-
-InferenceJobPtr ObjectsPool::PickInferenceJob()  // new one
-{
-    //std::lock_guard<std::mutex> lock(_methodMutex);
-    return _inferenceJobPool->pick();
-}
-
-InferenceJobPtr ObjectsPool::GetInferenceJobById(int id)  // find one by id
-{
-    //std::lock_guard<std::mutex> lock(_methodMutex);
-    return _inferenceJobPool->GetById(id);
-}
-
-
 
 void ObjectsPool::InitDevices(SkipMode skip, uint32_t subCmd)
 {
@@ -181,7 +177,10 @@ shared_ptr<Device> ObjectsPool::PickOneDevice(const vector<int> &device_ids)
                 pick = _devices[device_id];
             }
         }
-        DXRT_ASSERT(block_count < device_id_size, "ALL DEVICE BLOCKED");
+        if(block_count >= device_id_size)
+        {
+            throw DeviceIOException(LogMessages::AllDeviceBlocked());
+        }
         if(pick!=nullptr)
             break;
         std::this_thread::sleep_for(std::chrono::microseconds(1));
@@ -273,12 +272,18 @@ int ObjectsPool::pickDeviceIndex(const vector<int> &device_ids)
 
     _curDevIdx++;
     
-    DXRT_ASSERT(block_count < device_id_size, "ALL DEVICE BLOCKED");
+    if(block_count >= device_id_size)
+    {
+        throw DeviceIOException(LogMessages::AllDeviceBlocked());
+    }
     //std::cout << "device-index=" << device_index << std::endl;
     
     return device_index;
 }
 
-
+shared_ptr<MultiprocessMemory> ObjectsPool::GetMultiProcessMemory()
+{ 
+    return _multiProcessMemory;
+}
 
 }  // namespace dxrt

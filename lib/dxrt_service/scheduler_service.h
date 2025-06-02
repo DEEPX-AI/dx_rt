@@ -26,13 +26,13 @@ class SchedulerService
     virtual ~SchedulerService();
     void AddScheduler(const dxrt::dxrt_request_acc_t& packet_data, int deviceId);
     void FinishJobs(int deviceId, const dxrt::dxrt_response_t& response_data);
-
+    void SendError(int deviceId, dxrt::dxrt_server_err_t err, uint32_t errCode);
 
 
     int Load(int deviceId) const {return _loads[deviceId];}
 
     void SetCallback(std::function<void(const dxrt::dxrt_response_t&, int)> f);
-    void SetErrorCallback(std::function<void(dxrt::dxrt_server_err_t, uint32_t)> f);
+    void SetErrorCallback(std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)> f);
     void cleanDiedProcess(int pid);
     void StopScheduler(int procId);
     void StartScheduler(int procId);
@@ -55,7 +55,7 @@ class SchedulerService
     std::mutex _lock;
     std::vector<std::shared_ptr<dxrt::ServiceDevice>> _devices;
     std::function<void(const dxrt::dxrt_response_t&, int)> _callBack;
-    std::function<void(dxrt::dxrt_server_err_t, uint32_t)> _errCallBack;
+    std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)> _errCallBack;
 
 };
 

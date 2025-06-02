@@ -42,11 +42,13 @@ struct BatchArgument
 };
 
 static const int SUB_BATCH_MAX_COUNT = 128;
-std::mutex InferenceEngine::_sOccupiedInferenceJobsLock;
+std::mutex InferenceEngine::_sInferenceEngineMutex;
 
 InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &option_)
 :_modelFile(path_), _option(option_)
 {
+    std::lock_guard<std::mutex> lock(_sInferenceEngineMutex);
+
     _modelDir = getParentPath(getAbsolutePath(_modelFile));
 
     LOG_DXRT_DBG <<_modelFile << endl;
@@ -341,7 +343,6 @@ InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &opti
     LOG_DBG("_numTails : "+std::to_string(_numTails));
     //DXRT_ASSERT(_numTails==1, "Invalid Graph : check the number of tail task (The final inference output aggregation for multi-tail tasks is not yet supported.)");
     
-    _occupiedInferenceJobs = std::vector<bool>(ObjectsPool::INFERENCE_JOB_MAX_COUNT, false);
 #ifdef PRINT_ALL_INFERENCE_ENGINE
     for (auto &task : _tasks)
     {
@@ -359,6 +360,11 @@ InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &opti
     }
     cout << *this << endl;
 #endif
+
+    size_t device_count = CheckDevices().size();
+    if ( _option.devices.size() > 0 ) device_count = _option.devices.size();
+    _inferenceJobPool = std::make_shared<CircularDataPool<InferenceJob>>(InferenceEngine::INFERENCE_JOB_MAX_COUNT * device_count);
+
     LOG_DBG("InferenceEngine created.");
 }
 
@@ -375,7 +381,8 @@ TensorPtrs InferenceEngine::Run(void *inputPtr, void *userArg, void *outputPtr)
     {
         throw InvalidOperationException("InferenceEngine already Disposed");
     }
-    std::shared_ptr<InferenceJob> infJob = ObjectsPool::GetInstance().PickInferenceJob();
+    //std::shared_ptr<InferenceJob> infJob = ObjectsPool::GetInstance().PickInferenceJob();
+    std::shared_ptr<InferenceJob> infJob = _inferenceJobPool->pick();
 
     infJob->SetInferenceJob(_tasks, _head, _lastOutputOrder);
     infJob->setInferenceEngineInterface(this);
@@ -387,9 +394,10 @@ TensorPtrs InferenceEngine::Run(void *inputPtr, void *userArg, void *outputPtr)
             retval = _userCallback(outputs, userArg);
         }
         {
-            std::lock_guard<std::mutex> lock(_sOccupiedInferenceJobsLock);
+            //std::lock_guard<std::mutex> lock(_occupiedInferenceJobsLock);
             // unoccupired inference job id
-            this->_occupiedInferenceJobs[jobId] = false;
+            //this->_occupiedInferenceJobs[jobId] = false;
+            _inferenceJobPool->GetById(jobId)->SetOccupiedJob(false);
         }
 
         return retval;
@@ -397,9 +405,10 @@ TensorPtrs InferenceEngine::Run(void *inputPtr, void *userArg, void *outputPtr)
 
     int jobId = infJob->startJob(inputPtr, userArg, outputPtr);
     {
-        std::lock_guard<std::mutex> lock(_sOccupiedInferenceJobsLock);
+        //std::lock_guard<std::mutex> lock(_occupiedInferenceJobsLock);
         // occupired inference job id
-        _occupiedInferenceJobs[jobId] = true;
+        //_occupiedInferenceJobs[jobId] = true;
+        _inferenceJobPool->GetById(jobId)->SetOccupiedJob(true);
     }
     return Wait(jobId);
 }
@@ -590,7 +599,8 @@ int InferenceEngine::runAsync(void *inputPtr, void *userArg, void *outputPtr,
         throw InvalidOperationException("InferenceEngine already Disposed");
     }
     // return InferenceJob instance from InferenceJob pool (reused)
-    std::shared_ptr<InferenceJob> infJob = ObjectsPool::GetInstance().PickInferenceJob();
+    //std::shared_ptr<InferenceJob> infJob = ObjectsPool::GetInstance().PickInferenceJob();
+    std::shared_ptr<InferenceJob> infJob = _inferenceJobPool->pick();
 
     infJob->SetInferenceJob(_tasks, _head, _lastOutputOrder);
     infJob->setInferenceEngineInterface(this);
@@ -616,9 +626,10 @@ int InferenceEngine::runAsync(void *inputPtr, void *userArg, void *outputPtr,
                 batchCallback(outputs, userArg, jobId);
             }
             {
-                std::lock_guard<std::mutex> lock(_sOccupiedInferenceJobsLock);
+                //std::lock_guard<std::mutex> lock(_occupiedInferenceJobsLock);
                 // unoccupired inference job id
-                this->_occupiedInferenceJobs[jobId] = false;
+                //this->_occupiedInferenceJobs[jobId] = false;
+                _inferenceJobPool->GetById(jobId)->SetOccupiedJob(false);
             }
             
             return retval;
@@ -635,8 +646,9 @@ int InferenceEngine::runAsync(void *inputPtr, void *userArg, void *outputPtr,
 
     // occupired inference job id
     {
-        std::lock_guard<std::mutex> lock(_sOccupiedInferenceJobsLock);
-        _occupiedInferenceJobs[jobId] = true;
+        //std::lock_guard<std::mutex> lock(_occupiedInferenceJobsLock);
+        //_occupiedInferenceJobs[jobId] = true;
+        _inferenceJobPool->GetById(jobId)->SetOccupiedJob(true);
     }
 
     return jobId;
@@ -651,6 +663,7 @@ void InferenceEngine::RegisterCallback(function<int(TensorPtrs &outputs, void *u
 float InferenceEngine::RunBenchmark(int num, void *inputPtr)
 {
 #ifdef _WIN32
+    //Need to check if RunBenchMarkWindows is required separately
     return RunBenchMarkWindows(num, inputPtr);
 #endif
     float fps;
@@ -693,6 +706,7 @@ float InferenceEngine::RunBenchmark(int num, void *inputPtr)
 }
 
 #ifdef _WIN32
+//Need to check if RunBenchMarkWindows is required separately
 // in windows, verbose mode
 float InferenceEngine::RunBenchMarkWindows(int num, void* inputPtr)
 {
@@ -781,7 +795,8 @@ TensorPtrs InferenceEngine::Wait(int jobId)
 {
     LOG_DXRT_DBG << jobId << endl;
 
-    std::shared_ptr<InferenceJob> infJob = ObjectsPool::GetInstance().GetInferenceJobById(jobId);
+    //std::shared_ptr<InferenceJob> infJob = ObjectsPool::GetInstance().GetInferenceJobById(jobId);
+    std::shared_ptr<InferenceJob> infJob = _inferenceJobPool->GetById(jobId);
     infJob->Wait();
     //this_thread::sleep_for(chrono::microseconds(1));
     // while (infJob->getStatus() == Request::Status::REQ_BUSY)
@@ -987,27 +1002,24 @@ bool InferenceEngine::IsPPU()
 
 void InferenceEngine::disposeOnce()
 {
+    std::lock_guard<std::mutex> lock(_sInferenceEngineMutex);
+
     _isDisposed = true;
     LOG_DXRT_DBG << endl;
-    std::unique_lock<std::mutex> lock(_sOccupiedInferenceJobsLock);
+    //std::unique_lock<std::mutex> lock(_occupiedInferenceJobsLock);
 
-    // wait for all inference jobs to complete
-    for (size_t i = 0; i < _occupiedInferenceJobs.size(); ++i)
+    for (size_t i = 0; i < _inferenceJobPool->GetSize(); ++i)
     {
+        auto job = _inferenceJobPool->GetById(i);
+
         // wait for the job to finish
-        if ( _occupiedInferenceJobs[i] ) {
-            lock.unlock();
+        if ( job->GetOccupiedJob() ) {
+            //lock.unlock();
             Wait(static_cast<int>(i));
-            lock.lock();
+            //lock.lock();
         }
+        //job->Clear();
     }
-    
-    // for (size_t i = 0; i < _occupiedInferenceJobs.size(); ++i)
-    // {
-    //     if ( _occupiedInferenceJobs[i] ) {
-    //         InferenceJob::GetById(i)->Clear();
-    //     }
-    // }
 
     for (auto &task : _tasks)
     {
@@ -1022,6 +1034,10 @@ void InferenceEngine::disposeOnce()
     _head.reset();
     _tails.clear();
     _userCallback = nullptr;
+
+    // inference job pool for IE
+    _inferenceJobPool = nullptr;
+
     LOG_DXRT_DBG <<" Done"<< endl;
 
 }

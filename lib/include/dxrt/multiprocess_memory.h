@@ -59,7 +59,6 @@ private:
     void mpConnect_once_wrapper();
 
     std::once_flag _connectFlag;
-    std::mutex _lock;
 
     // IPC
     dxrt::IPCClientWrapper ipcClientWrapper;

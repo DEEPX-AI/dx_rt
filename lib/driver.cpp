@@ -103,18 +103,19 @@ std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_err_t& error) {
 
     // Print LPDDR information
     os << "* LPDDR Information (" << "LPDDR" << error.ddr_type << " , Frequency: " << error.ddr_freq << "MHz)" << endl;
-    os << "  - LPDDR double bit error occured ch : ";
-    for (int ddr_ch = 0; ddr_ch < 4; ddr_ch++) {
-        if (error.ddr_dbe_ch & (1 << ddr_ch))
-            os << "CH" << ddr_ch << ", ";
-    }
-    os << endl;
-
     os << "  - LPDDR MR Register Info ch[0, 1, 2, 3] : [";
     for (int ddr_ch = 0; ddr_ch < 4; ddr_ch++) {
         os << error.ddr_mr_reg[ddr_ch] << ", ";
     }
     os << "]" << endl;
+
+    if (error.dbe_cnt[0] || error.dbe_cnt[1] || error.dbe_cnt[2] || error.dbe_cnt[3]) {
+        os << "  - LPDDR double bit error count ch[0, 1, 2, 3] : [";
+        for (int ddr_ch = 0; ddr_ch < 4; ddr_ch++) {
+            os << error.dbe_cnt[ddr_ch] << ", ";
+        }
+        os << "]" << endl;
+    }
     os << "==========================================================================================" << endl;
 
     os << "************************************************************************" << endl;
