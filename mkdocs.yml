@@ -1,0 +1,95 @@
+site_name: DXNN Runtime (DX-RT) User Manual
+use_directory_urls: false
+docs_dir: docs # markdown original file folder
+site_dir: html_docs # html target folder
+theme: 
+  name : material
+  language: en
+  font:
+    text: Noto Sans Display
+    #text: Noto Serif
+    #code: Noto Sans 
+    code: Roboto Mono 
+  logo: ./img/deepx.png
+  favicon: ./img/favicon.png
+  palette:
+    # Palette toggle for light mode
+    - scheme: default
+      primary: black
+      toggle:
+        icon: material/brightness-7 
+        name: Switch to dark mode
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+     - toc.integrate
+     - content.code.annotate
+     - navigation.tabs
+     - navigation.tabs.sticky
+     - content.tabs.link
+     - content.code.copy
+nav:
+  - DXNN Runtime Overview: docs/01_DXNN_Runtime_Overview.md
+  - Installation on Linux: docs/02_Installation_on_Linux.md
+  - Installation on Windows: docs/03_Installation_on_Windows.md
+  - Model Inference: docs/04_Model_Inference.md
+  - Command Line Interface: docs/05_Command_Line_Interface.md  
+  - Tutorials:
+      - C++ Tutorials: docs/06_01_C++_Tutorials.md
+      - Python Tutorials: docs/06_02_Python_Tutorials.md
+  - API Reference:
+      - C++ API Reference: docs/07_01_C++_API_Reference.md
+      - Python API Reference: docs/07_02_Python_API_Reference.md
+  - Change Log: docs/Appendix_Change_Log.md
+
+plugins:
+  - search
+  - with-pdf:
+      author: DEEPX.ai
+      copyright: ⓒ Copyright 2025 DEEPX All Rights Reserved.
+      cover_title: DXNN Runtime (DX-RT) User Manual
+      cover_subtitle: v2.9.4
+      cover_logo: img/deepx.png
+      custom_template_path: docs/stylesheets
+      output_path: ../docs/DEEPX_DX-RT_UM_v2.9.4.pdf
+extra:
+  generator: false
+  social:
+     - icon: fontawesome/brands/linkedin
+       link: https://www.linkedin.com/company/deepx-corporation/
+extra_css: 
+  - stylesheets/extra.css
+markdown_extensions:
+  - admonition
+  - def_list
+  - toc:
+        permalink: "true"
+        baselevel: 1
+        separator: ">_"
+        toc_depth: 3
+  - pymdownx.critic
+  - pymdownx.caret
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.tilde
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true 
+  - attr_list
+  - md_in_html
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+copyright: ⓒ Copyright 2025 <a href="http://deepx.ai">DEEPX</a>. All Rights Reserved.

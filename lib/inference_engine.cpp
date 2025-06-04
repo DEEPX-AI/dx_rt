@@ -361,9 +361,7 @@ InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &opti
     cout << *this << endl;
 #endif
 
-    size_t device_count = CheckDevices().size();
-    if ( _option.devices.size() > 0 ) device_count = _option.devices.size();
-    _inferenceJobPool = std::make_shared<CircularDataPool<InferenceJob>>(InferenceEngine::INFERENCE_JOB_MAX_COUNT * device_count);
+    _inferenceJobPool = std::make_shared<CircularDataPool<InferenceJob>>(InferenceEngine::INFERENCE_JOB_MAX_COUNT);
 
     LOG_DBG("InferenceEngine created.");
 }

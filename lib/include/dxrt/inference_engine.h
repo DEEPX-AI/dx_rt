@@ -61,7 +61,7 @@ class DXRT_API InferenceEngine
 {
     // static
 public:
-    static constexpr int INFERENCE_JOB_MAX_COUNT = 20; // max job count per device
+        static constexpr int INFERENCE_JOB_MAX_COUNT = 1024; // max job count
 
 public:
     /** @brief Perform the task of loading the model and configuring the NPU to run.
