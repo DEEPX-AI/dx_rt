@@ -41,7 +41,8 @@ namespace dxrt {
             SERVICE,
             DYNAMIC_CPU_THREAD,
             TASK_FLOW,
-            LOG_THROTTLING
+            SHOW_THROTTLING,
+            SHOW_PROFILE
         };
 
         // ATTRIBUTE

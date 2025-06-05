@@ -102,7 +102,9 @@ void CpuHandleWorker::ThreadWork(int id)
             }
             LOG_DXRT_DBG<<"Queue is flushed"<<endl;
             CpuHandle::_totalNumThreads--; 
-            if (id == 0 && (GetAverageLoad() > 2 || CpuHandle::_dynamicCpuThread || SHOW_PROFILE))
+            if (id == 0 && 
+                    (GetAverageLoad() > 2 || CpuHandle::_dynamicCpuThread || SHOW_PROFILE 
+                    || Configuration::GetInstance().GetEnable(Configuration::ITEM::SHOW_PROFILE) ))
             {
                 double avgLoad = GetAverageLoad();
                 double loadPercent = 0.0;

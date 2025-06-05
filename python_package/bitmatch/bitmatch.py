@@ -16,6 +16,7 @@ def main():
     parser.add_argument("--loops", "-l", type=int, default=1, help="Number of test loops")
     parser.add_argument("--reg_f", "-f", "--dir", "-d", type=str, dest="dir",
                         help="Regression directory with model subdirectories (ex: dxnn_regr_data/M1A/1000)")
+    parser.add_argument("--sync", "-s", action='store_true', help="Enable sync mode")
     parser.add_argument("--batch", "-b", action='store_true', help="Enable batch mode")
     parser.add_argument("--batch_iteration", "-bi", type=int, default=1, help="Batch iterations")
     parser.add_argument("--test_iteration", "-ti", type=int, default=1, help="Test iterations")

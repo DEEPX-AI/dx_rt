@@ -4,6 +4,7 @@
 ### 1. Changed
 - None
 ### 2. Fixed
+- Fixed a bug where the run() API was returning incorrect output
 - Fixed a bug where GetNpuInferenceTime related APIs returned incorrect values
 - Fixed a bug where the task load could be displayed as a negative value
 - None

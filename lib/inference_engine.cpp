@@ -361,9 +361,7 @@ InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &opti
     cout << *this << endl;
 #endif
 
-    size_t device_count = CheckDevices().size();
-    if ( _option.devices.size() > 0 ) device_count = _option.devices.size();
-    _inferenceJobPool = std::make_shared<CircularDataPool<InferenceJob>>(InferenceEngine::INFERENCE_JOB_MAX_COUNT * device_count);
+    _inferenceJobPool = std::make_shared<CircularDataPool<InferenceJob>>(InferenceEngine::INFERENCE_JOB_MAX_COUNT);
 
     LOG_DBG("InferenceEngine created.");
 }
@@ -381,7 +379,7 @@ TensorPtrs InferenceEngine::Run(void *inputPtr, void *userArg, void *outputPtr)
     {
         throw InvalidOperationException("InferenceEngine already Disposed");
     }
-    //std::shared_ptr<InferenceJob> infJob = ObjectsPool::GetInstance().PickInferenceJob();
+
     std::shared_ptr<InferenceJob> infJob = _inferenceJobPool->pick();
 
     infJob->SetInferenceJob(_tasks, _head, _lastOutputOrder);
@@ -394,9 +392,6 @@ TensorPtrs InferenceEngine::Run(void *inputPtr, void *userArg, void *outputPtr)
             retval = _userCallback(outputs, userArg);
         }
         {
-            //std::lock_guard<std::mutex> lock(_occupiedInferenceJobsLock);
-            // unoccupired inference job id
-            //this->_occupiedInferenceJobs[jobId] = false;
             _inferenceJobPool->GetById(jobId)->SetOccupiedJob(false);
         }
 
@@ -405,9 +400,6 @@ TensorPtrs InferenceEngine::Run(void *inputPtr, void *userArg, void *outputPtr)
 
     int jobId = infJob->startJob(inputPtr, userArg, outputPtr);
     {
-        //std::lock_guard<std::mutex> lock(_occupiedInferenceJobsLock);
-        // occupired inference job id
-        //_occupiedInferenceJobs[jobId] = true;
         _inferenceJobPool->GetById(jobId)->SetOccupiedJob(true);
     }
     return Wait(jobId);
@@ -626,9 +618,6 @@ int InferenceEngine::runAsync(void *inputPtr, void *userArg, void *outputPtr,
                 batchCallback(outputs, userArg, jobId);
             }
             {
-                //std::lock_guard<std::mutex> lock(_occupiedInferenceJobsLock);
-                // unoccupired inference job id
-                //this->_occupiedInferenceJobs[jobId] = false;
                 _inferenceJobPool->GetById(jobId)->SetOccupiedJob(false);
             }
             
@@ -646,8 +635,6 @@ int InferenceEngine::runAsync(void *inputPtr, void *userArg, void *outputPtr,
 
     // occupired inference job id
     {
-        //std::lock_guard<std::mutex> lock(_occupiedInferenceJobsLock);
-        //_occupiedInferenceJobs[jobId] = true;
         _inferenceJobPool->GetById(jobId)->SetOccupiedJob(true);
     }
 
@@ -679,25 +666,25 @@ float InferenceEngine::RunBenchmark(int num, void *inputPtr)
             cv.notify_one();
         }
         return 0;
-    }; //callback used to count inference
+    };  // callback used to count inference
     RegisterCallback(callBack);
     bool isStandalone = (dxrt::DeviceStatus::GetCurrentStatus(0).GetDeviceType() == DeviceType::STD_TYPE);
 
     uint64_t infTime = 0;
-    int infCnt = max(1,num);
+    int infCnt = max(1, num);
     auto start_clock = std::chrono::steady_clock::now();
     for (int i=0 ; i < infCnt ; i++)
     {
         if (isStandalone)
         {
             while ((i-done_count) >= DEVICE_NUM_BUF) continue;
-            //usleep(20000);
+            // usleep(20000);
         }
         RunAsync(inputPtr);
     }
-    
+
     std::unique_lock<std::mutex> lock(cv_mutex);
-    cv.wait(lock,[num, &done_count]{return num == done_count;});
+    cv.wait(lock, [num, &done_count]{return num == done_count;});
     auto end_clock = std::chrono::steady_clock::now();
     infTime = std::chrono::duration_cast<chrono::microseconds>(end_clock - start_clock).count();
     fps = 1000000.0 * infCnt/infTime;
@@ -706,7 +693,7 @@ float InferenceEngine::RunBenchmark(int num, void *inputPtr)
 }
 
 #ifdef _WIN32
-//Need to check if RunBenchMarkWindows is required separately
+// Need to check if RunBenchMarkWindows is required separately
 // in windows, verbose mode
 float InferenceEngine::RunBenchMarkWindows(int num, void* inputPtr)
 {
@@ -715,7 +702,7 @@ float InferenceEngine::RunBenchMarkWindows(int num, void* inputPtr)
     std::vector<float> fps;
 
     std::atomic<int> done_count, i_last, done_todo;
-    auto callBack = [&done_count, &i_last,&done_todo](const TensorPtrs& outputs, void* userArg) -> int {
+    auto callBack = [&done_count, &i_last, &done_todo](const TensorPtrs& outputs, void* userArg) -> int {
         std::ignore = outputs;
         std::ignore = userArg;
         // cout << "BenchMark(" << ((int)userArg) << ")" << endl;
@@ -730,7 +717,7 @@ float InferenceEngine::RunBenchMarkWindows(int num, void* inputPtr)
     while (num > 0)
     {
         uint64_t infTime = 0;
-        int infCnt = min(num, REQUEST_ID_MAX_VALUE);
+        int infCnt = min(num, ObjectPool::REQUEST_MAX_COUNT);
         done_count = 0; i_last = 0;
         profiler.Start("benchmark");
         // profiler.Start("req");
@@ -1006,7 +993,6 @@ void InferenceEngine::disposeOnce()
 
     _isDisposed = true;
     LOG_DXRT_DBG << endl;
-    //std::unique_lock<std::mutex> lock(_occupiedInferenceJobsLock);
 
     for (size_t i = 0; i < _inferenceJobPool->GetSize(); ++i)
     {

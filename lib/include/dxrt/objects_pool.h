@@ -40,7 +40,6 @@ namespace dxrt {
 
       // member variable
       std::shared_ptr<CircularDataPool<Request>> _requestPool;
-      std::shared_ptr<CircularDataPool<InferenceJob>> _inferenceJobPool;
       std::vector<std::shared_ptr<Device>> _devices;
       std::shared_ptr<MultiprocessMemory> _multiProcessMemory;
       std::once_flag _initDevicesOnceFlag;
@@ -48,9 +47,6 @@ namespace dxrt {
       bool _device_identified = false;
       size_t _curDevIdx = 0;
       std::mutex _methodMutex;           // Mutex for synchoronizing method access
-      std::mutex _checkDeviceMutex;
-      std::mutex _getRequestByIdMutex;
-      std::mutex _pickRequestMutex;
 
    public:
 

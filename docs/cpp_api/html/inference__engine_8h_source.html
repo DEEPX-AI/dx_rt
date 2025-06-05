@@ -107,7 +107,7 @@ $(function() {
 <div class="line"><a name="l00061"></a><span class="lineno">   61</span>&#160;{</div>
 <div class="line"><a name="l00062"></a><span class="lineno">   62</span>&#160;    <span class="comment">// static</span></div>
 <div class="line"><a name="l00063"></a><span class="lineno">   63</span>&#160;<span class="keyword">public</span>:</div>
-<div class="line"><a name="l00064"></a><span class="lineno">   64</span>&#160;    <span class="keyword">static</span> constexpr <span class="keywordtype">int</span> INFERENCE_JOB_MAX_COUNT = 20; <span class="comment">// max job count per device</span></div>
+<div class="line"><a name="l00064"></a><span class="lineno">   64</span>&#160;        <span class="keyword">static</span> constexpr <span class="keywordtype">int</span> INFERENCE_JOB_MAX_COUNT = 1024; <span class="comment">// max job count</span></div>
 <div class="line"><a name="l00065"></a><span class="lineno">   65</span>&#160; </div>
 <div class="line"><a name="l00066"></a><span class="lineno">   66</span>&#160;<span class="keyword">public</span>:</div>
 <div class="line"><a name="l00082"></a><span class="lineno">   82</span>&#160;    <a class="code" href="classdxrt_1_1InferenceEngine.html">InferenceEngine</a>(<span class="keyword">const</span> std::string &amp;modelPath, <a class="code" href="classdxrt_1_1InferenceOption.html">InferenceOption</a> &amp;option=<a class="code" href="namespacedxrt.html#aab5060680ba2f567f47f8868cd8b1f00">DefaultInferenceOption</a>);</div>
@@ -262,21 +262,19 @@ $(function() {
 <div class="line"><a name="l00481"></a><span class="lineno">  481</span>&#160;    std::vector&lt;string&gt; _lastOutputOrder;</div>
 <div class="line"><a name="l00482"></a><span class="lineno">  482</span>&#160; </div>
 <div class="line"><a name="l00483"></a><span class="lineno">  483</span>&#160;    std::function&lt;int(TensorPtrs &amp;outputs, <span class="keywordtype">void</span> *userArg)&gt; _userCallback;</div>
-<div class="line"><a name="l00484"></a><span class="lineno">  484</span>&#160;    std::vector&lt;bool&gt; _occupiedInferenceJobs;</div>
-<div class="line"><a name="l00485"></a><span class="lineno">  485</span>&#160;    </div>
-<div class="line"><a name="l00486"></a><span class="lineno">  486</span>&#160;    <span class="keywordtype">void</span> disposeOnce();</div>
-<div class="line"><a name="l00487"></a><span class="lineno">  487</span>&#160;    std::once_flag _disposeOnceFlag;</div>
-<div class="line"><a name="l00488"></a><span class="lineno">  488</span>&#160;    <span class="keywordtype">bool</span> _isDisposed = <span class="keyword">false</span>;</div>
-<div class="line"><a name="l00489"></a><span class="lineno">  489</span>&#160; </div>
-<div class="line"><a name="l00490"></a><span class="lineno">  490</span>&#160;    <span class="comment">// inference job for IE</span></div>
-<div class="line"><a name="l00491"></a><span class="lineno">  491</span>&#160;    std::shared_ptr&lt;CircularDataPool&lt;InferenceJob&gt;&gt; _inferenceJobPool;</div>
-<div class="line"><a name="l00492"></a><span class="lineno">  492</span>&#160; </div>
-<div class="line"><a name="l00493"></a><span class="lineno">  493</span>&#160;<span class="keyword">private</span>:</div>
-<div class="line"><a name="l00494"></a><span class="lineno">  494</span>&#160;    std::mutex _occupiedInferenceJobsLock;</div>
-<div class="line"><a name="l00495"></a><span class="lineno">  495</span>&#160;    <span class="keyword">static</span> std::mutex _sInferenceEngineMutex;</div>
-<div class="line"><a name="l00496"></a><span class="lineno">  496</span>&#160;};</div>
-<div class="line"><a name="l00497"></a><span class="lineno">  497</span>&#160; </div>
-<div class="line"><a name="l00498"></a><span class="lineno">  498</span>&#160;} <span class="comment">/* namespace dxrt */</span></div>
+<div class="line"><a name="l00484"></a><span class="lineno">  484</span>&#160;    </div>
+<div class="line"><a name="l00485"></a><span class="lineno">  485</span>&#160;    <span class="keywordtype">void</span> disposeOnce();</div>
+<div class="line"><a name="l00486"></a><span class="lineno">  486</span>&#160;    std::once_flag _disposeOnceFlag;</div>
+<div class="line"><a name="l00487"></a><span class="lineno">  487</span>&#160;    <span class="keywordtype">bool</span> _isDisposed = <span class="keyword">false</span>;</div>
+<div class="line"><a name="l00488"></a><span class="lineno">  488</span>&#160; </div>
+<div class="line"><a name="l00489"></a><span class="lineno">  489</span>&#160;    <span class="comment">// inference job for IE</span></div>
+<div class="line"><a name="l00490"></a><span class="lineno">  490</span>&#160;    std::shared_ptr&lt;CircularDataPool&lt;InferenceJob&gt;&gt; _inferenceJobPool;</div>
+<div class="line"><a name="l00491"></a><span class="lineno">  491</span>&#160; </div>
+<div class="line"><a name="l00492"></a><span class="lineno">  492</span>&#160;<span class="keyword">private</span>:</div>
+<div class="line"><a name="l00493"></a><span class="lineno">  493</span>&#160;    <span class="keyword">static</span> std::mutex _sInferenceEngineMutex;</div>
+<div class="line"><a name="l00494"></a><span class="lineno">  494</span>&#160;};</div>
+<div class="line"><a name="l00495"></a><span class="lineno">  495</span>&#160; </div>
+<div class="line"><a name="l00496"></a><span class="lineno">  496</span>&#160;} <span class="comment">/* namespace dxrt */</span></div>
 </div><!-- fragment --></div><!-- contents -->
 <div class="ttc" id="aclassdxrt_1_1InferenceEngine_html_a93e1d7b460b7f8656e725ed708de507b"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html#a93e1d7b460b7f8656e725ed708de507b">dxrt::InferenceEngine::output_size</a></div><div class="ttdeci">uint64_t output_size()</div><div class="ttdoc">Get total size of output tensors (Legacy API)</div><div class="ttdef"><b>Definition:</b> inference_engine.h:261</div></div>
 <div class="ttc" id="aclassdxrt_1_1InferenceEngine_html_a3fb16094508bd367cc4971238f002765"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html#a3fb16094508bd367cc4971238f002765">dxrt::InferenceEngine::name</a></div><div class="ttdeci">std::string name()</div><div class="ttdoc">Get model name (Legacy API)</div><div class="ttdef"><b>Definition:</b> inference_engine.h:275</div></div>

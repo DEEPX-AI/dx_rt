@@ -194,14 +194,14 @@ void DeviceOutputWorker::ThreadWork(int id)
                 tp->start = tp->end - std::chrono::microseconds(response.inf_time);
                 profiler.AddTimePoint("NPU Core_" + to_string(response.dma_ch), tp);
 #endif
-                //LOG_VALUE(resp.argmax);
+                //LOG_VALUE(response.argmax);
                 *(static_cast<uint16_t *>(req->getData()->outputs.front().data())) = response.argmax;
                 if (DEBUG_DATA > 0)
                     DataDumpBin(req->taskData()->name() + "_output.argmax.bin", req->outputs());
             }
             else if (req->model_type() == 2)
             {
-                //LOG_VALUE(resp.ppu_filter_num);
+                //LOG_VALUE(response.ppu_filter_num);
                
                 vector<int64_t> shape{1, response.ppu_filter_num};
                 Tensors newOutput;
