@@ -1,5 +1,5 @@
 
-## v2.9.1 (May 2025)
+## v2.9.5 (May 2025)
 - Added full support for Python run_model.  
 - Updated the run_model option and its description  
 - Improve the Python API  

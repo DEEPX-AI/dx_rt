@@ -138,7 +138,8 @@ namespace dxrt {
         _enableSettings[ITEM::SERVICE] = USE_SERVICE_DEFAULT_VALUE;
         _enableSettings[ITEM::DYNAMIC_CPU_THREAD] = DXRT_DYNAMIC_CPU_THREAD_DEFAULT_VALUE;
         _enableSettings[ITEM::TASK_FLOW] = SHOW_TASK_FLOW_DEFAULT_VALUE;
-        _enableSettings[ITEM::LOG_THROTTLING] = false;
+        _enableSettings[ITEM::SHOW_THROTTLING] = false;
+        _enableSettings[ITEM::SHOW_PROFILE] = false;
 
         _attributes[ITEM::PROFILER][ATTRIBUTE::PROFILER_SHOW_DATA] = SHOW_PROFILER_DATA_DEFAULT_VALUE;
         _attributes[ITEM::PROFILER][ATTRIBUTE::PROFILER_SAVE_DATA] = SAVE_PROFILER_DATA_DEFAULT_VALUE;

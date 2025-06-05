@@ -115,13 +115,11 @@ void ObjectsPool::makeDeviceList()
 
 RequestPtr ObjectsPool::PickRequest()  // new one
 {
-    //std::lock_guard<std::mutex> lock(_pickRequestMutex);
     return _requestPool->pick();
 }
 
 RequestPtr ObjectsPool::GetRequestById(int id)  // find one by id
 {
-    //std::lock_guard<std::mutex> lock(_getRequestByIdMutex);
     return _requestPool->GetById(id);
 }
 
@@ -195,7 +193,6 @@ shared_ptr<Device> ObjectsPool::PickOneDevice(const vector<int> &device_ids)
 
 vector<shared_ptr<Device>>& ObjectsPool::CheckDevices()
 {
-    //std::lock_guard<std::mutex> lock(_checkDeviceMutex);
     return _devices;
 }
 

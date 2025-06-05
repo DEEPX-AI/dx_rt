@@ -61,7 +61,7 @@ class DXRT_API InferenceEngine
 {
     // static
 public:
-    static constexpr int INFERENCE_JOB_MAX_COUNT = 20; // max job count per device
+        static constexpr int INFERENCE_JOB_MAX_COUNT = 1024; // max job count
 
 public:
     /** @brief Perform the task of loading the model and configuring the NPU to run.
@@ -481,7 +481,6 @@ private:
     std::vector<string> _lastOutputOrder;
 
     std::function<int(TensorPtrs &outputs, void *userArg)> _userCallback;
-    std::vector<bool> _occupiedInferenceJobs;
     
     void disposeOnce();
     std::once_flag _disposeOnceFlag;
@@ -491,7 +490,6 @@ private:
     std::shared_ptr<CircularDataPool<InferenceJob>> _inferenceJobPool;
 
 private:
-    std::mutex _occupiedInferenceJobsLock;
     static std::mutex _sInferenceEngineMutex;
 };
 

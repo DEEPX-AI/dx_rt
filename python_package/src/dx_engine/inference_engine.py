@@ -219,9 +219,10 @@ class InferenceEngine:
             raise TypeError("input_data for validate_device must be a List[np.ndarray].")
         if not isinstance(device_id, int):
             raise TypeError("device_id must be an integer.")
-            
+
         contiguous_input = ensure_contiguous(input_data)
-        return C.validate_device(self.engine, contiguous_input, device_id)
+        result = C.validate_device(self.engine, contiguous_input, device_id)
+        return [np.copy(arr) for arr in result]
 
     def get_input_size(self) -> int:
         """Get the total expected size of all input tensors in bytes."""

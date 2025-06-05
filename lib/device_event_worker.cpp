@@ -56,7 +56,7 @@ void DeviceEventWorker::ThreadWork(int id)
         }
         else if (static_cast<dxrt::dxrt_event_t>(eventInfo.event_type)==dxrt::dxrt_event_t::DXRT_EVENT_NOTIFY_THROT)
         {
-            if ( Configuration::GetInstance().GetEnable(Configuration::ITEM::LOG_THROTTLING) )
+            if ( Configuration::GetInstance().GetEnable(Configuration::ITEM::SHOW_THROTTLING) )
                 LOG_DXRT << eventInfo.dx_rt_ntfy_throt << endl;
         }
         else if (static_cast<dxrt::dxrt_event_t>(eventInfo.event_type)==dxrt::dxrt_event_t::DXRT_EVENT_RECOVERY)

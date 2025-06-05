@@ -84,7 +84,7 @@ void DeviceInputWorker::ThreadWork(int id)
                 if (avgLoad > 1) {
                     loadPercent = (avgLoad - 1) / (DXRT_TASK_MAX_LOAD - 1) * 100;
                 }
-                if (SHOW_PROFILE)
+                if (SHOW_PROFILE || Configuration::GetInstance().GetEnable(Configuration::ITEM::SHOW_PROFILE) )
                 {
                     LOG << "NPU DEVICE [" << deviceId << "] Average Input Queue Load : " << loadPercent << "%" << endl;
                 }

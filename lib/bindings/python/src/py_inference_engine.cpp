@@ -88,6 +88,7 @@ void convertToPyArray(const TensorPtr& cpp_tensor,
 
     DataType dtype = cpp_tensor->type();
     void* data_ptr = cpp_tensor->data(); 
+
     const auto& shape_cpp = cpp_tensor->shape(); // Expected to be actual (dynamic) shape
     size_t original_elem_size_bytes = cpp_tensor->elem_size(); // Expected to be C++ element/struct size
 
@@ -171,22 +172,24 @@ void convertToPyArray(const TensorPtr& cpp_tensor,
         py_final_format_descriptor,
         py_final_shape.size(),
         py_final_shape,
-        py_final_strides,
-        readonly_flag 
+        py_final_strides
     );
 
-    py::array arr(info, base_python_array_for_view);
+    info.readonly = readonly_flag;
 
-    /*
-    // Debug logging (as per user's last provided code)
-    void* py_arr_data_ptr = readonly_flag ? const_cast<void*>(arr.data()) : arr.mutable_data();
-    std::cout << "  convertToPyArray (base passed: " << (!base_python_array_for_view.is_none())
-              << ", readonly: " << readonly_flag
-              << "): C++ Tensor data_ptr = " << data_ptr
-              << ", py::array data_ptr = " << py_arr_data_ptr
-              << ", Match = " << (data_ptr == py_arr_data_ptr) << std::endl;
-    */
-    py_array_list.push_back(std::move(arr));
+    py::array arr_to_add; 
+
+    if (!base_python_array_for_view.is_none()) {
+        arr_to_add = py::array(info, base_python_array_for_view);
+    } else {
+        auto* owned_shared_ptr_for_capsule = new TensorPtr(cpp_tensor); // new std::shared_ptr<dxrt::Tensor>(cpp_tensor)
+
+        py::capsule lifetime_keeper_capsule(owned_shared_ptr_for_capsule, [](void *ptr_to_delete) {
+            delete static_cast<TensorPtr*>(ptr_to_delete);
+        });
+        arr_to_add = py::array(info, lifetime_keeper_capsule);
+    }
+    py_array_list.push_back(std::move(arr_to_add));
 }
 
 
@@ -323,7 +326,6 @@ py::object pyRun(InferenceEngine &ie,
         if (!original_py_output_buffers_obj.is_none() && py::isinstance<py::list>(original_py_output_buffers_obj)) {
             py_orig_single_output_list = original_py_output_buffers_obj.cast<py::list>();
         }
-
         for (size_t j = 0; j < cpp_single_results.size(); ++j) { 
             const TensorPtr& tensor_cpp_ptr = cpp_single_results[j];
             py::handle base_for_this_tensor_view = py::none();

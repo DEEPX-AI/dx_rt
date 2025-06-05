@@ -12,31 +12,32 @@
 #include <thread>
 #include <chrono>
 
-using namespace std;
+
+using std::string;
+using std::vector;
+
 namespace dxrt
 {
 unsigned int RandomValue()
 {
-    random_device rd;
-    mt19937_64 eng(rd());
-    uniform_int_distribution<unsigned int> distr;
+    std::random_device rd;
+    std::mt19937_64 eng(rd());
+    std::uniform_int_distribution<unsigned int> distr;
     return distr(eng);
 }
 
 vector<int> RandomSequence(int n)
-{    
+{
     vector<int> v(n);
-    for(int i=0;i<n;i++)
+    for (int i = 0; i < n; i++)
         v[i] = i;
-#if __cplusplus > 201103L
+
     std::random_device rd;
     std::mt19937 g(rd());
     std::shuffle(v.begin(), v.end(), g);
-#else
-    random_shuffle(v.begin(), v.end());
-#endif
+
     cout << __func__ << " : ";
-    for(int i=0;i<n;i++)
+    for (int i = 0; i < n; i++)
         cout << dec << v[i] << " ";
     cout << endl;
     return v;
@@ -44,20 +45,25 @@ vector<int> RandomSequence(int n)
 
 vector<string> StringSplit(string s, string divid)
 {
-	vector<string> v;
-    if(!s.empty())
+    vector<string> v;
+
+    if (!s.empty())
     {
-        char* c = strtok((char*)s.c_str(), divid.c_str());
+        char* temp = new char[s.length()];
+        strncpy(temp, s.c_str(), s.length());
+        char* save_pointer;
+        char* c = strtok_r(temp, divid.c_str(), &save_pointer);
         while (c) {
             v.push_back(c);
-            c = strtok(NULL, divid.c_str());
+            c = strtok_r(NULL, divid.c_str(), &save_pointer);
         }
+        delete[] temp;
     }
     else
     {
         v.emplace_back("");
     }
-	return v;
+    return v;
 }
 
 std::string format_number_with_commas(long long num) {
@@ -74,7 +80,7 @@ std::string format_number_with_commas(long long num) {
 int GetDataSize_rmapinfo_datatype(deepx_rmapinfo::DataType dType)
 {
     int size = 0;
-    switch(dType){
+    switch (dType) {
         case deepx_rmapinfo::DataType::UINT8  :
         case deepx_rmapinfo::DataType::INT8   :
             size = 1;
@@ -101,7 +107,7 @@ int GetDataSize_rmapinfo_datatype(deepx_rmapinfo::DataType dType)
 int GetDataSize_Datatype(DataType dType)
 {
     int size = 0;
-    switch(dType){
+    switch (dType) {
         case DataType::UINT8  :
         case DataType::INT8   :
             size = 1;
@@ -155,13 +161,13 @@ int DataFromFile(string f, void *d)
 {
     LOG_DXRT_DBG << f << " -> " << d << endl;
     ifstream in(f, ifstream::binary);
-    if(in)
+    if (in)
     {
         in.clear();
-		in.seekg(0, in.end);
-		unsigned int size = (int)in.tellg();
-		in.seekg(0, in.beg);
-        in.read((char*)d, size);
+        in.seekg(0, in.end);
+        unsigned int size = static_cast<int>(in.tellg());
+        in.seekg(0, in.beg);
+        in.read(static_cast<char*>(d), size);
         in.close();
         return size;
     }
@@ -178,10 +184,10 @@ uint32_t SizeFromFile(string f)
 {
     ifstream in(f, ifstream::binary);
     uint32_t size = 0;
-    if(in)
+    if (in)
     {
-		in.seekg(0, in.end);
-		size = (int)in.tellg();
+        in.seekg(0, in.end);
+        size = static_cast<int>(in.tellg());
         in.close();
     }
     return size;
@@ -230,14 +236,15 @@ vector<string> GetFileList(string dir)
 
 uint64_t GetAlign(uint64_t size)
 {
-    if(size < 64){
+    if (size < 64) {
         int remainder = size % 16;
         if (remainder != 0) {
             size += 16 - remainder;
         }
         return size;
     }
-    else{
+    else
+    {
         int remainder = size % 64;
         if (remainder != 0) {
             size += 64 - remainder;
@@ -251,14 +258,14 @@ template<typename T>
 int DataComparePpu(T* d1, T* d2, int size)
 {
     int ret = -1;
-    if(size<32) return 0;
-    for(int i=0;i<(size/static_cast<int>(sizeof(T)));i++)
+    if (size < 32) return 0;
+    for (int i = 0; i < (size / static_cast<int>(sizeof(T))); i++)
     {
         // cout << i << ", " << d1[i].score << ", " << d1[i].x << ", " << d1[i].y << ", " << d1[i].w << ", " << d1[i].h << endl;
         // cout << i << ", " << d2[i].score << ", " << d2[i].x << ", " << d2[i].y << ", " << d2[i].w << ", " << d2[i].h << endl;
-        if( memcmp(&d1[i], &d2[i], sizeof(T)) != 0)
+        if (memcmp(&d1[i], &d2[i], sizeof(T)) != 0)
         {
-            if(i==0)
+            if (i == 0)
             {
                 return -1;
             }
@@ -287,13 +294,13 @@ void* MemAlloc(size_t size, size_t align, int value)
 {
     void *mem = NULL;
 #ifdef __linux__
-    int rc = posix_memalign((void**)&mem, align, size);
-    if(rc==EINVAL)
+    int rc = posix_memalign(reinterpret_cast<void**>(&mem), align, size);
+    if (rc == EINVAL)
     {
         cout << "Error: posix_memalign returned EINVAL." << endl;
         return mem;
     }
-    else if(rc==ENOMEM)
+    else if (rc == ENOMEM)
     {
         cout << "Error: posix_memalign returned ENOMEM." << endl;
         return mem;
@@ -316,12 +323,15 @@ void* MemAlloc(size_t size, size_t align, int value)
 
     if (value != 0)
     {
-        LOG_DBG( "Default value of allocation memory:"<< value );
-        memset(mem, value, size);
+        LOG_DBG("Default value of allocation memory:" << value);
     }
-    if(!mem)
+    if (mem == nullptr)
     {
-        LOG_DBG( "failed to allocate memory: " << size << ", " << align );
+        LOG_DBG("failed to allocate memory: " << size << ", " << align);
+    }
+    else
+    {
+        memset(mem, value, size);
     }
     return mem;
 }
