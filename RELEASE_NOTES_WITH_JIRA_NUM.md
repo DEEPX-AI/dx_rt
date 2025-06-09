@@ -1,17 +1,5 @@
 # RELEASE_NOTES
-
-## v2.9.2 / 2025-05-30
-### 1. Changed
-- None
-### 2. Fixed
-- Fixed a bug where the run() API was returning incorrect output
-- Fixed a bug where GetNpuInferenceTime related APIs returned incorrect values
-- Fixed a bug where the task load could be displayed as a negative value
-- None
-### 3. Added
-- Included details about DXRT_DYNAMIC_CPU_THREAD usage in the model inference documentation (04_Model_Inference.md)
-
-## v2.9.1 / 2025-05-29
+## v2.9.5 / 2025-06-09
 ### 1. Changed
 - Modified Python tensor info dictionary results. Removed 'size_in_bytes' and added 'elem_size' to the dictionaries returned by get_input_tensors_info() and get_output_tensors_info().
 - Set the service to launch after a reboot when service=ON is built.
@@ -19,33 +7,26 @@
   - Changed the way device and NPU bounding options are configured.
   - Provided more detailed inference result information.
   - Added full support for Python run_model.
-### 2. Fixed
-- Fixed incorrect 'dtype' in Python tensor info functions. Corrected the 'dtype' reported by get_input_tensors_info(), get_output_tensors_info(), and similar functions.
-### 3. Added
-- Improved usability for python InferenceOption(). Users can now directly set the option variable without needing a separate method.
-- Improved the Python API
-  - InferenceOption is now supported identically to the C++ API.
-  - Callback functions registered via register_callback now accept user_arg of custom types.
-  - run() now supports both single-input and batch-input modes, depending on the input format.
-- Add display_async_models examples
-## v2.9.0 / 2025-05-19
-### 1. Changed
 - Minimum Driver & Compiler versions
    - RT Driver version : v1.5.0
    - PCIe Driver version : v1.4.0
    - Firmware version : v2.0.5
    - .dxnn File Format Version : v6
    - Compiler : v1.15.2
-- Minimum Driver & Compiler versions
-   - RT Driver version   : v1.5.0
-   - PCIe Driver version : v1.3.1
-   - Firmware version : v2.0.5
-   - .dxnn File Format Version : v6
-   - Compiler : v1.15.2
+- Removed the 'tools' directory and consolidated its functionalities within the example directory for streamlined project structure.
 ### 2. Fixed
-- None
+- Fixed a bug where the run() API was returning incorrect output
+- Fixed a bug where GetNpuInferenceTime related APIs returned incorrect values
+- Fixed a bug where the task load could be displayed as a negative value
+- Fixed incorrect 'dtype' in Python tensor info functions. Corrected the 'dtype' reported by get_input_tensors_info(), get_output_tensors_info(), and similar functions.
 ### 3. Added
-- None
+- Included details about DXRT_DYNAMIC_CPU_THREAD usage in the model inference documentation (04_Model_Inference.md)
+- Improved usability for python InferenceOption(). Users can now directly set the option variable without needing a separate method.
+- Improved the Python API
+  - InferenceOption is now supported identically to the C++ API.
+  - Callback functions registered via register_callback now accept user_arg of custom types.
+  - run() now supports both single-input and batch-input modes, depending on the input format.
+- Add display_async_models examples
 ## v2.8.4 / 2025-05-12
 ### 1. Changed
 - Modify the build.sh script according to cmake options
