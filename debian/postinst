@@ -1,0 +1,37 @@
+#!/bin/sh
+set -e
+
+# Unzip the source code when the package is installed
+PACKAGER="libdxrt"
+SRC_DIR="/usr/share/${PACKAGER}/src"
+MAIN_ZIP_FILE="/usr/share/${PACKAGER}/source.zip"
+
+# Unzip the main source code
+rm -rf $SRC_DIR
+mkdir -p "$SRC_DIR"
+unzip -o "$MAIN_ZIP_FILE" -d "$SRC_DIR"
+rm -rf $MAIN_ZIP_FILE
+
+# Build
+cd "$SRC_DIR"
+./build.sh
+
+# Install
+./build.sh --install
+
+# Determine if the --break-system-packages option is supported
+PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info[0]}.{sys.version_info[1]}")')
+PIP_OPTIONS=""
+MAJOR_VERSION=$(echo "$PYTHON_VERSION" | cut -d. -f1)
+MINOR_VERSION=$(echo "$PYTHON_VERSION" | cut -d. -f2)
+if [ "$MAJOR_VERSION" -eq 3 ] && [ "$MINOR_VERSION" -ge 12 ]; then
+    PIP_OPTIONS="--break-system-packages"
+fi
+
+# Build the dx_engine Python wheel package
+cd python_package
+./make_whl.sh
+#pip3 install ./dist/dx_engine-0.0.1-py3-none-any.whl $PIP_OPTIONS
+pip install .
+
+exit 0

@@ -1,0 +1,138 @@
+# DXRT LIB
+set(target dxrt)
+if (NOT MSVC)
+    if (USE_SHARED_DXRT_LIB)
+        set(dxrt_lib_file "${CMAKE_CURRENT_SOURCE_DIR}/lib/libdxrt_${CMAKE_SYSTEM_PROCESSOR}.so"
+            CACHE STRING "dxrt lib. file")
+    else()
+        set(dxrt_lib_file "${CMAKE_CURRENT_SOURCE_DIR}/lib/libdxrt_${CMAKE_SYSTEM_PROCESSOR}.a"
+            CACHE STRING "dxrt lib. file")
+    endif()
+endif()
+
+FILE(GLOB_RECURSE srcs "*.cpp" "*.cc" "*.c")
+FILE(GLOB_RECURSE headers "include/dxrt/*.h")
+
+## Remove pybinding source files
+list(REMOVE_ITEM srcs "${CMAKE_CURRENT_SOURCE_DIR}/bindings/python/src/py_inference_engine.cpp")
+message("DXRT LIB Source files : " ${srcs})
+message("DXRT LIB Header files : " ${headers})
+
+if (MSVC)
+    if (USE_SHARED_DXRT_LIB)
+        add_library(${target} SHARED ${srcs})
+        set_target_properties(${target} PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}\\bin"
+            ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}\\lib"
+        )
+        # Define DLL export macro
+        target_compile_definitions(${target} 
+            PRIVATE DXRT_EXPORTS 
+            PUBLIC DXRT_DLL
+        )
+        if(CMAKE_BUILD_TYPE MATCHES Debug)
+            set_target_properties(${target} PROPERTIES OUTPUT_NAME "dxrtdbg")
+        endif()
+    else()
+        add_library(${target} STATIC ${srcs})
+        set_target_properties(${target} PROPERTIES
+            ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+        )
+        # Define macro for static library
+        target_compile_definitions(${target}
+            PUBLIC DXRT_STATIC
+        )
+    endif()
+else()
+    if (USE_SHARED_DXRT_LIB)
+        add_library(${target} SHARED ${srcs})
+        #target_link_libraries(${target} rt) # for memssage queue (POSIX)
+        set_target_properties(${target} PROPERTIES
+            LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+        )
+    else()
+        add_library(${target} STATIC ${srcs})
+        set_property(TARGET ${target} PROPERTY POSITION_INDEPENDENT_CODE ON)
+    endif()
+endif()
+
+file(GLOB CFG_FILES ${CMAKE_CURRENT_SOURCE_DIR}/cfg/*.cfg)
+foreach(cfg_file ${CFG_FILES})
+    file(STRINGS ${cfg_file} cfgs)
+    foreach(cfg ${cfgs})
+        target_compile_definitions(${target} PUBLIC "${cfg}")
+    endforeach()
+endforeach()
+target_include_directories(
+    ${target} 
+    PUBLIC 
+    ${CMAKE_SOURCE_DIR}/extern/include
+    ${CMAKE_SOURCE_DIR}/lib/dxrt_service
+    ${CMAKE_CURRENT_SOURCE_DIR}/include 
+)
+
+
+if (USE_ORT)
+    target_include_directories(${target} PUBLIC 
+        ${onnxruntime_INCLUDE_DIRS}
+    )
+    target_link_directories(${target} PUBLIC ${ONNXLIB_DIRS})
+    target_link_libraries(${target} PUBLIC ${ONNXLIB_DIRS})
+endif()
+
+
+# if (USE_PYTHON)
+#     set_target_properties(${target} PROPERTIES
+#         POSITION_INDEPENDENT_CODE ON
+#         PUBLIC_HEADER "${dxrt_lib_public_headers}"
+#     )
+# else()
+#     set_target_properties(${target} PROPERTIES
+#         PUBLIC_HEADER "${dxrt_lib_public_headers}"
+#     OUTPUT_NAME "dxrt_${CMAKE_SYSTEM_PROCESSOR}"
+#     )
+# endif()
+
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/include/dxrt/gen.h.in ${CMAKE_CURRENT_SOURCE_DIR}/include/dxrt/gen.h @ONLY)
+
+add_subdirectory(bindings)
+
+include(CMakePackageConfigHelpers)
+
+configure_package_config_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/config.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/dxrtConfig.cmake
+    INSTALL_DESTINATION lib/cmake/dxrt
+)
+write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/dxrtConfigVersion.cmake
+    VERSION ${release_ver}
+    COMPATIBILITY SameMajorVersion
+)
+
+if(MSVC)
+    install(
+        TARGETS ${target}
+        EXPORT ${target}
+        RUNTIME DESTINATION bin
+        ARCHIVE DESTINATION lib
+        PUBLIC_HEADER DESTINATION include/dxrt
+    )
+else()
+    install(
+        TARGETS ${target}
+        EXPORT ${target}
+        RUNTIME DESTINATION bin
+        LIBRARY DESTINATION lib
+        PUBLIC_HEADER DESTINATION include/dxrt
+    )
+endif()
+
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/dxrt DESTINATION include)
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/extern/include/rapidjson DESTINATION include)
+install(FILES ${CMAKE_SOURCE_DIR}/extern/include/cxxopts.hpp DESTINATION include)
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/dxrtConfig.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/dxrtConfigVersion.cmake
+    DESTINATION lib/cmake/dxrt
+)

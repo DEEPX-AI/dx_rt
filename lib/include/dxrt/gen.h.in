@@ -1,0 +1,8 @@
+// Copyright (c) 2022 DEEPX Corporation. All rights reserved.
+// Licensed under the MIT License.
+
+#pragma once
+
+@USE_ORT_DEFINE@
+@USE_SERVICE_DEFINE@
+#define DXRT_VERSION "@release_ver@"

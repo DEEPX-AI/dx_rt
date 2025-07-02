@@ -1,0 +1,20 @@
+Checks: >
+  clang-analyzer-*,
+  cppcoreguidelines-*,
+  modernize-*,
+  performance-*,
+  bugprone-*,
+  readability-*
+
+; WarningsAsErrors: '*'
+HeaderFilterRegex: '^(lib|service)/'
+
+# Disable specific check items
+CheckOptions:
+  - key: modernize-use-auto
+    value: false
+  - key: readability-magic-numbers
+    value: false
+
+# Code style
+FormatStyle: google
