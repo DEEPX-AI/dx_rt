@@ -1,18 +1,17 @@
-name: main
+name: create-tag-main
 run-name: ${{github.event.head_commit.message}}(${{github.event.head_commit.ref}})
 
 on:
     workflow_dispatch:
-    push:
-        branches:
-            - main
+    # push:           # 구현이 완료될때까지 임시로 트리거 중단
+    #     branches:
+    #         - main
 
 permissions: write-all
 
 jobs:
     release:
         name: checkout
-        if: github.repository == 'DEEPX-AI/dx_rt'
         runs-on: 
           - self-hosted
           - sdk
@@ -28,24 +27,30 @@ jobs:
               with:
                 fetch-depth: 0
                 fetch-tags: true
-                token: ${{ secrets.GH_TOKEN }}
-            
+                token: ${{ secrets.GC_DCI_TOKEN }}
+
+            - name: Extract tag prefix from commit message
+              id: extract_tag
+              run: |
+                MSG="${{ github.event.head_commit.message }}"
+                # Extract the prefix before '+'
+                TAG_NAME=$(echo "$MSG" | cut -d'+' -f1)
+                echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+                echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+
             - name: Create tag
               uses: rickstaa/action-create-tag@v1
               with:
-                  tag_exists_error: false
-                  tag: ${{ github.event.head_commit.message }}
-                  force_push_tag: true
-                  commit_sha: ${{ github.event.head_commit.ref}}
-                  message: '${{ github.event.head_commit.message }}'
+                tag_exists_error: false
+                tag: ${{ steps.extract_tag.outputs.tag_name }}
+                force_push_tag: true
+                commit_sha: ${{ github.event.head_commit.id }}
+                message: '${{ github.event.head_commit.message }}'
 
-            - name: Get to tag
-              run: echo "TO_TAG=${{ github.event.head_commit.message }}" >> $GITHUB_ENV
-   
             - name: Get current release tag
               run: |
-                CURRENT_RELEASE_TAG=$(curl -s -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
-                "https://api.github.com/repos/DEEPX-AI/dx_rt/releases/latest" | jq -r .tag_name | cut -d+ -f1)
+                CURRENT_RELEASE_TAG=$(curl -s -H "Authorization: token ${{ secrets.GC_DCI_TOKEN }}" \
+                "https://api.github.com/repos/DEEPX-AI/dx_app/releases/latest" | jq -r .tag_name | cut -d+ -f1)
                 echo "CURRENT_RELEASE_TAG=$CURRENT_RELEASE_TAG" >> $GITHUB_ENV
 
             - name: Make latest_release.md
@@ -56,7 +61,7 @@ jobs:
             - name: Create release
               uses: ncipollo/release-action@v1
               with:
-                tag: ${{ env.TO_TAG }}
+                tag: ${{ env.TAG_NAME }}
                 allowUpdates: false
                 makeLatest: true
                 draft: true
