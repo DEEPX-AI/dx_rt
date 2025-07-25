@@ -81,51 +81,93 @@ $(function() {
 <div class="line"><a name="l00009"></a><span class="lineno">    9</span>&#160;<span class="preprocessor">#include &lt;mutex&gt;</span></div>
 <div class="line"><a name="l00010"></a><span class="lineno">   10</span>&#160;<span class="preprocessor">#include &lt;unordered_map&gt;</span></div>
 <div class="line"><a name="l00011"></a><span class="lineno">   11</span>&#160;<span class="preprocessor">#include &lt;map&gt;</span></div>
-<div class="line"><a name="l00012"></a><span class="lineno">   12</span>&#160; </div>
-<div class="line"><a name="l00013"></a><span class="lineno">   13</span>&#160;<span class="keyword">namespace </span><a class="code" href="namespacedxrt.html">dxrt</a> {</div>
-<div class="line"><a name="l00014"></a><span class="lineno">   14</span>&#160;<span class="keyword">struct </span>device_info;</div>
+<div class="line"><a name="l00012"></a><span class="lineno">   12</span>&#160;<span class="preprocessor">#include &lt;queue&gt;</span></div>
+<div class="line"><a name="l00013"></a><span class="lineno">   13</span>&#160; </div>
+<div class="line"><a name="l00014"></a><span class="lineno">   14</span>&#160;<span class="keyword">namespace </span><a class="code" href="namespacedxrt.html">dxrt</a> {</div>
 <div class="line"><a name="l00015"></a><span class="lineno">   15</span>&#160; </div>
-<div class="line"><a name="l00016"></a><span class="lineno">   16</span>&#160;<span class="keyword">struct </span>DXRT_API MemoryNode</div>
-<div class="line"><a name="l00017"></a><span class="lineno">   17</span>&#160;{</div>
-<div class="line"><a name="l00018"></a><span class="lineno">   18</span>&#160;    uint64_t addr;</div>
-<div class="line"><a name="l00019"></a><span class="lineno">   19</span>&#160;    uint64_t size;</div>
-<div class="line"><a name="l00020"></a><span class="lineno">   20</span>&#160;    <span class="keywordtype">int</span> status = 0; <span class="comment">/* 0: available, 1: busy, 2: permanent */</span></div>
-<div class="line"><a name="l00021"></a><span class="lineno">   21</span>&#160;    <span class="keyword">friend</span> DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp; os, <span class="keyword">const</span> MemoryNode&amp; node);</div>
-<div class="line"><a name="l00022"></a><span class="lineno">   22</span>&#160;};</div>
-<div class="line"><a name="l00023"></a><span class="lineno">   23</span>&#160; </div>
-<div class="line"><a name="l00024"></a><span class="lineno">   24</span>&#160;<span class="keyword">class </span>DXRT_API Memory</div>
-<div class="line"><a name="l00025"></a><span class="lineno">   25</span>&#160;{</div>
-<div class="line"><a name="l00026"></a><span class="lineno">   26</span>&#160;<span class="keyword">public</span>:</div>
-<div class="line"><a name="l00027"></a><span class="lineno">   27</span>&#160;    Memory(<span class="keyword">struct</span> device_info &amp;, <span class="keywordtype">void</span> *);</div>
-<div class="line"><a name="l00028"></a><span class="lineno">   28</span>&#160;    int64_t Allocate(uint64_t required);</div>
-<div class="line"><a name="l00029"></a><span class="lineno">   29</span>&#160;    int64_t BackwardAllocate(uint64_t required);</div>
-<div class="line"><a name="l00030"></a><span class="lineno">   30</span>&#160;    int64_t Allocate(dxrt_meminfo_t &amp;meminfo);</div>
-<div class="line"><a name="l00031"></a><span class="lineno">   31</span>&#160;    int64_t Allocate(dxrt_request_t &amp;inference);</div>
-<div class="line"><a name="l00032"></a><span class="lineno">   32</span>&#160;    <span class="keywordtype">void</span> Deallocate(uint64_t addr);</div>
-<div class="line"><a name="l00033"></a><span class="lineno">   33</span>&#160;    <span class="keywordtype">void</span> Deallocate(dxrt_meminfo_t &amp;meminfo);</div>
-<div class="line"><a name="l00034"></a><span class="lineno">   34</span>&#160;    <span class="keywordtype">void</span> Deallocate(dxrt_request_t &amp;inference);</div>
-<div class="line"><a name="l00035"></a><span class="lineno">   35</span>&#160;    <span class="keywordtype">void</span> MergeAdjacentNodes(std::map&lt;uint64_t, MemoryNode&gt;::iterator it);</div>
-<div class="line"><a name="l00036"></a><span class="lineno">   36</span>&#160;    <span class="keywordtype">void</span> ResetBuffer();</div>
-<div class="line"><a name="l00037"></a><span class="lineno">   37</span>&#160;    uint64_t start() <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00038"></a><span class="lineno">   38</span>&#160;    uint64_t end() <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00039"></a><span class="lineno">   39</span>&#160;    uint64_t size() <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00040"></a><span class="lineno">   40</span>&#160;    uint64_t data() <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00041"></a><span class="lineno">   41</span>&#160;    uint64_t free_size() <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00042"></a><span class="lineno">   42</span>&#160;    uint64_t used_size() <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00043"></a><span class="lineno">   43</span>&#160;    <span class="keyword">friend</span> DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp; os, <span class="keyword">const</span> Memory&amp; memory);</div>
-<div class="line"><a name="l00044"></a><span class="lineno">   44</span>&#160;<span class="keyword">private</span>:</div>
-<div class="line"><a name="l00045"></a><span class="lineno">   45</span>&#160;    std::map&lt;uint64_t, MemoryNode&gt; _pool;</div>
-<div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160;    uint64_t _start = 0;</div>
-<div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160;    uint64_t _cur = 0;</div>
-<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;    uint64_t _end = 0;</div>
-<div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160;    uint64_t _size = 0;</div>
-<div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160;    uint64_t _data;  <span class="comment">// pointer to addr</span></div>
-<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;    uint64_t _dataEnd;  <span class="comment">// pointer to addr</span></div>
-<div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160;    uint64_t _used_size = 0;</div>
-<div class="line"><a name="l00053"></a><span class="lineno">   53</span>&#160;    std::mutex _lock;</div>
-<div class="line"><a name="l00054"></a><span class="lineno">   54</span>&#160;};</div>
-<div class="line"><a name="l00055"></a><span class="lineno">   55</span>&#160; </div>
-<div class="line"><a name="l00056"></a><span class="lineno">   56</span>&#160;} <span class="comment">// namespace dxrt</span></div>
+<div class="line"><a name="l00016"></a><span class="lineno">   16</span>&#160;<span class="comment">// Memory management configuration</span></div>
+<div class="line"><a name="l00017"></a><span class="lineno">   17</span>&#160;<span class="keyword">namespace </span>MemoryConfig {</div>
+<div class="line"><a name="l00018"></a><span class="lineno">   18</span>&#160;    <span class="comment">// Defragmentation thresholds</span></div>
+<div class="line"><a name="l00019"></a><span class="lineno">   19</span>&#160;    constexpr <span class="keywordtype">double</span> HIGH_FRAGMENTATION_THRESHOLD = 0.75;     <span class="comment">// 75% - trigger aggressive defrag</span></div>
+<div class="line"><a name="l00020"></a><span class="lineno">   20</span>&#160;    constexpr <span class="keywordtype">double</span> MEDIUM_FRAGMENTATION_THRESHOLD = 0.5;   <span class="comment">// 50% - trigger light defrag</span></div>
+<div class="line"><a name="l00021"></a><span class="lineno">   21</span>&#160;    constexpr <span class="keywordtype">double</span> LOW_FRAGMENTATION_THRESHOLD = 0.3;      <span class="comment">// 30% - trigger warning and basic cleanup</span></div>
+<div class="line"><a name="l00022"></a><span class="lineno">   22</span>&#160;    constexpr uint64_t LARGE_ALLOCATION_THRESHOLD = 100 * 1024 * 1024;  <span class="comment">// 100MB - considered large</span></div>
+<div class="line"><a name="l00023"></a><span class="lineno">   23</span>&#160;    </div>
+<div class="line"><a name="l00024"></a><span class="lineno">   24</span>&#160;    <span class="comment">// Memory alignment for better performance</span></div>
+<div class="line"><a name="l00025"></a><span class="lineno">   25</span>&#160;    constexpr uint64_t MEMORY_ALIGNMENT = 64;  <span class="comment">// 64-byte alignment for NPU efficiency</span></div>
+<div class="line"><a name="l00026"></a><span class="lineno">   26</span>&#160;}</div>
+<div class="line"><a name="l00027"></a><span class="lineno">   27</span>&#160; </div>
+<div class="line"><a name="l00028"></a><span class="lineno">   28</span>&#160;<span class="keyword">struct </span>device_info;</div>
+<div class="line"><a name="l00029"></a><span class="lineno">   29</span>&#160; </div>
+<div class="line"><a name="l00030"></a><span class="lineno">   30</span>&#160;<span class="keyword">struct </span>DXRT_API MemoryNode</div>
+<div class="line"><a name="l00031"></a><span class="lineno">   31</span>&#160;{</div>
+<div class="line"><a name="l00032"></a><span class="lineno">   32</span>&#160;    uint64_t addr;</div>
+<div class="line"><a name="l00033"></a><span class="lineno">   33</span>&#160;    uint64_t size;</div>
+<div class="line"><a name="l00034"></a><span class="lineno">   34</span>&#160;    <span class="keywordtype">int</span> status = 0; <span class="comment">/* 0: available, 1: busy, 2: permanent */</span></div>
+<div class="line"><a name="l00035"></a><span class="lineno">   35</span>&#160;    <span class="keyword">friend</span> DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp; os, <span class="keyword">const</span> MemoryNode&amp; node);</div>
+<div class="line"><a name="l00036"></a><span class="lineno">   36</span>&#160;};</div>
+<div class="line"><a name="l00037"></a><span class="lineno">   37</span>&#160; </div>
+<div class="line"><a name="l00038"></a><span class="lineno">   38</span>&#160;<span class="comment">// Memory fragmentation info</span></div>
+<div class="line"><a name="l00039"></a><span class="lineno">   39</span>&#160;<span class="keyword">struct </span>DXRT_API MemoryFragmentationInfo</div>
+<div class="line"><a name="l00040"></a><span class="lineno">   40</span>&#160;{</div>
+<div class="line"><a name="l00041"></a><span class="lineno">   41</span>&#160;    uint64_t total_free_size;</div>
+<div class="line"><a name="l00042"></a><span class="lineno">   42</span>&#160;    uint64_t largest_free_block;</div>
+<div class="line"><a name="l00043"></a><span class="lineno">   43</span>&#160;    uint64_t smallest_free_block;</div>
+<div class="line"><a name="l00044"></a><span class="lineno">   44</span>&#160;    <span class="keywordtype">size_t</span> free_block_count;</div>
+<div class="line"><a name="l00045"></a><span class="lineno">   45</span>&#160;    <span class="keywordtype">double</span> fragmentation_ratio; <span class="comment">// (total_free_size - largest_free_block) / total_free_size</span></div>
+<div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160;};</div>
+<div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160; </div>
+<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;<span class="keyword">class </span>DXRT_API Memory</div>
+<div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160;{</div>
+<div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160;<span class="keyword">public</span>:</div>
+<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;    Memory(<span class="keyword">struct</span> device_info &amp;, <span class="keywordtype">void</span> *);</div>
+<div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160;    int64_t Allocate(uint64_t required);</div>
+<div class="line"><a name="l00053"></a><span class="lineno">   53</span>&#160;    int64_t BackwardAllocate(uint64_t required);</div>
+<div class="line"><a name="l00054"></a><span class="lineno">   54</span>&#160;    int64_t Allocate(dxrt_meminfo_t &amp;meminfo);</div>
+<div class="line"><a name="l00055"></a><span class="lineno">   55</span>&#160;    int64_t Allocate(dxrt_request_t &amp;inference);</div>
+<div class="line"><a name="l00056"></a><span class="lineno">   56</span>&#160;    <span class="keywordtype">void</span> Deallocate(uint64_t addr);</div>
+<div class="line"><a name="l00057"></a><span class="lineno">   57</span>&#160;    <span class="keywordtype">void</span> Deallocate(dxrt_meminfo_t &amp;meminfo);</div>
+<div class="line"><a name="l00058"></a><span class="lineno">   58</span>&#160;    <span class="keywordtype">void</span> Deallocate(dxrt_request_t &amp;inference);</div>
+<div class="line"><a name="l00059"></a><span class="lineno">   59</span>&#160;    <span class="keywordtype">void</span> MergeAdjacentNodes(std::map&lt;uint64_t, MemoryNode&gt;::iterator it);</div>
+<div class="line"><a name="l00060"></a><span class="lineno">   60</span>&#160;    <span class="keywordtype">void</span> ResetBuffer();</div>
+<div class="line"><a name="l00061"></a><span class="lineno">   61</span>&#160;    uint64_t start() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00062"></a><span class="lineno">   62</span>&#160;    uint64_t end() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00063"></a><span class="lineno">   63</span>&#160;    uint64_t size() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00064"></a><span class="lineno">   64</span>&#160;    uint64_t data() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00065"></a><span class="lineno">   65</span>&#160;    uint64_t free_size() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00066"></a><span class="lineno">   66</span>&#160;    uint64_t used_size() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00067"></a><span class="lineno">   67</span>&#160;    </div>
+<div class="line"><a name="l00068"></a><span class="lineno">   68</span>&#160;    <span class="comment">// Enhanced fragmentation management</span></div>
+<div class="line"><a name="l00069"></a><span class="lineno">   69</span>&#160;    MemoryFragmentationInfo GetFragmentationInfo() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00070"></a><span class="lineno">   70</span>&#160;    <span class="keywordtype">bool</span> CanAllocateContiguous(uint64_t required) <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00071"></a><span class="lineno">   71</span>&#160;    <span class="keywordtype">void</span> PrintMemoryMap() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00072"></a><span class="lineno">   72</span>&#160;    </div>
+<div class="line"><a name="l00073"></a><span class="lineno">   73</span>&#160;    <span class="comment">// Smart defragmentation functions</span></div>
+<div class="line"><a name="l00074"></a><span class="lineno">   74</span>&#160;    <span class="keywordtype">bool</span> TryDefragmentation(uint64_t required_size);</div>
+<div class="line"><a name="l00075"></a><span class="lineno">   75</span>&#160;    <span class="keywordtype">void</span> CompactMemory();</div>
+<div class="line"><a name="l00076"></a><span class="lineno">   76</span>&#160;    uint64_t GetLargestFreeBlock() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00077"></a><span class="lineno">   77</span>&#160;    </div>
+<div class="line"><a name="l00078"></a><span class="lineno">   78</span>&#160;    <span class="keyword">friend</span> DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp; os, <span class="keyword">const</span> Memory&amp; memory);</div>
+<div class="line"><a name="l00079"></a><span class="lineno">   79</span>&#160;    </div>
+<div class="line"><a name="l00080"></a><span class="lineno">   80</span>&#160;<span class="keyword">private</span>:</div>
+<div class="line"><a name="l00081"></a><span class="lineno">   81</span>&#160;    <span class="comment">// Core memory management</span></div>
+<div class="line"><a name="l00082"></a><span class="lineno">   82</span>&#160;    std::map&lt;uint64_t, MemoryNode&gt; _pool;</div>
+<div class="line"><a name="l00083"></a><span class="lineno">   83</span>&#160;    uint64_t _start = 0;</div>
+<div class="line"><a name="l00084"></a><span class="lineno">   84</span>&#160;    uint64_t _cur = 0;</div>
+<div class="line"><a name="l00085"></a><span class="lineno">   85</span>&#160;    uint64_t _end = 0;</div>
+<div class="line"><a name="l00086"></a><span class="lineno">   86</span>&#160;    uint64_t _size = 0;</div>
+<div class="line"><a name="l00087"></a><span class="lineno">   87</span>&#160;    uint64_t _data;  <span class="comment">// pointer to addr</span></div>
+<div class="line"><a name="l00088"></a><span class="lineno">   88</span>&#160;    uint64_t _dataEnd;  <span class="comment">// pointer to addr</span></div>
+<div class="line"><a name="l00089"></a><span class="lineno">   89</span>&#160;    uint64_t _used_size = 0;</div>
+<div class="line"><a name="l00090"></a><span class="lineno">   90</span>&#160;    std::mutex _lock;</div>
+<div class="line"><a name="l00091"></a><span class="lineno">   91</span>&#160;    </div>
+<div class="line"><a name="l00092"></a><span class="lineno">   92</span>&#160;    <span class="comment">// Helper functions</span></div>
+<div class="line"><a name="l00093"></a><span class="lineno">   93</span>&#160;    uint64_t AlignSize(uint64_t size) <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00094"></a><span class="lineno">   94</span>&#160;    std::map&lt;uint64_t, MemoryNode&gt;::iterator FindBestFit(uint64_t required);</div>
+<div class="line"><a name="l00095"></a><span class="lineno">   95</span>&#160;    <span class="keywordtype">void</span> MergeAllAdjacentFreeBlocks();</div>
+<div class="line"><a name="l00096"></a><span class="lineno">   96</span>&#160;};</div>
+<div class="line"><a name="l00097"></a><span class="lineno">   97</span>&#160; </div>
+<div class="line"><a name="l00098"></a><span class="lineno">   98</span>&#160;} <span class="comment">// namespace dxrt</span></div>
 </div><!-- fragment --></div><!-- contents -->
 <div class="ttc" id="anamespacedxrt_html"><div class="ttname"><a href="namespacedxrt.html">dxrt</a></div><div class="ttdoc">DXRT C++ APIs are provided in this namespace.</div><div class="ttdef"><b>Definition:</b> buffer.h:8</div></div>
 <!-- start footer part -->

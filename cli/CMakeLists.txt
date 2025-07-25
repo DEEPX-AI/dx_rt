@@ -5,3 +5,11 @@ foreach(source_file ${SRC_FILES})
 
     add_target(${filename} SRC_LIST ${source_file})
 endforeach()
+
+if(NOT MSVC)
+
+    # only available host arch compile
+    if (NOT CROSS_COMPILE)
+        add_subdirectory(dxtop)
+    endif()
+endif()

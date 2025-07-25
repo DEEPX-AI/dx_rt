@@ -11,11 +11,11 @@
 
 // concurrent queue is a thread-safe queue data structure 
 // designed to be used in a multi-threaded environment
-static ConcurrentQueue<std::pair<int, uint8_t*>> gJobIdQueue(32);
+static ConcurrentQueue<std::pair<int, uint8_t*>> gJobIdQueue(200);
 
-static const int BUFFER_POOL_SIZE = 10;
+static const int BUFFER_POOL_SIZE = 200;
 static std::shared_ptr<SimpleCircularBufferPool<uint8_t>> gOutputBufferPool;
-static std::atomic<int> gOutputCount = {0};
+static std::atomic<int> gOutputSuccessCount = {0};
 
 // user thread to wait for the completion of inference 
 static int inferenceThreadFunc(dxrt::InferenceEngine& ie, int loopCount)
@@ -40,10 +40,15 @@ static int inferenceThreadFunc(dxrt::InferenceEngine& ie, int loopCount)
 
             // check user buffer pointer
             bool check_user_buffer = false;
-            for(auto output : outputs)
+            uint8_t* user_buffer_start = reinterpret_cast<uint8_t*>(jobInfo.second);
+            uint8_t* user_buffer_end = user_buffer_start + ie.GetOutputSize();
+            
+            for(const auto& output : outputs)
             {
-                // Check if the pointer of any of the output buffers is the same as the starting address of the user buffer.
-                if ( output->data() == reinterpret_cast<void*>(jobInfo.second) )
+                uint8_t* tensor_ptr = reinterpret_cast<uint8_t*>(output->data());
+                
+                // Check if the tensor pointer is within the user buffer range
+                if (tensor_ptr >= user_buffer_start && tensor_ptr < user_buffer_end)
                 {
                     check_user_buffer = true;
                     break;
@@ -53,10 +58,16 @@ static int inferenceThreadFunc(dxrt::InferenceEngine& ie, int loopCount)
             if ( !check_user_buffer ) 
             {
                 std::cerr << "The output buffer pointer and the user-provided output pointer do not match" << std::endl;
+                std::cerr << "User buffer range: " << static_cast<void*>(user_buffer_start) 
+                         << " - " << static_cast<void*>(user_buffer_end) << std::endl;
+                for(size_t i = 0; i < outputs.size(); ++i)
+                {
+                    std::cerr << "Output[" << i << "] pointer: " << outputs[i]->data() << std::endl;
+                }
             }
             else 
             {
-                gOutputCount++;
+                gOutputSuccessCount++;
             }
 
             // something to do
@@ -117,7 +128,7 @@ int main(int argc, char* argv[])
         auto start = std::chrono::high_resolution_clock::now();
 
         // inference loop
-        gOutputCount.store(0);
+        gOutputSuccessCount.store(0);
         for(int i = 0; i < loop_count; ++i)
         {
             // no need user argument
@@ -126,7 +137,7 @@ int main(int argc, char* argv[])
             // inference asynchronously, use all npu cores
             // if device-load >= max-load-value, this function will block
             // provide the output buffer pointer so the user can manage the output directly
-            auto pointer = gOutputBufferPool->pointer();
+            auto pointer = gOutputBufferPool->acquire_buffer();
             auto jobId = ie.RunAsync(inputPtr.data(), nullptr, pointer);
 
             // push jobId in global queue variable
@@ -149,8 +160,8 @@ int main(int argc, char* argv[])
         std::cout << "Total Time: " << total_time << " ms" << std::endl;
         std::cout << "Average Latency: " << avg_latency << " ms" << std::endl;
         std::cout << "FPS: " << fps << " frames/sec" << std::endl;
-        std::cout << "loop-count=" << loop_count << " output-count=" << gOutputCount << std::endl;
-        if ( gOutputCount.load() == loop_count ) std::cout << "Success" << std::endl;
+        std::cout << "loop-count=" << loop_count << " output-success-count=" << gOutputSuccessCount << std::endl;
+        if ( gOutputSuccessCount.load() == loop_count ) std::cout << "Success" << std::endl;
         else std::cout << "Failure" << std::endl;
         std::cout << "-----------------------------------" << std::endl;
     }
@@ -170,6 +181,6 @@ int main(int argc, char* argv[])
         return -1;
     }
     
-    return (gOutputCount == loop_count ? 0 : -1);
+    return (gOutputSuccessCount == loop_count ? 0 : -1);
 }
 

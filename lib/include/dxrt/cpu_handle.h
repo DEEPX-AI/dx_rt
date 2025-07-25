@@ -22,12 +22,20 @@ using RequestPtr = std::shared_ptr<Request>;
 class DXRT_API CpuHandle
 {
 public:
-    CpuHandle(void* data_, int64_t size_, std::string name_);
+    CpuHandle(void* data_, int64_t size_, std::string name_, size_t device_num_);
     ~CpuHandle();
 #ifdef USE_ORT
     Ort::Env _env;
     Ort::SessionOptions _sessionOptions;
     std::shared_ptr<Ort::Session> _session;
+    
+    // For DYNAMIC THREAD: store model data for worker session creation
+    std::vector<uint8_t> _modelData;
+    int64_t _modelSize;
+    
+    // Create individual session for worker (DYNAMIC THREAD mode)
+    std::shared_ptr<Ort::Session> CreateWorkerSession();
+    void RunWithSession(RequestPtr req, std::shared_ptr<Ort::Session> session);
 #endif
 
 public:
@@ -39,19 +47,20 @@ public:
     uint32_t _inputSize = 0;
     uint32_t _outputSize = 0;
     uint32_t _outputMemSize = 0;
+    std::string _name;
+    size_t _device_num = 1;
     std::vector<DataType> _inputDataTypes;  
     std::vector<DataType> _outputDataTypes; 
     int _numInputs = 1;
     int _numOutputs;
     int _numThreads = 1;
     int _initDynamicThreads = 0;
-    std::string _name;
     std::vector<std::string> _inputNames;
     std::vector<const char*> _inputNamesChar;
     std::vector<std::string> _outputNames;
     std::vector<const char*> _outputNamesChar;
-    std::vector<std::vector<int64_t>> _inputShape;
-    std::vector<std::vector<int64_t>> _outputShape;
+    std::vector<std::vector<int64_t>> _inputShapes;
+    std::vector<std::vector<int64_t>> _outputShapes;
     std::vector<uint64_t> _inputOffsets = {0};
     std::vector<uint64_t> _outputOffsets;
     std::vector<uint64_t> _inputSizes;

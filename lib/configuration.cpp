@@ -3,6 +3,10 @@
 #include "dxrt/configuration.h"
 #include "dxrt/exception/exception.h"
 #include "dxrt/profiler.h"
+#include "dxrt/device_info_status.h"
+#include "dxrt/device.h"
+#include "dxrt/device_version.h"
+#include "./resource/log_messages.h"
 #include <memory>
 #include <iostream>
 #include <fstream>
@@ -10,6 +14,11 @@
 #include <sstream>
 #include <algorithm>
 #include <atomic>
+
+
+#ifdef USE_ORT
+#include <onnxruntime_cxx_api.h>
+#endif // USE_ORT
 
 
 
@@ -54,6 +63,13 @@
 #else
 #define SAVE_PROFILER_DATA_DEFAULT_VALUE "off"
 #endif
+
+#ifdef SHOW_MODEL_INFO_DEFINE
+    #define SHOW_MODEL_INFO_DEFAULT_VALUE true
+#else
+    #define SHOW_MODEL_INFO_DEFAULT_VALUE false
+#endif // SHOW_MODEL_INFO
+
 
 namespace dxrt {
 
@@ -140,6 +156,7 @@ namespace dxrt {
         _enableSettings[ITEM::TASK_FLOW] = SHOW_TASK_FLOW_DEFAULT_VALUE;
         _enableSettings[ITEM::SHOW_THROTTLING] = false;
         _enableSettings[ITEM::SHOW_PROFILE] = false;
+        _enableSettings[ITEM::SHOW_MODEL_INFO] = SHOW_MODEL_INFO_DEFAULT_VALUE;
 
         _attributes[ITEM::PROFILER][ATTRIBUTE::PROFILER_SHOW_DATA] = SHOW_PROFILER_DATA_DEFAULT_VALUE;
         _attributes[ITEM::PROFILER][ATTRIBUTE::PROFILER_SAVE_DATA] = SAVE_PROFILER_DATA_DEFAULT_VALUE;
@@ -259,6 +276,94 @@ namespace dxrt {
             return;
         }
         _isReadonly[item].first = true;
+    }
+
+    std::string Configuration::GetVersion() const
+    {
+        std::string version = DXRT_VERSION;
+        if ( version[0] == 'v' )
+            return version.substr(1);
+
+        return version;
+    }
+
+    std::string Configuration::GetDriverVersion() const
+    {
+        uint32_t rt_driver_version = 0;
+
+        std::vector<std::shared_ptr<dxrt::Device>> devices = CheckDevices();
+        if ( devices.size() > 0 )
+        {
+            dxrt_dev_info_t dev_info = devices[0]->devInfo();
+            rt_driver_version = dev_info.rt_drv_ver;
+        }
+
+        uint32_t major = rt_driver_version / 1000;
+        uint32_t minor = (rt_driver_version / 100) % 10;
+        uint32_t patch = rt_driver_version % 100;
+
+        return  std::to_string(major) + "." +
+                std::to_string(minor) + "." +
+                std::to_string(patch); 
+    }
+
+    std::string Configuration::GetPCIeDriverVersion() const
+    {
+        uint32_t pcie_driver_version = 0;
+
+        std::vector<std::shared_ptr<dxrt::Device>> devices = CheckDevices();
+        if ( devices.size() > 0 )
+        {
+            dxrt_dev_info_t dev_info = devices[0]->devInfo();
+            pcie_driver_version = dev_info.pcie.driver_version;
+        }
+                
+
+        uint32_t major = pcie_driver_version / 1000;
+        uint32_t minor = (pcie_driver_version / 100) % 10;
+        uint32_t patch = pcie_driver_version % 100;
+
+        return  std::to_string(major) + "." +
+                std::to_string(minor) + "." +
+                std::to_string(patch);   
+    }
+
+    std::vector<std::pair<int, std::string>> Configuration::GetFirmwareVersions() const
+    {
+        
+        std::vector<std::pair<int, std::string>> fws;
+
+        std::vector<std::shared_ptr<dxrt::Device>> devices = CheckDevices();
+        if ( devices.size() > 0 )
+        {
+            for(auto& dev : devices)
+            {
+                dxrt_device_info_t device_info = dev->info();
+                //uint16_t firmware_version = 
+                uint32_t major = device_info.fw_ver / 100;
+                uint32_t minor = (device_info.fw_ver / 10) % 10;
+                uint32_t patch = device_info.fw_ver % 10;
+
+                std::string version = std::to_string(major) + "." +
+                                std::to_string(minor) + "." +
+                                std::to_string(patch);
+
+                fws.emplace_back(std::pair<int, std::string>(dev->id(), version));
+            }
+        }
+                
+
+        return fws;
+    }
+
+    std::string Configuration::GetONNXRuntimeVersion() const
+    {
+#ifdef USE_ORT
+        std::string onnx_version = std::string(OrtGetApiBase()->GetVersionString());
+        return onnx_version;
+#else
+        return "0.0.0";
+#endif // USE_ORT
     }
 
 }  // namespace dxrt

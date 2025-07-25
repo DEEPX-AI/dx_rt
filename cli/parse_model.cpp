@@ -1,8 +1,10 @@
 #include "dxrt/dxrt_api.h"
+#include "dxrt/exception/exception.h"
+#include "dxrt/device_info_status.h"
+#include "dxrt/device_util.h"
+#include <iostream>
+#include <string>
 
-using namespace std;
-
-/////////////////////////////////////////////////////////////////////////////////////////////////
 
 #ifdef __linux__
 #include <getopt.h>
@@ -12,7 +14,11 @@ static struct option const opts[] = {
     { "help", no_argument, 0, 'h' },
     { 0, 0, 0, 0 }
 };
-#endif 
+#endif
+
+using std::cout;
+using std::endl;
+using std::string;
 
 const char* usage = "parse model\n"
                     "  -m, --model     model path\n"
@@ -20,14 +26,14 @@ const char* usage = "parse model\n"
 
 void help()
 {
-    cout << usage << endl;    
+    cout << usage << endl;
 }
 
 int main(int argc, char *argv[])
 {
     int ret;
-    string modelPath="";
-    if(argc==1)
+    string modelPath = "";
+    if (argc ==1)
     {
         cout << "Error: no arguments." << endl;
         help();
@@ -58,12 +64,14 @@ int main(int argc, char *argv[])
             if (i + 1 < argc) {
                 modelPath = argv[++i];
             }
-            else {
-                cerr << "Error: -m option requires an argument." << endl;
+            else
+            {
+                std::cerr << "Error: -m option requires an argument." << endl;
                 return -1;
             }
         }
-        else if (arg == "-h" || arg == "--help") {
+        else if (arg == "-h" || arg == "--help")
+        {
             help();
             return 0;
         }
@@ -72,6 +80,30 @@ int main(int argc, char *argv[])
 
     LOG_VALUE(modelPath);
     DXRT_ASSERT(!modelPath.empty(), "no model path");
+
+    try {
+        auto devices = dxrt::CheckDevices();
+        if (!devices.empty()) {
+            auto& device = devices[0];
+            auto devStatus = dxrt::DeviceStatus::GetCurrentStatus(device);
+            const auto& devInfo = devStatus.Info();
+            const auto& devDrvInfo = device->devInfo();
+
+            cout << "=======================================================" << endl;
+            cout << " * Device 0             : " << devStatus.DeviceTypeStr() << endl;
+            cout << "====================  Version  ========================" << endl;
+            cout << " * DXRT version         : " << DXRT_VERSION << endl;
+            cout << "-------------------------------------------------------" << endl;
+            cout << " * RT Driver version    : v" << dxrt::GetDrvVersionWithDot(devDrvInfo.rt_drv_ver) << endl;
+            cout << " * PCIe Driver version  : v" << dxrt::GetDrvVersionWithDot(devDrvInfo.pcie.driver_version) << endl;
+            cout << "-------------------------------------------------------" << endl;
+            cout << " * FW version           : v" << dxrt::GetFwVersionWithDot(devInfo.fw_ver) << endl;
+            cout << "=======================================================" << endl;
+        }
+    } catch (const dxrt::Exception& e) {
+        // Silently ignore if no devices are found or info cannot be retrieved.
+    }
+
     ret = dxrt::ParseModel(modelPath);
     return ret;
 }

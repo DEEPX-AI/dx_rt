@@ -1,0 +1,5 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="node1" href="$classdxrt_1_1IModelParser.html" title="Abstract base class for version&#45;specific model parsers." alt="" coords="5,31,145,57"/>
+<area shape="rect" id="node2" href="$classdxrt_1_1V6ModelParser.html" title="Parser for DXNN V6 format." alt="" coords="193,5,347,32"/>
+<area shape="rect" id="node3" href="$classdxrt_1_1V7ModelParser.html" title="Parser for DXNN V7 format." alt="" coords="193,56,347,83"/>
+</map>

@@ -3,6 +3,8 @@
 
 #include "dxrt/common.h"
 #include "dxrt/fixed_size_buffer.h"
+#include <chrono>
+#include <stdexcept>
 
 static constexpr int MEM_ALIGN_VALUE = 4096;
 
@@ -48,18 +50,37 @@ FixedSizeBuffer::~FixedSizeBuffer()
 
 void* FixedSizeBuffer::getBuffer()
 {
+    if (_data.empty() || _count <= 0) {
+        LOG_DXRT_DBG << "FixedSizeBuffer: Invalid state - empty data or invalid count" << std::endl;
+        return nullptr;
+    }
+    
     std::unique_lock<std::mutex> lock(_lock);
 
-    _cv.wait(lock, [this] { return !_pointers.empty(); });
+    // Add a 3600 second timeout to prevent deadlocks
+    bool success = _cv.wait_for(lock, std::chrono::seconds(3600), [this] { return !_pointers.empty(); });
+    
+    if (!success) {
+        LOG_DXRT_ERR("FixedSizeBuffer: Timeout waiting for buffer. Available: " << _pointers.size() << ", Total: " << _count);
+        throw std::runtime_error("Buffer allocation timeout - possible deadlock detected");
+    }
 
     void* retval = _pointers.back();
     _pointers.pop_back();
+    LOG_DXRT_DBG << "FixedSizeBuffer: Buffer acquired. Remaining: " << _pointers.size() << std::endl;
     return retval;
 }
 
 void FixedSizeBuffer::releaseBuffer(void* ptr)
 {
+    if (ptr == nullptr) {
+        LOG_DXRT_DBG << "FixedSizeBuffer: Attempted to release nullptr buffer" << std::endl;
+        return;
+    }
+    
     std::unique_lock<std::mutex> lock(_lock);
+    
+    // 1. Check if it's a valid buffer
     bool isExist = false;
     for (const auto& x : _data)
     {
@@ -69,8 +90,23 @@ void FixedSizeBuffer::releaseBuffer(void* ptr)
             break;
         }
     }
+
+    // TODO : should delete this line in STD type
     DXRT_ASSERT(isExist, "RETURNED outputs different than output");
+
+    // 2. check if the buffer is already freed (to avoid duplicate frees)
+    for (const auto& x : _pointers)
+    {
+        if (x == ptr)
+        {
+            LOG_DXRT_ERR("FixedSizeBuffer: Attempted to release buffer " << ptr << " that is already released (double release detected)");
+            return; // avoid duplicate frees
+        }
+    }
+    
+    // 3. release the buffer
     _pointers.push_back(ptr);
+    LOG_DXRT_DBG << "FixedSizeBuffer: Buffer released. Available: " << _pointers.size() << "/" << _count << std::endl;
     _cv.notify_one();
 }
 
