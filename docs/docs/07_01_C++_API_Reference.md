@@ -381,14 +381,17 @@ enum BOUND_OPTION {
         NPU_ALL = 0,
         NPU_0,
         NPU_1, 
-        NPU_2
+        NPU_2,
+        NPU_01,
+        NPU_12,
+        NPU_02
     };
 
 uint32_t boundOption = BOUND_OPTION::NPU_ALL
    variables:
    Select the NPU core inside the device.
-   NPU_ALL is an option that uses all NPU cores simultaneously. NPU_0, NPU_1, and NPU_2 are   
-   options that allow using only a single NPU core.
+   NPU_ALL is an option that uses all NPU cores simultaneously. NPU_0, NPU_1, NPU_2, NPU_01, NPU_12 and NPU 02 are   
+   options that allow using only a single NPU core.  
 
 
 std::vector< int> devices = {}

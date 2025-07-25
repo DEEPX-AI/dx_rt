@@ -3,35 +3,12 @@
 
 #pragma once
 
-#include <signal.h>
-#include <mutex>
-#include <atomic>
-#include <thread>
-#include <condition_variable>
 #include "dxrt/common.h"
-#include "dxrt/request.h"
-#include "dxrt/driver.h"
-#include "dxrt/device_struct.h"
-#include "dxrt/worker.h"
-#include "dxrt/driver_adapter/driver_adapter.h"
-#include "dxrt/util.h"
-#include "dxrt/common.h"
-#include "dxrt/device.h"
-#include "dxrt/memory.h"
-#include "dxrt/task.h"
-#include "dxrt/worker.h"
-#include "dxrt/buffer.h"
-#include "dxrt/profiler.h"
-#include "dxrt/util.h"
-#include "dxrt/filesys_support.h"
-#include "dxrt/device_version.h"
-#include "service_error.h"
-#include "dxrt/fw.h"
-#include "dxrt/multiprocess_memory.h"
-#include "dxrt/driver_adapter/linux_driver_adapter.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <signal.h>
 #ifdef __linux__
     #include <unistd.h>
 #endif
@@ -50,9 +27,29 @@
 #include <unordered_map>
 #include <string>
 #include <memory>
+#include <mutex>
+#include <atomic>
+#include <thread>
+#include <condition_variable>
 
-
-
+#include "dxrt/request.h"
+#include "dxrt/driver.h"
+#include "dxrt/device_struct.h"
+#include "dxrt/worker.h"
+#include "dxrt/driver_adapter/driver_adapter.h"
+#include "dxrt/util.h"
+#include "dxrt/device.h"
+#include "dxrt/memory.h"
+#include "dxrt/task.h"
+#include "dxrt/buffer.h"
+#include "dxrt/profiler.h"
+#include "dxrt/filesys_support.h"
+#include "dxrt/device_version.h"
+#include "service_error.h"
+#include "dxrt/fw.h"
+#include "dxrt/multiprocess_memory.h"
+#include "dxrt/driver_adapter/linux_driver_adapter.h"
+#include "usage_timer.h"
 
 #ifdef __linux__
     #include <poll.h>
@@ -100,8 +97,13 @@ class DXRT_API ServiceDevice
     void Identify(int id_, dxrt::SkipMode skip);
     void SetCallback(std::function<void(const dxrt_response_t&)> f);
     void SetErrorCallback(std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)> f);
-    static vector<shared_ptr<ServiceDevice>> CheckServiceDevices(SkipMode skip = SkipMode::NONE, uint32_t subCmd = 0);
+    static std::vector<shared_ptr<ServiceDevice>> CheckServiceDevices(SkipMode skip = SkipMode::NONE, uint32_t subCmd = 0);
     bool isBlocked(){return _isBlocked;}
+
+    double getUsage(int core_id);
+
+    void usageTimerTick();
+    void DoCustomCommand(void *data, uint32_t subCmd, uint32_t size);
 
  protected:
     int _id = 0;
@@ -127,7 +129,6 @@ class DXRT_API ServiceDevice
 
     std::thread _thread[3];
 
-    
     std::mutex _lock;
     std::atomic<bool> _stop {false};
 
@@ -138,8 +139,8 @@ class DXRT_API ServiceDevice
 
     std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)> _errCallBack;
     bool _isBlocked = false;
+    UsageTimer _timer[3];
 };
 
+}  // namespace dxrt
 
-
-}

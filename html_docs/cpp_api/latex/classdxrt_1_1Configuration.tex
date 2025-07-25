@@ -1,0 +1,365 @@
+\hypertarget{classdxrt_1_1Configuration}{}\doxysection{dxrt\+::Configuration Class Reference}
+\label{classdxrt_1_1Configuration}\index{dxrt::Configuration@{dxrt::Configuration}}
+
+
+A singleton class for managing application configurations.  
+
+
+
+
+{\ttfamily \#include $<$configuration.\+h$>$}
+
+\doxysubsection*{Public Types}
+\begin{DoxyCompactItemize}
+\item 
+enum \mbox{\hyperlink{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95}{I\+T\+EM}} \{ \newline
+\mbox{\hyperlink{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95adc30ec20708ef7b0f641ef78b7880a15}{I\+T\+E\+M\+::\+D\+E\+B\+UG}} = 1, 
+\mbox{\hyperlink{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95a70aeeed18437940cf1f4567ee68feaec}{I\+T\+E\+M\+::\+P\+R\+O\+F\+I\+L\+ER}}, 
+\mbox{\hyperlink{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95af9e81a746a286bbac225d69520d1e67a}{I\+T\+E\+M\+::\+S\+E\+R\+V\+I\+CE}}, 
+\mbox{\hyperlink{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95a7a267c4061c0b726ac9a199806423567}{I\+T\+E\+M\+::\+D\+Y\+N\+A\+M\+I\+C\+\_\+\+C\+P\+U\+\_\+\+T\+H\+R\+E\+AD}}, 
+\newline
+\mbox{\hyperlink{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95a390125478fb09de09e446ac52489f515}{I\+T\+E\+M\+::\+T\+A\+S\+K\+\_\+\+F\+L\+OW}}, 
+\mbox{\hyperlink{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95af9827ad554bd04c33eb2a130ed075777}{I\+T\+E\+M\+::\+S\+H\+O\+W\+\_\+\+T\+H\+R\+O\+T\+T\+L\+I\+NG}}, 
+\mbox{\hyperlink{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95a2f395c97127256501f5e81a0d4b56c96}{I\+T\+E\+M\+::\+S\+H\+O\+W\+\_\+\+P\+R\+O\+F\+I\+LE}}, 
+\mbox{\hyperlink{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95a63585e16c048828b920ccaea88ccc4f1}{I\+T\+E\+M\+::\+S\+H\+O\+W\+\_\+\+M\+O\+D\+E\+L\+\_\+\+I\+N\+FO}}
+ \}
+\begin{DoxyCompactList}\small\item\em Enumeration defining types of configuration items. \end{DoxyCompactList}\item 
+enum \mbox{\hyperlink{classdxrt_1_1Configuration_a88b1df74ad426aaf01e606957b83223b}{A\+T\+T\+R\+I\+B\+U\+TE}} \{ \mbox{\hyperlink{classdxrt_1_1Configuration_a88b1df74ad426aaf01e606957b83223badf6695ddbc0f6b163457dcd04e94fd84}{A\+T\+T\+R\+I\+B\+U\+T\+E\+::\+P\+R\+O\+F\+I\+L\+E\+R\+\_\+\+S\+H\+O\+W\+\_\+\+D\+A\+TA}} = 1001, 
+\mbox{\hyperlink{classdxrt_1_1Configuration_a88b1df74ad426aaf01e606957b83223ba230a27bd52e9e2707862a42996da0ec3}{A\+T\+T\+R\+I\+B\+U\+T\+E\+::\+P\+R\+O\+F\+I\+L\+E\+R\+\_\+\+S\+A\+V\+E\+\_\+\+D\+A\+TA}}
+ \}
+\begin{DoxyCompactList}\small\item\em Enumeration defining attributes for configuration items. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+void \mbox{\hyperlink{classdxrt_1_1Configuration_a1f869303160c086ded7e3f2dcfbe5ee4}{Load\+Config\+File}} (const std\+::string \&file\+Name)
+\begin{DoxyCompactList}\small\item\em Loads configurations from the specified file. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classdxrt_1_1Configuration_a2586b87f014e7a4e8c071c6016a887f8}{Set\+Enable}} (const \mbox{\hyperlink{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95}{I\+T\+EM}} item, bool enabled)
+\begin{DoxyCompactList}\small\item\em Sets the enabled status for a specific configuration item. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classdxrt_1_1Configuration_a3b5ee02eda6d70601f18f0f3ec553008}{Set\+Attribute}} (const \mbox{\hyperlink{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95}{I\+T\+EM}} item, const \mbox{\hyperlink{classdxrt_1_1Configuration_a88b1df74ad426aaf01e606957b83223b}{A\+T\+T\+R\+I\+B\+U\+TE}} attrib, const std\+::string \&value)
+\begin{DoxyCompactList}\small\item\em Sets a specific attribute value for a given configuration item. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{classdxrt_1_1Configuration_ab0fab24cd6c975e7d3ba47c3f7138a95}{Get\+Enable}} (const \mbox{\hyperlink{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95}{I\+T\+EM}} item)
+\begin{DoxyCompactList}\small\item\em Retrieves the enabled status of a specific configuration item. \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{classdxrt_1_1Configuration_a50d8474ace2a8ea9218bc9f2608317c6}{Get\+Attribute}} (const \mbox{\hyperlink{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95}{I\+T\+EM}} item, const \mbox{\hyperlink{classdxrt_1_1Configuration_a88b1df74ad426aaf01e606957b83223b}{A\+T\+T\+R\+I\+B\+U\+TE}} attrib)
+\begin{DoxyCompactList}\small\item\em Retrieves the value of a specific attribute for a given configuration item. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classdxrt_1_1Configuration_a4fde9176d3dda8c945442636b6651330}{Lock\+Enable}} (const \mbox{\hyperlink{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95}{I\+T\+EM}} item)
+\begin{DoxyCompactList}\small\item\em Locks a specific configuration item, making it read-\/only. \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{classdxrt_1_1Configuration_a98f6b1b01429f00292968d7770835c0d}{Get\+Version}} () const
+\begin{DoxyCompactList}\small\item\em Retrieves the version of this D\+X\+RT library. \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{classdxrt_1_1Configuration_a5a8960bcdcedad6f40c627d8ebac3d31}{Get\+Driver\+Version}} () const
+\begin{DoxyCompactList}\small\item\em Retrieves the version of the associated device driver. \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{classdxrt_1_1Configuration_a932866508a6669f10871f76fc437c5a9}{Get\+P\+C\+Ie\+Driver\+Version}} () const
+\begin{DoxyCompactList}\small\item\em Retrieves the version of the P\+C\+Ie driver. \end{DoxyCompactList}\item 
+std\+::vector$<$ std\+::pair$<$ int, std\+::string $>$ $>$ \mbox{\hyperlink{classdxrt_1_1Configuration_a2e451f152958802b869cdec1f8304749}{Get\+Firmware\+Versions}} () const
+\begin{DoxyCompactList}\small\item\em Retrieves the firmware versions of all detected devices. \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{classdxrt_1_1Configuration_a5ca007ca188b9dfb00b4c6816befa773}{Get\+O\+N\+N\+X\+Runtime\+Version}} () const
+\begin{DoxyCompactList}\small\item\em Retrieves the version of the O\+N\+NX Runtime library being used. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Static Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+static \mbox{\hyperlink{classdxrt_1_1Configuration}{Configuration}} \& \mbox{\hyperlink{classdxrt_1_1Configuration_a14ed8c3eeec6be9e737e41ee30d99839}{Get\+Instance}} ()
+\begin{DoxyCompactList}\small\item\em Returns the unique instance of the {\ttfamily \mbox{\hyperlink{classdxrt_1_1Configuration}{Configuration}}} class. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+A singleton class for managing application configurations. 
+
+The {\ttfamily \mbox{\hyperlink{classdxrt_1_1Configuration}{Configuration}}} class manages various settings and their attributes that are used throughout the application. Settings can be enabled/disabled, and specific attributes are set with string values. It uses a mutex to ensure thread safety when accessing configuration values, preventing concurrency issues.
+
+This class follows the singleton design pattern, meaning you should access its unique instance via the {\ttfamily \mbox{\hyperlink{classdxrt_1_1Configuration_a14ed8c3eeec6be9e737e41ee30d99839}{Get\+Instance()}}} method.
+
+\begin{DoxyNote}{Note}
+The constructor, destructor, copy constructor, and assignment operator of this class are private and deleted to enforce the singleton pattern. 
+\end{DoxyNote}
+
+
+\doxysubsection{Member Enumeration Documentation}
+\mbox{\Hypertarget{classdxrt_1_1Configuration_a88b1df74ad426aaf01e606957b83223b}\label{classdxrt_1_1Configuration_a88b1df74ad426aaf01e606957b83223b}} 
+\index{dxrt::Configuration@{dxrt::Configuration}!ATTRIBUTE@{ATTRIBUTE}}
+\index{ATTRIBUTE@{ATTRIBUTE}!dxrt::Configuration@{dxrt::Configuration}}
+\doxysubsubsection{\texorpdfstring{ATTRIBUTE}{ATTRIBUTE}}
+{\footnotesize\ttfamily enum \mbox{\hyperlink{classdxrt_1_1Configuration_a88b1df74ad426aaf01e606957b83223b}{dxrt\+::\+Configuration\+::\+A\+T\+T\+R\+I\+B\+U\+TE}}\hspace{0.3cm}{\ttfamily [strong]}}
+
+
+
+Enumeration defining attributes for configuration items. 
+
+\begin{DoxyEnumFields}{Enumerator}
+\raisebox{\heightof{T}}[0pt][0pt]{\index{PROFILER\_SHOW\_DATA@{PROFILER\_SHOW\_DATA}!dxrt::Configuration@{dxrt::Configuration}}\index{dxrt::Configuration@{dxrt::Configuration}!PROFILER\_SHOW\_DATA@{PROFILER\_SHOW\_DATA}}}\mbox{\Hypertarget{classdxrt_1_1Configuration_a88b1df74ad426aaf01e606957b83223badf6695ddbc0f6b163457dcd04e94fd84}\label{classdxrt_1_1Configuration_a88b1df74ad426aaf01e606957b83223badf6695ddbc0f6b163457dcd04e94fd84}} 
+P\+R\+O\+F\+I\+L\+E\+R\+\_\+\+S\+H\+O\+W\+\_\+\+D\+A\+TA&Attribute for showing profiler data. \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{PROFILER\_SAVE\_DATA@{PROFILER\_SAVE\_DATA}!dxrt::Configuration@{dxrt::Configuration}}\index{dxrt::Configuration@{dxrt::Configuration}!PROFILER\_SAVE\_DATA@{PROFILER\_SAVE\_DATA}}}\mbox{\Hypertarget{classdxrt_1_1Configuration_a88b1df74ad426aaf01e606957b83223ba230a27bd52e9e2707862a42996da0ec3}\label{classdxrt_1_1Configuration_a88b1df74ad426aaf01e606957b83223ba230a27bd52e9e2707862a42996da0ec3}} 
+P\+R\+O\+F\+I\+L\+E\+R\+\_\+\+S\+A\+V\+E\+\_\+\+D\+A\+TA&Attribute for saving profiler data. \\
+\hline
+
+\end{DoxyEnumFields}
+\mbox{\Hypertarget{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95}\label{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95}} 
+\index{dxrt::Configuration@{dxrt::Configuration}!ITEM@{ITEM}}
+\index{ITEM@{ITEM}!dxrt::Configuration@{dxrt::Configuration}}
+\doxysubsubsection{\texorpdfstring{ITEM}{ITEM}}
+{\footnotesize\ttfamily enum \mbox{\hyperlink{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95}{dxrt\+::\+Configuration\+::\+I\+T\+EM}}\hspace{0.3cm}{\ttfamily [strong]}}
+
+
+
+Enumeration defining types of configuration items. 
+
+\begin{DoxyEnumFields}{Enumerator}
+\raisebox{\heightof{T}}[0pt][0pt]{\index{DEBUG@{DEBUG}!dxrt::Configuration@{dxrt::Configuration}}\index{dxrt::Configuration@{dxrt::Configuration}!DEBUG@{DEBUG}}}\mbox{\Hypertarget{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95adc30ec20708ef7b0f641ef78b7880a15}\label{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95adc30ec20708ef7b0f641ef78b7880a15}} 
+D\+E\+B\+UG&\mbox{\hyperlink{classdxrt_1_1Configuration}{Configuration}} related to debug mode. \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{PROFILER@{PROFILER}!dxrt::Configuration@{dxrt::Configuration}}\index{dxrt::Configuration@{dxrt::Configuration}!PROFILER@{PROFILER}}}\mbox{\Hypertarget{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95a70aeeed18437940cf1f4567ee68feaec}\label{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95a70aeeed18437940cf1f4567ee68feaec}} 
+P\+R\+O\+F\+I\+L\+ER&\mbox{\hyperlink{classdxrt_1_1Configuration}{Configuration}} related to profiler functionality. \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{SERVICE@{SERVICE}!dxrt::Configuration@{dxrt::Configuration}}\index{dxrt::Configuration@{dxrt::Configuration}!SERVICE@{SERVICE}}}\mbox{\Hypertarget{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95af9e81a746a286bbac225d69520d1e67a}\label{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95af9e81a746a286bbac225d69520d1e67a}} 
+S\+E\+R\+V\+I\+CE&\mbox{\hyperlink{classdxrt_1_1Configuration}{Configuration}} related to service operation. \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{DYNAMIC\_CPU\_THREAD@{DYNAMIC\_CPU\_THREAD}!dxrt::Configuration@{dxrt::Configuration}}\index{dxrt::Configuration@{dxrt::Configuration}!DYNAMIC\_CPU\_THREAD@{DYNAMIC\_CPU\_THREAD}}}\mbox{\Hypertarget{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95a7a267c4061c0b726ac9a199806423567}\label{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95a7a267c4061c0b726ac9a199806423567}} 
+D\+Y\+N\+A\+M\+I\+C\+\_\+\+C\+P\+U\+\_\+\+T\+H\+R\+E\+AD&\mbox{\hyperlink{classdxrt_1_1Configuration}{Configuration}} related to dynamic C\+PU thread management. \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{TASK\_FLOW@{TASK\_FLOW}!dxrt::Configuration@{dxrt::Configuration}}\index{dxrt::Configuration@{dxrt::Configuration}!TASK\_FLOW@{TASK\_FLOW}}}\mbox{\Hypertarget{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95a390125478fb09de09e446ac52489f515}\label{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95a390125478fb09de09e446ac52489f515}} 
+T\+A\+S\+K\+\_\+\+F\+L\+OW&\mbox{\hyperlink{classdxrt_1_1Configuration}{Configuration}} related to task flow management. \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{SHOW\_THROTTLING@{SHOW\_THROTTLING}!dxrt::Configuration@{dxrt::Configuration}}\index{dxrt::Configuration@{dxrt::Configuration}!SHOW\_THROTTLING@{SHOW\_THROTTLING}}}\mbox{\Hypertarget{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95af9827ad554bd04c33eb2a130ed075777}\label{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95af9827ad554bd04c33eb2a130ed075777}} 
+S\+H\+O\+W\+\_\+\+T\+H\+R\+O\+T\+T\+L\+I\+NG&Whether to display throttling information. \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{SHOW\_PROFILE@{SHOW\_PROFILE}!dxrt::Configuration@{dxrt::Configuration}}\index{dxrt::Configuration@{dxrt::Configuration}!SHOW\_PROFILE@{SHOW\_PROFILE}}}\mbox{\Hypertarget{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95a2f395c97127256501f5e81a0d4b56c96}\label{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95a2f395c97127256501f5e81a0d4b56c96}} 
+S\+H\+O\+W\+\_\+\+P\+R\+O\+F\+I\+LE&Whether to display profile information. \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{SHOW\_MODEL\_INFO@{SHOW\_MODEL\_INFO}!dxrt::Configuration@{dxrt::Configuration}}\index{dxrt::Configuration@{dxrt::Configuration}!SHOW\_MODEL\_INFO@{SHOW\_MODEL\_INFO}}}\mbox{\Hypertarget{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95a63585e16c048828b920ccaea88ccc4f1}\label{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95a63585e16c048828b920ccaea88ccc4f1}} 
+S\+H\+O\+W\+\_\+\+M\+O\+D\+E\+L\+\_\+\+I\+N\+FO&Whether to display model information. \\
+\hline
+
+\end{DoxyEnumFields}
+
+
+\doxysubsection{Member Function Documentation}
+\mbox{\Hypertarget{classdxrt_1_1Configuration_a50d8474ace2a8ea9218bc9f2608317c6}\label{classdxrt_1_1Configuration_a50d8474ace2a8ea9218bc9f2608317c6}} 
+\index{dxrt::Configuration@{dxrt::Configuration}!GetAttribute@{GetAttribute}}
+\index{GetAttribute@{GetAttribute}!dxrt::Configuration@{dxrt::Configuration}}
+\doxysubsubsection{\texorpdfstring{GetAttribute()}{GetAttribute()}}
+{\footnotesize\ttfamily std\+::string dxrt\+::\+Configuration\+::\+Get\+Attribute (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95}{I\+T\+EM}}}]{item,  }\item[{const \mbox{\hyperlink{classdxrt_1_1Configuration_a88b1df74ad426aaf01e606957b83223b}{A\+T\+T\+R\+I\+B\+U\+TE}}}]{attrib }\end{DoxyParamCaption})}
+
+
+
+Retrieves the value of a specific attribute for a given configuration item. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em item} & The configuration item for which to retrieve the attribute value. \\
+\hline
+{\em attrib} & The type of attribute to retrieve. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+The value of the attribute as a string. May return an empty string if the attribute does not exist. 
+\end{DoxyReturn}
+\begin{DoxyNote}{Note}
+Uses an internal mutex to ensure thread safety. 
+\end{DoxyNote}
+\mbox{\Hypertarget{classdxrt_1_1Configuration_a5a8960bcdcedad6f40c627d8ebac3d31}\label{classdxrt_1_1Configuration_a5a8960bcdcedad6f40c627d8ebac3d31}} 
+\index{dxrt::Configuration@{dxrt::Configuration}!GetDriverVersion@{GetDriverVersion}}
+\index{GetDriverVersion@{GetDriverVersion}!dxrt::Configuration@{dxrt::Configuration}}
+\doxysubsubsection{\texorpdfstring{GetDriverVersion()}{GetDriverVersion()}}
+{\footnotesize\ttfamily std\+::string dxrt\+::\+Configuration\+::\+Get\+Driver\+Version (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Retrieves the version of the associated device driver. 
+
+\begin{DoxyReturn}{Returns}
+The driver version as a string. 
+\end{DoxyReturn}
+
+\begin{DoxyExceptions}{Exceptions}
+{\em Invalid\+Operation\+Exception} & If the driver\textquotesingle{}s version is below the minimum requirement. \\
+\hline
+\end{DoxyExceptions}
+\mbox{\Hypertarget{classdxrt_1_1Configuration_ab0fab24cd6c975e7d3ba47c3f7138a95}\label{classdxrt_1_1Configuration_ab0fab24cd6c975e7d3ba47c3f7138a95}} 
+\index{dxrt::Configuration@{dxrt::Configuration}!GetEnable@{GetEnable}}
+\index{GetEnable@{GetEnable}!dxrt::Configuration@{dxrt::Configuration}}
+\doxysubsubsection{\texorpdfstring{GetEnable()}{GetEnable()}}
+{\footnotesize\ttfamily bool dxrt\+::\+Configuration\+::\+Get\+Enable (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95}{I\+T\+EM}}}]{item }\end{DoxyParamCaption})}
+
+
+
+Retrieves the enabled status of a specific configuration item. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em item} & The configuration item whose enabled status to retrieve. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+{\ttfamily true} if the item is enabled, {\ttfamily false} otherwise. 
+\end{DoxyReturn}
+\begin{DoxyNote}{Note}
+Uses an internal mutex to ensure thread safety. 
+\end{DoxyNote}
+\mbox{\Hypertarget{classdxrt_1_1Configuration_a2e451f152958802b869cdec1f8304749}\label{classdxrt_1_1Configuration_a2e451f152958802b869cdec1f8304749}} 
+\index{dxrt::Configuration@{dxrt::Configuration}!GetFirmwareVersions@{GetFirmwareVersions}}
+\index{GetFirmwareVersions@{GetFirmwareVersions}!dxrt::Configuration@{dxrt::Configuration}}
+\doxysubsubsection{\texorpdfstring{GetFirmwareVersions()}{GetFirmwareVersions()}}
+{\footnotesize\ttfamily std\+::vector$<$std\+::pair$<$int, std\+::string$>$ $>$ dxrt\+::\+Configuration\+::\+Get\+Firmware\+Versions (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Retrieves the firmware versions of all detected devices. 
+
+\begin{DoxyReturn}{Returns}
+A vector of pairs, where each pair contains a device ID and its firmware version string. 
+\end{DoxyReturn}
+
+\begin{DoxyExceptions}{Exceptions}
+{\em Invalid\+Operation\+Exception} & If the firmware\textquotesingle{}s version is below the minimum requirement. \\
+\hline
+\end{DoxyExceptions}
+\mbox{\Hypertarget{classdxrt_1_1Configuration_a14ed8c3eeec6be9e737e41ee30d99839}\label{classdxrt_1_1Configuration_a14ed8c3eeec6be9e737e41ee30d99839}} 
+\index{dxrt::Configuration@{dxrt::Configuration}!GetInstance@{GetInstance}}
+\index{GetInstance@{GetInstance}!dxrt::Configuration@{dxrt::Configuration}}
+\doxysubsubsection{\texorpdfstring{GetInstance()}{GetInstance()}}
+{\footnotesize\ttfamily static \mbox{\hyperlink{classdxrt_1_1Configuration}{Configuration}}\& dxrt\+::\+Configuration\+::\+Get\+Instance (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+
+
+Returns the unique instance of the {\ttfamily \mbox{\hyperlink{classdxrt_1_1Configuration}{Configuration}}} class. 
+
+This method must be used to access the {\ttfamily \mbox{\hyperlink{classdxrt_1_1Configuration}{Configuration}}} singleton. If the instance does not exist, this method will create it.
+
+\begin{DoxyReturn}{Returns}
+A reference to the {\ttfamily \mbox{\hyperlink{classdxrt_1_1Configuration}{Configuration}}} instance. Always returns a valid instance. 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1Configuration_a5ca007ca188b9dfb00b4c6816befa773}\label{classdxrt_1_1Configuration_a5ca007ca188b9dfb00b4c6816befa773}} 
+\index{dxrt::Configuration@{dxrt::Configuration}!GetONNXRuntimeVersion@{GetONNXRuntimeVersion}}
+\index{GetONNXRuntimeVersion@{GetONNXRuntimeVersion}!dxrt::Configuration@{dxrt::Configuration}}
+\doxysubsubsection{\texorpdfstring{GetONNXRuntimeVersion()}{GetONNXRuntimeVersion()}}
+{\footnotesize\ttfamily std\+::string dxrt\+::\+Configuration\+::\+Get\+O\+N\+N\+X\+Runtime\+Version (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Retrieves the version of the O\+N\+NX Runtime library being used. 
+
+\begin{DoxyReturn}{Returns}
+The O\+N\+NX Runtime version as a string. 
+\end{DoxyReturn}
+
+\begin{DoxyExceptions}{Exceptions}
+{\em Invalid\+Operation\+Exception} & If the O\+N\+NX Runtime library\textquotesingle{}s version does not meet the minimum requirement. \\
+\hline
+\end{DoxyExceptions}
+\begin{DoxyNote}{Note}
+This version corresponds to the library that this software is linked against. 
+\end{DoxyNote}
+\mbox{\Hypertarget{classdxrt_1_1Configuration_a932866508a6669f10871f76fc437c5a9}\label{classdxrt_1_1Configuration_a932866508a6669f10871f76fc437c5a9}} 
+\index{dxrt::Configuration@{dxrt::Configuration}!GetPCIeDriverVersion@{GetPCIeDriverVersion}}
+\index{GetPCIeDriverVersion@{GetPCIeDriverVersion}!dxrt::Configuration@{dxrt::Configuration}}
+\doxysubsubsection{\texorpdfstring{GetPCIeDriverVersion()}{GetPCIeDriverVersion()}}
+{\footnotesize\ttfamily std\+::string dxrt\+::\+Configuration\+::\+Get\+P\+C\+Ie\+Driver\+Version (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Retrieves the version of the P\+C\+Ie driver. 
+
+
+\begin{DoxyExceptions}{Exceptions}
+{\em Invalid\+Operation\+Exception} & If the P\+C\+Ie driver\textquotesingle{}s version is below the minimum requirement. \\
+\hline
+\end{DoxyExceptions}
+\mbox{\Hypertarget{classdxrt_1_1Configuration_a98f6b1b01429f00292968d7770835c0d}\label{classdxrt_1_1Configuration_a98f6b1b01429f00292968d7770835c0d}} 
+\index{dxrt::Configuration@{dxrt::Configuration}!GetVersion@{GetVersion}}
+\index{GetVersion@{GetVersion}!dxrt::Configuration@{dxrt::Configuration}}
+\doxysubsubsection{\texorpdfstring{GetVersion()}{GetVersion()}}
+{\footnotesize\ttfamily std\+::string dxrt\+::\+Configuration\+::\+Get\+Version (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Retrieves the version of this D\+X\+RT library. 
+
+\begin{DoxyReturn}{Returns}
+The library version as a string (e.\+g., \char`\"{}1.\+2.\+3\char`\"{}). 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1Configuration_a1f869303160c086ded7e3f2dcfbe5ee4}\label{classdxrt_1_1Configuration_a1f869303160c086ded7e3f2dcfbe5ee4}} 
+\index{dxrt::Configuration@{dxrt::Configuration}!LoadConfigFile@{LoadConfigFile}}
+\index{LoadConfigFile@{LoadConfigFile}!dxrt::Configuration@{dxrt::Configuration}}
+\doxysubsubsection{\texorpdfstring{LoadConfigFile()}{LoadConfigFile()}}
+{\footnotesize\ttfamily void dxrt\+::\+Configuration\+::\+Load\+Config\+File (\begin{DoxyParamCaption}\item[{const std\+::string \&}]{file\+Name }\end{DoxyParamCaption})}
+
+
+
+Loads configurations from the specified file. 
+
+This method reads configuration values from the given file and initializes the internal setting maps of the class. The specific file format depends on the implementation.
+
+
+\begin{DoxyParams}{Parameters}
+{\em file\+Name} & The path and name of the configuration file to load. \\
+\hline
+\end{DoxyParams}
+\mbox{\Hypertarget{classdxrt_1_1Configuration_a4fde9176d3dda8c945442636b6651330}\label{classdxrt_1_1Configuration_a4fde9176d3dda8c945442636b6651330}} 
+\index{dxrt::Configuration@{dxrt::Configuration}!LockEnable@{LockEnable}}
+\index{LockEnable@{LockEnable}!dxrt::Configuration@{dxrt::Configuration}}
+\doxysubsubsection{\texorpdfstring{LockEnable()}{LockEnable()}}
+{\footnotesize\ttfamily void dxrt\+::\+Configuration\+::\+Lock\+Enable (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95}{I\+T\+EM}}}]{item }\end{DoxyParamCaption})}
+
+
+
+Locks a specific configuration item, making it read-\/only. 
+
+After this function is called, the {\ttfamily \+\_\+enable\+Settings} and associated {\ttfamily \+\_\+attributes} for this {\ttfamily I\+T\+EM} cannot be modified further.
+
+
+\begin{DoxyParams}{Parameters}
+{\em item} & The configuration item to set as read-\/only. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyNote}{Note}
+Uses an internal mutex to ensure thread safety. 
+\end{DoxyNote}
+\mbox{\Hypertarget{classdxrt_1_1Configuration_a3b5ee02eda6d70601f18f0f3ec553008}\label{classdxrt_1_1Configuration_a3b5ee02eda6d70601f18f0f3ec553008}} 
+\index{dxrt::Configuration@{dxrt::Configuration}!SetAttribute@{SetAttribute}}
+\index{SetAttribute@{SetAttribute}!dxrt::Configuration@{dxrt::Configuration}}
+\doxysubsubsection{\texorpdfstring{SetAttribute()}{SetAttribute()}}
+{\footnotesize\ttfamily void dxrt\+::\+Configuration\+::\+Set\+Attribute (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95}{I\+T\+EM}}}]{item,  }\item[{const \mbox{\hyperlink{classdxrt_1_1Configuration_a88b1df74ad426aaf01e606957b83223b}{A\+T\+T\+R\+I\+B\+U\+TE}}}]{attrib,  }\item[{const std\+::string \&}]{value }\end{DoxyParamCaption})}
+
+
+
+Sets a specific attribute value for a given configuration item. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em item} & The configuration item for which to set the attribute. \\
+\hline
+{\em attrib} & The type of attribute to set. \\
+\hline
+{\em value} & The attribute value (as a string). \\
+\hline
+\end{DoxyParams}
+\begin{DoxyNote}{Note}
+Uses an internal mutex to ensure thread safety. 
+\end{DoxyNote}
+\mbox{\Hypertarget{classdxrt_1_1Configuration_a2586b87f014e7a4e8c071c6016a887f8}\label{classdxrt_1_1Configuration_a2586b87f014e7a4e8c071c6016a887f8}} 
+\index{dxrt::Configuration@{dxrt::Configuration}!SetEnable@{SetEnable}}
+\index{SetEnable@{SetEnable}!dxrt::Configuration@{dxrt::Configuration}}
+\doxysubsubsection{\texorpdfstring{SetEnable()}{SetEnable()}}
+{\footnotesize\ttfamily void dxrt\+::\+Configuration\+::\+Set\+Enable (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{classdxrt_1_1Configuration_a05c6f5c1bc9c32f709df3bd5778c9a95}{I\+T\+EM}}}]{item,  }\item[{bool}]{enabled }\end{DoxyParamCaption})}
+
+
+
+Sets the enabled status for a specific configuration item. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em item} & The configuration item whose enabled status will be changed. \\
+\hline
+{\em enabled} & {\ttfamily true} to enable, {\ttfamily false} to disable. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyNote}{Note}
+Uses an internal mutex to ensure thread safety. 
+\end{DoxyNote}

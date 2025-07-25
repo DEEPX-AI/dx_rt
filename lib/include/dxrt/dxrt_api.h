@@ -15,3 +15,4 @@
 #include "dxrt/cli.h"
 #include "dxrt/exception_handler.h"
 #include "dxrt/exception/exception.h"
+#include "dxrt/configuration.h"

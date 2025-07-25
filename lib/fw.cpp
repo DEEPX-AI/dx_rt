@@ -7,8 +7,9 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
-
-using namespace std;
+#include <vector>
+using std::cout;
+using std::endl;
 
 namespace dxrt
 {
@@ -16,27 +17,28 @@ namespace dxrt
 string ParseFwLog(dxrt_device_log_t &log)
 {
     string ret;
-    ostringstream oss;
-    oss << dec ;
-    if(log.cmd>=dxrt::dxrt_fwlog_cmd_t::FW_LOG_MAX)
+    std::ostringstream oss;
+    oss << std::dec;
+    if (log.cmd >= dxrt::dxrt_fwlog_cmd_t::FW_LOG_MAX)
     {
         return "";
     }
-    if(log.cmd>=dxrt::dxrt_cmd_t::DXRT_CMD_MAX && log.cmd<dxrt::dxrt_fwlog_cmd_t::FW_LOG_TEMP)
+    if (log.cmd >= dxrt::dxrt_cmd_t::DXRT_CMD_MAX && log.cmd<dxrt::dxrt_fwlog_cmd_t::FW_LOG_TEMP)
     {
         return "";
     }
     oss << "[" << log.timestamp << "] ";
-    switch(log.cmd)
+    switch (log.cmd)
     {
         case dxrt::dxrt_cmd_t::DXRT_CMD_IDENTIFY_DEVICE:
             oss << "identify: variant " << log.args[0] << ", "
-                << "mem addr [" << hex << log.args[1] << ", " << log.args[2] << "], "
+                << "mem addr [" << std::hex << log.args[1] << ", " << log.args[2] << "], "
                 << "mem size " << log.args[3] << ", num_dma_ch " << log.args[4] << endl;
             break;
         case dxrt::dxrt_fwlog_cmd_t::FW_LOG_INFERENCE_REQUEST:
             oss << "req " << log.args[0] << " -> npu" << log.args[1]
-                << ", type " << log.args[2] << ", input offset " << hex << log.args[3] << ", output offset " << log.args[4] << endl;
+                << ", type " << log.args[2] << ", input offset " << std::hex << log.args[3]
+                << ", output offset " << log.args[4] << endl;
             break;
         case dxrt::dxrt_fwlog_cmd_t::FW_LOG_INFERENCE_RESPONSE:
             oss << "response " << log.args[0] << " <- npu" << log.args[1]
@@ -94,6 +96,10 @@ string ParseFwLog(dxrt_device_log_t &log)
                 << "front: " << log.args[3] << ", rear: " << log.args[4] << ", "
                 << "timeout: " << log.args[5] << endl;
             break;
+            case dxrt::dxrt_fwlog_cmd_t::FW_LOG_VOLT_UNDER_IRQ:
+            oss << " > voltage drop detected::NPU@" << log.args[0] << ", "
+                << "detected Voltage: " << log.args[1] << endl;
+            break;
         case dxrt::dxrt_cmd_t::DXRT_CMD_GET_STATUS:
         case dxrt::dxrt_cmd_t::DXRT_CMD_UPDATE_CONFIG:
         case dxrt::dxrt_cmd_t::DXRT_CMD_GET_LOG:
@@ -109,7 +115,7 @@ string ParseFwLog(dxrt_device_log_t &log)
         case dxrt::dxrt_cmd_t::DXRT_CMD_TERMINATE:
         case dxrt::dxrt_fwlog_cmd_t::FW_LOG_TEMP:
         case dxrt::dxrt_fwlog_cmd_t::FW_LOG_GENERATE_MSI:
-            oss << "[" << log.timestamp << "] " 
+            oss << "[" << log.timestamp << "] "
                 << log.args[0] << ", "
                 << log.args[1] << ", "
                 << log.args[2] << ", "
@@ -125,10 +131,10 @@ string ParseFwLog(dxrt_device_log_t &log)
     return oss.str();
 }
 
-FwLog::FwLog(vector<dxrt_device_log_t> logs_)
+FwLog::FwLog(std::vector<dxrt_device_log_t> logs_)
 :_logs(logs_), _str("")
 {
-    for(auto &log:_logs)
+    for (auto &log : _logs)
     {
         _str.append(ParseFwLog(log));
     }
@@ -143,11 +149,12 @@ string FwLog::str()
 {
     return _str;
 }
-void FwLog::toFile(string file)
+void FwLog::ToFileAppend(string file)
 {
-    ofstream outputFile(file);
-    if(outputFile.is_open())
+    std::ofstream outputFile(file, std::ios::app);
+    if (outputFile.is_open())
     {
+        outputFile << _deviceInfoString << std::endl;
         outputFile << _str;
         outputFile.close();
     }
@@ -159,7 +166,7 @@ void FwLog::toFile(string file)
 
 Fw::Fw(string file)
 {
-    vector<char> data(sizeof(dx_fw_header_t));
+    std::vector<char> data(sizeof(dx_fw_header_t));
     DataFromFile(file, static_cast<void*>(data.data()), sizeof(dx_fw_header_t));
     memcpy(&fwHeader, data.data(), sizeof(dx_fw_header_t));
     Show();
@@ -167,7 +174,6 @@ Fw::Fw(string file)
 
 Fw::~Fw()
 {
-
 }
 
 void Fw::Show(void)
@@ -225,7 +231,7 @@ string Fw::GetFwUpdateResult(uint32_t errCode)
                             string("\nPlease upgrade to version 2.x.x or later\n");
                     break;
                 default:
-                    errMsg += ("Unknown error detected("+ to_string(mask) +")");
+                    errMsg += ("Unknown error detected("+ std::to_string(mask) +")");
                     break;
             }
         }
@@ -233,4 +239,4 @@ string Fw::GetFwUpdateResult(uint32_t errCode)
     return errMsg;
 }
 
-} // namespace dxrt
+}  // namespace dxrt

@@ -5,376 +5,365 @@
 #include <fstream>
 #include <cassert>
 #include <tuple>
+#include <vector>
 #ifdef _WINDOWS
 #include <limits>
     #ifdef max
         #undef max
         #undef min
-    #endif // max
+    #endif  // max
 #endif
-#include "rapidjson/document.h"
-#include "rapidjson/writer.h"
-#include "rapidjson/prettywriter.h"
-#include "rapidjson/stringbuffer.h"
-#include "rapidjson/pointer.h"
-#include "rapidjson/rapidjson.h"
+
+#include "dxrt/datatype.h"
 
 #define MIN_COMPILER_VERSION "1.18.1"
 #define MIN_SINGLEFILE_VERSION 6
-using namespace std;
+#define MAX_SINGLEFILE_VERSION 7
+
+
+
 namespace deepx_binaryinfo {
-    struct DXRT_API Models {
-        string &npu()     { return _npu; }
-        string &name()    { return _name; }
-        string &str()     { return _str; }
-        vector<char> &buffer()   { return _buffer; }
-        int64_t &offset() { return _offset; }
-        int64_t &size()   { return _size; }
+struct DXRT_API Models {
+    std::string &npu()     { return _npu; }
+    std::string &name()    { return _name; }  // npu task name
+    std::string &str()     { return _str; }  // info json data
+    std::vector<char> &buffer()   { return _buffer; }  // binary data
+    int64_t &offset() { return _offset; }
+    int64_t &size()   { return _size; }
 
-        string _npu;
-        string _name;
-        string _str;
-        vector<char> _buffer;
-        int64_t _offset = 0;
-        int64_t _size = 0;
+    std::string _npu;
+    std::string _name;
+    std::string _str;
+    std::vector<char> _buffer;
+    int64_t _offset = 0;
+    int64_t _size = 0;
+};
 
-    };
+struct DXRT_API BinaryInfoDatabase {
+    Models &merged_model()       { return _merged_model; }
+    std::vector<Models> &npu_models() { return _npu_models; }
+    Models &npu_models(int i)    { return _npu_models[i]; }
+    std::vector<Models> &cpu_models() { return _cpu_models; }
+    Models &cpu_models(int i)    { return _cpu_models[i]; }
+    Models &graph_info()         { return _graph_info; }
+    std::vector<Models> &rmap()       { return _rmap; }
+    Models &rmap(int i)          { return _rmap[i]; }
+    std::vector<Models> &weight()     { return _weight; }
+    Models &weight(int i)        { return _weight[i]; }
+    std::vector<Models> &rmap_info()  { return _rmap_info; }
+    Models &rmap_info(int i)     { return _rmap_info[i]; }
+    std::vector<Models> &bitmatch_mask()  { return _bitmatch_mask; }
+    Models &bitmatch_mask(int i)     { return _bitmatch_mask[i]; }
 
-    struct DXRT_API BinaryInfoDatabase {
-        Models &merged_model()       { return _merged_model; }
-        vector<Models> &npu_models() { return _npu_models; }
-        Models &npu_models(int i)    { return _npu_models[i]; }
-        vector<Models> &cpu_models() { return _cpu_models; }
-        Models &cpu_models(int i)    { return _cpu_models[i]; }
-        Models &graph_info()         { return _graph_info; }
-        vector<Models> &rmap()       { return _rmap; }
-        Models &rmap(int i)          { return _rmap[i]; }
-        vector<Models> &weight()     { return _weight; }
-        Models &weight(int i)        { return _weight[i]; }
-        vector<Models> &rmap_info()  { return _rmap_info; }
-        Models &rmap_info(int i)     { return _rmap_info[i]; }
-        vector<Models> &bitmatch_mask()  { return _bitmatch_mask; }
-        Models &bitmatch_mask(int i)     { return _bitmatch_mask[i]; }
+    Models _merged_model;
+    std::vector<Models> _npu_models;
+    std::vector<Models> _cpu_models;
+    Models _graph_info;
+    std::vector<Models> _rmap;
+    std::vector<Models> _weight;
+    std::vector<Models> _rmap_info;
+    std::vector<Models> _bitmatch_mask;
 
-        Models _merged_model;
-        vector<Models> _npu_models;
-        vector<Models> _cpu_models;
-        Models _graph_info;
-        vector<Models> _rmap;
-        vector<Models> _weight;
-        vector<Models> _rmap_info;
-        vector<Models> _bitmatch_mask;
-
-        // version info (file-format & compiler)
-        int32_t _dxnnFileFormatVersion;
-        std::string _compilerVersion;
-    };
+    // version info (file-format & compiler)
+    int32_t _dxnnFileFormatVersion;
+    std::string _compilerVersion;
+};
 } /* namespace deepx_binaryinfo */
 
 namespace deepx_graphinfo {
-    struct DXRT_API KeyValueInfo {
-        string &key() { return _key; }
-        string &val() { return _val; }
+struct DXRT_API Tensor {
+    std::string &name() { return _name; }
+    const std::string &name() const { return _name; }
+    std::string &owner() { return _owner; }
+    const std::string &owner() const { return _owner; }
+    std::vector<std::string> &users() { return _users; }
+    const std::vector<std::string> &users() const { return _users; }
 
-        string _key;
-        string _val;
-    };
+    std::string _name;
+    std::string _owner;
+    std::vector<std::string> _users;
+};
 
-    struct DXRT_API GraphBindingDatabase {
-        string &name() { return _name; }
-        string &type() { return _type; }
-        string &output_type() { return _output_type; }
-        vector<KeyValueInfo> &inputs()  { return _inputs; }
-        KeyValueInfo &inputs(int i)     { return _inputs[i]; }
-        vector<KeyValueInfo> &outputs() { return _outputs; }
-        KeyValueInfo &outputs(int i)    { return _outputs[i]; }
+struct DXRT_API SubGraph {
+    std::string &name() { return _name; }
+    const std::string &name() const { return _name; }
+    std::string &device() { return _device; }
+    const std::string &device() const { return _device; }
+    std::vector<Tensor> &inputs()  { return _inputs; }
+    const std::vector<Tensor> &inputs() const { return _inputs; }
+    Tensor &inputs(int i)     { return _inputs[i]; }
+    const Tensor &inputs(int i) const { return _inputs[i]; }
+    std::vector<Tensor> &outputs() { return _outputs; }
+    const std::vector<Tensor> &outputs() const { return _outputs; }
+    Tensor &outputs(int i)    { return _outputs[i]; }
+    const Tensor &outputs(int i) const { return _outputs[i]; }
 
-        string _name;
-        string _type;
-        string _output_type;
-        vector<KeyValueInfo> _inputs;
-        vector<KeyValueInfo> _outputs;
-        
-    };
+    std::string _name;
 
-    struct DXRT_API GraphInfoDatabase {
-        vector<GraphBindingDatabase> &m_graph() { return _m_graph; }
-        GraphBindingDatabase &m_graph(int i)    { return _m_graph[i]; }
-        vector<string> &origin_input()        { return _origin_input; }
-        vector<string> &origin_output()        { return _origin_output; }
-        vector<string> &topoSort_order()        { return _topoSort_order; }
+    std::string _device;
 
-        vector<GraphBindingDatabase> _m_graph;    
-        vector<string> _origin_input;    
-        vector<string> _origin_output;    
-        vector<string> _topoSort_order;    
-    };
+    std::vector<Tensor> _inputs;
+    std::vector<Tensor> _outputs;
+};
+
+struct DXRT_API GraphInfoDatabase {
+    bool &use_offloading() { return _use_offloading; }
+    std::vector<std::string> &topoSort_order()        { return _topoSort_order; }
+
+    std::vector<SubGraph> &subgraphs() { return _subgraphs; }
+    SubGraph &subgraphs(int i)    { return _subgraphs[i]; }
+    std::vector<std::string> &inputs()         { return _inputs; }
+    std::vector<std::string> &outputs()        { return _outputs; }
+
+    bool _use_offloading;
+    std::vector<std::string> _topoSort_order;
+
+    std::vector<std::string> _inputs;
+    std::vector<std::string> _outputs;
+    std::vector<SubGraph> _subgraphs;
+};
+
 } /* namespace deepx_graphinfo */
 
 namespace deepx_rmapinfo {
-    struct DXRT_API Version {
-        string &npu()      { return _npu; }
-        string &rmap()     { return _rmap; }
-        string &rmapinfo() { return _rmapinfo; }
-        
-        string _npu;
-        string _rmap;
-        string _rmapinfo;
-    };
+struct DXRT_API Version {
+    std::string &npu()      { return _npu; }
+    std::string &rmap()     { return _rmap; }
+    std::string &rmap_info() { return _rmap_info; }
+    std::string &opt_level() { return _opt_level; }
 
-    struct DXRT_API Npu {
-        int64_t &mac() { return _mac; }
-        int64_t _mac = 0;
-    };
+    std::string _npu;
+    std::string _rmap;
+    std::string _rmap_info;
+    std::string _opt_level;
+};
 
-    struct DXRT_API Counts {
-        int64_t &layer() { return _layer; }
-        int64_t &cmd()   { return _cmd; }
+struct DXRT_API Npu {
+    int64_t &mac() { return _mac; }
+    int64_t _mac = 0;
+};
 
-        int64_t _layer = 0;
-        int64_t _cmd = 0;
-    };
+struct DXRT_API Counts {
+    int64_t &layer() { return _layer; }
+    int64_t &cmd()   { return _cmd; }
 
-    struct DXRT_API Memory {
-        string  &name()   { return _name; }
-        int64_t &offset() { return _offset; }
-        int64_t &size()   { return _size; }
-        int64_t &type()   { return _type; }
+    int64_t _layer = 0;
+    int64_t _cmd = 0;
+    uint32_t  _op_mode = 0;
+    uint32_t  _checkpoints[3] = {0, 0, 0};
 
-        string  _name;
-        int64_t _offset = 0;
-        int64_t _size = 0;
-        int64_t _type = 0;
-    };
+};
 
-    struct DXRT_API Shapes {
-        int64_t &shape_size()    { return _shape_size; }
-        vector<int64_t> &shape() { return _shape; }
-        int64_t &shape(int i)    { return _shape[i]; }
+struct DXRT_API Memory {
+    std::string  &name()   { return _name; }
+    int64_t &offset() { return _offset; }
+    int64_t &size()   { return _size; }
+    int &type()   { return _type; }
 
-        int64_t _shape_size = 0;
-        vector<int64_t> _shape;
-    };
+    std::string  _name;
+    int64_t _offset = 0;
+    int64_t _size = 0;
+    int _type = 0;
+};
 
-    struct DXRT_API InOutput {
-        string  &name()   { return _name; }
-        Shapes  &shapes() { return _shapes; }
-        int64_t &type()   { return _type; }
-        Memory  &memory() { return _memory; }
-        int64_t &mode()   { return _mode; }
-        int64_t &format() { return _format; }
+struct DXRT_API ModelMemory {
+    int64_t &model_memory_size()   { return _model_memory_size; }
+    Memory &rmap() { return _rmap; }
+    Memory &weight() { return _weight; }
+    Memory &input() { return _input; }
+    Memory &output() { return _output; }
+    Memory &temp() { return _temp; }
 
-        string  _name;
-        Shapes  _shapes;
-        int64_t _type = 0;
-        Memory  _memory;
-        int64_t _mode = 0;
-        int64_t _format = 0;
-    };
+    int64_t _model_memory_size = 0;
+    Memory _rmap;
+    Memory _weight;
+    Memory _input;
+    Memory _output;
+    Memory _temp;
+};
 
-    struct DXRT_API OutputList {
-        int64_t &output_size()     { return _output_size; }
-        vector<InOutput> &output() { return _output; }
-        InOutput &output(int i)    { return _output[i]; }
+struct TensorInfo {
+    std::string& name() { return _name; }
+    int& dtype() { return _dtype; }
+    std::vector<int64_t>& shape() { return _shape; }
+    std::string& name_encoded() { return _name_encoded; }
+    int& dtype_encoded() { return _dtype_encoded; }
+    std::vector<int64_t>& shape_encoded() { return _shape_encoded; }
+    int& layout() { return _layout; }
+    int& align_unit() { return _align_unit; }
+    int& transpose() { return _transpose; }
+    Memory& memory() { return _memory; }
+    float& scale() { return _scale; }
+    float& bias() { return _bias; }
+    bool& use_quantization() { return _use_quantization; }
+    int& elem_size() { return _elem_size; }
 
-        int64_t _output_size = 0;
-        vector<InOutput> _output;
-    };
+    std::string _name;             // Original ONNX tensor name
+    int _dtype;            // Original data type (e.g., "INT8", "FLOAT32", etc.)
+    std::vector<int64_t> _shape;       // Original tensor shape
+    std::string _name_encoded;     // NPU encoded tensor name
+    int _dtype_encoded;    // NPU encoded data type
+    std::vector<int64_t> _shape_encoded;  // NPU encoded tensor shape
+    int _layout = 0;           // Tensor layout (e.g., "PRE_IM2COL", "ALIGNED", etc.)
+    int _align_unit = 0;           // Alignment unit (e.g., 16, 64, etc.)
+    int _transpose = 0;        // Transpose direction (e.g., "CHANNEL_FIRST_TO_LAST")
+    float _scale = 0.0;            // Quantization sclale
+    float _bias = 0.0;             // Quantization bias
+    bool _use_quantization = false;  // Whether to apply quantization
+    Memory _memory;                // Tensor memory information
+    int _elem_size = 0;
+};
 
-    struct DXRT_API Outputs {
-        Memory  &memory()         { return _memory; }
-        OutputList  &outputlist() { return _outputlist; }
-
-        Memory _memory;
-        OutputList _outputlist;
-    };
-
-    struct DXRT_API Memorys {
-        int64_t &memory_size()   { return _memory_size; }
-        vector<Memory> &memory() { return _memory; }
-        Memory   &memory(int i)  { return _memory[i]; }
-        
-        int64_t _memory_size = 0;
-        vector<Memory> _memory;
-    };
-
-    struct DXRT_API Number {
-        int64_t &layer(){ return _layer; }
-        int64_t &tile() { return _tile; }
-
-        int64_t _layer = 0;
-        int64_t _tile = 0;
-    };
-
-    struct DXRT_API Operators {
-        int64_t &operator_size()   { return _operator_size; }
-        inline vector<string> &anoperator() { return _anoperator; }
-        string &anoperator(int i) { return _anoperator[i]; }
-            
-        int64_t _operator_size = 0;
-        vector<string> _anoperator;
-    };
-
-    struct DXRT_API PreNextLayer {
-        int64_t &layer_size()     { return _layer_size; }
-        vector<int64_t> &number() { return _number; }
-        int64_t &number(int i)    { return _number[i]; }
-
-        int64_t _layer_size = 0;
-        vector<int64_t> _number;
-    };
-
-    struct DXRT_API PreNextLayers {
-        PreNextLayer &preLayer()  { return _preLayer; }
-        PreNextLayer &nextLayer() { return _nextLayer; }
-
-        PreNextLayer _preLayer;
-        PreNextLayer _nextLayer;
-    };
-
-    struct DXRT_API Layer {
-        Memory &memory()   { return _memory; }
-        Number &number()   { return _number; }
-        InOutput &input()  { return _input; }
-        InOutput &output() { return _output; }
-        Operators &operators() { return _operators; }
-        PreNextLayers &preLayers() { return _preLayers; }
-        PreNextLayers &nextLayers() { return _nextLayers; }
-
-        Memory  _memory;
-        Number  _number;
-        InOutput _input;
-        InOutput _output;
-        Operators _operators;
-        PreNextLayers _preLayers;
-        PreNextLayers _nextLayers;
-    };
-
-    struct DXRT_API Layers {
-        int64_t &layer_size()  { return _layer_size; }
-        vector<Layer> &layer() { return _layer; }
-        Layer   &layer(int i)  { return _layer[i]; }
-
-        int64_t _layer_size = 0;
-        vector<Layer> _layer;
-    };
-
-    struct DXRT_API RegisterInfoDatabase {
-        Version  &version()  { return _version; }
-        string   &model()    { return _model; }
-        Npu      &npu()      { return _npu; }
-        int64_t  &size()     { return _size; }
-        int64_t  &traffic()  { return _traffic; }
-        Counts   &counts()   { return _counts; }
-        InOutput &input()    { return _input; }
-        Outputs  &outputs()  { return _outputs; }
-        Memorys  &memorys()  { return _memorys; }
-        Layers   &layers()   { return _layers; }
-
-        Version  _version;
-        string   _model;
-        Npu      _npu;
-        int64_t  _size = 0;
-        int64_t  _traffic = 0;
-        Counts   _counts;
-        InOutput _input;
-        Outputs  _outputs;
-        Memorys  _memorys;
-        Layers   _layers;
-    };
-
-    struct DXRT_API rmapInfoDatabase {
-        vector<RegisterInfoDatabase> &m_rmap() { return _m_rmap; }
-        RegisterInfoDatabase &m_rmap(int i)    { return _m_rmap[i]; }
-
-        vector<RegisterInfoDatabase> _m_rmap;
-    };
-
-    enum DXRT_API DataType : int {
-        DATA_TYPE_NONE = 0,
-        FLOAT32 = 1,
-        UINT8 = 2,
-        INT8 = 3,
-        UINT16 = 4,
-        INT16 = 5,
-        INT32 = 6,
-        INT64 = 7,
-        UINT32 = 8,
-        UINT64 = 9,
-        DataType_INT_MIN_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int32_t>::min(),
-        DataType_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int32_t>::max()
-    };
-
-    enum DXRT_API DataFormat : int {
-        DATAFORMAT_NONE = 0,
-        NCHWd = 1,
-        NHWCd = 2,
-        NHWd = 3,
-        PPU_YOLO = 4,
-        PPU_FD = 5,
-        PPU_POSE = 6,
-        DataFormat_INT_MIN_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int32_t>::min(),
-        DataFormat_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int32_t>::max()
-    };
-
-    enum DXRT_API MemoryType : int {
-        MEMORYTYPE_NONE = 0,
-        DRAM = 1,
-        ARGMAX = 2,
-        PPU = 3,
-        MemoryType_INT_MIN_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int32_t>::min(),
-        MemoryType_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int32_t>::max()
-    };
-
-    enum DXRT_API InputMode : int {
-        INPUTMODE_NONE = 0,
-        FORMATTER = 1,
-        IM2COL = 2,
-        InputMode_INT_MIN_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int32_t>::min(),
-        InputMode_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int32_t>::max()
-    };
-
-    inline DataType GetDataTypeNum (const string& str) {
-        if (str == "TYPE_NONE") return DataType::DATA_TYPE_NONE;
-        if (str == "UINT8")     return DataType::UINT8;
-        if (str == "UINT16")    return DataType::UINT16;
-        if (str == "UINT32")    return DataType::UINT32;
-        if (str == "UINT64")    return DataType::UINT64;
-        if (str == "INT8")      return DataType::INT8;
-        if (str == "INT16")     return DataType::INT16;
-        if (str == "INT32")     return DataType::INT32;
-        if (str == "INT64")     return DataType::INT64;
-        if (str == "FLOAT32")   return DataType::FLOAT32;
-        return DataType::DATA_TYPE_NONE;
-    };
-
-    inline DataFormat GetDataFormatNum (const string& str) {
-        if (str == "DATAFORMAT_NONE") return DataFormat::DATAFORMAT_NONE;
-        if (str == "NCHWd")           return DataFormat::NCHWd;
-        if (str == "NHWCd")           return DataFormat::NHWCd;
-        if (str == "PPU_YOLO")        return DataFormat::PPU_YOLO;
-        if (str == "PPU_FD")          return DataFormat::PPU_FD;
-        if (str == "PPU_POSE")        return DataFormat::PPU_POSE;
-        return DataFormat::DATAFORMAT_NONE;
-    };
-
-    inline MemoryType GetMemoryTypeNum (const string& str) {
-        if (str == "MEMORYTYPE_NONE") return MemoryType::MEMORYTYPE_NONE;
-        if (str == "DRAM")            return MemoryType::DRAM;
-        if (str == "ARGMAX")          return MemoryType::ARGMAX;
-        if (str == "PPU")             return MemoryType::PPU;
-        return MEMORYTYPE_NONE;
+struct DXRT_API RegisterInfoDatabase {
+    Version& version() { return _version; }
+    std::string& name() { return _name; }
+    std::string& mode() { return _mode; }
+    Npu& npu() { return _npu; }
+    int64_t& size() { return _size; }
+    Counts& counts() { return _counts; }
+    std::vector<TensorInfo>& inputs() { return _inputs; }
+    std::vector<TensorInfo>& outputs() { return _outputs; }
+    ModelMemory& model_memory() { return _model_memory; }
+    bool is_initialized() const {
+        return _size != -1;
     }
+    Version  _version;
+    std::string   _name;
+    std::string   _mode;
+    Npu      _npu;
+    int64_t  _size = -1;
+    Counts   _counts;
+    std::vector<TensorInfo> _inputs;
+    std::vector<TensorInfo> _outputs;
+    ModelMemory  _model_memory;
+};
 
-    inline InputMode GetInputModeNum (const string& str) {
-        if (str == "INPUTMODE_NONE")  return InputMode::INPUTMODE_NONE;
-        if (str == "FORMATTER")       return InputMode::FORMATTER;
-        if (str == "IM2COL")          return InputMode::IM2COL;
-        return InputMode::INPUTMODE_NONE;
+struct DXRT_API rmapInfoDatabase {
+    std::vector<RegisterInfoDatabase> &rmap_info() { return _rmap_info; }
+    RegisterInfoDatabase &rmap_info(int i)    { return _rmap_info[i]; }
+
+    std::vector<RegisterInfoDatabase> _rmap_info;
+};
+
+enum DXRT_API DataType : int {
+    DATA_TYPE_NONE = 0,
+    FLOAT32 = 1,
+    UINT8 = 2,
+    INT8 = 3,
+    UINT16 = 4,
+    INT16 = 5,
+    INT32 = 6,
+    INT64 = 7,
+    UINT32 = 8,
+    UINT64 = 9,
+    DataType_INT_MIN_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int>::min(),
+    DataType_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int>::max()
+};
+
+enum DXRT_API MemoryType : int {
+    MEMORYTYPE_NONE = 0,
+    DRAM = 1,
+    ARGMAX = 2,
+    PPU = 3,
+    MemoryType_INT_MIN_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int>::min(),
+    MemoryType_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int>::max()
+};
+
+enum DXRT_API Layout : int {
+    LAYOUT_NONE = 0,
+    PRE_FORMATTER = 1,
+    PRE_IM2COL = 2,
+    FORMATTED = 3,
+    ALIGNED = 4,
+    PPU_YOLO = 5,
+    PPU_FD = 6,
+    PPU_POSE = 7,
+    Layout_INT_MIN_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int>::min(),
+    Layout_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int>::max()
+};
+
+inline const char* LayoutToString(Layout layout) {
+    switch (layout) {
+        case LAYOUT_NONE: return "LAYOUT_NONE";
+        case PRE_FORMATTER: return "PRE_FORMATTER";
+        case PRE_IM2COL: return "PRE_IM2COL";
+        case FORMATTED: return "FORMATTED";
+        case ALIGNED: return "ALIGNED";
+        case PPU_YOLO: return "PPU_YOLO";
+        case PPU_FD: return "PPU_FD";
+        case PPU_POSE: return "PPU_POSE";
+        default: return "UNKNOWN_LAYOUT";
     }
+}
+
+enum DXRT_API Transpose : int {
+    TRANSPOSE_NONE = 0,
+    CHANNEL_FIRST_TO_LAST = 1,
+    CHANNEL_LAST_TO_FIRST = 2,
+    Transpose_INT_MIN_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int>::min(),
+    Transpose_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int>::max()
+};
+
+inline const char* TransposeToString(Transpose transpose) {
+    switch (transpose) {
+        case TRANSPOSE_NONE: return "TRANSPOSE_NONE";
+        case CHANNEL_FIRST_TO_LAST: return "CHANNEL_FIRST_TO_LAST";
+        case CHANNEL_LAST_TO_FIRST: return "CHANNEL_LAST_TO_FIRST";
+        default: return "UNKNOWN_TRANSPOSE";
+    }
+}
+
+inline DataType GetDataTypeNum(const std::string& str) {
+    if (str == "TYPE_NONE") return DataType::DATA_TYPE_NONE;
+    if (str == "UINT8")     return DataType::UINT8;
+    if (str == "UINT16")    return DataType::UINT16;
+    if (str == "UINT32")    return DataType::UINT32;
+    if (str == "UINT64")    return DataType::UINT64;
+    if (str == "INT8")      return DataType::INT8;
+    if (str == "INT16")     return DataType::INT16;
+    if (str == "INT32")     return DataType::INT32;
+    if (str == "INT64")     return DataType::INT64;
+    if (str == "FLOAT32")   return DataType::FLOAT32;
+    return DataType::DATA_TYPE_NONE;
+};
+
+inline MemoryType GetMemoryTypeNum(const std::string& str) {
+    if (str == "MEMORYTYPE_NONE") return MemoryType::MEMORYTYPE_NONE;
+    if (str == "DRAM")            return MemoryType::DRAM;
+    if (str == "ARGMAX")          return MemoryType::ARGMAX;
+    if (str == "PPU")             return MemoryType::PPU;
+    return MEMORYTYPE_NONE;
+}
+
+inline Layout GetLayoutNum(const std::string& str) {
+    if (str == "LAYOUT_NONE")     return Layout::LAYOUT_NONE;
+    if (str == "PRE_FORMATTER")       return Layout::PRE_FORMATTER;
+    if (str == "PRE_IM2COL")       return Layout::PRE_IM2COL;
+    if (str == "FORMATTED")       return Layout::FORMATTED;
+    if (str == "ALIGNED")       return Layout::ALIGNED;
+    if (str == "PPU_YOLO")       return Layout::PPU_YOLO;
+    if (str == "PPU_FD")       return Layout::PPU_FD;
+    if (str == "PPU_POSE")       return Layout::PPU_POSE;
+    return Layout::LAYOUT_NONE;
+}
+
+inline Transpose GetTransposeNum(const std::string& str) {
+    if (str == "TRANSPOSE_NONE")           return Transpose::TRANSPOSE_NONE;
+    if (str == "CHANNEL_FIRST_TO_LAST")    return Transpose::CHANNEL_FIRST_TO_LAST;
+    if (str == "CHANNEL_LAST_TO_FIRST")    return Transpose::CHANNEL_LAST_TO_FIRST;
+    return Transpose::TRANSPOSE_NONE;
+}
 } /* namespace deepx_rmapinfo */
 
 namespace dxrt {
+inline int getElementSize(int dataTypeEncoded) {
+    if (dataTypeEncoded == static_cast<int>(DataType::UINT8) || dataTypeEncoded == static_cast<int>(DataType::INT8) || dataTypeEncoded == static_cast<int>(DataType::NONE_TYPE)) return 1;
+    if (dataTypeEncoded == static_cast<int>(DataType::UINT16) || dataTypeEncoded == static_cast<int>(DataType::INT16)) return 2;
+    if (dataTypeEncoded == static_cast<int>(DataType::UINT32) || dataTypeEncoded == static_cast<int>(DataType::INT32) || dataTypeEncoded == static_cast<int>(DataType::FLOAT)) return 4;
+    if (dataTypeEncoded == static_cast<int>(DataType::UINT64) || dataTypeEncoded == static_cast<int>(DataType::INT64)) return 8;
+    std::cerr << "Invalid type : " << dataTypeEncoded << std::endl;
+    return 1;
+}
 struct DXRT_API ModelDataBase {
     deepx_graphinfo::GraphInfoDatabase deepx_graph;
     deepx_binaryinfo::BinaryInfoDatabase deepx_binary;
@@ -387,12 +376,9 @@ DXRT_API std::ostream& operator<<(std::ostream&, const ModelDataBase&);
 */
 DXRT_API int ParseModel(std::string file);
 DXRT_API ModelDataBase LoadModelParam(std::string file);
-DXRT_API string LoadModelParam(ModelDataBase& modelDB, std::string file);
-//DXRT_API deepx_graphinfo::GraphInfoDatabase LoadGraphInfo(ModelDataBase data);
+DXRT_API std::string LoadModelParam(ModelDataBase& modelDB, std::string file);
 DXRT_API int LoadGraphInfo(deepx_graphinfo::GraphInfoDatabase& graphInfo, ModelDataBase& data);
-//DXRT_API deepx_binaryinfo::BinaryInfoDatabase LoadBinaryInfo(char *buffer, int fileSize);
 DXRT_API int LoadBinaryInfo(deepx_binaryinfo::BinaryInfoDatabase& binInfo,char *buffer, int fileSize);
-//DXRT_API deepx_rmapinfo::rmapInfoDatabase LoadRmapInfo(ModelDataBase data);
-DXRT_API string LoadRmapInfo(deepx_rmapinfo::rmapInfoDatabase& rampInfo, ModelDataBase& data);
-bool isSupporterModelVersion(const string& vers);
+DXRT_API std::string LoadRmapInfo(deepx_rmapinfo::rmapInfoDatabase& rampInfo, ModelDataBase& data);
+bool isSupporterModelVersion(const std::string& vers);
 }

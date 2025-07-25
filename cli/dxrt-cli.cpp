@@ -4,15 +4,16 @@
 #ifdef __linux__
 #include <getopt.h>
 #endif
+#include <iostream>
 #include <vector>
-#include <sstream>
 #include "dxrt/dxrt_api.h"
 #include "dxrt/cli.h"
-#include "cxxopts.hpp"
+#include "dxrt/extern/cxxopts.hpp"
 #include "dxrt/exception/exception.h"
 
-
-using namespace std;
+using std::cout;
+using std::endl;
+using std::string;
 
 int main(int argc, char *argv[])
 {
@@ -27,17 +28,24 @@ int main(int argc, char *argv[])
         ("w, fwupload", "Upload firmware with deepx firmware file.[2nd_boot/rtos]", cxxopts::value<std::vector<std::string>>() )
         ("g, fwversion", "Get firmware version with deepx firmware file", cxxopts::value<string>())
         ("p, dump", "Dump device internals to a file", cxxopts::value<string>() )
-        ("l, fwlog", "Extract firmware logs to a file", cxxopts::value<string>() )
         ("C, fwconfig_json", "Update firmware settings from [JSON]", cxxopts::value<string>())
         ("v, version", "Print minimum versions")
+        ("errorstat", "show internal error status")
+        ("ddrerror", "show ddr error count")
 
         ("h, help", "Print usage");
-    try{
+
+    options.add_options("internal") // 
+        ("l, fwlog", "Extract firmware logs to a file", cxxopts::value<std::string>());
+
+    try
+    {
         auto cmd = options.parse(argc, argv);
         if (cmd.count("help"))
         {
             cout << "DXRT " DXRT_VERSION << endl;
-            cout << options.help() << endl;
+            cout << options.help({""}) << endl;
+
             exit(0);
         }
         else if (cmd.count("status"))
@@ -100,9 +108,19 @@ int main(int argc, char *argv[])
             dxrt::ShowVersionCommand cli(cmd);
             cli.Run();
         }
+        else if (cmd.count("errorstat"))
+        {
+            dxrt::PcieStatusCLICommand cli(cmd);
+            cli.Run();
+        }
+        else if (cmd.count("ddrerror"))
+        {
+            dxrt::DDRErrorCLICommand cli(cmd);
+            cli.Run();
+        }
         else 
         {
-            cout << options.help() << endl;
+            cout << options.help({""}) << endl;
         }
 
         return 0;
@@ -110,6 +128,7 @@ int main(int argc, char *argv[])
     catch(cxxopts::exceptions::exception& e)
     {
         cout << e.what() << endl;
+        cout << options.help({""}) << endl;
     }
     catch(const dxrt::Exception& e)
     {
@@ -120,5 +139,5 @@ int main(int argc, char *argv[])
         cout << e.what() << endl;
     }
     
-    return 0;
+    return 1;
 }

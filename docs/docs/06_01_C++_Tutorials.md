@@ -567,6 +567,9 @@ Inference Engine Run, Inference Option
     : `dxrt::InferenceOption::BOUND_OPTION::NPU_0`  
     : `dxrt::InferenceOption::BOUND_OPTION::NPU_1`  
     : `dxrt::InferenceOption::BOUND_OPTION::NPU_2`  
+    : `dxrt::InferenceOption::BOUND_OPTION::NPU_01`  
+    : `dxrt::InferenceOption::BOUND_OPTION::NPU_12`  
+    : `dxrt::InferenceOption::BOUND_OPTION::NPU_02`  
 - Use onnx runtime library (`ORT`)  
     : `useORT` on or off  
 

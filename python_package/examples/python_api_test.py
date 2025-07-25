@@ -74,8 +74,12 @@ if __name__ == "__main__":
 
     outputs = ie.validate_device(input_data_list[0], 0)
     print(outputs)
-    print(f"validate_device() => outputs[0].shape : {outputs[0].shape}")
-    print("\n------------------------------------------\n")
+    if outputs != []:
+        print(f"validate_device() => outputs[0].shape : {outputs[0].shape}")
+        print("\n------------------------------------------\n")
+    else:
+        print("validate_device() => outputs[0].shape : None")
+        print("\n------------------------------------------\n")
     
     ie.register_callback(callback_with_args)
 
@@ -94,7 +98,7 @@ if __name__ == "__main__":
     print("\n------------------------------------------\n")
 
     outputs = ie.get_all_task_outputs()
-    print(f"runAsync() => the number of outputs from all tasks : {len(outputs)}, outputs[0].shape : {outputs[0][0].shape}")
+    print(f"runAsync() => the number of outputs from all tasks : {len(outputs)}")
     print("\n------------------------------------------\n")
     
     latency = ie.get_latency()

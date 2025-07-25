@@ -10,10 +10,10 @@
 void RunInferenceThread(std::string modelPath, int loopCount, int threadIndex, bool ort)
 {
     // create inference engine instance with model
-    dxrt::InferenceOption op;
-    op.useORT = ort;
+    dxrt::InferenceOption io;
+    io.useORT = ort;
 
-    dxrt::InferenceEngine ie(modelPath, op);
+    dxrt::InferenceEngine ie(modelPath, io);
 
     std::mutex cv_mutex;
     std::condition_variable cv;
@@ -40,14 +40,14 @@ void RunInferenceThread(std::string modelPath, int loopCount, int threadIndex, b
     });
 
     // create input buffer 
-    std::vector<uint8_t> inputBuffer(ie.GetInputSize(), 0);
+    std::vector<uint8_t> input_buffer(ie.GetInputSize(), 0);
 
 
     // Submit 'loopCount' number of asynchronous inference requests
     for(int i = 0; i < loopCount; ++i)
     {
         // inference asynchronously, use all npu cores
-        ie.RunAsync(inputBuffer.data());
+        ie.RunAsync(input_buffer.data());
 
         std::cout << "[Thread " << threadIndex << "] request submitted with loopcount(" << i + 1 << ")" << std::endl;
     }
@@ -63,11 +63,11 @@ int main(int argc, char* argv[])
     const int THREAD_COUNT = 2;
     const bool ENABLE_ORT = false;
     
-    std::string modelPath;
+    std::string model_path;
     int loop_count = DEFAULT_LOOP_COUNT;
     if ( argc > 1 )
     {
-        modelPath = argv[1];
+        model_path = argv[1];
 
         if ( argc > 2 ) 
         {
@@ -87,8 +87,9 @@ int main(int argc, char* argv[])
         auto start = std::chrono::high_resolution_clock::now();
 
         std::vector<std::thread> threads;
+
         for(int t = 0; t < THREAD_COUNT; ++t) {
-            threads.emplace_back(RunInferenceThread, modelPath, loop_count, t, ENABLE_ORT);
+            threads.emplace_back(RunInferenceThread, model_path, loop_count, t, ENABLE_ORT);
         }
 
         // wait for all threads to complete
