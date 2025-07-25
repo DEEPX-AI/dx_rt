@@ -2,53 +2,10 @@
 // Licensed under the MIT License.
 
 #include "dxrt/dxrt_api.h"
-#include "concurrent_queue.h"
 
 #include <string>
 #include <iostream>
-
-
-static std::atomic<int> gCallbackCnt{0};
-static ConcurrentQueue<int> gResultQueue(1);
-static std::mutex gCBMutex;
-
-// invoke this function asynchronously after the inference is completed
-static int onInferenceCallbackFunc(dxrt::TensorPtrs &outputs, void *userArg)
-{
-   
-    // user data type casting
-    std::pair<int, int>* user_data = reinterpret_cast<std::pair<int, int>*>(userArg);
-
-    // post processing with outputs
-    // ...
-    (void)outputs;
-
-
-    std::cout << "Callback triggered for inference with user_arg(" 
-        << user_data->first << ", " << user_data->second << ")" << std::endl;
-  
-
-    {
-        // Mutex locks should be properly adjusted 
-        // to ensure that callback functions are thread-safe.
-        std::lock_guard<std::mutex> lock(gCBMutex);
-
-        gCallbackCnt ++;
-
-        // end of the loop
-        int cbCount = gCallbackCnt.load();
-        if ( user_data->second == cbCount ) // check loop count
-        {
-            gResultQueue.push(cbCount);
-        }
-    }
-
-    // delete argument object
-    delete user_data;
-
-
-    return 0;
-}
+#include <condition_variable>
 
 
 int main(int argc, char* argv[])
@@ -73,16 +30,30 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    int total_callback_count = 0;
+    int callback_count = 0;
 
     try 
     {
+
+        std::mutex cv_mutex;
+        std::condition_variable cv;
     
         // create inference engine instance with model
         dxrt::InferenceEngine ie(modelPath);
 
         // register call back function
-        ie.RegisterCallback(onInferenceCallbackFunc);
+        ie.RegisterCallback([&callback_count, &loop_count, &cv_mutex, &cv] 
+            (dxrt::TensorPtrs &outputs, void *userArg) {
+
+            std::ignore = outputs;
+            std::ignore = userArg;
+
+            std::unique_lock<std::mutex> lock(cv_mutex);
+            callback_count++;
+            if ( callback_count == loop_count ) cv.notify_one();
+
+            return 0;
+        });
 
         // create temporary input buffer for example
         std::vector<uint8_t> inputPtr(ie.GetInputSize(), 0);
@@ -103,7 +74,10 @@ int main(int argc, char* argv[])
         }
 
         // wait until all callbacks have been processed
-        total_callback_count = gResultQueue.pop();
+        std::unique_lock<std::mutex> lock(cv_mutex);
+        cv.wait(lock, [&callback_count, &loop_count] { 
+            return callback_count == loop_count;
+        });
 
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> duration = end - start;
@@ -116,8 +90,8 @@ int main(int argc, char* argv[])
         std::cout << "Total Time: " << total_time << " ms" << std::endl;
         std::cout << "Average Latency: " << avg_latency << " ms" << std::endl;
         std::cout << "FPS: " << fps << " frames/sec" << std::endl;
-        std::cout << "Total callback-count / loop-count: " << total_callback_count << " / " << loop_count 
-            << (total_callback_count == loop_count ? " (Success)" : " (Failure)") << std::endl;
+        std::cout << "Total callback-count / loop-count: " << callback_count << " / " << loop_count 
+            << (callback_count == loop_count ? " (Success)" : " (Failure)") << std::endl;
         std::cout << "-----------------------------------" << std::endl;
     }
     catch (const dxrt::Exception& e)
@@ -136,5 +110,5 @@ int main(int argc, char* argv[])
         return -1;
     }
     
-    return (total_callback_count == loop_count ? 0 : -1);
+    return (callback_count == loop_count ? 0 : -1);
 }

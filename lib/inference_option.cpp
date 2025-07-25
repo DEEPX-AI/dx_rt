@@ -4,8 +4,6 @@
 #include "dxrt/common.h"
 #include "dxrt/inference_option.h"
 
-using namespace std;
-
 namespace dxrt
 {
 
@@ -27,7 +25,7 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
     return os;
 }
 
-ostream& operator<<(ostream& os, const InferenceOption& option)
+std::ostream& operator<<(std::ostream& os, const InferenceOption& option)
 {
     os << "          inference option: "
         << option.devices << "/"

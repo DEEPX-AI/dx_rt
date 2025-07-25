@@ -9,13 +9,13 @@
 #include "dxrt/request.h"
 #include "dxrt/task.h"
 #include "dxrt/configuration.h"
-#include "rapidjson/document.h"
-#include "rapidjson/writer.h"
-#include "rapidjson/prettywriter.h"
-#include "rapidjson/stringbuffer.h"
-#include "rapidjson/filereadstream.h"
-#include "rapidjson/pointer.h"
-#include "rapidjson/rapidjson.h"
+#include "dxrt/extern/rapidjson/document.h"
+#include "dxrt/extern/rapidjson/writer.h"
+#include "dxrt/extern/rapidjson/prettywriter.h"
+#include "dxrt/extern/rapidjson/stringbuffer.h"
+#include "dxrt/extern/rapidjson/filereadstream.h"
+#include "dxrt/extern/rapidjson/pointer.h"
+#include "dxrt/extern/rapidjson/rapidjson.h"
 #include "dxrt/exception/exception.h"
 
 #define PROFILER_FORCE_SHOW_DURATIONS 1
@@ -23,6 +23,11 @@
 using std::cout;
 using std::cerr;
 using std::endl;
+using std::setw;
+using std::hex;
+using std::dec;
+using std::vector;
+using std::string;
 using rapidjson::Document;
 using rapidjson::kObjectType;
 using rapidjson::kArrayType;
@@ -107,7 +112,7 @@ namespace dxrt
         else
             LOG_DXRT_DBG << x << endl;
 
-        unique_lock<mutex> lk(_lock);
+        std::unique_lock<std::mutex> lk(_lock);
         if (timePoints.find(x) == timePoints.end())
         {
             timePoints.insert(make_pair(x, vector<TimePoint>(numSamples + 1)));
@@ -126,7 +131,7 @@ namespace dxrt
             LOG_DXRT_DBG << x << endl;
         Add(x);
 
-        unique_lock<mutex> lk(_lock);
+        std::unique_lock<std::mutex> lk(_lock);
         if (timePoints.empty())
             return;
         ++(idx.at(x));
@@ -142,7 +147,7 @@ namespace dxrt
             LOG_DXRT_DBG << x << endl;
         Add(x);
 
-        unique_lock<mutex> lk(_lock);
+        std::unique_lock<std::mutex> lk(_lock);
         if (timePoints.empty()) return;
         ++(idx.at(x));
         if (idx.at(x) >= numSamples) idx.at(x) = 0;
@@ -156,7 +161,7 @@ namespace dxrt
         else
             LOG_DXRT_DBG << x << endl;
 
-        unique_lock<mutex> lk(_lock);
+        std::unique_lock<std::mutex> lk(_lock);
         if (timePoints.empty()) return;
         if (timePoints.find(x) != timePoints.end())
         {
@@ -173,11 +178,11 @@ namespace dxrt
     {
         if (_enabled == false) return 0;
 
-        unique_lock<mutex> lk(_lock);
+        std::unique_lock<std::mutex> lk(_lock);
         if (timePoints.find(x) != timePoints.end())
         {
             int idx_ = idx.at(x);
-            int ret = chrono::duration_cast<chrono::microseconds>(
+            int ret = std::chrono::duration_cast<std::chrono::microseconds>(
                 timePoints.at(x)[idx_].end - timePoints.at(x)[idx_].start).count();
             if (ret < 0)
                 ret = 0;
@@ -193,7 +198,7 @@ namespace dxrt
     {
         if (_enabled == false) return 0.0;
 
-        unique_lock<mutex> lk(_lock);
+        std::unique_lock<std::mutex> lk(_lock);
         double avgValue = 0, sum = 0;
         if (!timePoints.empty())
         {
@@ -203,7 +208,7 @@ namespace dxrt
             {
                 if (tp.start.time_since_epoch().count() == 0 || tp.end.time_since_epoch().count() == 0 )
                     continue;
-                int duration = chrono::duration_cast<chrono::microseconds>(tp.end-tp.start).count();
+                int duration = std::chrono::duration_cast<std::chrono::microseconds>(tp.end-tp.start).count();
                 if (duration > 0)
                 {
                     durations.push_back(duration);
@@ -219,7 +224,7 @@ namespace dxrt
     {
         if (_enabled == false) return;
 
-        unique_lock<mutex> lk(_lock);
+        std::unique_lock<std::mutex> lk(_lock);
         if (!timePoints.empty())
         {
             auto it = timePoints.find(x);
@@ -238,15 +243,15 @@ namespace dxrt
     {
         if (_enabled == false)
             return;
-        unique_lock<mutex> lk(_lock);
+        std::unique_lock<std::mutex> lk(_lock);
         LOG_DXRT_DBG << "profiler" << endl;
         if (!timePoints.empty())
         {
             cout << "  -------------------------------------------------------------------------------" << endl;
             cout << "  |           Name                 |  min (us)    |  max (us)    | average (us) |" << endl;
             cout << "  -------------------------------------------------------------------------------" << endl;
-            map<string, vector<TimePoint>>::iterator iter;
-            for (iter = timePoints.begin(); iter != timePoints.end(); iter++)
+            std::map<string, vector<TimePoint>>::iterator iter;
+            for (iter = timePoints.begin(); iter != timePoints.end(); ++iter)
             {
                 string name = iter->first;
                 uint64_t minValue, maxValue;
@@ -257,7 +262,7 @@ namespace dxrt
                 {
                     if ( tp.start.time_since_epoch().count() == 0 || tp.end.time_since_epoch().count() == 0 )
                         continue;
-                    int duration = chrono::duration_cast<chrono::microseconds>(tp.end-tp.start).count();
+                    int duration = std::chrono::duration_cast<std::chrono::microseconds>(tp.end-tp.start).count();
                     if (duration > 0)
                     {
                         durations.emplace_back(duration);
@@ -266,8 +271,8 @@ namespace dxrt
                 }
                 if (durations.empty())
                     continue;
-                minValue = *min_element(durations.begin(), durations.end() );
-                maxValue = *max_element(durations.begin(), durations.end() );
+                minValue = *std::min_element(durations.begin(), durations.end() );
+                maxValue = *std::max_element(durations.begin(), durations.end() );
                 avgValue = sum/durations.size();
                 cout << "  | " << dec << setw(30) << name.substr(0, 28) << " | " << setw(12) << minValue \
                         << " | " << setw(12) << maxValue << " | " << setw(12) << avgValue << " | ";
@@ -289,7 +294,7 @@ namespace dxrt
         if (_enabled == false)
             return;
 
-        unique_lock<mutex> lk(_lock);
+        std::unique_lock<std::mutex> lk(_lock);
         if (timePoints.empty())
             return;
         Document document;

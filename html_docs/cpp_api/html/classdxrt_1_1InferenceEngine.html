@@ -93,6 +93,15 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:af3006c9a7183f7e42d1528aa8a6fea24"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#af3006c9a7183f7e42d1528aa8a6fea24">RunAsync</a> (void *inputPtr, void *userArg=nullptr, void *outputPtr=nullptr)</td></tr>
 <tr class="memdesc:af3006c9a7183f7e42d1528aa8a6fea24"><td class="mdescLeft">&#160;</td><td class="mdescRight">Non-blocking call to request asynchronous inference by input pointer, and get job ID from inference engine.  <a href="classdxrt_1_1InferenceEngine.html#af3006c9a7183f7e42d1528aa8a6fea24">More...</a><br /></td></tr>
 <tr class="separator:af3006c9a7183f7e42d1528aa8a6fea24"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac9c8166a8c588860ea4a5fc29d743eb5"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#ac9c8166a8c588860ea4a5fc29d743eb5">RunAsync</a> (const std::vector&lt; void * &gt; &amp;inputPtrs, void *userArg=nullptr, void *outputPtr=nullptr)</td></tr>
+<tr class="memdesc:ac9c8166a8c588860ea4a5fc29d743eb5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Non-blocking call to request asynchronous inference with automatic multi-input detection. This function automatically detects whether the input should be interpreted as multi-input single inference or batch inference based on the model requirements and input count.  <a href="classdxrt_1_1InferenceEngine.html#ac9c8166a8c588860ea4a5fc29d743eb5">More...</a><br /></td></tr>
+<tr class="separator:ac9c8166a8c588860ea4a5fc29d743eb5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6a5b11e470a9dfeca6c60f644726ea59"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a6a5b11e470a9dfeca6c60f644726ea59">RunAsyncMultiInput</a> (const std::map&lt; std::string, void * &gt; &amp;inputTensors, void *userArg=nullptr, void *outputPtr=nullptr)</td></tr>
+<tr class="memdesc:a6a5b11e470a9dfeca6c60f644726ea59"><td class="mdescLeft">&#160;</td><td class="mdescRight">Run async inference with multiple input tensors for multi-input models.  <a href="classdxrt_1_1InferenceEngine.html#a6a5b11e470a9dfeca6c60f644726ea59">More...</a><br /></td></tr>
+<tr class="separator:a6a5b11e470a9dfeca6c60f644726ea59"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8a61dde8d97418d77e5bfd348011517f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a8a61dde8d97418d77e5bfd348011517f">RunAsyncMultiInput</a> (const std::vector&lt; void * &gt; &amp;inputPtrs, void *userArg=nullptr, void *outputPtr=nullptr)</td></tr>
+<tr class="memdesc:a8a61dde8d97418d77e5bfd348011517f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Run async inference with multiple input tensors (vector format) for multi-input models.  <a href="classdxrt_1_1InferenceEngine.html#a8a61dde8d97418d77e5bfd348011517f">More...</a><br /></td></tr>
+<tr class="separator:a8a61dde8d97418d77e5bfd348011517f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab0c6629f048341d62bfa3a400c90e827"><td class="memItemLeft" align="right" valign="top">float&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#ab0c6629f048341d62bfa3a400c90e827">RunBenchMark</a> (int num, void *inputPtr=nullptr)</td></tr>
 <tr class="memdesc:ab0c6629f048341d62bfa3a400c90e827"><td class="mdescLeft">&#160;</td><td class="mdescRight">run benchmark with loop n times (Legacy API)  <a href="classdxrt_1_1InferenceEngine.html#ab0c6629f048341d62bfa3a400c90e827">More...</a><br /></td></tr>
 <tr class="separator:ab0c6629f048341d62bfa3a400c90e827"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -102,6 +111,15 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:aef4c9502a5d5a9d256d3899391376aba"><td class="memItemLeft" align="right" valign="top">TensorPtrs&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#aef4c9502a5d5a9d256d3899391376aba">ValidateDevice</a> (void *inputPtr, int deviceId=0)</td></tr>
 <tr class="memdesc:aef4c9502a5d5a9d256d3899391376aba"><td class="mdescLeft">&#160;</td><td class="mdescRight">Validate inference of a specific NPU device connected to the host. This function runs a validation process using the provided input data on the specified NPU device. It can be used to ensure that the NPU device is operational and can process inference tasks correctly.  <a href="classdxrt_1_1InferenceEngine.html#aef4c9502a5d5a9d256d3899391376aba">More...</a><br /></td></tr>
 <tr class="separator:aef4c9502a5d5a9d256d3899391376aba"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2cbf5e6220f5be2cd9132f2570129faf"><td class="memItemLeft" align="right" valign="top">TensorPtrs&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a2cbf5e6220f5be2cd9132f2570129faf">ValidateDevice</a> (const std::vector&lt; void * &gt; &amp;inputPtrs, int deviceId=0)</td></tr>
+<tr class="memdesc:a2cbf5e6220f5be2cd9132f2570129faf"><td class="mdescLeft">&#160;</td><td class="mdescRight">Validate inference of a specific NPU device with automatic multi-input detection. This function automatically detects whether the input should be interpreted as multi-input based on the model requirements and input count.  <a href="classdxrt_1_1InferenceEngine.html#a2cbf5e6220f5be2cd9132f2570129faf">More...</a><br /></td></tr>
+<tr class="separator:a2cbf5e6220f5be2cd9132f2570129faf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5b6d78e715a91712548b905d2c730a0c"><td class="memItemLeft" align="right" valign="top">TensorPtrs&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a5b6d78e715a91712548b905d2c730a0c">ValidateDeviceMultiInput</a> (const std::map&lt; std::string, void * &gt; &amp;inputTensors, int deviceId=0)</td></tr>
+<tr class="memdesc:a5b6d78e715a91712548b905d2c730a0c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Validate NPU device with multiple input tensors for multi-input models.  <a href="classdxrt_1_1InferenceEngine.html#a5b6d78e715a91712548b905d2c730a0c">More...</a><br /></td></tr>
+<tr class="separator:a5b6d78e715a91712548b905d2c730a0c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af252439b3ba07ea017792c4fe6d82c7a"><td class="memItemLeft" align="right" valign="top">TensorPtrs&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#af252439b3ba07ea017792c4fe6d82c7a">ValidateDeviceMultiInput</a> (const std::vector&lt; void * &gt; &amp;inputPtrs, int deviceId=0)</td></tr>
+<tr class="memdesc:af252439b3ba07ea017792c4fe6d82c7a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Validate NPU device with multiple input tensors (vector format) for multi-input models.  <a href="classdxrt_1_1InferenceEngine.html#af252439b3ba07ea017792c4fe6d82c7a">More...</a><br /></td></tr>
+<tr class="separator:af252439b3ba07ea017792c4fe6d82c7a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3d3fc75faa79470d9a3bdbdc61561a3a"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a3d3fc75faa79470d9a3bdbdc61561a3a">RegisterCallBack</a> (std::function&lt; int(TensorPtrs &amp;<a class="el" href="classdxrt_1_1InferenceEngine.html#a0893b724d6eed939556f1315ce05829d">outputs</a>, void *userArg)&gt; callbackFunc)</td></tr>
 <tr class="memdesc:a3d3fc75faa79470d9a3bdbdc61561a3a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register user callback function to be called by inference completion. (Legacy API)  <a href="classdxrt_1_1InferenceEngine.html#a3d3fc75faa79470d9a3bdbdc61561a3a">More...</a><br /></td></tr>
 <tr class="separator:a3d3fc75faa79470d9a3bdbdc61561a3a"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -135,6 +153,12 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:ad2c11689c4839b5dbb3571107a7b3a7c"><td class="memItemLeft" align="right" valign="top">uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#ad2c11689c4839b5dbb3571107a7b3a7c">GetInputSize</a> ()</td></tr>
 <tr class="memdesc:ad2c11689c4839b5dbb3571107a7b3a7c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get total size of input tensors.  <a href="classdxrt_1_1InferenceEngine.html#ad2c11689c4839b5dbb3571107a7b3a7c">More...</a><br /></td></tr>
 <tr class="separator:ad2c11689c4839b5dbb3571107a7b3a7c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a62b2716dbe26bbca8dac24d4954f8c17"><td class="memItemLeft" align="right" valign="top">std::vector&lt; uint64_t &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a62b2716dbe26bbca8dac24d4954f8c17">GetInputTensorSizes</a> ()</td></tr>
+<tr class="memdesc:a62b2716dbe26bbca8dac24d4954f8c17"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get individual input tensor sizes for multi-input models.  <a href="classdxrt_1_1InferenceEngine.html#a62b2716dbe26bbca8dac24d4954f8c17">More...</a><br /></td></tr>
+<tr class="separator:a62b2716dbe26bbca8dac24d4954f8c17"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aee8bc8dd933efeed07de606fcf2fb161"><td class="memItemLeft" align="right" valign="top">std::vector&lt; uint64_t &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#aee8bc8dd933efeed07de606fcf2fb161">GetOutputTensorSizes</a> ()</td></tr>
+<tr class="memdesc:aee8bc8dd933efeed07de606fcf2fb161"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get individual output tensor sizes for multi-output models.  <a href="classdxrt_1_1InferenceEngine.html#aee8bc8dd933efeed07de606fcf2fb161">More...</a><br /></td></tr>
+<tr class="separator:aee8bc8dd933efeed07de606fcf2fb161"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a93e1d7b460b7f8656e725ed708de507b"><td class="memItemLeft" align="right" valign="top">uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a93e1d7b460b7f8656e725ed708de507b">output_size</a> ()</td></tr>
 <tr class="memdesc:a93e1d7b460b7f8656e725ed708de507b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get total size of output tensors (Legacy API)  <a href="classdxrt_1_1InferenceEngine.html#a93e1d7b460b7f8656e725ed708de507b">More...</a><br /></td></tr>
 <tr class="separator:a93e1d7b460b7f8656e725ed708de507b"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -147,12 +171,12 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:a7ed90b0eaa55ce7c097cc7163009c66e"><td class="memItemLeft" align="right" valign="top">std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a7ed90b0eaa55ce7c097cc7163009c66e">GetModelName</a> ()</td></tr>
 <tr class="memdesc:a7ed90b0eaa55ce7c097cc7163009c66e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get model name.  <a href="classdxrt_1_1InferenceEngine.html#a7ed90b0eaa55ce7c097cc7163009c66e">More...</a><br /></td></tr>
 <tr class="separator:a7ed90b0eaa55ce7c097cc7163009c66e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a22087ed8a6839bfc1c4a6b9c21629236"><td class="memItemLeft" align="right" valign="top">std::vector&lt; string &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a22087ed8a6839bfc1c4a6b9c21629236">task_order</a> ()</td></tr>
-<tr class="memdesc:a22087ed8a6839bfc1c4a6b9c21629236"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get model task order (Legacy API)  <a href="classdxrt_1_1InferenceEngine.html#a22087ed8a6839bfc1c4a6b9c21629236">More...</a><br /></td></tr>
-<tr class="separator:a22087ed8a6839bfc1c4a6b9c21629236"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a0fabc1c0f736be0d297b2ce14929847b"><td class="memItemLeft" align="right" valign="top">std::vector&lt; string &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a0fabc1c0f736be0d297b2ce14929847b">GetTaskOrder</a> ()</td></tr>
-<tr class="memdesc:a0fabc1c0f736be0d297b2ce14929847b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get model task order.  <a href="classdxrt_1_1InferenceEngine.html#a0fabc1c0f736be0d297b2ce14929847b">More...</a><br /></td></tr>
-<tr class="separator:a0fabc1c0f736be0d297b2ce14929847b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a578a0098f9b49902fa4c81d95945baa4"><td class="memItemLeft" align="right" valign="top">std::vector&lt; std::string &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a578a0098f9b49902fa4c81d95945baa4">task_order</a> ()</td></tr>
+<tr class="memdesc:a578a0098f9b49902fa4c81d95945baa4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get model task order (Legacy API)  <a href="classdxrt_1_1InferenceEngine.html#a578a0098f9b49902fa4c81d95945baa4">More...</a><br /></td></tr>
+<tr class="separator:a578a0098f9b49902fa4c81d95945baa4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8b759a7bb098d710e1c3052170057143"><td class="memItemLeft" align="right" valign="top">std::vector&lt; std::string &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a8b759a7bb098d710e1c3052170057143">GetTaskOrder</a> ()</td></tr>
+<tr class="memdesc:a8b759a7bb098d710e1c3052170057143"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get model task order.  <a href="classdxrt_1_1InferenceEngine.html#a8b759a7bb098d710e1c3052170057143">More...</a><br /></td></tr>
+<tr class="separator:a8b759a7bb098d710e1c3052170057143"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a990ca720e7f8a28ac5394206eb6f9491"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a990ca720e7f8a28ac5394206eb6f9491">latency</a> ()</td></tr>
 <tr class="memdesc:a990ca720e7f8a28ac5394206eb6f9491"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get latest latency (Legacy API)  <a href="classdxrt_1_1InferenceEngine.html#a990ca720e7f8a28ac5394206eb6f9491">More...</a><br /></td></tr>
 <tr class="separator:a990ca720e7f8a28ac5394206eb6f9491"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -189,36 +213,72 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:ad7a32a700fa89a0213b815d57f8fc1c2"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#ad7a32a700fa89a0213b815d57f8fc1c2">GetNpuInferenceTimeCnt</a> ()</td></tr>
 <tr class="memdesc:ad7a32a700fa89a0213b815d57f8fc1c2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get inference time Count.  <a href="classdxrt_1_1InferenceEngine.html#ad7a32a700fa89a0213b815d57f8fc1c2">More...</a><br /></td></tr>
 <tr class="separator:ad7a32a700fa89a0213b815d57f8fc1c2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a077977d15551f525f546e2a3f6ab010c"><td class="memItemLeft" align="right" valign="top">vector&lt; TensorPtrs &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a077977d15551f525f546e2a3f6ab010c">get_outputs</a> ()</td></tr>
-<tr class="memdesc:a077977d15551f525f546e2a3f6ab010c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get output tensors of all tasks (Legacy API)  <a href="classdxrt_1_1InferenceEngine.html#a077977d15551f525f546e2a3f6ab010c">More...</a><br /></td></tr>
-<tr class="separator:a077977d15551f525f546e2a3f6ab010c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a12ebd04c3d8780e2d6c08d0fc2913534"><td class="memItemLeft" align="right" valign="top">vector&lt; TensorPtrs &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a12ebd04c3d8780e2d6c08d0fc2913534">GetAllTaskOutputs</a> ()</td></tr>
-<tr class="memdesc:a12ebd04c3d8780e2d6c08d0fc2913534"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get output tensors of all tasks.  <a href="classdxrt_1_1InferenceEngine.html#a12ebd04c3d8780e2d6c08d0fc2913534">More...</a><br /></td></tr>
-<tr class="separator:a12ebd04c3d8780e2d6c08d0fc2913534"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a0e23ce411e6d6d45e6939fe1b3a7e700"><td class="memItemLeft" align="right" valign="top">vector&lt; uint8_t &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a0e23ce411e6d6d45e6939fe1b3a7e700">bitmatch_mask</a> (int index)</td></tr>
-<tr class="separator:a0e23ce411e6d6d45e6939fe1b3a7e700"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a34dfe51c8f5289bd54ff96be8d64bc12"><td class="memItemLeft" align="right" valign="top">std::vector&lt; TensorPtrs &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a34dfe51c8f5289bd54ff96be8d64bc12">get_outputs</a> ()</td></tr>
+<tr class="memdesc:a34dfe51c8f5289bd54ff96be8d64bc12"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get output tensors of all tasks (Legacy API)  <a href="classdxrt_1_1InferenceEngine.html#a34dfe51c8f5289bd54ff96be8d64bc12">More...</a><br /></td></tr>
+<tr class="separator:a34dfe51c8f5289bd54ff96be8d64bc12"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae936aff8999d075130a531f3de60125a"><td class="memItemLeft" align="right" valign="top">std::vector&lt; TensorPtrs &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#ae936aff8999d075130a531f3de60125a">GetAllTaskOutputs</a> ()</td></tr>
+<tr class="memdesc:ae936aff8999d075130a531f3de60125a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get output tensors of all tasks.  <a href="classdxrt_1_1InferenceEngine.html#ae936aff8999d075130a531f3de60125a">More...</a><br /></td></tr>
+<tr class="separator:ae936aff8999d075130a531f3de60125a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa8ab6719ae0efdf0f5c678e3401ab57d"><td class="memItemLeft" align="right" valign="top">std::vector&lt; uint8_t &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#aa8ab6719ae0efdf0f5c678e3401ab57d">bitmatch_mask</a> (int index)</td></tr>
+<tr class="separator:aa8ab6719ae0efdf0f5c678e3401ab57d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0b38cd5001ec327cbdc5b00a7143d0e2"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a0b38cd5001ec327cbdc5b00a7143d0e2">get_num_tails</a> ()</td></tr>
 <tr class="memdesc:a0b38cd5001ec327cbdc5b00a7143d0e2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns the number of tail tasks in the model. (Legacy API)  <a href="classdxrt_1_1InferenceEngine.html#a0b38cd5001ec327cbdc5b00a7143d0e2">More...</a><br /></td></tr>
 <tr class="separator:a0b38cd5001ec327cbdc5b00a7143d0e2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a110445fe04396f2d2ea309c18c3bb930"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a110445fe04396f2d2ea309c18c3bb930">GetNumTailTasks</a> ()</td></tr>
 <tr class="memdesc:a110445fe04396f2d2ea309c18c3bb930"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns the number of tail tasks in the model.  <a href="classdxrt_1_1InferenceEngine.html#a110445fe04396f2d2ea309c18c3bb930">More...</a><br /></td></tr>
 <tr class="separator:a110445fe04396f2d2ea309c18c3bb930"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:adb7b0c6f4a8411823d7eaed57cedd36d"><td class="memItemLeft" align="right" valign="top">string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#adb7b0c6f4a8411823d7eaed57cedd36d">get_compile_type</a> ()</td></tr>
-<tr class="memdesc:adb7b0c6f4a8411823d7eaed57cedd36d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns the compile type of the model. (Legacy API)  <a href="classdxrt_1_1InferenceEngine.html#adb7b0c6f4a8411823d7eaed57cedd36d">More...</a><br /></td></tr>
-<tr class="separator:adb7b0c6f4a8411823d7eaed57cedd36d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae6f83c617959dc76fc993b9da3c51769"><td class="memItemLeft" align="right" valign="top">string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#ae6f83c617959dc76fc993b9da3c51769">GetCompileType</a> ()</td></tr>
-<tr class="memdesc:ae6f83c617959dc76fc993b9da3c51769"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns the compile type of the model.  <a href="classdxrt_1_1InferenceEngine.html#ae6f83c617959dc76fc993b9da3c51769">More...</a><br /></td></tr>
-<tr class="separator:ae6f83c617959dc76fc993b9da3c51769"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a265ff0d27c6bac98c0c641c0e5f8f6ba"><td class="memItemLeft" align="right" valign="top">std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a265ff0d27c6bac98c0c641c0e5f8f6ba">get_compile_type</a> ()</td></tr>
+<tr class="memdesc:a265ff0d27c6bac98c0c641c0e5f8f6ba"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns the compile type of the model. (Legacy API)  <a href="classdxrt_1_1InferenceEngine.html#a265ff0d27c6bac98c0c641c0e5f8f6ba">More...</a><br /></td></tr>
+<tr class="separator:a265ff0d27c6bac98c0c641c0e5f8f6ba"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9308cfc747e8d56119febfd2b48b876c"><td class="memItemLeft" align="right" valign="top">std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a9308cfc747e8d56119febfd2b48b876c">GetCompileType</a> ()</td></tr>
+<tr class="memdesc:a9308cfc747e8d56119febfd2b48b876c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns the compile type of the model.  <a href="classdxrt_1_1InferenceEngine.html#a9308cfc747e8d56119febfd2b48b876c">More...</a><br /></td></tr>
+<tr class="separator:a9308cfc747e8d56119febfd2b48b876c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1b3771241a7424353e97a0c81a28d875"><td class="memItemLeft" align="right" valign="top">std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a1b3771241a7424353e97a0c81a28d875">GetModelVersion</a> ()</td></tr>
+<tr class="memdesc:a1b3771241a7424353e97a0c81a28d875"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns the DXNN file format version of the model.  <a href="classdxrt_1_1InferenceEngine.html#a1b3771241a7424353e97a0c81a28d875">More...</a><br /></td></tr>
+<tr class="separator:a1b3771241a7424353e97a0c81a28d875"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9aeb596b415843e7e318c47938444259"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a9aeb596b415843e7e318c47938444259">is_PPU</a> ()</td></tr>
 <tr class="memdesc:a9aeb596b415843e7e318c47938444259"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns whether the model is using PPU. (Legacy API)  <a href="classdxrt_1_1InferenceEngine.html#a9aeb596b415843e7e318c47938444259">More...</a><br /></td></tr>
 <tr class="separator:a9aeb596b415843e7e318c47938444259"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab6fd915af259467afe1681098b315dca"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#ab6fd915af259467afe1681098b315dca">IsPPU</a> ()</td></tr>
 <tr class="memdesc:ab6fd915af259467afe1681098b315dca"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns whether the model is using PPU.  <a href="classdxrt_1_1InferenceEngine.html#ab6fd915af259467afe1681098b315dca">More...</a><br /></td></tr>
 <tr class="separator:ab6fd915af259467afe1681098b315dca"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a498ec2af6a8ebdd4e8edd26cba1faf24"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a498ec2af6a8ebdd4e8edd26cba1faf24">IsOrtConfigured</a> ()</td></tr>
+<tr class="memdesc:a498ec2af6a8ebdd4e8edd26cba1faf24"><td class="mdescLeft">&#160;</td><td class="mdescRight">Checks whether ORT (ONNX Runtime) is configured.  <a href="classdxrt_1_1InferenceEngine.html#a498ec2af6a8ebdd4e8edd26cba1faf24">More...</a><br /></td></tr>
+<tr class="separator:a498ec2af6a8ebdd4e8edd26cba1faf24"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a896b05b9798d0ae33b3ba25e82e9df4c"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a896b05b9798d0ae33b3ba25e82e9df4c">IsMultiInputModel</a> () const</td></tr>
+<tr class="memdesc:a896b05b9798d0ae33b3ba25e82e9df4c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns whether the model has multiple input tensors.  <a href="classdxrt_1_1InferenceEngine.html#a896b05b9798d0ae33b3ba25e82e9df4c">More...</a><br /></td></tr>
+<tr class="separator:a896b05b9798d0ae33b3ba25e82e9df4c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab7e4e88fea3dfcc9c276531f7674c20b"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#ab7e4e88fea3dfcc9c276531f7674c20b">GetInputTensorCount</a> () const</td></tr>
+<tr class="memdesc:ab7e4e88fea3dfcc9c276531f7674c20b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns the number of input tensors required by the model.  <a href="classdxrt_1_1InferenceEngine.html#ab7e4e88fea3dfcc9c276531f7674c20b">More...</a><br /></td></tr>
+<tr class="separator:ab7e4e88fea3dfcc9c276531f7674c20b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a41f090eff09ddb3e3963666eb507d7dc"><td class="memItemLeft" align="right" valign="top">std::vector&lt; std::string &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a41f090eff09ddb3e3963666eb507d7dc">GetInputTensorNames</a> () const</td></tr>
+<tr class="memdesc:a41f090eff09ddb3e3963666eb507d7dc"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns the names of all input tensors in the model.  <a href="classdxrt_1_1InferenceEngine.html#a41f090eff09ddb3e3963666eb507d7dc">More...</a><br /></td></tr>
+<tr class="separator:a41f090eff09ddb3e3963666eb507d7dc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1edebbe4f7b03f042a550e822ac16284"><td class="memItemLeft" align="right" valign="top">std::vector&lt; std::string &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a1edebbe4f7b03f042a550e822ac16284">GetOutputTensorNames</a> () const</td></tr>
+<tr class="memdesc:a1edebbe4f7b03f042a550e822ac16284"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns the names of all output tensors in the model.  <a href="classdxrt_1_1InferenceEngine.html#a1edebbe4f7b03f042a550e822ac16284">More...</a><br /></td></tr>
+<tr class="separator:a1edebbe4f7b03f042a550e822ac16284"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a937480e5d622b1ddcfdd430ed2ba0476"><td class="memItemLeft" align="right" valign="top">std::map&lt; std::string, std::string &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a937480e5d622b1ddcfdd430ed2ba0476">GetInputTensorToTaskMapping</a> () const</td></tr>
+<tr class="memdesc:a937480e5d622b1ddcfdd430ed2ba0476"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns the mapping from input tensor names to their target tasks.  <a href="classdxrt_1_1InferenceEngine.html#a937480e5d622b1ddcfdd430ed2ba0476">More...</a><br /></td></tr>
+<tr class="separator:a937480e5d622b1ddcfdd430ed2ba0476"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af3feefee6373ecfe7fe5b9b84501a723"><td class="memItemLeft" align="right" valign="top"><a id="af3feefee6373ecfe7fe5b9b84501a723"></a>
 void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#af3feefee6373ecfe7fe5b9b84501a723">Dispose</a> ()</td></tr>
 <tr class="memdesc:af3feefee6373ecfe7fe5b9b84501a723"><td class="mdescLeft">&#160;</td><td class="mdescRight">Resource deallocation and cleanup. <br /></td></tr>
 <tr class="separator:af3feefee6373ecfe7fe5b9b84501a723"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aff7eaeecfb9fbf7aa1ea8e27d0572b92"><td class="memItemLeft" align="right" valign="top">TensorPtrs&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#aff7eaeecfb9fbf7aa1ea8e27d0572b92">RunMultiInput</a> (const std::map&lt; std::string, void * &gt; &amp;inputTensors, void *userArg=nullptr, void *outputPtr=nullptr)</td></tr>
+<tr class="memdesc:aff7eaeecfb9fbf7aa1ea8e27d0572b92"><td class="mdescLeft">&#160;</td><td class="mdescRight">Run inference engine with multiple input tensors for multi-input models.  <a href="classdxrt_1_1InferenceEngine.html#aff7eaeecfb9fbf7aa1ea8e27d0572b92">More...</a><br /></td></tr>
+<tr class="separator:aff7eaeecfb9fbf7aa1ea8e27d0572b92"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4b5c6a8aa5db938b8b50b7d9c844b367"><td class="memItemLeft" align="right" valign="top">TensorPtrs&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a4b5c6a8aa5db938b8b50b7d9c844b367">RunMultiInput</a> (const std::vector&lt; void * &gt; &amp;inputPtrs, void *userArg=nullptr, void *outputPtr=nullptr)</td></tr>
+<tr class="memdesc:a4b5c6a8aa5db938b8b50b7d9c844b367"><td class="mdescLeft">&#160;</td><td class="mdescRight">Run inference engine with multiple input tensors (vector format) for multi-input models.  <a href="classdxrt_1_1InferenceEngine.html#a4b5c6a8aa5db938b8b50b7d9c844b367">More...</a><br /></td></tr>
+<tr class="separator:a4b5c6a8aa5db938b8b50b7d9c844b367"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa227ad7501e794726b9af17e88418cf1"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#aa227ad7501e794726b9af17e88418cf1">supportsTensorCentricOffsets</a> () const</td></tr>
+<tr class="memdesc:aa227ad7501e794726b9af17e88418cf1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Check if tensor-centric offset calculation is supported.  <a href="classdxrt_1_1InferenceEngine.html#aa227ad7501e794726b9af17e88418cf1">More...</a><br /></td></tr>
+<tr class="separator:aa227ad7501e794726b9af17e88418cf1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2338c50d4d24b081179372bfea9d5f2c"><td class="memItemLeft" align="right" valign="top">uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#a2338c50d4d24b081179372bfea9d5f2c">getTensorOffset</a> (const std::string &amp;tensorName) const</td></tr>
+<tr class="memdesc:a2338c50d4d24b081179372bfea9d5f2c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the offset of a tensor in the final output buffer.  <a href="classdxrt_1_1InferenceEngine.html#a2338c50d4d24b081179372bfea9d5f2c">More...</a><br /></td></tr>
+<tr class="separator:a2338c50d4d24b081179372bfea9d5f2c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa861889fd3d562742950053868077086"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdxrt_1_1InferenceEngine.html#aa861889fd3d562742950053868077086">GetOutputTensorOffset</a> (const std::string &amp;tensorName) const</td></tr>
+<tr class="memdesc:aa861889fd3d562742950053868077086"><td class="mdescLeft">&#160;</td><td class="mdescRight">Gets the offset for a specific output tensor in the final output buffer.  <a href="classdxrt_1_1InferenceEngine.html#aa861889fd3d562742950053868077086">More...</a><br /></td></tr>
+<tr class="separator:aa861889fd3d562742950053868077086"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>This class abstracts runtime inference executor for user's compiled model. </p>
@@ -236,6 +296,9 @@ void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 
 <div class="memitem">
 <div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
       <table class="memname">
         <tr>
           <td class="memname">dxrt::InferenceEngine::InferenceEngine </td>
@@ -255,6 +318,11 @@ void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
           <td></td><td></td>
         </tr>
       </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">explicit</span></span>  </td>
+  </tr>
+</table>
 </div><div class="memdoc">
 
 <p>Perform the task of loading the model and configuring the NPU to run. </p>
@@ -278,8 +346,8 @@ void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 </div>
 </div>
 <h2 class="groupheader">Member Function Documentation</h2>
-<a id="a0e23ce411e6d6d45e6939fe1b3a7e700"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a0e23ce411e6d6d45e6939fe1b3a7e700">&#9670;&nbsp;</a></span>bitmatch_mask()</h2>
+<a id="aa8ab6719ae0efdf0f5c678e3401ab57d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa8ab6719ae0efdf0f5c678e3401ab57d">&#9670;&nbsp;</a></span>bitmatch_mask()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -288,7 +356,7 @@ void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">vector&lt;uint8_t&gt; dxrt::InferenceEngine::bitmatch_mask </td>
+          <td class="memname">std::vector&lt;uint8_t&gt; dxrt::InferenceEngine::bitmatch_mask </td>
           <td>(</td>
           <td class="paramtype">int&#160;</td>
           <td class="paramname"><em>index</em></td><td>)</td>
@@ -305,8 +373,8 @@ void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 
 </div>
 </div>
-<a id="adb7b0c6f4a8411823d7eaed57cedd36d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#adb7b0c6f4a8411823d7eaed57cedd36d">&#9670;&nbsp;</a></span>get_compile_type()</h2>
+<a id="a265ff0d27c6bac98c0c641c0e5f8f6ba"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a265ff0d27c6bac98c0c641c0e5f8f6ba">&#9670;&nbsp;</a></span>get_compile_type()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -315,7 +383,7 @@ void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">string dxrt::InferenceEngine::get_compile_type </td>
+          <td class="memname">std::string dxrt::InferenceEngine::get_compile_type </td>
           <td>(</td>
           <td class="paramname"></td><td>)</td>
           <td></td>
@@ -329,7 +397,7 @@ void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 </div><div class="memdoc">
 
 <p>Returns the compile type of the model. (Legacy API) </p>
-<dl class="deprecated"><dt><b><a class="el" href="deprecated.html#_deprecated000015">Deprecated:</a></b></dt><dd>Use <a class="el" href="classdxrt_1_1InferenceEngine.html#ae6f83c617959dc76fc993b9da3c51769" title="Returns the compile type of the model.">GetCompileType()</a> instead. </dd></dl>
+<dl class="deprecated"><dt><b><a class="el" href="deprecated.html#_deprecated000015">Deprecated:</a></b></dt><dd>Use <a class="el" href="classdxrt_1_1InferenceEngine.html#a9308cfc747e8d56119febfd2b48b876c" title="Returns the compile type of the model.">GetCompileType()</a> instead. </dd></dl>
 <dl class="section return"><dt>Returns</dt><dd>The compile type of the model. </dd></dl>
 
 </div>
@@ -364,8 +432,8 @@ void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 
 </div>
 </div>
-<a id="a077977d15551f525f546e2a3f6ab010c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a077977d15551f525f546e2a3f6ab010c">&#9670;&nbsp;</a></span>get_outputs()</h2>
+<a id="a34dfe51c8f5289bd54ff96be8d64bc12"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a34dfe51c8f5289bd54ff96be8d64bc12">&#9670;&nbsp;</a></span>get_outputs()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -374,7 +442,7 @@ void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">vector&lt;TensorPtrs&gt; dxrt::InferenceEngine::get_outputs </td>
+          <td class="memname">std::vector&lt;TensorPtrs&gt; dxrt::InferenceEngine::get_outputs </td>
           <td>(</td>
           <td class="paramname"></td><td>)</td>
           <td></td>
@@ -388,20 +456,20 @@ void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 </div><div class="memdoc">
 
 <p>Get output tensors of all tasks (Legacy API) </p>
-<dl class="deprecated"><dt><b><a class="el" href="deprecated.html#_deprecated000012">Deprecated:</a></b></dt><dd>Use <a class="el" href="classdxrt_1_1InferenceEngine.html#a12ebd04c3d8780e2d6c08d0fc2913534" title="Get output tensors of all tasks.">GetAllTaskOutputs()</a> instead. </dd></dl>
+<dl class="deprecated"><dt><b><a class="el" href="deprecated.html#_deprecated000012">Deprecated:</a></b></dt><dd>Use <a class="el" href="classdxrt_1_1InferenceEngine.html#ae936aff8999d075130a531f3de60125a" title="Get output tensors of all tasks.">GetAllTaskOutputs()</a> instead. </dd></dl>
 <dl class="section return"><dt>Returns</dt><dd>the output of all tasks as a vector of smart pointer instance vectors. <br  />
  </dd></dl>
 
 </div>
 </div>
-<a id="a12ebd04c3d8780e2d6c08d0fc2913534"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a12ebd04c3d8780e2d6c08d0fc2913534">&#9670;&nbsp;</a></span>GetAllTaskOutputs()</h2>
+<a id="ae936aff8999d075130a531f3de60125a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae936aff8999d075130a531f3de60125a">&#9670;&nbsp;</a></span>GetAllTaskOutputs()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">vector&lt;TensorPtrs&gt; dxrt::InferenceEngine::GetAllTaskOutputs </td>
+          <td class="memname">std::vector&lt;TensorPtrs&gt; dxrt::InferenceEngine::GetAllTaskOutputs </td>
           <td>(</td>
           <td class="paramname"></td><td>)</td>
           <td></td>
@@ -415,14 +483,14 @@ void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 
 </div>
 </div>
-<a id="ae6f83c617959dc76fc993b9da3c51769"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae6f83c617959dc76fc993b9da3c51769">&#9670;&nbsp;</a></span>GetCompileType()</h2>
+<a id="a9308cfc747e8d56119febfd2b48b876c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9308cfc747e8d56119febfd2b48b876c">&#9670;&nbsp;</a></span>GetCompileType()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">string dxrt::InferenceEngine::GetCompileType </td>
+          <td class="memname">std::string dxrt::InferenceEngine::GetCompileType </td>
           <td>(</td>
           <td class="paramname"></td><td>)</td>
           <td></td>
@@ -519,6 +587,86 @@ if ptr and phyAddr is given, inputs tensors that contains output addresses </dd>
 
 <p>Get total size of input tensors. </p>
 <dl class="section return"><dt>Returns</dt><dd>Input size of one inference in bytes </dd></dl>
+
+</div>
+</div>
+<a id="ab7e4e88fea3dfcc9c276531f7674c20b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab7e4e88fea3dfcc9c276531f7674c20b">&#9670;&nbsp;</a></span>GetInputTensorCount()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int dxrt::InferenceEngine::GetInputTensorCount </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td> const</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Returns the number of input tensors required by the model. </p>
+<dl class="section return"><dt>Returns</dt><dd>The number of input tensors. </dd></dl>
+
+</div>
+</div>
+<a id="a41f090eff09ddb3e3963666eb507d7dc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a41f090eff09ddb3e3963666eb507d7dc">&#9670;&nbsp;</a></span>GetInputTensorNames()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">std::vector&lt;std::string&gt; dxrt::InferenceEngine::GetInputTensorNames </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td> const</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Returns the names of all input tensors in the model. </p>
+<dl class="section return"><dt>Returns</dt><dd>Vector of input tensor names in the order they should be provided. </dd></dl>
+
+</div>
+</div>
+<a id="a62b2716dbe26bbca8dac24d4954f8c17"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a62b2716dbe26bbca8dac24d4954f8c17">&#9670;&nbsp;</a></span>GetInputTensorSizes()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">std::vector&lt;uint64_t&gt; dxrt::InferenceEngine::GetInputTensorSizes </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get individual input tensor sizes for multi-input models. </p>
+<dl class="section return"><dt>Returns</dt><dd>Vector of input tensor sizes in bytes, in the order specified by <a class="el" href="classdxrt_1_1InferenceEngine.html#a41f090eff09ddb3e3963666eb507d7dc" title="Returns the names of all input tensors in the model.">GetInputTensorNames()</a> </dd></dl>
+
+</div>
+</div>
+<a id="a937480e5d622b1ddcfdd430ed2ba0476"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a937480e5d622b1ddcfdd430ed2ba0476">&#9670;&nbsp;</a></span>GetInputTensorToTaskMapping()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">std::map&lt;std::string, std::string&gt; dxrt::InferenceEngine::GetInputTensorToTaskMapping </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td> const</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Returns the mapping from input tensor names to their target tasks. </p>
+<dl class="section return"><dt>Returns</dt><dd>Map where key is tensor name and value is task name. </dd></dl>
 
 </div>
 </div>
@@ -639,6 +787,26 @@ if ptr and phyAddr is given, inputs tensors that contains output addresses </dd>
 
 <p>Get model name. </p>
 <dl class="section return"><dt>Returns</dt><dd>model name </dd></dl>
+
+</div>
+</div>
+<a id="a1b3771241a7424353e97a0c81a28d875"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1b3771241a7424353e97a0c81a28d875">&#9670;&nbsp;</a></span>GetModelVersion()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">std::string dxrt::InferenceEngine::GetModelVersion </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Returns the DXNN file format version of the model. </p>
+<dl class="section return"><dt>Returns</dt><dd>The DXNN file format version as a string. </dd></dl>
 
 </div>
 </div>
@@ -823,14 +991,81 @@ if ptr and phyAddr is given, outputs tensors that contains output addresses </dd
 
 </div>
 </div>
-<a id="a0fabc1c0f736be0d297b2ce14929847b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a0fabc1c0f736be0d297b2ce14929847b">&#9670;&nbsp;</a></span>GetTaskOrder()</h2>
+<a id="a1edebbe4f7b03f042a550e822ac16284"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1edebbe4f7b03f042a550e822ac16284">&#9670;&nbsp;</a></span>GetOutputTensorNames()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">std::vector&lt;string&gt; dxrt::InferenceEngine::GetTaskOrder </td>
+          <td class="memname">std::vector&lt;std::string&gt; dxrt::InferenceEngine::GetOutputTensorNames </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td> const</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Returns the names of all output tensors in the model. </p>
+<dl class="section return"><dt>Returns</dt><dd>Vector of output tensor names in the order they are produced. </dd></dl>
+
+</div>
+</div>
+<a id="aa861889fd3d562742950053868077086"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa861889fd3d562742950053868077086">&#9670;&nbsp;</a></span>GetOutputTensorOffset()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">size_t dxrt::InferenceEngine::GetOutputTensorOffset </td>
+          <td>(</td>
+          <td class="paramtype">const std::string &amp;&#160;</td>
+          <td class="paramname"><em>tensorName</em></td><td>)</td>
+          <td> const</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Gets the offset for a specific output tensor in the final output buffer. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">tensorName</td><td>Name of the output tensor </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>Offset in bytes for the tensor in the output buffer </dd></dl>
+
+</div>
+</div>
+<a id="aee8bc8dd933efeed07de606fcf2fb161"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aee8bc8dd933efeed07de606fcf2fb161">&#9670;&nbsp;</a></span>GetOutputTensorSizes()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">std::vector&lt;uint64_t&gt; dxrt::InferenceEngine::GetOutputTensorSizes </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get individual output tensor sizes for multi-output models. </p>
+<dl class="section return"><dt>Returns</dt><dd>Vector of output tensor sizes in bytes, in the order specified by <a class="el" href="classdxrt_1_1InferenceEngine.html#a1edebbe4f7b03f042a550e822ac16284" title="Returns the names of all output tensors in the model.">GetOutputTensorNames()</a> </dd></dl>
+
+</div>
+</div>
+<a id="a8b759a7bb098d710e1c3052170057143"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8b759a7bb098d710e1c3052170057143">&#9670;&nbsp;</a></span>GetTaskOrder()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">std::vector&lt;std::string&gt; dxrt::InferenceEngine::GetTaskOrder </td>
           <td>(</td>
           <td class="paramname"></td><td>)</td>
           <td></td>
@@ -840,6 +1075,33 @@ if ptr and phyAddr is given, outputs tensors that contains output addresses </dd
 
 <p>Get model task order. </p>
 <dl class="section return"><dt>Returns</dt><dd>task order </dd></dl>
+
+</div>
+</div>
+<a id="a2338c50d4d24b081179372bfea9d5f2c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2338c50d4d24b081179372bfea9d5f2c">&#9670;&nbsp;</a></span>getTensorOffset()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint64_t dxrt::InferenceEngine::getTensorOffset </td>
+          <td>(</td>
+          <td class="paramtype">const std::string &amp;&#160;</td>
+          <td class="paramname"><em>tensorName</em></td><td>)</td>
+          <td> const</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the offset of a tensor in the final output buffer. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">tensorName</td><td>Name of the tensor </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>Offset in bytes, or 0 if tensor not found </dd></dl>
 
 </div>
 </div>
@@ -1013,6 +1275,52 @@ if ptr and phyAddr is given, inputs tensors that contains output addresses </dd>
 <p>Returns whether the model is using PPU. (Legacy API) </p>
 <dl class="deprecated"><dt><b><a class="el" href="deprecated.html#_deprecated000016">Deprecated:</a></b></dt><dd>Use <a class="el" href="classdxrt_1_1InferenceEngine.html#ab6fd915af259467afe1681098b315dca" title="Returns whether the model is using PPU.">IsPPU()</a> instead. </dd></dl>
 <dl class="section return"><dt>Returns</dt><dd>whether the model is using PPU. </dd></dl>
+
+</div>
+</div>
+<a id="a896b05b9798d0ae33b3ba25e82e9df4c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a896b05b9798d0ae33b3ba25e82e9df4c">&#9670;&nbsp;</a></span>IsMultiInputModel()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool dxrt::InferenceEngine::IsMultiInputModel </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td> const</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Returns whether the model has multiple input tensors. </p>
+<dl class="section return"><dt>Returns</dt><dd>true if the model has multiple input tensors, false otherwise. </dd></dl>
+
+</div>
+</div>
+<a id="a498ec2af6a8ebdd4e8edd26cba1faf24"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a498ec2af6a8ebdd4e8edd26cba1faf24">&#9670;&nbsp;</a></span>IsOrtConfigured()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool dxrt::InferenceEngine::IsOrtConfigured </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Checks whether ORT (ONNX Runtime) is configured. </p>
+<dl class="section return"><dt>Returns</dt><dd>true if ORT is configured, false otherwise. </dd></dl>
+<dl class="exception"><dt>Exceptions</dt><dd>
+  <table class="exception">
+    <tr><td class="paramname">InvalidArgumentException</td><td>If USE_ORT is OFF but the useORT option is set to true. </td></tr>
+  </table>
+  </dd>
+</dl>
 
 </div>
 </div>
@@ -1331,8 +1639,53 @@ if ptr and phyAddr is given, outputs tensors that contains output addresses </dd
 
 </div>
 </div>
+<a id="ac9c8166a8c588860ea4a5fc29d743eb5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac9c8166a8c588860ea4a5fc29d743eb5">&#9670;&nbsp;</a></span>RunAsync() <span class="overload">[1/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int dxrt::InferenceEngine::RunAsync </td>
+          <td>(</td>
+          <td class="paramtype">const std::vector&lt; void * &gt; &amp;&#160;</td>
+          <td class="paramname"><em>inputPtrs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>userArg</em> = <code>nullptr</code>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>outputPtr</em> = <code>nullptr</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Non-blocking call to request asynchronous inference with automatic multi-input detection. This function automatically detects whether the input should be interpreted as multi-input single inference or batch inference based on the model requirements and input count. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">inputPtrs</td><td>Vector of input data pointers </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">userArg</td><td>user-defined arguments as a void pointer </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">outputPtr</td><td>pointer to output data, if it is nullptr, output data area is allocated by DXRT. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>job id that can be used to wait() function </dd></dl>
+
+</div>
+</div>
 <a id="af3006c9a7183f7e42d1528aa8a6fea24"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af3006c9a7183f7e42d1528aa8a6fea24">&#9670;&nbsp;</a></span>RunAsync()</h2>
+<h2 class="memtitle"><span class="permalink"><a href="#af3006c9a7183f7e42d1528aa8a6fea24">&#9670;&nbsp;</a></span>RunAsync() <span class="overload">[2/2]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1374,6 +1727,96 @@ if ptr and phyAddr is given, outputs tensors that contains output addresses </dd
 <div class="line"><a class="code" href="classdxrt_1_1InferenceEngine.html">dxrt::InferenceEngine</a> ie(modelPath, option);</div>
 <div class="line"><span class="keyword">auto</span> <a class="code" href="classdxrt_1_1InferenceEngine.html#a0893b724d6eed939556f1315ce05829d">outputs</a> = ie.Run();</div>
 </div><!-- fragment --> </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>job id that can be used to wait() function </dd></dl>
+
+</div>
+</div>
+<a id="a6a5b11e470a9dfeca6c60f644726ea59"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6a5b11e470a9dfeca6c60f644726ea59">&#9670;&nbsp;</a></span>RunAsyncMultiInput() <span class="overload">[1/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int dxrt::InferenceEngine::RunAsyncMultiInput </td>
+          <td>(</td>
+          <td class="paramtype">const std::map&lt; std::string, void * &gt; &amp;&#160;</td>
+          <td class="paramname"><em>inputTensors</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>userArg</em> = <code>nullptr</code>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>outputPtr</em> = <code>nullptr</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Run async inference with multiple input tensors for multi-input models. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">inputTensors</td><td>Map of tensor name to input data pointer </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">userArg</td><td>user-defined arguments as a void pointer </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">outputPtr</td><td>pointer to output data, if it is nullptr, output data is stored in buffer inside DXRT. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>job id that can be used to wait() function </dd></dl>
+
+</div>
+</div>
+<a id="a8a61dde8d97418d77e5bfd348011517f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8a61dde8d97418d77e5bfd348011517f">&#9670;&nbsp;</a></span>RunAsyncMultiInput() <span class="overload">[2/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int dxrt::InferenceEngine::RunAsyncMultiInput </td>
+          <td>(</td>
+          <td class="paramtype">const std::vector&lt; void * &gt; &amp;&#160;</td>
+          <td class="paramname"><em>inputPtrs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>userArg</em> = <code>nullptr</code>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>outputPtr</em> = <code>nullptr</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Run async inference with multiple input tensors (vector format) for multi-input models. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">inputPtrs</td><td>Vector of input data pointers in the order specified by <a class="el" href="classdxrt_1_1InferenceEngine.html#a41f090eff09ddb3e3963666eb507d7dc" title="Returns the names of all input tensors in the model.">GetInputTensorNames()</a> </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">userArg</td><td>user-defined arguments as a void pointer </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">outputPtr</td><td>pointer to output data, if it is nullptr, output data is stored in buffer inside DXRT. </td></tr>
   </table>
   </dd>
 </dl>
@@ -1466,8 +1909,118 @@ if ptr and phyAddr is given, outputs tensors that contains output addresses </dd
 
 </div>
 </div>
-<a id="a22087ed8a6839bfc1c4a6b9c21629236"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a22087ed8a6839bfc1c4a6b9c21629236">&#9670;&nbsp;</a></span>task_order()</h2>
+<a id="aff7eaeecfb9fbf7aa1ea8e27d0572b92"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aff7eaeecfb9fbf7aa1ea8e27d0572b92">&#9670;&nbsp;</a></span>RunMultiInput() <span class="overload">[1/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">TensorPtrs dxrt::InferenceEngine::RunMultiInput </td>
+          <td>(</td>
+          <td class="paramtype">const std::map&lt; std::string, void * &gt; &amp;&#160;</td>
+          <td class="paramname"><em>inputTensors</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>userArg</em> = <code>nullptr</code>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>outputPtr</em> = <code>nullptr</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Run inference engine with multiple input tensors for multi-input models. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">inputTensors</td><td>Map of tensor name to input data pointer </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">userArg</td><td>user-defined arguments as a void pointer </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">outputPtr</td><td>pointer to output data, if it is nullptr, output data is stored in buffer inside DXRT. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>output tensors as vector of smart pointer instances </dd></dl>
+
+</div>
+</div>
+<a id="a4b5c6a8aa5db938b8b50b7d9c844b367"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4b5c6a8aa5db938b8b50b7d9c844b367">&#9670;&nbsp;</a></span>RunMultiInput() <span class="overload">[2/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">TensorPtrs dxrt::InferenceEngine::RunMultiInput </td>
+          <td>(</td>
+          <td class="paramtype">const std::vector&lt; void * &gt; &amp;&#160;</td>
+          <td class="paramname"><em>inputPtrs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>userArg</em> = <code>nullptr</code>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>outputPtr</em> = <code>nullptr</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Run inference engine with multiple input tensors (vector format) for multi-input models. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">inputPtrs</td><td>Vector of input data pointers in the order specified by <a class="el" href="classdxrt_1_1InferenceEngine.html#a41f090eff09ddb3e3963666eb507d7dc" title="Returns the names of all input tensors in the model.">GetInputTensorNames()</a> </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">userArg</td><td>user-defined arguments as a void pointer </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">outputPtr</td><td>pointer to output data, if it is nullptr, output data is stored in buffer inside DXRT. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>output tensors as vector of smart pointer instances </dd></dl>
+
+</div>
+</div>
+<a id="aa227ad7501e794726b9af17e88418cf1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa227ad7501e794726b9af17e88418cf1">&#9670;&nbsp;</a></span>supportsTensorCentricOffsets()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool dxrt::InferenceEngine::supportsTensorCentricOffsets </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td> const</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Check if tensor-centric offset calculation is supported. </p>
+<dl class="section return"><dt>Returns</dt><dd>true if supported, false otherwise </dd></dl>
+
+</div>
+</div>
+<a id="a578a0098f9b49902fa4c81d95945baa4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a578a0098f9b49902fa4c81d95945baa4">&#9670;&nbsp;</a></span>task_order()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1476,7 +2029,7 @@ if ptr and phyAddr is given, outputs tensors that contains output addresses </dd
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">std::vector&lt;string&gt; dxrt::InferenceEngine::task_order </td>
+          <td class="memname">std::vector&lt;std::string&gt; dxrt::InferenceEngine::task_order </td>
           <td>(</td>
           <td class="paramname"></td><td>)</td>
           <td></td>
@@ -1490,13 +2043,51 @@ if ptr and phyAddr is given, outputs tensors that contains output addresses </dd
 </div><div class="memdoc">
 
 <p>Get model task order (Legacy API) </p>
-<dl class="deprecated"><dt><b><a class="el" href="deprecated.html#_deprecated000009">Deprecated:</a></b></dt><dd>Use <a class="el" href="classdxrt_1_1InferenceEngine.html#a0fabc1c0f736be0d297b2ce14929847b" title="Get model task order.">GetTaskOrder()</a> instead. </dd></dl>
+<dl class="deprecated"><dt><b><a class="el" href="deprecated.html#_deprecated000009">Deprecated:</a></b></dt><dd>Use <a class="el" href="classdxrt_1_1InferenceEngine.html#a8b759a7bb098d710e1c3052170057143" title="Get model task order.">GetTaskOrder()</a> instead. </dd></dl>
 <dl class="section return"><dt>Returns</dt><dd>task order </dd></dl>
 
 </div>
 </div>
+<a id="a2cbf5e6220f5be2cd9132f2570129faf"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2cbf5e6220f5be2cd9132f2570129faf">&#9670;&nbsp;</a></span>ValidateDevice() <span class="overload">[1/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">TensorPtrs dxrt::InferenceEngine::ValidateDevice </td>
+          <td>(</td>
+          <td class="paramtype">const std::vector&lt; void * &gt; &amp;&#160;</td>
+          <td class="paramname"><em>inputPtrs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>deviceId</em> = <code>0</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Validate inference of a specific NPU device with automatic multi-input detection. This function automatically detects whether the input should be interpreted as multi-input based on the model requirements and input count. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">inputPtrs</td><td>Vector of input data pointers for validation. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">deviceId</td><td>ID of the NPU device to validate. Default is 0 (first device). </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>Output tensors as a vector of smart pointer instances, representing the validation results. </dd></dl>
+
+</div>
+</div>
 <a id="aef4c9502a5d5a9d256d3899391376aba"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aef4c9502a5d5a9d256d3899391376aba">&#9670;&nbsp;</a></span>ValidateDevice()</h2>
+<h2 class="memtitle"><span class="permalink"><a href="#aef4c9502a5d5a9d256d3899391376aba">&#9670;&nbsp;</a></span>ValidateDevice() <span class="overload">[2/2]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1525,6 +2116,82 @@ if ptr and phyAddr is given, outputs tensors that contains output addresses </dd
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">inputPtr</td><td>Pointer to the input data used for validation. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">deviceId</td><td>ID of the NPU device to validate. Default is 0 (first device). </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>Output tensors as a vector of smart pointer instances, representing the validation results. </dd></dl>
+
+</div>
+</div>
+<a id="a5b6d78e715a91712548b905d2c730a0c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5b6d78e715a91712548b905d2c730a0c">&#9670;&nbsp;</a></span>ValidateDeviceMultiInput() <span class="overload">[1/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">TensorPtrs dxrt::InferenceEngine::ValidateDeviceMultiInput </td>
+          <td>(</td>
+          <td class="paramtype">const std::map&lt; std::string, void * &gt; &amp;&#160;</td>
+          <td class="paramname"><em>inputTensors</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>deviceId</em> = <code>0</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Validate NPU device with multiple input tensors for multi-input models. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">inputTensors</td><td>Map of tensor name to input data pointer </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">deviceId</td><td>ID of the NPU device to validate. Default is 0 (first device). </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>Output tensors as a vector of smart pointer instances, representing the validation results. </dd></dl>
+
+</div>
+</div>
+<a id="af252439b3ba07ea017792c4fe6d82c7a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af252439b3ba07ea017792c4fe6d82c7a">&#9670;&nbsp;</a></span>ValidateDeviceMultiInput() <span class="overload">[2/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">TensorPtrs dxrt::InferenceEngine::ValidateDeviceMultiInput </td>
+          <td>(</td>
+          <td class="paramtype">const std::vector&lt; void * &gt; &amp;&#160;</td>
+          <td class="paramname"><em>inputPtrs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>deviceId</em> = <code>0</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Validate NPU device with multiple input tensors (vector format) for multi-input models. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">inputPtrs</td><td>Vector of input data pointers in the order specified by <a class="el" href="classdxrt_1_1InferenceEngine.html#a41f090eff09ddb3e3963666eb507d7dc" title="Returns the names of all input tensors in the model.">GetInputTensorNames()</a> </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">deviceId</td><td>ID of the NPU device to validate. Default is 0 (first device). </td></tr>
   </table>
   </dd>
@@ -1563,9 +2230,9 @@ if ptr and phyAddr is given, outputs tensors that contains output addresses </dd
 </div><!-- contents -->
 <div class="ttc" id="aclassdxrt_1_1InferenceOption_html_ae98837ff566fe2b089a5b1bf07feb48c"><div class="ttname"><a href="classdxrt_1_1InferenceOption.html#ae98837ff566fe2b089a5b1bf07feb48c">dxrt::InferenceOption::devices</a></div><div class="ttdeci">std::vector&lt; int &gt; devices</div><div class="ttdoc">device ID list to use</div><div class="ttdef"><b>Definition:</b> inference_option.h:37</div></div>
 <div class="ttc" id="aclassdxrt_1_1InferenceOption_html"><div class="ttname"><a href="classdxrt_1_1InferenceOption.html">dxrt::InferenceOption</a></div><div class="ttdoc">This struct specifies inference options applied to dxrt::InferenceEngine.</div><div class="ttdef"><b>Definition:</b> inference_option.h:21</div></div>
-<div class="ttc" id="aclassdxrt_1_1InferenceEngine_html_a0893b724d6eed939556f1315ce05829d"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html#a0893b724d6eed939556f1315ce05829d">dxrt::InferenceEngine::outputs</a></div><div class="ttdeci">Tensors outputs(void *ptr=nullptr, uint64_t phyAddr=0)</div><div class="ttdoc">Get output tensor (Legacy API)</div><div class="ttdef"><b>Definition:</b> inference_engine.h:231</div></div>
+<div class="ttc" id="aclassdxrt_1_1InferenceEngine_html_a0893b724d6eed939556f1315ce05829d"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html#a0893b724d6eed939556f1315ce05829d">dxrt::InferenceEngine::outputs</a></div><div class="ttdeci">Tensors outputs(void *ptr=nullptr, uint64_t phyAddr=0)</div><div class="ttdoc">Get output tensor (Legacy API)</div><div class="ttdef"><b>Definition:</b> inference_engine.h:287</div></div>
 <div class="ttc" id="aclassdxrt_1_1InferenceOption_html_a9fd270a5eeeb1a14ce5f133c16c30d55"><div class="ttname"><a href="classdxrt_1_1InferenceOption.html#a9fd270a5eeeb1a14ce5f133c16c30d55">dxrt::InferenceOption::boundOption</a></div><div class="ttdeci">uint32_t boundOption</div><div class="ttdoc">Select the NPU core inside the device.</div><div class="ttdef"><b>Definition:</b> inference_option.h:42</div></div>
-<div class="ttc" id="aclassdxrt_1_1InferenceEngine_html"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html">dxrt::InferenceEngine</a></div><div class="ttdoc">This class abstracts runtime inference executor for user's compiled model.</div><div class="ttdef"><b>Definition:</b> inference_engine.h:60</div></div>
+<div class="ttc" id="aclassdxrt_1_1InferenceEngine_html"><div class="ttname"><a href="classdxrt_1_1InferenceEngine.html">dxrt::InferenceEngine</a></div><div class="ttdoc">This class abstracts runtime inference executor for user's compiled model.</div><div class="ttdef"><b>Definition:</b> inference_engine.h:64</div></div>
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
 Generated by &#160;<a href="http://www.doxygen.org/index.html">

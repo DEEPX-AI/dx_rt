@@ -1,5 +1,5 @@
 var searchData=
 [
-  ['bitmatch_5fmask_102',['bitmatch_mask',['../classdxrt_1_1InferenceEngine.html#a0e23ce411e6d6d45e6939fe1b3a7e700',1,'dxrt::InferenceEngine']]],
-  ['boardtypestr_103',['BoardTypeStr',['../classdxrt_1_1DeviceStatus.html#a01e24b6255ff24953962779fda9c8fd1',1,'dxrt::DeviceStatus']]]
+  ['bitmatch_5fmask_155',['bitmatch_mask',['../classdxrt_1_1InferenceEngine.html#aa8ab6719ae0efdf0f5c678e3401ab57d',1,'dxrt::InferenceEngine']]],
+  ['boardtypestr_156',['BoardTypeStr',['../classdxrt_1_1DeviceStatus.html#a01e24b6255ff24953962779fda9c8fd1',1,'dxrt::DeviceStatus']]]
 ];

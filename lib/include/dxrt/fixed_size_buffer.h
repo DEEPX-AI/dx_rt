@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include<cstdint>
-#include<vector>
-#include<mutex>
+#include <cstdint>
+#include <vector>
+#include <mutex>
 #include <condition_variable>
 
 
@@ -20,7 +20,7 @@ class FixedSizeBuffer
     void releaseBuffer(void* ptr);
     bool hasBuffer();
     int64_t size() { return _size;}
-   ~FixedSizeBuffer();
+    ~FixedSizeBuffer();
 
  private:
     std::vector<void*> _data;
@@ -30,7 +30,6 @@ class FixedSizeBuffer
     int64_t _size;
     std::mutex _lock;
     std::condition_variable _cv;
-
 };
 
 

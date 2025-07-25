@@ -1,0 +1,106 @@
+\hypertarget{classdxrt_1_1V7ModelParser}{}\doxysection{dxrt\+::V7\+Model\+Parser Class Reference}
+\label{classdxrt_1_1V7ModelParser}\index{dxrt::V7ModelParser@{dxrt::V7ModelParser}}
+
+
+Parser for D\+X\+NN V7 format.  
+
+
+
+
+{\ttfamily \#include $<$v7\+\_\+model\+\_\+parser.\+h$>$}
+
+
+
+Inheritance diagram for dxrt\+::V7\+Model\+Parser\+:
+\nopagebreak
+\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[width=195pt]{classdxrt_1_1V7ModelParser__inherit__graph}
+\end{center}
+\end{figure}
+
+
+Collaboration diagram for dxrt\+::V7\+Model\+Parser\+:
+\nopagebreak
+\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[width=195pt]{classdxrt_1_1V7ModelParser__coll__graph}
+\end{center}
+\end{figure}
+\doxysubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+std\+::string \mbox{\hyperlink{classdxrt_1_1V7ModelParser_a1e001578850b4f80127486f6d6bafcc3}{Parse\+Model}} (const std\+::string \&file\+Path, Model\+Data\+Base \&model\+Data) override
+\begin{DoxyCompactList}\small\item\em Parse the model file and populate Model\+Data\+Base. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{classdxrt_1_1V7ModelParser_a91ca90cdce167088f109305c950d0f22}{Get\+Supported\+Version}} () const override
+\begin{DoxyCompactList}\small\item\em Get the version number this parser supports. \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{classdxrt_1_1V7ModelParser_ad23bf7c4767fde10f69a99d5ce7ff206}{Get\+Parser\+Name}} () const override
+\begin{DoxyCompactList}\small\item\em Get the name of this parser. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Parser for D\+X\+NN V7 format. 
+
+This parser handles the current V7 format which is the standard format used by the inference engine. It wraps the existing parsing logic from model.\+cpp. 
+
+\doxysubsection{Member Function Documentation}
+\mbox{\Hypertarget{classdxrt_1_1V7ModelParser_ad23bf7c4767fde10f69a99d5ce7ff206}\label{classdxrt_1_1V7ModelParser_ad23bf7c4767fde10f69a99d5ce7ff206}} 
+\index{dxrt::V7ModelParser@{dxrt::V7ModelParser}!GetParserName@{GetParserName}}
+\index{GetParserName@{GetParserName}!dxrt::V7ModelParser@{dxrt::V7ModelParser}}
+\doxysubsubsection{\texorpdfstring{GetParserName()}{GetParserName()}}
+{\footnotesize\ttfamily std\+::string dxrt\+::\+V7\+Model\+Parser\+::\+Get\+Parser\+Name (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const\hspace{0.3cm}{\ttfamily [inline]}, {\ttfamily [override]}, {\ttfamily [virtual]}}
+
+
+
+Get the name of this parser. 
+
+\begin{DoxyReturn}{Returns}
+Parser name (e.\+g., \char`\"{}\+D\+X\+N\+N V6 Parser\char`\"{}, \char`\"{}\+D\+X\+N\+N V7 Parser\char`\"{}) 
+\end{DoxyReturn}
+
+
+Implements \mbox{\hyperlink{classdxrt_1_1IModelParser_a7a4a67d2ee08393d4954e35114ecabad}{dxrt\+::\+I\+Model\+Parser}}.
+
+\mbox{\Hypertarget{classdxrt_1_1V7ModelParser_a91ca90cdce167088f109305c950d0f22}\label{classdxrt_1_1V7ModelParser_a91ca90cdce167088f109305c950d0f22}} 
+\index{dxrt::V7ModelParser@{dxrt::V7ModelParser}!GetSupportedVersion@{GetSupportedVersion}}
+\index{GetSupportedVersion@{GetSupportedVersion}!dxrt::V7ModelParser@{dxrt::V7ModelParser}}
+\doxysubsubsection{\texorpdfstring{GetSupportedVersion()}{GetSupportedVersion()}}
+{\footnotesize\ttfamily int dxrt\+::\+V7\+Model\+Parser\+::\+Get\+Supported\+Version (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const\hspace{0.3cm}{\ttfamily [inline]}, {\ttfamily [override]}, {\ttfamily [virtual]}}
+
+
+
+Get the version number this parser supports. 
+
+\begin{DoxyReturn}{Returns}
+Version number (6, 7, etc.) 
+\end{DoxyReturn}
+
+
+Implements \mbox{\hyperlink{classdxrt_1_1IModelParser_a495d2b4c58557bafaecfbf9c4ef16fde}{dxrt\+::\+I\+Model\+Parser}}.
+
+\mbox{\Hypertarget{classdxrt_1_1V7ModelParser_a1e001578850b4f80127486f6d6bafcc3}\label{classdxrt_1_1V7ModelParser_a1e001578850b4f80127486f6d6bafcc3}} 
+\index{dxrt::V7ModelParser@{dxrt::V7ModelParser}!ParseModel@{ParseModel}}
+\index{ParseModel@{ParseModel}!dxrt::V7ModelParser@{dxrt::V7ModelParser}}
+\doxysubsubsection{\texorpdfstring{ParseModel()}{ParseModel()}}
+{\footnotesize\ttfamily std\+::string dxrt\+::\+V7\+Model\+Parser\+::\+Parse\+Model (\begin{DoxyParamCaption}\item[{const std\+::string \&}]{file\+Path,  }\item[{Model\+Data\+Base \&}]{model\+Data }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [override]}, {\ttfamily [virtual]}}
+
+
+
+Parse the model file and populate Model\+Data\+Base. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em file\+Path} & Path to the D\+X\+NN file \\
+\hline
+{\em model\+Data} & Output parameter to store parsed data \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+Compile type string (e.\+g., \char`\"{}release\char`\"{}, \char`\"{}debug\char`\"{}) 
+\end{DoxyReturn}
+
+
+Implements \mbox{\hyperlink{classdxrt_1_1IModelParser_a6fe10da0bcd04a90873940997443a4d0}{dxrt\+::\+I\+Model\+Parser}}.
+

@@ -23,6 +23,7 @@ typedef enum DXRT_API
     FW_LOG_HIGH_LOCK_IRQ,
     FW_LOG_HIGH_UNLOCK_IRQ,
     FW_LOG_TASK_LOCK,
+    FW_LOG_VOLT_UNDER_IRQ,
     FW_LOG_MAX,
 } dxrt_fwlog_cmd_t;
 
@@ -64,10 +65,13 @@ public:
     FwLog(std::vector<dxrt_device_log_t>);
     ~FwLog();
     std::string str();
-    void toFile(std::string file);
+    void ToFileAppend(std::string file);
+    void SetDeviceInfoString(std::string str)
+    { _deviceInfoString = str; }
 private:
     std::vector<dxrt_device_log_t> _logs;
     std::string _str;
+    std::string _deviceInfoString;
 };
 
 class DXRT_API Fw

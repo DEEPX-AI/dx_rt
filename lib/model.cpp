@@ -1,72 +1,70 @@
+// Copyright (c) 2022 DEEPX Corporation. All rights reserved.
+// Licensed under the MIT License.
+
+// Copyright (c) 2022 DEEPX Corporation. All rights reserved.
+// Licensed under the MIT License.
+
 #include "dxrt/common.h"
-#include "dxrt/datatype.h"
 #include "dxrt/model.h"
 #include "dxrt/inference_engine.h"
 #include "dxrt/exception/exception.h"
 #include "dxrt/util.h"
+#include "dxrt/model_parser.h"
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <fcntl.h>
-#include <stdio.h>
 #include <errno.h>
 #include <string>
+#include <memory>
+#include <vector>
+
+#include "dxrt/datatype.h"
+#include "dxrt/inference_engine.h"
+#include "dxrt/exception/exception.h"
+#include "dxrt/util.h"
 #include "dxrt/filesys_support.h"
+
+#include "dxrt/extern/rapidjson/document.h"
+#include "dxrt/extern/rapidjson/writer.h"
+#include "dxrt/extern/rapidjson/prettywriter.h"
+#include "dxrt/extern/rapidjson/stringbuffer.h"
+#include "dxrt/extern/rapidjson/pointer.h"
+#include "dxrt/extern/rapidjson/rapidjson.h"
+
 #ifdef __linux__
     #include <cxxabi.h>
 #endif
 
 #include "resource/log_messages.h"
+#include <cstdlib>
+#include <fstream>
+#include <sys/stat.h>
 
-using namespace std;
-using namespace rapidjson;
-using namespace deepx_rmapinfo;
+using std::cout;
+using std::endl;
+using std::ostream;
+using std::string;
 using std::to_string;
+using std::stoi;
+using std::unique_ptr;
+using std::vector;
+using rapidjson::Document;
+using rapidjson::SizeType;
+using rapidjson::Value;
+using deepx_rmapinfo::GetDataTypeNum;
+using deepx_rmapinfo::GetMemoryTypeNum;
 
 namespace dxrt
 {
 
-void PrintJson(const rapidjson::Value& value, const std::string& indent = "") {
-    if (value.IsObject()) {
-        std::cout << "{\n";
-        for (auto it = value.MemberBegin(); it != value.MemberEnd(); ++it) {
-            std::cout << indent << "  \"" << it->name.GetString() << "\": ";
-            PrintJson(it->value, indent + "  ");
-        }
-        std::cout << indent << "}";
-    } else if (value.IsArray()) {
-        std::cout << "[\n";
-        for (rapidjson::SizeType i = 0; i < value.Size(); ++i) {
-            std::cout << indent << "  ";
-            PrintJson(value[i], indent + "  ");
-            if (i < value.Size() - 1) {
-                std::cout << ",";
-            }
-            std::cout << "\n";
-        }
-        std::cout << indent << "]";
-    } else if (value.IsString()) {
-        std::cout << "\"" << value.GetString() << "\"";
-    } else if (value.IsNumber()) {
-        if (value.IsInt()) {
-            std::cout << value.GetInt();
-        } else if (value.IsDouble()) {
-            std::cout << value.GetDouble();
-        }
-    } else if (value.IsBool()) {
-        std::cout << (value.GetBool() ? "true" : "false");
-    } else if (value.IsNull()) {
-        std::cout << "null";
-    }
-}
-
 static string dataFormatTable[] =
 {
-	"NONE",
-	"NCHW",
-	"NHWC",
-	"NHW"
+    "NONE",
+    "NCHW",
+    "NHWC",
+    "NHW"
 };
 
 ModelDataBase LoadModelParam(string file)
@@ -79,839 +77,41 @@ ModelDataBase LoadModelParam(string file)
 
 string LoadModelParam(ModelDataBase& param, string file)
 {
-    //ModelDataBase param;
-    string rmapStr;
-    string modelCompileType;
-    //DXRT_ASSERT(
-    //    (fileExists(file) && getExtension(file)=="dxnn"), 
-    //    "Invalid model path : " + file
-    //);
-    if ( !fileExists(file) || getExtension(file) != "dxnn" )
-        throw FileNotFoundException(EXCEPTION_MESSAGE("Invalid model path : " + file));
-    
-    int fileSize = getFileSize(file);
-    vector<char> vbuf(fileSize, 'a');
-    char *buf = vbuf.data();
-    FILE *fp = fopen(file.c_str(), "rb");
-	if (!fp) {
-		cout << " file " << file.c_str() << " open failed(" << errno << ")" << endl;
-		exit(-1);
-	}
-    std::ignore = fread(static_cast<void*>(buf), fileSize, 1, fp);
-    fclose(fp);
-
-    // Parse Binary Data Info. from Model File
-    LoadBinaryInfo(param.deepx_binary, buf, fileSize);
-
-    // Parse Graph Info.
-    LoadGraphInfo(param.deepx_graph, param);
-
-    // Parse RMAP Info.
-    modelCompileType = LoadRmapInfo(param.deepx_rmap, param);
-
-    //return param;
-    return modelCompileType;
-}
-
-int LoadBinaryInfo(deepx_binaryinfo::BinaryInfoDatabase& param, char *buffer, int fileSize)
-{
-    //deepx_binaryinfo::BinaryInfoDatabase param;
-    Document document;
-    std::ignore = fileSize;
-
-    int offset = 0, sizeInfo = 8192;
-    string signInfo, headerInfo;    
-
-    signInfo = string(buffer, 4);
-    offset += 8;
-    if (signInfo != "DXNN")
+    // Use new parser system for version-specific parsing
+    try
     {
-        cout << " The model is invalid. " << endl;
-        exit (1);
+        auto parser = ModelParserFactory::CreateParser(file);
+        LOG_DXRT_DBG << "Using " << parser->GetParserName() << " for file: " << file << std::endl;
+        return parser->ParseModel(file, param);
     }
-
-    // dxnn file format version 4byte integer little-endian
-    int32_t dxnnFileFormatVersion = (int32_t)(buffer[4] |
-                buffer[5] << 8  |
-                buffer[6] << 16 |
-                buffer[7] << 24);
-    param._dxnnFileFormatVersion = dxnnFileFormatVersion;
-
-    // if verInfo >= 6, "No support for dxnn versions below 6."
-    if ( dxnnFileFormatVersion < MIN_SINGLEFILE_VERSION )
+    catch (const std::exception &e)
     {
-        throw ModelParsingException(EXCEPTION_MESSAGE(LogMessages::NotSupported_ModelFileFormatVersion(dxnnFileFormatVersion, MIN_SINGLEFILE_VERSION)));
-    }
-    sizeInfo = 8192;
-
-    headerInfo = string(buffer+offset,sizeInfo-offset);
-    offset = sizeInfo;
-
-    //cout << headerInfo << endl;
-    document.Parse(headerInfo.c_str());    
-    if (document.HasParseError()) {
-        std::cerr << "headerinfo parsing failed. (" << document.GetParseError() << ")" << std::endl;
-        exit(-1);
-    }
-    // PrintJson(document);
-
-    if (document.HasMember("data") && document["data"].IsObject()) {
-        const Value &dataObj = document["data"];
-
-        // [Field] - cpu models
-#ifdef USE_ORT
-        if (dataObj.HasMember("cpu_models") && dataObj["cpu_models"].IsObject()) {
-            const Value &cpuModelsObj = dataObj["cpu_models"];
-            int i = 0;
-            for (Value::ConstMemberIterator iter = cpuModelsObj.MemberBegin(); iter != cpuModelsObj.MemberEnd(); ++iter) {
-                if (iter->name.IsString()) {
-                    deepx_binaryinfo::Models model;
-                    model.name() = iter->name.GetString();
-                    const Value& value = iter->value;
-                    if (value.HasMember("offset") && value["offset"].IsInt64())
-                        model.offset() = value["offset"].GetInt64();
-                    else LOG_DXRT_DBG << "LoadBinaryInfo: no offset value in data.cpu_models["+model.name()+"]" << std::endl;
-                    if (value.HasMember("size") && value["size"].IsInt64())
-                        model.size() = value["size"].GetInt64();
-                    else LOG_DXRT_DBG << "LoadBinaryInfo: no size value in data.cpu_models["+model.name()+"]" << std::endl;
-                    param.cpu_models().push_back(model);
-                }
-                else LOG_DXRT_DBG << "LoadBinaryInfo: no name value in data.cpu_models["+to_string(i)+"]" << std::endl;
-                i++;
-            }
-        }
-        else LOG_DXRT_DBG << "LoadBinaryInfo: no cpu_models object in data" << std::endl;
-#endif
-
-        // [Field] - compile config
-        if (dataObj.HasMember("compile_config") && dataObj["compile_config"].IsObject()) 
-        {
-            const Value &compileConfiglObj = dataObj["compile_config"];
-            int64_t cc_offset = 0, cc_size = 0;
-            if (compileConfiglObj.HasMember("offset") && compileConfiglObj["offset"].IsInt64())
-                cc_offset = compileConfiglObj["offset"].GetInt64();
-            else LOG_DXRT_DBG << "LoadBinaryInfo: no offset value in data.compile_config" << std::endl;
-
-            if (compileConfiglObj.HasMember("size") && compileConfiglObj["size"].IsInt64())
-                cc_size = compileConfiglObj["size"].GetInt64();
-            else LOG_DXRT_DBG << "LoadBinaryInfo: no size value in data.compile_config" << std::endl;
-
-
-            Document compile_config_document;
-            std::string compile_config_str = string(buffer+cc_offset+offset, cc_size);
-
-            compile_config_document.Parse(compile_config_str.c_str());
-            if (compile_config_document.HasMember("compile_version") && compile_config_document["compile_version"].IsString() )
-            {
-                const Value &compileVersionObj = compile_config_document["compile_version"];
-                //std::cout << "[Compile-Config] version=" << compileVersionObj.GetString() << std::endl;
-                param._compilerVersion = compileVersionObj.GetString();
-            }
-            else {
-                param._compilerVersion = MIN_COMPILER_VERSION;
-                LOG_DXRT_DBG << "LoadBinaryInfo: no compile_version value in data.compile_config" << std::endl;
-            }
-        }
-        else LOG_DXRT_DBG << "LoadBinaryInfo: no compile_config object in data" << std::endl;
-
-        // [Field] - graph info
-        if (dataObj.HasMember("graph_info") && dataObj["graph_info"].IsObject()) {
-            const Value &graphInfolObj = dataObj["graph_info"];
-            if (graphInfolObj.HasMember("offset") && graphInfolObj["offset"].IsInt64())
-                param.graph_info().offset() = graphInfolObj["offset"].GetInt64();
-            else LOG_DXRT_DBG << "LoadBinaryInfo: no offset value in data.graph_info" << std::endl;
-            if (graphInfolObj.HasMember("size") && graphInfolObj["size"].IsInt64())
-                param.graph_info().size() = graphInfolObj["size"].GetInt64();
-            else LOG_DXRT_DBG << "LoadBinaryInfo: no size value in data.graph_info" << std::endl;
-        }
-        else LOG_DXRT_DBG << "LoadBinaryInfo: no graph_info value in data" << std::endl;
-
-        // [Field] - compiled data
-        if (dataObj.HasMember("compiled_data") && dataObj["compiled_data"].IsObject()) {
-            const Value &compiledData = dataObj["compiled_data"];
-            for (Value::ConstMemberIterator iter = compiledData.MemberBegin(); iter != compiledData.MemberEnd(); ++iter) {
-                if (iter->name.IsString()) {
-                    deepx_binaryinfo::Models rmap;
-                    deepx_binaryinfo::Models weight;                    
-                    deepx_binaryinfo::Models rmap_info;
-                    deepx_binaryinfo::Models bitmatch_mask;
-                    rmap.npu() = weight.npu() = rmap_info.npu() = bitmatch_mask.npu() = iter->name.GetString();
-                    const Value& value = iter->value;
-                    for (Value::ConstMemberIterator iter2 = value.MemberBegin(); iter2 != value.MemberEnd(); ++iter2) {
-                        if (iter2->name.IsString()) {
-                            rmap.name() = weight.name() = rmap_info.name() = bitmatch_mask.name() = iter2->name.GetString();
-                            const Value& value2 = iter2->value;
-                            // [Sub-Field] - rmap
-                            if (value2.HasMember("rmap") && value2["rmap"].IsObject()) {
-                                const Value &rmapObj = value2["rmap"];
-                                if (rmapObj.HasMember("offset") && rmapObj["offset"].IsInt64())
-                                    rmap.offset() = rmapObj["offset"].GetInt64();
-                                else LOG_DXRT_DBG << "LoadBinaryInfo: no offset value in data.compiled_data["+rmap.npu()+"]["+rmap.name()+"].rmap" << std::endl; 
-                                if (rmapObj.HasMember("size") && rmapObj["size"].IsInt64())
-                                    rmap.size() = rmapObj["size"].GetInt64();
-                                else LOG_DXRT_DBG << "LoadBinaryInfo: no size value in data.compiled_data["+rmap.npu()+"]["+rmap.name()+"].rmap" << std::endl; 
-                                param.rmap().push_back(rmap);
-                            }
-                            else LOG_DXRT_DBG << "LoadBinaryInfo: no rmap in data.compiled_data["+rmap.npu()+"]["+rmap.name()+"]" << std::endl; 
-                            // [Sub-Field] - weight
-                            if (value2.HasMember("weight") && value2["weight"].IsObject()) {
-                                const Value &weightObj = value2["weight"];
-                                if (weightObj.HasMember("offset") && weightObj["offset"].IsInt64())
-                                    weight.offset() = weightObj["offset"].GetInt64();
-                                else LOG_DXRT_DBG << "LoadBinaryInfo: no offset value in data.compiled_data["+rmap.npu()+"]["+rmap.name()+"].weight" << std::endl;
-                                if (weightObj.HasMember("size") && weightObj["size"].IsInt64())
-                                    weight.size() = weightObj["size"].GetInt64();
-                                else LOG_DXRT_DBG << "LoadBinaryInfo: no size value in data.compiled_data["+rmap.npu()+"]["+rmap.name()+"].weight" << std::endl;
-                                param.weight().push_back(weight);
-                            } 
-                            else LOG_DXRT_DBG << "LoadBinaryInfo: no weight in data.compiled_data["+rmap.npu()+"]" << std::endl;
-                            // [Sub-Field] - rmap info
-                            if (value2.HasMember("rmap_info") && value2["rmap_info"].IsObject()) {
-                                const Value &rmapInfoObj = value2["rmap_info"];
-                                if (rmapInfoObj.HasMember("offset") && rmapInfoObj["offset"].IsInt64())
-                                    rmap_info.offset() = rmapInfoObj["offset"].GetInt64();
-                                else LOG_DXRT_DBG << "LoadBinaryInfo: no offset value in data.compiled_data["+rmap.npu()+"]["+rmap.name()+"].rmap_info" << std::endl;
-                                if (rmapInfoObj.HasMember("size") && rmapInfoObj["size"].IsInt64())
-                                    rmap_info.size() = rmapInfoObj["size"].GetInt64();
-                                else LOG_DXRT_DBG << "LoadBinaryInfo: no size value in data.compiled_data["+rmap.npu()+"]["+rmap.name()+"].rmap_info" << std::endl;
-                                param.rmap_info().push_back(rmap_info);
-                            }
-                            else LOG_DXRT_DBG << "LoadBinaryInfo: no rmap_info value in data.compiled_data["+rmap.npu()+"]["+rmap.name()+"]" << std::endl;
-                            // [Sub-Field] - bit match mask
-                            if (value2.HasMember("bitmatch") && value2["bitmatch"].IsObject()) {
-                                const Value &bitmatchObj = value2["bitmatch"];
-                                if (bitmatchObj.HasMember("offset") && bitmatchObj["offset"].IsInt64())
-                                    bitmatch_mask.offset() = bitmatchObj["offset"].GetInt64();
-                                else LOG_DXRT_DBG << "LoadBinaryInfo: no offset value in data.compiled_data["+rmap.npu()+"]["+rmap.name()+"].bitmatch" << std::endl;
-                                if (bitmatchObj.HasMember("size") && bitmatchObj["size"].IsInt64())
-                                    bitmatch_mask.size() = bitmatchObj["size"].GetInt64();
-                                else LOG_DXRT_DBG << "LoadBinaryInfo: no size value in data.compiled_data["+rmap.npu()+"]["+rmap.name()+"].bitmatch" << std::endl;
-                                param.bitmatch_mask().push_back(bitmatch_mask);
-                            }
-                        }
-                        else LOG_DXRT_DBG << "LoadBinaryInfo: data.compiled_data.["+rmap.npu()+"].name is not string" << std::endl;
-                    }
-                }
-                else LOG_DXRT_DBG << "LoadBinaryInfo: data.compiled_data.name is not string" << std::endl;
-            }
-        }
-        else LOG_DXRT_DBG << "LoadBinaryInfo: no compiler_data object in data" << std::endl;
+        // If any error occurs during parsing, propagate to caller
+        throw;
     }
 
-    // [Buffer] - CPU Binary Data
-    for (size_t i = 0; i < param.cpu_models().size(); i++) {
-        param.cpu_models(i)._buffer.resize(param.cpu_models(i).size());
-        memcpy(param.cpu_models(i)._buffer.data(), buffer + (offset + param.cpu_models(i).offset()), param.cpu_models(i).size());
-    }
-
-    // [Buffer] - Graph Info.
-    unique_ptr<char[]> graphInfoBuf(new char[param.graph_info().size()]);
-    memcpy(graphInfoBuf.get(), buffer + (offset + param.graph_info().offset()), param.graph_info().size());
-    string graphInfoStr(&graphInfoBuf[0], param.graph_info().size());
-    param.graph_info().str() = graphInfoStr;
-    //graphInfoBuf.release();
-
-    // [Buffer] - RMAP Binary Data
-    for (size_t i = 0; i < param.rmap().size(); i++) {
-        param.rmap(i)._buffer.resize(param.rmap(i).size());
-        memcpy(param.rmap(i)._buffer.data(), buffer + (offset + param.rmap(i).offset()), param.rmap(i).size());
-    }
-
-    // [Buffer] - Weight Binary Data
-    for (size_t i = 0; i < param.weight().size(); i++) {
-        param.weight(i)._buffer.resize(param.weight(i).size());
-        memcpy(param.weight(i)._buffer.data(), buffer + (offset + param.weight(i).offset()), param.weight(i).size());
-    }
-
-    // [Buffer] - RMAP Info.
-    for (size_t i = 0; i < param.rmap_info().size(); i++) {
-        unique_ptr<char[]> rmapInfoBuf(new char[param.rmap_info(i).size()]);
-        memcpy(rmapInfoBuf.get(), buffer + (offset + param.rmap_info(i).offset()), param.rmap_info(i).size());
-        string rmapInfoStr(&rmapInfoBuf[0], param.rmap_info(i).size());
-        param.rmap_info(i).str() = rmapInfoStr;
-        //rmapInfoBuf.release();
-    }
-    // [Buffer] - Bitmatch Mask.
-    for (size_t i = 0; i < param.bitmatch_mask().size(); i++) {
-        param.bitmatch_mask(i)._buffer.resize(param.bitmatch_mask(i).size());
-        memcpy(param.bitmatch_mask(i)._buffer.data(), buffer + (offset + param.bitmatch_mask(i).offset()), param.bitmatch_mask(i).size());
-    }
-
-    //return param;
-    return 0;
-}
-
-int LoadGraphInfo(deepx_graphinfo::GraphInfoDatabase& param, ModelDataBase& data)
-{
-    //deepx_graphinfo::GraphInfoDatabase param;
-    Document document;
-    string graphInfoBuffer;
-
-    for (const auto& str : data.deepx_binary.graph_info().str())
-        graphInfoBuffer += str;
-    document.Parse(graphInfoBuffer.c_str());
-
-    //cout << graphInfoBuffer << endl;
-
-    if (document.HasParseError()) {
-        std::cerr << "No graphinfo (" << document.GetParseError() << ")" << std::endl;
-        // exit(-1);
-        //return param;
-        return -1;
-    }
-    // PrintJson(document);
-    if (document.HasMember("graphs") && document["graphs"].IsArray()) {
-        const Value& graphsArray = document["graphs"];
-        for (SizeType i = 0; i < graphsArray.Size(); i++) {
-            deepx_graphinfo::GraphBindingDatabase graph;
-            const Value& graphObj = graphsArray[i];
-            if (graphObj.HasMember("name") && graphObj["name"].IsString())
-                graph.name() = graphObj["name"].GetString();
-            else LOG_DXRT_DBG << "LoadGraphInfo: no name value in data.graphs["+to_string(i)+"]" << std::endl;
-            if (graphObj.HasMember("type") && graphObj["type"].IsString())
-                graph.type() = graphObj["type"].GetString();
-            else LOG_DXRT_DBG << "LoadGraphInfo: no type value in data.graphs["+to_string(i)+"]" << std::endl;
-            if (graphObj.HasMember("output_type") && graphObj["output_type"].IsString())
-                graph.output_type() = graphObj["output_type"].GetString();
-            else LOG_DXRT_DBG "LoadGraphInfo: no output_type value in data.graphs["+to_string(i)+"]" << std::endl;
-            // [field]-"inputs"
-            if (graphObj.HasMember("inputs") && graphObj["inputs"].IsObject()) {
-                const Value& inputsObj = graphObj["inputs"];
-                for (Value::ConstMemberIterator iter = inputsObj.MemberBegin(); iter != inputsObj.MemberEnd(); ++iter) {
-                    if (iter->name.IsString()) {
-                        deepx_graphinfo::KeyValueInfo keyVal;
-                        keyVal.key() = iter->name.GetString();       
-                        const Value& value = iter->value;
-                        if (value.HasMember("source") && !value["source"].IsNull())
-                            keyVal.val() = value["source"].GetString();
-                        graph.inputs().push_back(keyVal);
-                    }
-                    else LOG_DXRT_DBG << "LoadGraphInfo: no name value in data.graphs["+to_string(i)+"].inputs" << std::endl;
-                }
-            }
-            else LOG_DXRT_DBG << "LoadGraphInfo: no inputs object in data.graphs["+to_string(i)+"]" << std::endl;
-            // [field]-"outputs"
-            if (graphObj.HasMember("outputs") && graphObj["outputs"].IsObject()) {
-                const Value& outputsObj = graphObj["outputs"];
-                for (Value::ConstMemberIterator iter = outputsObj.MemberBegin(); iter != outputsObj.MemberEnd(); ++iter) {
-
-                    if (iter->name.IsString()) {
-                        const std::string key = iter->name.GetString();
-                        const Value& outputDetails = iter->value;
-                        
-                        if (outputDetails.IsArray() && outputDetails.Size() == 0) {
-                            deepx_graphinfo::KeyValueInfo keyVal;
-                            keyVal.key() = key;
-                            graph.outputs().push_back(keyVal);
-                        } 
-                        else if (outputDetails.IsArray()) 
-                        {
-                            for (SizeType i = 0; i < outputDetails.Size(); ++i) {
-                                if (outputDetails[i].IsString()) {
-                                    deepx_graphinfo::KeyValueInfo keyVal;
-                                    keyVal.key() = key; 
-                                    keyVal.val() = outputDetails[i].GetString(); 
-                                    graph.outputs().push_back(keyVal);
-                                }
-                                else LOG_DXRT_DBG << "LoadGraphInfo: no outputDetails value in data.graphs["+to_string(i)+"].object.outputs" << std::endl;
-                            }
-                        } else if (outputDetails.IsObject()) {
-                            if (outputDetails.HasMember("next_layers") && outputDetails["next_layers"].IsArray()) {
-                                const Value& nextLayersArray = outputDetails["next_layers"];
-                                if (nextLayersArray.Size() == 0)
-                                {
-                                    deepx_graphinfo::KeyValueInfo keyVal;
-                                    keyVal.key() = key;
-                                    graph.outputs().push_back(keyVal);
-                                }
-                                else 
-                                {
-                                    for (SizeType i = 0; i < nextLayersArray.Size(); ++i) {
-                                        if (nextLayersArray[i].IsString()) {
-                                            deepx_graphinfo::KeyValueInfo keyVal;
-                                            keyVal.key() = key;
-                                            keyVal.val() = nextLayersArray[i].GetString();
-                                            graph.outputs().push_back(keyVal);
-                                        }
-                                        else LOG_DXRT_DBG << "LoadGraphInfo: no nextLayersArray value in data.graphs["+to_string(i)+"].object.outputs" << std::endl;
-                                    }
-                                }
-
-                            }
-                        } else{
-                            DXRT_ASSERT(false, "invalid outputDetails in graph_info");
-                        }
-                    }
-                    else LOG_DXRT_DBG << "LoadGraphInfo: no name value in data.graphs["+to_string(i)+"].object" << std::endl;
-                }
-            }   
-            else LOG_DXRT_DBG << "LoadGraphInfo: no outputs object in data.graphs["+to_string(i)+"]" << std::endl;
-            param.m_graph().push_back(graph);
-        }
-    }
-    else LOG_DXRT_DBG << "LoadGraphInfo: no graphs object in data" << std::endl;
-    if (document.HasMember("origin_input") && document["origin_input"].IsArray()) {
-        const Value& originInputArray = document["origin_input"];
-        for (SizeType i = 0; i < originInputArray.Size(); i++)
-            param.origin_input().push_back(originInputArray[i].GetString());
-    }
-    else LOG_DXRT_DBG << "LoadGraphInfo: no origin_input object in data" << std::endl;
-    if (document.HasMember("origin_output") && document["origin_output"].IsArray()) {
-        const Value& originOutputArray = document["origin_output"];
-        for (SizeType i = 0; i < originOutputArray.Size(); i++)
-            param.origin_output().push_back(originOutputArray[i].GetString());
-    }
-    else LOG_DXRT_DBG << "LoadGraphInfo: no origin_output object in data" << std::endl;
-    // [field]-"toposort order"
-    if (document.HasMember("toposort_order") && document["toposort_order"].IsArray()) {
-        const Value& toposortOrderArray = document["toposort_order"];
-        for (SizeType i = 0; i < toposortOrderArray.Size(); i++)
-            param.topoSort_order().push_back(toposortOrderArray[i].GetString());
-    }
-    else LOG_DXRT_DBG << "LoadGraphInfo: no toposort_order object in data" << std::endl;
-
-    //return param;
-    return 0;
-}
-
-string LoadRmapInfo(deepx_rmapinfo::rmapInfoDatabase& param, ModelDataBase& data)
-{
-    //deepx_rmapinfo::rmapInfoDatabase param;
-    Document document;
-
-    string modelCompileType;
-
-    for (size_t i = 0; i < data.deepx_binary.rmap_info().size(); i++)
-    {
-        string rmapBuffer = "";
-        for (const auto& str : data.deepx_binary.rmap_info(i).str())
-            rmapBuffer += str;
-
-        // cout << rmapBuffer << endl;
-
-        document.Parse(rmapBuffer.c_str());
-        if (document.HasParseError()) {
-            std::cerr << "rmapinfo parsing failed. (" << document.GetParseError() << ")" << std::endl;
-            exit(-1);
-        }
-
-        deepx_rmapinfo::RegisterInfoDatabase regMap;
-
-        // [field]-"verion"
-        if (document.HasMember("version") && document["version"].IsObject()) {
-            const Value& versionObj = document["version"];
-            if (versionObj.HasMember("npu") && versionObj["npu"].IsString())
-                regMap.version().npu() = versionObj["npu"].GetString();
-            else LOG_DXRT_DBG << "LoadRmapInfo: no npu value in data.version" << std::endl;
-            if (versionObj.HasMember("rmap") && versionObj["rmap"].IsString())
-                regMap.version().rmap() = versionObj["rmap"].GetString();
-            else LOG_DXRT_DBG << "LoadRmapInfo: no rmap value in data.version" << std::endl;
-            if (versionObj.HasMember("rmapInfo") && versionObj["rmapInfo"].IsString())
-                regMap.version().rmapinfo() = versionObj["rmapInfo"].GetString();
-            else LOG_DXRT_DBG << "LoadRmapInfo: no rmapInfo value in data.version" << std::endl;
-        } 
-        else LOG_DXRT_DBG << "LoadRmapInfo: no version object in data["+to_string(i)+"]" << std::endl;
-
-        // [field]-"model"
-        if (document.HasMember("model") && document["model"].IsString())
-            regMap.model() = document["model"].GetString();
-        else LOG_DXRT_DBG << "LoadRmapInfo: no model value in data" << std::endl;
-        // [field]-"npu"
-        if (document.HasMember("npu") && document["npu"].IsObject()) {
-            const Value& npuObj = document["npu"];
-            if (npuObj.HasMember("mac") && npuObj["mac"].IsInt64())
-                regMap.npu().mac() = npuObj["mac"].GetInt64();
-            else LOG_DXRT_DBG << "LoadRmapInfo: no mac value in data["+to_string(i)+"].npu" << std::endl;
-        }
-        else LOG_DXRT_DBG << "LoadRmapInfo: no npu object in data["+to_string(i)+"]" << std::endl;
-
-        // [field]-"size"
-        if (document.HasMember("size") && document["size"].IsString())
-            regMap.size() = stoi(document["size"].GetString());
-        else LOG_DXRT_DBG << "LoadRmapInfo: no size value in data["+to_string(i)+"]" << std::endl;
-
-        // [field]-"traffic"
-        if (document.HasMember("traffic") && document["traffic"].IsString())
-            regMap.traffic() = stoi(document["traffic"].GetString());
-        else LOG_DXRT_DBG << "LoadRmapInfo: no traffic value in data["+to_string(i)+"]" << std::endl;
-
-        // [field]-"counts"
-        if (document.HasMember("counts") && document["counts"].IsObject()) {
-            const Value& countsObj = document["counts"];
-            if (countsObj.HasMember("layer") && countsObj["layer"].IsInt64())
-                regMap.counts().layer() = countsObj["layer"].GetInt64();
-            else LOG_DXRT_DBG << "LoadRmapInfo: no layer value in data["+to_string(i)+"].counts" << std::endl;
-            if (countsObj.HasMember("cmd") && countsObj["cmd"].IsInt64())
-                regMap.counts().cmd() = countsObj["cmd"].GetInt64();
-            else LOG_DXRT_DBG << "LoadRmapInfo: no cmd value in data["+to_string(i)+"].counts" << std::endl;
-        }
-        else LOG_DXRT_DBG << "LoadRmapInfo: no counts value in data["+to_string(i)+"]" << std::endl;
-
-
-        // [field]-"input"
-        if (document.HasMember("input") && document["input"].IsObject()) {
-            const Value& inputObj = document["input"];
-            if (inputObj.HasMember("shapes") && inputObj["shapes"].IsObject()) {
-                const Value& shapesObj = inputObj["shapes"];
-                if (shapesObj.HasMember("shape") && shapesObj["shape"].IsArray()) {
-                    const Value& shapeArr = shapesObj["shape"];
-                    regMap.input().shapes().shape_size() = shapeArr.Size();
-                    for (SizeType j = 0; j < regMap.input().shapes().shape_size(); j++)
-                        regMap.input().shapes().shape().push_back(shapeArr[j].GetInt64());
-                }
-                else LOG_DXRT_DBG << "LoadRmapInfo: no shape value in data["+to_string(i)+"].input.shapes" << std::endl;
-            }
-            else LOG_DXRT_DBG << "LoadRmapInfo: no shapes value in data["+to_string(i)+"].input" << std::endl;
-            if (inputObj.HasMember("type") && inputObj["type"].IsString())
-                regMap.input().type() = GetDataTypeNum(inputObj["type"].GetString());
-            else LOG_DXRT_DBG << "LoadRmapInfo: no type value in data["+to_string(i)+"].input" << std::endl;
-            if (inputObj.HasMember("mode") && inputObj["mode"].IsString())
-                regMap.input().mode() = GetInputModeNum(inputObj["mode"].GetString());
-            else LOG_DXRT_DBG << "LoadRmapInfo: no mode value in data["+to_string(i)+"].input" << std::endl;
-            if (inputObj.HasMember("memory") && inputObj["memory"].IsObject()) {
-                const Value& memoryObj = inputObj["memory"];
-                if (memoryObj.HasMember("name") && memoryObj["name"].IsString())
-                    regMap.input().memory().name() = memoryObj["name"].GetString();
-                 else LOG_DXRT_DBG << "LoadRmapInfo: no name value in data["+to_string(i)+"].input.memory" << std::endl;
-                if (memoryObj.HasMember("offset") && memoryObj["offset"].IsString())
-                    regMap.input().memory().offset() = stoi(memoryObj["offset"].GetString());
-                else LOG_DXRT_DBG << "LoadRmapInfo: no offset value in data["+to_string(i)+"].input.memory" << std::endl;
-                if (memoryObj.HasMember("size") && memoryObj["size"].IsString())
-                    regMap.input().memory().size() = stoi(memoryObj["size"].GetString());
-                else LOG_DXRT_DBG << "LoadRmapInfo: no size value in data["+to_string(i)+"].input.memory" << std::endl;
-                if (memoryObj.HasMember("type") && memoryObj["type"].IsString())
-                    regMap.input().memory().type() = GetMemoryTypeNum(memoryObj["type"].GetString());
-                else LOG_DXRT_DBG << "LoadRmapInfo: no type value in data["+to_string(i)+"].input.memory" << std::endl;
-            }
-            else LOG_DXRT_DBG << "LoadRmapInfo: no memory value in data["+to_string(i)+"].input" << std::endl;
-            if (inputObj.HasMember("format") && inputObj["format"].IsString())
-                regMap.input().format() = GetDataFormatNum(inputObj["format"].GetString());
-            else LOG_DXRT_DBG << "LoadRmapInfo: no format value in data["+to_string(i)+"].input" << std::endl;
-        }
-        else LOG_DXRT_DBG << "LoadRmapInfo: no inputs object in data["+to_string(i)+"]" << std::endl;
-
-
-        // [field]-"outputs"
-        if (document.HasMember("outputs") && document["outputs"].IsObject()) {
-            const Value& outputsObj = document["outputs"];
-            if (outputsObj.HasMember("memory") && outputsObj["memory"].IsObject()) {
-                const Value& memoryObj = outputsObj["memory"];
-                if (memoryObj.HasMember("name") && memoryObj["name"].IsString())
-                    regMap.outputs().memory().name() = memoryObj["name"].GetString();
-                else LOG_DXRT_DBG << "LoadRmapInfo: no name value in data["+to_string(i)+"].outputs.memory" << std::endl;
-                if (memoryObj.HasMember("offset") && memoryObj["offset"].IsString())
-                    regMap.outputs().memory().offset() = stoi(memoryObj["offset"].GetString());
-                else LOG_DXRT_DBG << "LoadRmapInfo: no offset value in data["+to_string(i)+"].outputs.memory" << std::endl;
-                if (memoryObj.HasMember("size") && memoryObj["size"].IsString())
-                    regMap.outputs().memory().size() = stoi(memoryObj["size"].GetString());
-                else LOG_DXRT_DBG << "LoadRmapInfo: no size value in data["+to_string(i)+"].outputs.memory" << std::endl;
-                if (memoryObj.HasMember("type") && memoryObj["type"].IsString())
-                    regMap.outputs().memory().type() = GetMemoryTypeNum(memoryObj["type"].GetString());
-                else LOG_DXRT_DBG << "LoadRmapInfo: no type value in data["+to_string(i)+"].outputs.memory" << std::endl;
-
-            }
-            else LOG_DXRT_DBG << "LoadRmapInfo: no memory object in data["+to_string(i)+"].outputs" << std::endl;
-            if (outputsObj.HasMember("outputList") && outputsObj["outputList"].IsObject()) {
-                const Value& outputListObj = outputsObj["outputList"];
-                if (outputListObj.HasMember("output") && outputListObj["output"].IsArray()) {
-                    const Value& outputArr = outputListObj["output"];
-                    regMap.outputs().outputlist().output_size() = outputArr.Size();
-                    for (SizeType j = 0; j < regMap.outputs().outputlist().output_size(); j++) {
-                        const Value &outputObj = outputArr[j];
-                        deepx_rmapinfo::InOutput output;
-                        if (outputObj.HasMember("format") && outputObj["format"].IsString())
-                            output.format() = GetDataFormatNum(outputObj["format"].GetString());
-                        else LOG_DXRT_DBG << "LoadRmapInfo: no format value in data["+to_string(i)+"].outputs.outputList.output["+to_string(j)+"]" << std::endl;
-                        if (outputObj.HasMember("memory") && outputObj["memory"].IsObject()) {
-                            const Value &memoryObj = outputObj["memory"];
-                            if (memoryObj.HasMember("type") && memoryObj["type"].IsString())
-                                output.memory().type() = GetMemoryTypeNum(memoryObj["type"].GetString());
-                            else LOG_DXRT_DBG << "LoadRmapInfo: no type value in data["+to_string(i)+"].outputs.outputList.output["+to_string(j)+"].memory" << std::endl;
-                            if (memoryObj.HasMember("name") && memoryObj["name"].IsString())
-                                output.memory().name() = memoryObj["name"].GetString();
-                            else LOG_DXRT_DBG << "LoadRmapInfo: no name value in data["+to_string(i)+"].outputs.outputList.output["+to_string(j)+"].memory" << std::endl;
-                            if (memoryObj.HasMember("offset") && memoryObj["offset"].IsString())
-                                output.memory().offset() = stoi(memoryObj["offset"].GetString());
-                            else LOG_DXRT_DBG << "LoadRmapInfo: no offset value in data["+to_string(i)+"].outputs.outputList.output["+to_string(j)+"].memory" << std::endl;
-                            if (memoryObj.HasMember("size") && memoryObj["size"].IsString())
-                                output.memory().size() = stoi(memoryObj["size"].GetString());
-                            else LOG_DXRT_DBG << "LoadRmapInfo: no size value in data["+to_string(i)+"].outputs.outputList.output["+to_string(j)+"].memory" << std::endl;
-                        }
-                        else LOG_DXRT_DBG << "LoadRmapInfo: no memory object in data["+to_string(i)+"].outputs.outputList.output["+to_string(j)+"]" << std::endl;
-                        //PPU Output
-                        if (output.memory().type() == 3){
-                            if (output.format() == 4)
-                            {
-                                output.name() = "BBOX";
-                            }
-                            else if (output.format() == 5)
-                            {
-                                output.name() = "FACE";
-                            }
-                            else if (output.format() == 6)
-                            {
-                                output.name() = "POSE";
-                            }
-                            else
-                            {
-                                LOG_DXRT_ERR(" PPU Output format is invalid. ");
-                                exit (1);
-                            }
-                            output.shapes().shape_size() = 2;
-                            output.shapes().shape().push_back(1);
-                            output.shapes().shape().push_back(-1);
-
-                            int dataType = DataType::BBOX;
-                            dataType += output.format();
-                            dataType -= deepx_rmapinfo::DataFormat::PPU_YOLO;
-                            output.type() = dataType;
-                        }
-                        else
-                        {
-                            if (outputObj.HasMember("name") && outputObj["name"].IsString())
-                                output.name() = outputObj["name"].GetString();
-                            else LOG_DXRT_DBG << "LoadRmapInfo: no name value in data["+to_string(i)+"].outputs.outputList.output["+to_string(j)+"]" << std::endl;
-                            if (outputObj.HasMember("type") && outputObj["type"].IsString())
-                                output.type() = GetDataTypeNum(outputObj["type"].GetString());
-                            else LOG_DXRT_DBG << "LoadRmapInfo: no type value in data["+to_string(i)+"].outputs.outputList.output["+to_string(j)+"]" << std::endl;
-                            if (outputObj.HasMember("shapes") && outputObj["shapes"].IsObject()) {
-                                const Value& shapesObj = outputObj["shapes"];
-                                if (shapesObj.HasMember("shape") && shapesObj["shape"].IsArray()) {
-                                    const Value& shapeArr = shapesObj["shape"];
-                                    output.shapes().shape_size() = shapeArr.Size();
-
-                                    int64_t product = 1;  
-                                    for (SizeType k = 0; k < output.shapes().shape_size(); k++) {
-                                        int64_t value = shapeArr[k].GetInt64();
-                                        if (k == 3)
-                                        {
-                                            value = GetAlign(value);
-                                        }
-                                        else if (k > 3) 
-                                            throw std::out_of_range("Invalid tensor shape ( > 4D)");
-                                        output.shapes().shape().push_back(value);
-                                        product *= value;
-                                    }
-
-                                    int dataType = output.type();
-                                    if (dataType == DataType::UINT8 || dataType == DataType::INT8) {
-                                        product *= 1;  
-                                    } else if (dataType == DataType::UINT16 || dataType == DataType::INT16) {
-                                        product *= 2;  
-                                    } else if (dataType == DataType::UINT32 || dataType == DataType::INT32 ||  dataType == DataType::FLOAT) {
-                                        product *= 4;  
-                                    } else if (dataType == DataType::UINT64 || dataType == DataType::INT64) {
-                                        product *= 8;  
-                                    } else if (dataType == DataType::NONE_TYPE) {
-                                        product *= 1; 
-                                    } else {
-                                        std::cerr << "Invalid type : " << dataType << std::endl;
-                                    }
-                                    if (product != output.memory().size()){
-                                        std::cerr << "Final product: " << product << std::endl;
-                                        std::cerr << "output.memory().size(): " << output.memory().size() << std::endl;
-                                        DXRT_ASSERT(false, "invalid output shape in rmap_info");
-                                    }
-                                }
-                                else LOG_DXRT_DBG << "LoadRmapInfo: no shape value in data["+to_string(i)+"].outputs.outputList.output["+to_string(j)+"].shapes" << std::endl;
-                            }
-                            else LOG_DXRT_DBG << "LoadRmapInfo: no shapes object in data["+to_string(i)+"].outputs.outputList.output["+to_string(j)+"]" << std::endl;
-
-                        }
-
-                        regMap.outputs().outputlist().output().push_back(output);
-                    }
-                }
-                else LOG_DXRT_DBG << "LoadRmapInfo: no output object in data["+to_string(i)+"].outputs.outputList" << std::endl;
-            }
-            else LOG_DXRT_DBG << "LoadRmapInfo: no outputList object in data["+to_string(i)+"].outputs" << std::endl;
-        }
-        else LOG_DXRT_DBG << "LoadRmapInfo: no outputs value in data["+to_string(i)+"]" << std::endl;
-
-        // [field]-"momorys"
-        if (document.HasMember("memorys") && document["memorys"].IsObject()) {
-            const Value& memorysObj = document["memorys"];
-            if (memorysObj.HasMember("memory") && memorysObj["memory"].IsArray()) {
-                const Value& memoryArr = memorysObj["memory"];
-                regMap.memorys().memory_size() = memoryArr.Size();
-                for (SizeType j = 0; j < regMap.memorys().memory_size(); j++) {
-                    const Value& memoryObj = memoryArr[j];
-                    deepx_rmapinfo::Memory memory;
-                    
-                    if (memoryObj.HasMember("name") && memoryObj["name"].IsString())
-                        memory.name() = memoryObj["name"].GetString();
-                    else LOG_DXRT_DBG << "LoadRmapInfo: no name value in data["+to_string(i)+"].memorys.memory["+to_string(j)+"]" << std::endl;
-                    
-                    if (memoryObj.HasMember("size") && memoryObj["size"].IsString())
-                        memory.size() = stoi(memoryObj["size"].GetString());
-                    else LOG_DXRT_DBG << "LoadRmapInfo: no size value in data["+to_string(i)+"].memorys.memory["+to_string(j)+"]" << std::endl;
-
-                    if (memoryObj.HasMember("offset") && memoryObj["offset"].IsString())
-                        memory.offset() = stoi(memoryObj["offset"].GetString());
-                    else LOG_DXRT_DBG << "LoadRmapInfo: no offset value in data["+to_string(i)+"].memorys.memory["+to_string(j)+"]" << std::endl;
-
-                    regMap.memorys().memory().push_back(memory);
-                }
-            }
-            else LOG_DXRT_DBG << "LoadRmapInfo: no memory object in data["+to_string(i)+"].memorys" << std::endl;
-        }
-        else LOG_DXRT_DBG << "LoadRmapInfo: no memorys object in data["+to_string(i)+"]" << std::endl;
-
-        // [field]-"layers"
-        if (document.HasMember("layers") && document["layers"].IsObject()) {
-            modelCompileType = "DEBUG";
-            const Value& layersObj = document["layers"];
-            if (layersObj.HasMember("layer") && layersObj["layer"].IsArray()) {
-                const Value& layerArr = layersObj["layer"];
-                regMap.layers().layer_size() = layerArr.Size();
-                for (SizeType j = 0; j < regMap.layers().layer_size(); j++) {
-                    const Value& layerObj = layerArr[j];
-                    deepx_rmapinfo::Layer layer;
-                    if (layerObj.HasMember("memory") && layerObj["memory"].IsObject()) {
-                        const Value& memoryObj = layerObj["memory"];
-                        if (memoryObj.HasMember("name") && memoryObj["name"].IsString())
-                            layer.memory().name() = memoryObj["name"].GetString();
-                        else LOG_DXRT_DBG << "LoadRmapInfo: no name value in data["+to_string(i)+"].layers["+to_string(j)+"].layer.memory" << std::endl;
-                        if (memoryObj.HasMember("offset") && memoryObj["offset"].IsString())
-                            layer.memory().offset() = stoi(memoryObj["offset"].GetString());
-                        else LOG_DXRT_DBG << "LoadRmapInfo: no offset value in data["+to_string(i)+"].layers["+to_string(j)+"].layer.memory" << std::endl;
-                        if (memoryObj.HasMember("size") && memoryObj["size"].IsString())
-                            layer.memory().size() = stoi(memoryObj["size"].GetString());
-                        else LOG_DXRT_DBG << "LoadRmapInfo: no size value in data["+to_string(i)+"].layers["+to_string(j)+"].layer.memory" << std::endl;
-
-                        if (memoryObj.HasMember("type") && memoryObj["type"].IsString())
-                            layer.memory().type() = GetMemoryTypeNum(memoryObj["type"].GetString());
-                        else LOG_DXRT_DBG << "LoadRmapInfo: no name value in data["+to_string(i)+"].layers["+to_string(j)+"].layer.memory" << std::endl;
-                    }
-                    else LOG_DXRT_DBG << "LoadRmapInfo: no memory object in data["+to_string(i)+"].layers["+to_string(j)+"].layer" << std::endl;
-
-                    if (layerObj.HasMember("number") && layerObj["number"].IsObject()) {
-                        const Value &memoryObj = layerObj["number"];
-                        if (memoryObj.HasMember("tile") && memoryObj["tile"].IsInt64())
-                            layer.number().layer() = memoryObj["tile"].GetInt64();
-                        else LOG_DXRT_DBG << "LoadRmapInfo: no tile value in data["+to_string(i)+"].layers["+to_string(j)+"].layer.number" << std::endl;
-                        if (memoryObj.HasMember("layer") && memoryObj["layer"].IsInt64())
-                            layer.number().tile() = memoryObj["layer"].GetInt64();
-                        else LOG_DXRT_DBG << "LoadRmapInfo: no layer value in data["+to_string(i)+"].layers["+to_string(j)+"].layer.number" << std::endl;
-                    }
-                    else LOG_DXRT_DBG << "LoadRmapInfo: no number object in data["+to_string(i)+"].layers["+to_string(j)+"].layer" << std::endl;
-
-                    if (layerObj.HasMember("input") && layerObj["input"].IsObject()) {
-                        const Value& inputObj = layerObj["input"];
-                        if (inputObj.HasMember("shapes") && inputObj["shapes"].IsObject()) {
-                            const Value& shapesObj = inputObj["shapes"];
-                            if (shapesObj.HasMember("shape") && shapesObj["shape"].IsArray()) {
-                                const Value& shapeArr = shapesObj["shape"];
-                                layer.input().shapes().shape_size() = shapeArr.Size();
-                                for (SizeType k = 0; k < layer.input().shapes().shape_size(); k++) {
-                                    layer.input().shapes().shape().push_back(shapeArr[k].GetInt64());
-                                }
-                            }
-                            else LOG_DXRT_DBG << "LoadRmapInfo: no shape value in data["+to_string(i)+"].layers.layer["+to_string(j)+"].input.shapes" << std::endl;
-                        }
-                        else LOG_DXRT_DBG << "LoadRmapInfo: no shapes object in data["+to_string(i)+"].layers.layer["+to_string(j)+"].input" << std::endl;
-
-                        if (inputObj.HasMember("type") && inputObj["type"].IsString())
-                            layer.input().type() = GetDataTypeNum(inputObj["type"].GetString());
-                        else LOG_DXRT_DBG << "LoadRmapInfo: no type value in data["+to_string(i)+"].layers.layer["+to_string(j)+"].input" << std::endl;
-                    }
-                    else LOG_DXRT_DBG << "LoadRmapInfo: no input object in data["+to_string(i)+"].layers.layer["+to_string(j)+"]" << std::endl;
-
-                    if (layerObj.HasMember("output") && layerObj["output"].IsObject()) {
-                        const Value& outputObj = layerObj["output"];
-                        if (outputObj.HasMember("shapes") && outputObj["shapes"].IsObject()) {
-                            const Value& shapesObj = outputObj["shapes"];
-                            if (shapesObj.HasMember("shape") && shapesObj["shape"].IsArray()) {
-                                const Value& shapeArr = shapesObj["shape"];
-                                layer.output().shapes().shape_size() = shapeArr.Size();
-                                for (SizeType k = 0; k < layer.output().shapes().shape_size(); k++) {
-                                    layer.output().shapes().shape().push_back(shapeArr[k].GetInt64());
-                                }
-                            }
-                            else LOG_DXRT_DBG << "LoadRmapInfo: no shape value in data["+to_string(i)+"].layers.layer["+to_string(j)+"].output.shapes" << std::endl;
-                        }
-                        else LOG_DXRT_DBG << "LoadRmapInfo: no shapes object in data["+to_string(i)+"].layers.layer["+to_string(j)+"].output" << std::endl;
-                        if (outputObj.HasMember("type") && outputObj["type"].IsString())
-                            layer.output().type() = GetDataTypeNum(outputObj["type"].GetString());
-                        else LOG_DXRT_DBG << "LoadRmapInfo: no type value in data["+to_string(i)+"].layers.layer["+to_string(j)+"].output" << std::endl;
-                    }
-                    else LOG_DXRT_DBG << "LoadRmapInfo: no output object in data["+to_string(i)+"].layers.layer["+to_string(j)+"]" << std::endl;
-
-                    if (layerObj.HasMember("operators") && layerObj["operators"].IsObject()) {
-                        const Value& operatorsObj = layerObj["operators"];
-                        if (operatorsObj.HasMember("operator") && operatorsObj["operator"].IsArray()) {
-                            const Value& operatorArr = operatorsObj["operator"];
-                            layer.operators().operator_size() = operatorArr.Size();
-                            for (SizeType k = 0; k < layer.operators().operator_size(); k++) {
-                                const Value& operatorObj = operatorArr[k];
-                                layer.operators().anoperator().push_back(operatorObj.GetString());
-                            }
-                        }
-                        else LOG_DXRT_DBG << "LoadRmapInfo: no operator object in data["+to_string(i)+"].layers.layer["+to_string(i)+"].operators" << std::endl;
-                    }
-                    else LOG_DXRT_DBG << "LoadRmapInfo: no operators object in data["+to_string(i)+"].layers.layer["+to_string(i)+"]" << std::endl;
-
-                    if (layerObj.HasMember("preLayers") && layerObj["preLayers"].IsObject()) {
-                        const Value& preLayersObj = layerObj["preLayers"];
-                        if (preLayersObj.HasMember("preLayer") && preLayersObj["preLayer"].IsArray()) {
-                            const Value& preLayerArr = preLayersObj["preLayer"];
-                            layer.preLayers().preLayer().layer_size() = preLayerArr.Size();
-                            for (SizeType k = 0; k < layer.preLayers().preLayer().layer_size(); k++) {
-                                const Value &numberObj = preLayerArr[k];
-                                if (numberObj.HasMember("number") && numberObj["number"].IsInt64())
-                                    layer.preLayers().preLayer().number().push_back(numberObj["number"].GetInt64());
-                                else LOG_DXRT_DBG << "LoadRmapInfo: no number value in data["+to_string(i)+"].layers.layer["+to_string(j)+"].preLayers.preLayer["+to_string(k)+"]" << std::endl;
-                            }
-                        }
-                        else LOG_DXRT_DBG << "LoadRmapInfo: no preLayer object in data["+to_string(i)+"].layers.layer["+to_string(j)+"].preLayers" << std::endl;
-                    }
-
-                    if (layerObj.HasMember("nextLayers") && layerObj["nextLayers"].IsObject()) {
-                        const Value& nextLayersObj = layerObj["nextLayers"];
-                        if (nextLayersObj.HasMember("nextLayer") && nextLayersObj["nextLayer"].IsArray()) {
-                            const Value& nextLayerArr = nextLayersObj["nextLayer"];
-                            layer.nextLayers().nextLayer().layer_size() = nextLayerArr.Size();
-                            for (SizeType k = 0; k < layer.nextLayers().nextLayer().layer_size(); k++) {
-                                const Value &numberObj = nextLayerArr[k];
-                                if (numberObj.HasMember("number")  && numberObj["number"].IsInt64())
-                                    layer.nextLayers().nextLayer().number().push_back(numberObj["number"].GetInt64());
-                                else LOG_DXRT_DBG << "LoadRmapInfo: no number value in data["+to_string(i)+"].layers.layer["+to_string(j)+"].nextLayers.nextLayer" << std::endl;
-                            }
-                        }
-                        else LOG_DXRT_DBG << "LoadRmapInfo: no nextLayer object in data["+to_string(i)+"].layers.layer["+to_string(j)+"].nextLayers" << std::endl;
-                    }
-                    regMap.layers().layer().push_back(layer);
-                }
-            }
-            else LOG_DXRT_DBG << "LoadRmapInfo: no layer object in data["+to_string(i)+"].layers" << std::endl;
-        }
-        else
-        {
-            modelCompileType = "RELEASE";
-        }
-        param.m_rmap().push_back(regMap);
-    }
-    //return param;
-    return modelCompileType;
+    // The actual parsing logic has been moved to version-specific parsers
+    // This should not be reached if the factory call above succeeds
+    throw InvalidOperationException(EXCEPTION_MESSAGE("LoadModelParam: Parser factory call failed"));
 }
 
 ostream& operator<<(ostream& os, const ModelDataBase& m)
 {
     auto graphsDb = m.deepx_graph;
     auto binDb = m.deepx_binary;
-    auto graphs = graphsDb.m_graph();
+    auto graphs = graphsDb.subgraphs();
     auto toposortOrder = graphsDb.topoSort_order();
-    for(auto &name : toposortOrder)
-    {        
-        for(auto &graph : graphs)
+    for (const auto &name : toposortOrder)
+    {
+        for (auto &graph : graphs)
         {
-            if(graph.name() == name)
+            if (graph.name() == name)
             {
                 // if(binDb.npu_models())
                 os << "-- " << graph.name() << endl;
                 break;
-            }    
-            else continue;        
+            }
+            else continue;
         }
     }
     return os;
@@ -922,7 +122,7 @@ std::tuple<int, int, int> convertVersion(const string& vers)
     char delimiter = '.';
     std::vector<std::string> tokens;
     std::string token;
-    std::stringstream ss(vers); 
+    std::stringstream ss(vers);
 
     while (std::getline(ss, token, delimiter)) {
         tokens.push_back(token);
@@ -938,4 +138,4 @@ bool isSupporterModelVersion(const string& vers)
     return this_version >= min_version;
 }
 
-}/* namespace dxrt */
+} /* namespace dxrt */

@@ -10,7 +10,7 @@ Model dir.
 - `graph.dxnn`  
   : A unified DEEPX artifact that contains  NPU command data, model metadata, model parameters.  
 
-This file is used directly for inference on DEEPX hardware or simulator.  
+This file is used directly for inference on DEEPX hardware
 
 ---
 

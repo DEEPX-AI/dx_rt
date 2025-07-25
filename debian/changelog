@@ -1,3 +1,7 @@
+libdxrt (3.0.0) unstable; urgency=medium
+
+ -- Lee Huseong <hslee@deepx.ai> Fri, 18 Jul 2025 15:00:00 +0900
+
 libdxrt (2.6.2) unstable; urgency=medium
 
   * Fixed: Fix free output buffer locking issue for multi-threaded runAsync

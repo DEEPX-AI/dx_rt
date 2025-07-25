@@ -6,7 +6,7 @@
 #include <string>
 #include "dxrt/common.h"
 #include "dxrt/device.h"
-#include "cxxopts.hpp"
+#include "dxrt/extern/cxxopts.hpp"
 
 
 namespace dxrt {
@@ -43,13 +43,6 @@ class DXRT_API DeviceStatusMonitor : public CLICommand
 {
    public:
       explicit DeviceStatusMonitor(cxxopts::ParseResult &);
-   private:
-      void doCommand(DevicePtr devicePtr) override;
-};
-class DXRT_API DeviceMonitorDebug : public CLICommand
-{
-   public:
-      explicit DeviceMonitorDebug(cxxopts::ParseResult &);
    private:
       void doCommand(DevicePtr devicePtr) override;
 };
@@ -112,22 +105,6 @@ class DXRT_API FWConfigCommandJson : public CLICommand
     void doCommand(DevicePtr devicePtr) override;
 };
 
-class DXRT_API DDRTargetCommand : public CLICommand
-{
-   public:
-      explicit DDRTargetCommand(cxxopts::ParseResult &);
-   private:
-      void doCommand(DevicePtr devicePtr) override;
-};
-
-class DXRT_API OTPCommand : public CLICommand
-{
-   public:
-      explicit OTPCommand(cxxopts::ParseResult &);
-   private:
-      void doCommand(DevicePtr devicePtr) override;
-};
-
 class DXRT_API FWLogCommand : public CLICommand
 {
  public:
@@ -143,5 +120,18 @@ class DXRT_API ShowVersionCommand : public CLICommand
  private:
     void doCommand(DevicePtr devicePtr) override;
 };
-
+class DXRT_API PcieStatusCLICommand : public CLICommand
+{
+ public:
+    explicit PcieStatusCLICommand(cxxopts::ParseResult &);
+ private:
+    void doCommand(DevicePtr devicePtr) override;
+};
+class DXRT_API DDRErrorCLICommand : public CLICommand
+{
+ public:
+    explicit DDRErrorCLICommand(cxxopts::ParseResult &);
+ private:
+    void doCommand(DevicePtr devicePtr) override;
+};
 }  // namespace dxrt
