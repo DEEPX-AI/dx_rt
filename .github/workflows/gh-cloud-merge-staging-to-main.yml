@@ -170,6 +170,8 @@ jobs:
           
           echo "Deleting RELEASE_NOTES_WITH_JIRA_NUM.md if exists..."
           rm -f RELEASE_NOTES_WITH_JIRA_NUM.md
+          echo "Deleting RELEASE_NOTES_MATERIAL.md..."
+          rm -f RELEASE_NOTES_MATERIAL.md
           echo "Checking if anything is staged..."
           if git diff --staged --quiet; then
             echo "::notice::No changes staged after squash merge. Skipping commit."
