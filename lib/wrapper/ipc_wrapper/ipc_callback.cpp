@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <cstdint>
 #include <future>
+#include <iostream>
 #include "dxrt/common.h"
 #include "dxrt/driver.h"
 #include "dxrt/device_struct.h"
@@ -13,6 +14,10 @@
 #include "dxrt/task.h"
 #include "dxrt/request.h"
 #include "service_error.h"
+
+
+using std::cout;
+using std::endl;
 
 namespace dxrt {
 

@@ -7,7 +7,7 @@ This section describes the hardware and software requirements for running **DX-R
 - **RAM:** 8GB RAM (16GB RAM or higher is recommended)
 - **Storage:** 4GB or higher available disk space
 - **OS:** Windows 10 / 11
-- **Python:** Version 3.8 or higher (for Python module support)
+- **Python:** Version 3.11 (for Python module support)
 - **Compiler:** Visual Studio 2022 (required for building C++ examples)
 - **Hardware:** The system **must** support connection to an **M1 M.2** module with the **M.2 interface** on the host PC.  
 
@@ -32,7 +32,7 @@ DEEPX provides the Windows installer executable file for **DX-RT**.
 
 Here is an example of the execution file.  
 
-- `DXNN_Runtime_v2.X.X_windows_amd64.exe`  
+- `DXNN_Runtime_vX.X.X_windows_amd64.exe`  
 
 **Default Directory Path**  
 
@@ -99,14 +99,14 @@ C:\...\examples\run_async_model\msvc\x64\Release> .\run_async_model.exe model.dx
 
 ## Python Package Installation 
 
-DEEPX provides a Python module named `dx_engine` for Python 3.8 or later.  
+DEEPX provides a Python module named `dx_engine` for Python 3.11.  
 
 **1.** Build and Install the Package  
 Navigate to the Python package directory and install the module.  
 
 ```
-C:\...\dxrt_v2.8.2> cd python_package/
-C:\...\dxrt_v2.8.2\python_package> pip install .
+C:\...\dxrt_vX.X.X> cd python_package/
+C:\...\dxrt_vX.X.X\python_package> pip install .
 ```
 
 **2.** Verify the Installation  

@@ -56,10 +56,6 @@ namespace dxrt {
             if ( _dataPool.empty() ) return nullptr;
             for (size_t i = 0; i < _dataPool.size(); ++i)
             {
-                if (_headIndex >= _dataPool.size()) // Adding bounds check
-                {
-                    _headIndex = 0; // Resetting index (to prevent potential errors)
-                }
                 std::shared_ptr<T> data = _dataPool[_headIndex];
                 _headIndex++;
                 if ( _headIndex == _dataPool.size() )

@@ -24,12 +24,14 @@
 #include <iostream>
 #include <sstream>
 #include <iomanip>
+#include <vector>
 #include <unordered_map>
 #include <string>
 #include <mutex>
 #include <atomic>
 #include <thread>
 #include <condition_variable>
+#include <utility>
 
 #include "dxrt/common.h"
 #include "dxrt/driver.h"
@@ -43,7 +45,10 @@
 #include "dxrt/driver_adapter/windows_driver_adapter.h"
 #endif
 
-
+using std::vector;
+using std::cout;
+using std::endl;
+using std::to_string;
 
 namespace dxrt {
 
@@ -145,10 +150,10 @@ void ServiceDevice::Identify(int id_, dxrt::SkipMode skip, uint32_t subCmd )
     int ret;
     _id = id_;
 #ifdef __linux__
-    _driverAdapter = make_shared<LinuxDriverAdapter>(_file.c_str());
+    _driverAdapter = std::make_shared<LinuxDriverAdapter>(_file.c_str());
 
 #elif _WIN32
-    _driverAdapter = make_shared<WindowsDriverAdapter>(_file.c_str());
+    _driverAdapter = std::make_shared<WindowsDriverAdapter>(_file.c_str());
     _devHandle = (HANDLE)_driverAdapter->GetFd();
     if (_devHandle == INVALID_HANDLE_VALUE) {
         cout << "Error: Can't open " << _file << endl;
@@ -163,24 +168,23 @@ void ServiceDevice::Identify(int id_, dxrt::SkipMode skip, uint32_t subCmd )
         LOG_DXRT << "failed to identify device " << id_ << endl;
         _isBlocked = true;
         return;
-
     }
-    //_skip = skip;
+    // _skip = skip;
     if (skip != VERSION_CHECK)
     {
 #ifdef __linux__
-        //DxDeviceVersion dxVer(this, _info.fw_ver, _info.type, _info.interface, _info.variant);
+        // DxDeviceVersion dxVer(this, _info.fw_ver, _info.type, _info.interface, _info.variant);
 #elif _WIN32
-        //DxDeviceVersion dxVer(this, _info.fw_ver, _info.type, _info.interface_value, _info.variant);
+        // DxDeviceVersion dxVer(this, _info.fw_ver, _info.type, _info.interface_value, _info.variant);
 #endif
-        //dxVer.CheckVersion();
+        // dxVer.CheckVersion();
     }
 
     LOG_DXRT_DBG << _name << ": device info : type " << _info.type
-        << hex << ", variant " << _info.variant
+        << std::hex << ", variant " << _info.variant
         << ", mem_addr " << _info.mem_addr
         << ", mem_size " << _info.mem_size
-        << dec << ", num_dma_ch " << _info.num_dma_ch << endl;
+        << std::dec << ", num_dma_ch " << _info.num_dma_ch << endl;
     DXRT_ASSERT(_info.mem_size > 0, "invalid device memory size");
     _type = static_cast<DeviceType>(_info.type);
     _variant = _info.variant;
@@ -191,11 +195,11 @@ void ServiceDevice::Identify(int id_, dxrt::SkipMode skip, uint32_t subCmd )
         _mem = nullptr;
     }
 #elif _WIN32
-    void* _mem = nullptr;	// unused in windows
+    void* _mem = nullptr;   // unused in windows
 #endif
 
     for (uint32_t num = 0; num < _info.num_dma_ch; num++)
-        _thread[num] = thread(&ServiceDevice::WaitThread, this, num);
+        _thread[num] = std::thread(&ServiceDevice::WaitThread, this, num);
 
 }
 void ServiceDevice::Terminate()
@@ -213,23 +217,21 @@ void ServiceDevice::Terminate()
 
 int ServiceDevice::InferenceRequest(dxrt_request_acc_t* req)
 {
+    // _timer.start();
     return Process(dxrt::dxrt_cmd_t::DXRT_CMD_NPU_RUN_REQ, req);
 }
 
 int ServiceDevice::WaitThread(int ids)
 {
-    LOG_DXRT_DBG << "@@@ Thread Start : WaitThread(DXRT_CMD_NPU_RUN_RESP)" << std::endl ;
+    LOG_DXRT_DBG << "@@@ Thread Start : WaitThread(DXRT_CMD_NPU_RUN_RESP)" << std::endl;
     string threadName = "ServiceDevice::WaitThread()";
-    dxrt_cmd_t cmd = // static_cast<dxrt_cmd_t>(static_cast<int>(dxrt::dxrt_cmd_t::DXRT_CMD_READ_OUTPUT_DMA_CH0)+id);
+    dxrt_cmd_t cmd =  // static_cast<dxrt_cmd_t>(static_cast<int>(dxrt::dxrt_cmd_t::DXRT_CMD_READ_OUTPUT_DMA_CH0)+id);
         dxrt::dxrt_cmd_t::DXRT_CMD_NPU_RUN_RESP;
     int loopCnt = 0;
     int ret = 0;
-#ifdef USE_PROFILER
-    auto& profiler = dxrt::Profiler::GetInstance();
-#endif
     while (true)
     {
-        //LOG_DXRT_DBG << threadName << " : wait" << endl;
+        // LOG_DXRT_DBG << threadName << " : wait" << endl;
         if (_stop.load())
         {
             LOG_DXRT_DBG << threadName << " : requested to stop thread." << endl;
@@ -237,15 +239,33 @@ int ServiceDevice::WaitThread(int ids)
         }
         dxrt_response_t response;
         response.req_id = ids;
+        
 #ifdef USE_PROFILER
-        //if (loopCnt > 0)  profiler.Start(threadName);
+        // Record wait start time using ProfilerClock
+        auto wait_start = ProfilerClock::now();
+        response.wait_start_time = std::chrono::duration_cast<std::chrono::nanoseconds>(wait_start.time_since_epoch()).count();
 #endif
+        
         ret = Process(cmd, &response);
+        
+#ifdef USE_PROFILER
+        // Record wait end time and calculate duration
+        auto wait_end = ProfilerClock::now();
+        response.wait_end_time = std::chrono::duration_cast<std::chrono::nanoseconds>(wait_end.time_since_epoch()).count();
+        
+        // Calculate wait duration in microseconds
+        auto wait_duration = std::chrono::duration_cast<std::chrono::microseconds>(wait_end - wait_start);
+        response.wait_timestamp = static_cast<uint64_t>(wait_duration.count());
+        
+        // Record in profiler using TimePoint
+        auto wait_tp = std::make_shared<TimePoint>();
+        wait_tp->start = wait_start;
+        wait_tp->end = wait_end;
+        std::string profile_name = "Service Process Wait[Thread_" + std::to_string(ids) + "][Device_" + std::to_string(_id) + "]";
+        _profiler.AddTimePoint(profile_name, wait_tp);
+#endif
         // cout << response << endl; // for debug.
 
-#ifdef USE_PROFILER
-        //profiler.End(threadName);
-#endif
         if (ret == 0 && !_stop.load())
         {
             // if(response.req_id%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || response.req_id%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
@@ -276,23 +296,27 @@ int ServiceDevice::WaitThread(int ids)
             {
                 pid_t pid = response.proc_id;
 
+                // _timer.end();
+                _timer[response.dma_ch].add(static_cast<double>(response.inf_time));
+
 #ifdef __linux__
                 // cout << pid << " process " << response.req_id << " request " << endl;    // for debug
                 LOG_DXRT_S_DBG << pid << " process " << response.req_id << " request " << endl;
                 // if (pid > 0)
                 _callBack(response);  // send it to service scheduler
 #elif _WIN32
-                if (pid > 0) {	// in windows, valid process id
+                if (pid > 0) {  // in windows, valid process id
                     // cout << pid << " process " << response.req_id << " request " << endl;    // for debug
                     LOG_DXRT_S_DBG << pid << " process " << response.req_id << " request " << endl;
                     // if (pid > 0)
                     _callBack(response);  // send it to service scheduler
                 }
-#endif // _WIN32
+#endif  // _WIN32
             }
         }
-        else {
-            //LOG_DXRT_S_ERR("DXRT_CMD_NPU_RUN_RESP ret !=0");	// for debug
+        else
+        {
+            // LOG_DXRT_S_ERR("DXRT_CMD_NPU_RUN_RESP ret !=0");	// for debug
             // if(response.req_id%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || response.req_id%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
             // {
             //     cout<<"[     WAIT_T] - err_"<<ret<<" - THREAD : "<<ids<<" - DEVICE : "<<_id<<" - PROCESS_ID : "<<response.proc_id<<" - REQ_ID : "<<response.req_id<<endl;//AGING LOG
@@ -300,9 +324,6 @@ int ServiceDevice::WaitThread(int ids)
             // }
         }
         loopCnt++;
-#ifdef USE_PROFILER
-        profiler.End(threadName);
-#endif
     }
     LOG_DXRT_S_DBG << "@@@ Thread End : WaitThread(DXRT_CMD_NPU_RUN_RESP), loopCount:" << loopCnt << std::endl;
     return 0;
@@ -310,7 +331,8 @@ int ServiceDevice::WaitThread(int ids)
 
 int ServiceDevice::BoundOption(dxrt_sche_sub_cmd_t subCmd, npu_bound_op boundOp)
 {
-    return Process(dxrt::dxrt_cmd_t::DXRT_CMD_SCHEDULE, reinterpret_cast<void*>(&boundOp), sizeof(dxrt_sche_sub_cmd_t), subCmd);
+    return Process(dxrt::dxrt_cmd_t::DXRT_CMD_SCHEDULE, reinterpret_cast<void*>(&boundOp),
+        sizeof(dxrt_sche_sub_cmd_t), subCmd);
 }
 
 void ServiceDevice::SetCallback(std::function<void(const dxrt_response_t&)> f)
@@ -323,7 +345,7 @@ void ServiceDevice::SetErrorCallback(std::function<void(dxrt::dxrt_server_err_t,
 }
 
 
-#define DEVICE_FILE "dxrt"
+// #define DEVICE_FILE "dxrt_dsp"
 static vector<shared_ptr<ServiceDevice>> serviceDevices;
 
 
@@ -333,32 +355,32 @@ vector<shared_ptr<ServiceDevice>> ServiceDevice::CheckServiceDevices(SkipMode sk
     LOG_DXRT_DBG << endl;
     const char* forceNumDevStr = getenv("DXRT_FORCE_NUM_DEV");
     const char* forceDevIdStr = getenv("DXRT_FORCE_DEVICE_ID");
-    int forceNumDev = forceNumDevStr?stoi(forceNumDevStr):0;
-    int forceDevId = forceDevIdStr?stoi(forceDevIdStr):-1;
+    int forceNumDev = forceNumDevStr?std::stoi(forceNumDevStr):0;
+    int forceDevId = forceDevIdStr?std::stoi(forceDevIdStr):-1;
 
-    if(serviceDevices.empty())
+    if (serviceDevices.empty())
     {
-        cout << "DXRT " DXRT_VERSION << endl;
+        // cout << "DXRT " DXRT_VERSION << endl;
         serviceDevices.clear();
         int cnt = 0;
-        while(1)
+        while (1)
         {
 #ifdef __linux__
             string devFile("/dev/" + string(DEVICE_FILE) + to_string(cnt));
 #elif _WIN32
             string devFile("\\\\.\\" + string(DEVICE_FILE) + to_string(cnt));
 #endif
-            if(fileExists(devFile))
+            if (fileExists(devFile))
             {
-                if(forceNumDev>0 && cnt>=forceNumDev) break;
-                if(forceDevId!=-1 && cnt!=forceDevId)
+                if (forceNumDev > 0 && cnt >= forceNumDev) break;
+                if (forceDevId != -1 && cnt != forceDevId)
                 {
                     cnt++;
                     continue;
                 }
 
                 LOG_DBG("Found " + devFile);
-                shared_ptr<ServiceDevice> device = make_shared<ServiceDevice>(devFile);
+                std::shared_ptr<ServiceDevice> device = std::make_shared<ServiceDevice>(devFile);
                 device->Identify(cnt, skip, subCmd);
                 serviceDevices.emplace_back(device);
             }
@@ -368,9 +390,9 @@ vector<shared_ptr<ServiceDevice>> ServiceDevice::CheckServiceDevices(SkipMode sk
             }
             cnt++;
         }
-        DXRT_ASSERT(cnt>0, "Device not found.");
+        DXRT_ASSERT(cnt > 0, "Device not found.");
     }
-    if(skip == SkipMode::STATIC_SAVE_SKIP)
+    if (skip == SkipMode::STATIC_SAVE_SKIP)
     {
         return std::move(serviceDevices);
     }
@@ -379,6 +401,56 @@ vector<shared_ptr<ServiceDevice>> ServiceDevice::CheckServiceDevices(SkipMode sk
     // return ret;
 }
 
+double ServiceDevice::getUsage(int core_id)
+{
+    return _timer[core_id].getUsage();
+}
 
-} // namespace dxrt
+void ServiceDevice::usageTimerTick()
+{
+    for (int i = 0; i < 3; i++)
+    {
+        _timer[i].onTick();
+    }
+}
+
+
+void ServiceDevice::DoCustomCommand(void *data, uint32_t subCmd, uint32_t size)
+{
+    std::ignore = size;
+
+    dxrt_custom_sub_cmt_t sCmd = static_cast<dxrt_custom_sub_cmt_t>(subCmd);
+    if (data == nullptr)
+    {
+        LOG_DXRT_ERR("Null data pointer received");
+        return;
+    }
+    return;  // TODO: temporary disable weight checksum
+    switch (sCmd)
+    {
+        case DX_ADD_WEIGHT_INFO:
+        {
+            Process(dxrt::dxrt_cmd_t::DXRT_CMD_CUSTOM,
+                    data,
+                    sizeof(dxrt_custom_weight_info_t),
+                    sCmd);
+            break;
+        }
+        case DX_DEL_WEIGHT_INFO:
+        {
+            Process(dxrt::dxrt_cmd_t::DXRT_CMD_CUSTOM,
+                    data,
+                    sizeof(dxrt_custom_weight_info_t),
+                    sCmd);
+            break;
+        }
+
+        default:
+            LOG_DXRT_ERR("Unknown sub command in service: " << sCmd);
+            break;
+    }
+}
+
+
+}  // namespace dxrt
 

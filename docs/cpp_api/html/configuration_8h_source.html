@@ -86,62 +86,80 @@ $(function() {
 <div class="line"><a name="l00014"></a><span class="lineno">   14</span>&#160; </div>
 <div class="line"><a name="l00015"></a><span class="lineno">   15</span>&#160;<span class="keyword">namespace </span><a class="code" href="namespacedxrt.html">dxrt</a> {</div>
 <div class="line"><a name="l00016"></a><span class="lineno">   16</span>&#160; </div>
-<div class="line"><a name="l00017"></a><span class="lineno">   17</span>&#160;    <span class="keyword">class </span>DXRT_API Configuration</div>
-<div class="line"><a name="l00018"></a><span class="lineno">   18</span>&#160;    {</div>
-<div class="line"><a name="l00019"></a><span class="lineno">   19</span>&#160;    <span class="keyword">private</span>:</div>
-<div class="line"><a name="l00020"></a><span class="lineno">   20</span>&#160;        <span class="comment">// constructor</span></div>
-<div class="line"><a name="l00021"></a><span class="lineno">   21</span>&#160;        Configuration();</div>
-<div class="line"><a name="l00022"></a><span class="lineno">   22</span>&#160;        ~Configuration();</div>
-<div class="line"><a name="l00023"></a><span class="lineno">   23</span>&#160; </div>
-<div class="line"><a name="l00024"></a><span class="lineno">   24</span>&#160;        <span class="comment">// Delete copy constructor and assignment operator</span></div>
-<div class="line"><a name="l00025"></a><span class="lineno">   25</span>&#160;        Configuration(<span class="keyword">const</span> Configuration&amp;) = <span class="keyword">delete</span>;</div>
-<div class="line"><a name="l00026"></a><span class="lineno">   26</span>&#160;        Configuration&amp; operator=(<span class="keyword">const</span> Configuration&amp;) = <span class="keyword">delete</span>;</div>
-<div class="line"><a name="l00027"></a><span class="lineno">   27</span>&#160; </div>
-<div class="line"><a name="l00028"></a><span class="lineno">   28</span>&#160;        <span class="keyword">friend</span> <span class="keyword">class </span>ObjectsPool;</div>
-<div class="line"><a name="l00029"></a><span class="lineno">   29</span>&#160;        <span class="keyword">static</span> Configuration* _staticInstance;</div>
-<div class="line"><a name="l00030"></a><span class="lineno">   30</span>&#160;        <span class="keyword">static</span> <span class="keywordtype">void</span> deleteInstance();</div>
-<div class="line"><a name="l00031"></a><span class="lineno">   31</span>&#160; </div>
-<div class="line"><a name="l00032"></a><span class="lineno">   32</span>&#160;    <span class="keyword">public</span>:</div>
-<div class="line"><a name="l00033"></a><span class="lineno">   33</span>&#160;        <span class="comment">// static function</span></div>
-<div class="line"><a name="l00034"></a><span class="lineno">   34</span>&#160;        <span class="keyword">static</span> Configuration&amp; GetInstance();</div>
-<div class="line"><a name="l00035"></a><span class="lineno">   35</span>&#160;        <span class="keywordtype">void</span> LoadConfigFile(<span class="keyword">const</span> std::string&amp; fileName);</div>
-<div class="line"><a name="l00036"></a><span class="lineno">   36</span>&#160; </div>
-<div class="line"><a name="l00037"></a><span class="lineno">   37</span>&#160;        <span class="comment">// ITEM</span></div>
-<div class="line"><a name="l00038"></a><span class="lineno">   38</span>&#160;        <span class="keyword">enum class</span> ITEM {</div>
-<div class="line"><a name="l00039"></a><span class="lineno">   39</span>&#160;            DEBUG = 1,</div>
-<div class="line"><a name="l00040"></a><span class="lineno">   40</span>&#160;            PROFILER,</div>
-<div class="line"><a name="l00041"></a><span class="lineno">   41</span>&#160;            SERVICE,</div>
-<div class="line"><a name="l00042"></a><span class="lineno">   42</span>&#160;            DYNAMIC_CPU_THREAD,</div>
-<div class="line"><a name="l00043"></a><span class="lineno">   43</span>&#160;            TASK_FLOW,</div>
-<div class="line"><a name="l00044"></a><span class="lineno">   44</span>&#160;            SHOW_THROTTLING,</div>
-<div class="line"><a name="l00045"></a><span class="lineno">   45</span>&#160;            SHOW_PROFILE</div>
-<div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160;        };</div>
-<div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160; </div>
-<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;        <span class="comment">// ATTRIBUTE</span></div>
-<div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160;        <span class="keyword">enum class</span> ATTRIBUTE {</div>
-<div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160;            PROFILER_SHOW_DATA = 1001,</div>
-<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;            PROFILER_SAVE_DATA</div>
-<div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160;        };</div>
-<div class="line"><a name="l00053"></a><span class="lineno">   53</span>&#160; </div>
-<div class="line"><a name="l00054"></a><span class="lineno">   54</span>&#160;        <span class="keywordtype">void</span> SetEnable(<span class="keyword">const</span> ITEM item, <span class="keywordtype">bool</span> enabled);</div>
-<div class="line"><a name="l00055"></a><span class="lineno">   55</span>&#160; </div>
-<div class="line"><a name="l00056"></a><span class="lineno">   56</span>&#160;        <span class="keywordtype">void</span> SetAttribute(<span class="keyword">const</span> ITEM item, <span class="keyword">const</span> ATTRIBUTE attrib, <span class="keyword">const</span> std::string&amp; value);</div>
-<div class="line"><a name="l00057"></a><span class="lineno">   57</span>&#160; </div>
-<div class="line"><a name="l00058"></a><span class="lineno">   58</span>&#160;        <span class="keywordtype">bool</span> GetEnable(<span class="keyword">const</span> ITEM item);</div>
-<div class="line"><a name="l00059"></a><span class="lineno">   59</span>&#160; </div>
-<div class="line"><a name="l00060"></a><span class="lineno">   60</span>&#160;        std::string GetAttribute(<span class="keyword">const</span> ITEM item, <span class="keyword">const</span> ATTRIBUTE attrib);</div>
-<div class="line"><a name="l00061"></a><span class="lineno">   61</span>&#160; </div>
-<div class="line"><a name="l00062"></a><span class="lineno">   62</span>&#160;        <span class="keywordtype">void</span> LockEnable(<span class="keyword">const</span> ITEM item);</div>
+<div class="line"><a name="l00032"></a><span class="lineno"><a class="line" href="classdxrt_1_1Configuration.html">   32</a></span>&#160;    <span class="keyword">class </span>DXRT_API <a class="code" href="classdxrt_1_1Configuration.html">Configuration</a></div>
+<div class="line"><a name="l00033"></a><span class="lineno">   33</span>&#160;    {</div>
+<div class="line"><a name="l00034"></a><span class="lineno">   34</span>&#160;    <span class="keyword">public</span>:</div>
+<div class="line"><a name="l00035"></a><span class="lineno">   35</span>&#160;        <span class="comment">// destructor</span></div>
+<div class="line"><a name="l00036"></a><span class="lineno">   36</span>&#160;        ~<a class="code" href="classdxrt_1_1Configuration.html">Configuration</a>();</div>
+<div class="line"><a name="l00037"></a><span class="lineno">   37</span>&#160; </div>
+<div class="line"><a name="l00038"></a><span class="lineno">   38</span>&#160;    <span class="keyword">private</span>:</div>
+<div class="line"><a name="l00039"></a><span class="lineno">   39</span>&#160; </div>
+<div class="line"><a name="l00040"></a><span class="lineno">   40</span>&#160;        <span class="comment">// constructor</span></div>
+<div class="line"><a name="l00041"></a><span class="lineno">   41</span>&#160;        <a class="code" href="classdxrt_1_1Configuration.html">Configuration</a>();</div>
+<div class="line"><a name="l00042"></a><span class="lineno">   42</span>&#160; </div>
+<div class="line"><a name="l00043"></a><span class="lineno">   43</span>&#160;        </div>
+<div class="line"><a name="l00044"></a><span class="lineno">   44</span>&#160; </div>
+<div class="line"><a name="l00045"></a><span class="lineno">   45</span>&#160;        <span class="comment">// Delete copy constructor and assignment operator</span></div>
+<div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160;        <a class="code" href="classdxrt_1_1Configuration.html">Configuration</a>(<span class="keyword">const</span> <a class="code" href="classdxrt_1_1Configuration.html">Configuration</a>&amp;) = <span class="keyword">delete</span>;</div>
+<div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160;        <a class="code" href="classdxrt_1_1Configuration.html">Configuration</a>&amp; operator=(<span class="keyword">const</span> <a class="code" href="classdxrt_1_1Configuration.html">Configuration</a>&amp;) = <span class="keyword">delete</span>;</div>
+<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160; </div>
+<div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160;        <span class="keyword">friend</span> <span class="keyword">class </span>ObjectsPool;</div>
+<div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160;        <span class="keyword">static</span> <a class="code" href="classdxrt_1_1Configuration.html">Configuration</a>* _staticInstance;</div>
+<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;        <span class="keyword">static</span> <span class="keywordtype">void</span> deleteInstance();</div>
+<div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160; </div>
+<div class="line"><a name="l00053"></a><span class="lineno">   53</span>&#160;    <span class="keyword">public</span>:</div>
+<div class="line"><a name="l00062"></a><span class="lineno">   62</span>&#160;        <span class="keyword">static</span> <a class="code" href="classdxrt_1_1Configuration.html">Configuration</a>&amp; GetInstance();</div>
 <div class="line"><a name="l00063"></a><span class="lineno">   63</span>&#160; </div>
-<div class="line"><a name="l00064"></a><span class="lineno">   64</span>&#160;    <span class="keyword">private</span>:</div>
-<div class="line"><a name="l00065"></a><span class="lineno">   65</span>&#160;        std::unordered_map&lt;ITEM, bool&gt; _enableSettings;</div>
-<div class="line"><a name="l00066"></a><span class="lineno">   66</span>&#160;        std::unordered_map&lt;ITEM, std::unordered_map&lt;ATTRIBUTE, std::string&gt; &gt; _attributes;</div>
-<div class="line"><a name="l00067"></a><span class="lineno">   67</span>&#160;        std::unordered_map&lt;ITEM, std::pair&lt;bool, std::unordered_map&lt;ATTRIBUTE, bool&gt; &gt; &gt; _isReadonly;</div>
-<div class="line"><a name="l00068"></a><span class="lineno">   68</span>&#160;        std::mutex _mutex;</div>
-<div class="line"><a name="l00069"></a><span class="lineno">   69</span>&#160;    };</div>
-<div class="line"><a name="l00070"></a><span class="lineno">   70</span>&#160; </div>
-<div class="line"><a name="l00071"></a><span class="lineno">   71</span>&#160;}  <span class="comment">// namespace dxrt</span></div>
+<div class="line"><a name="l00073"></a><span class="lineno">   73</span>&#160;        <span class="keywordtype">void</span> LoadConfigFile(<span class="keyword">const</span> std::string&amp; fileName);</div>
+<div class="line"><a name="l00074"></a><span class="lineno">   74</span>&#160; </div>
+<div class="line"><a name="l00078"></a><span class="lineno"><a class="line" href="classdxrt_1_1Configuration.html#a05c6f5c1bc9c32f709df3bd5778c9a95">   78</a></span>&#160;        <span class="keyword">enum class</span> <a class="code" href="classdxrt_1_1Configuration.html#a05c6f5c1bc9c32f709df3bd5778c9a95">ITEM</a> {</div>
+<div class="line"><a name="l00079"></a><span class="lineno">   79</span>&#160;            DEBUG = 1,              </div>
+<div class="line"><a name="l00080"></a><span class="lineno">   80</span>&#160;            PROFILER,               </div>
+<div class="line"><a name="l00081"></a><span class="lineno">   81</span>&#160;            SERVICE,                </div>
+<div class="line"><a name="l00082"></a><span class="lineno">   82</span>&#160;            DYNAMIC_CPU_THREAD,     </div>
+<div class="line"><a name="l00083"></a><span class="lineno">   83</span>&#160;            TASK_FLOW,              </div>
+<div class="line"><a name="l00084"></a><span class="lineno">   84</span>&#160;            SHOW_THROTTLING,        </div>
+<div class="line"><a name="l00085"></a><span class="lineno">   85</span>&#160;            SHOW_PROFILE,           </div>
+<div class="line"><a name="l00086"></a><span class="lineno">   86</span>&#160;            SHOW_MODEL_INFO         </div>
+<div class="line"><a name="l00087"></a><span class="lineno">   87</span>&#160;        };</div>
+<div class="line"><a name="l00088"></a><span class="lineno">   88</span>&#160; </div>
+<div class="line"><a name="l00092"></a><span class="lineno"><a class="line" href="classdxrt_1_1Configuration.html#a88b1df74ad426aaf01e606957b83223b">   92</a></span>&#160;        <span class="keyword">enum class</span> <a class="code" href="classdxrt_1_1Configuration.html#a88b1df74ad426aaf01e606957b83223b">ATTRIBUTE</a> {</div>
+<div class="line"><a name="l00093"></a><span class="lineno">   93</span>&#160;            PROFILER_SHOW_DATA = 1001,  </div>
+<div class="line"><a name="l00094"></a><span class="lineno">   94</span>&#160;            PROFILER_SAVE_DATA          </div>
+<div class="line"><a name="l00095"></a><span class="lineno">   95</span>&#160;        };</div>
+<div class="line"><a name="l00096"></a><span class="lineno">   96</span>&#160; </div>
+<div class="line"><a name="l00104"></a><span class="lineno">  104</span>&#160;        <span class="keywordtype">void</span> SetEnable(<span class="keyword">const</span> ITEM item, <span class="keywordtype">bool</span> enabled);</div>
+<div class="line"><a name="l00105"></a><span class="lineno">  105</span>&#160; </div>
+<div class="line"><a name="l00114"></a><span class="lineno">  114</span>&#160;        <span class="keywordtype">void</span> SetAttribute(<span class="keyword">const</span> ITEM item, <span class="keyword">const</span> ATTRIBUTE attrib, <span class="keyword">const</span> std::string&amp; value);</div>
+<div class="line"><a name="l00115"></a><span class="lineno">  115</span>&#160; </div>
+<div class="line"><a name="l00123"></a><span class="lineno">  123</span>&#160;        <span class="keywordtype">bool</span> GetEnable(<span class="keyword">const</span> ITEM item);</div>
+<div class="line"><a name="l00124"></a><span class="lineno">  124</span>&#160; </div>
+<div class="line"><a name="l00133"></a><span class="lineno">  133</span>&#160;        std::string GetAttribute(<span class="keyword">const</span> ITEM item, <span class="keyword">const</span> ATTRIBUTE attrib);</div>
+<div class="line"><a name="l00134"></a><span class="lineno">  134</span>&#160; </div>
+<div class="line"><a name="l00144"></a><span class="lineno">  144</span>&#160;        <span class="keywordtype">void</span> LockEnable(<span class="keyword">const</span> ITEM item);</div>
+<div class="line"><a name="l00145"></a><span class="lineno">  145</span>&#160; </div>
+<div class="line"><a name="l00150"></a><span class="lineno">  150</span>&#160;        std::string GetVersion() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00151"></a><span class="lineno">  151</span>&#160; </div>
+<div class="line"><a name="l00157"></a><span class="lineno">  157</span>&#160;        std::string GetDriverVersion() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00158"></a><span class="lineno">  158</span>&#160; </div>
+<div class="line"><a name="l00163"></a><span class="lineno">  163</span>&#160;        std::string GetPCIeDriverVersion() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00164"></a><span class="lineno">  164</span>&#160; </div>
+<div class="line"><a name="l00170"></a><span class="lineno">  170</span>&#160;        std::vector&lt;std::pair&lt;int, std::string&gt;&gt; GetFirmwareVersions() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00171"></a><span class="lineno">  171</span>&#160; </div>
+<div class="line"><a name="l00178"></a><span class="lineno">  178</span>&#160;        std::string GetONNXRuntimeVersion() <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00179"></a><span class="lineno">  179</span>&#160; </div>
+<div class="line"><a name="l00180"></a><span class="lineno">  180</span>&#160;    <span class="keyword">private</span>:</div>
+<div class="line"><a name="l00181"></a><span class="lineno">  181</span>&#160;        std::unordered_map&lt;ITEM, bool&gt; _enableSettings;</div>
+<div class="line"><a name="l00182"></a><span class="lineno">  182</span>&#160;        std::unordered_map&lt;ITEM, std::unordered_map&lt;ATTRIBUTE, std::string&gt; &gt; _attributes;</div>
+<div class="line"><a name="l00183"></a><span class="lineno">  183</span>&#160;        std::unordered_map&lt;ITEM, std::pair&lt;bool, std::unordered_map&lt;ATTRIBUTE, bool&gt; &gt; &gt; _isReadonly;</div>
+<div class="line"><a name="l00184"></a><span class="lineno">  184</span>&#160;        std::mutex _mutex;</div>
+<div class="line"><a name="l00185"></a><span class="lineno">  185</span>&#160;    };</div>
+<div class="line"><a name="l00186"></a><span class="lineno">  186</span>&#160; </div>
+<div class="line"><a name="l00187"></a><span class="lineno">  187</span>&#160;}  <span class="comment">// namespace dxrt</span></div>
 </div><!-- fragment --></div><!-- contents -->
+<div class="ttc" id="aclassdxrt_1_1Configuration_html_a88b1df74ad426aaf01e606957b83223b"><div class="ttname"><a href="classdxrt_1_1Configuration.html#a88b1df74ad426aaf01e606957b83223b">dxrt::Configuration::ATTRIBUTE</a></div><div class="ttdeci">ATTRIBUTE</div><div class="ttdoc">Enumeration defining attributes for configuration items.</div><div class="ttdef"><b>Definition:</b> configuration.h:92</div></div>
+<div class="ttc" id="aclassdxrt_1_1Configuration_html"><div class="ttname"><a href="classdxrt_1_1Configuration.html">dxrt::Configuration</a></div><div class="ttdoc">A singleton class for managing application configurations.</div><div class="ttdef"><b>Definition:</b> configuration.h:32</div></div>
+<div class="ttc" id="aclassdxrt_1_1Configuration_html_a05c6f5c1bc9c32f709df3bd5778c9a95"><div class="ttname"><a href="classdxrt_1_1Configuration.html#a05c6f5c1bc9c32f709df3bd5778c9a95">dxrt::Configuration::ITEM</a></div><div class="ttdeci">ITEM</div><div class="ttdoc">Enumeration defining types of configuration items.</div><div class="ttdef"><b>Definition:</b> configuration.h:78</div></div>
 <div class="ttc" id="anamespacedxrt_html"><div class="ttname"><a href="namespacedxrt.html">dxrt</a></div><div class="ttdoc">DXRT C++ APIs are provided in this namespace.</div><div class="ttdef"><b>Definition:</b> buffer.h:8</div></div>
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>

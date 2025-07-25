@@ -21,9 +21,8 @@
 // for debug
 // #define LOG_DXRT_DBG std::cout
 
-
-using namespace dxrt;
-using namespace std;
+namespace dxrt
+{
 
 IPCPipeClientWindows::IPCPipeClientWindows(long msgType)
 	: _usrData(nullptr), _msgType(msgType), _receiveCB(nullptr)
@@ -188,5 +187,7 @@ void IPCPipeClientWindows::ThreadFunc(IPCPipeClientWindows* _pipe)
     }
     LOG_DXRT_I_DBG << "IPCPipeClientWindows::Thread Finished" << std::endl;
 }
+
+}  // namespace dxrt
 
 #endif // _WIN32

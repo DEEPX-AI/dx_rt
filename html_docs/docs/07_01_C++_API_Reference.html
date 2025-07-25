@@ -1199,23 +1199,26 @@
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>        NPU_ALL = 0,
 <a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>        NPU_0,
 <a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>        NPU_1, 
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>        NPU_2
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    };
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>uint32_t boundOption = BOUND_OPTION::NPU_ALL
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>   variables:
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>   Select the NPU core inside the device.
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>   NPU_ALL is an option that uses all NPU cores simultaneously. NPU_0, NPU_1, and NPU_2 are   
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>   options that allow using only a single NPU core.
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>
-<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>
-<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>std::vector&lt; int&gt; devices = {}
-<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>   variables:
-<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>   device ID list to use
-<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>   make a list which contains a list of device ID to use. if it is empty
-<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>   (or use default value), 
-<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>   then all devices are used. list of device ID to use (it is empty by default, then all 
-<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a>   devices are used.)
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>        NPU_2,
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>        NPU_01,
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>        NPU_12,
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>        NPU_02
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    };
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>uint32_t boundOption = BOUND_OPTION::NPU_ALL
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>   variables:
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>   Select the NPU core inside the device.
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>   NPU_ALL is an option that uses all NPU cores simultaneously. NPU_0, NPU_1, NPU_2, NPU_01, NPU_12 and NPU 02 are   
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>   options that allow using only a single NPU core.  
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>std::vector&lt; int&gt; devices = {}
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>   variables:
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>   device ID list to use
+<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a>   make a list which contains a list of device ID to use. if it is empty
+<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a>   (or use default value), 
+<a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a>   then all devices are used. list of device ID to use (it is empty by default, then all 
+<a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a>   devices are used.)
 </code></pre></div>
 <h3 id="profiler">Profiler<a class="headerlink" href="#profiler" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>class Profiler
