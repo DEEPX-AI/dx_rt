@@ -14,7 +14,16 @@
 #include<sstream>
 #include <iomanip>
 
-using namespace std;
+using std::string;
+using std::vector;
+using std::setfill;
+using std::setw;
+using std::hex;
+using std::dec;
+using std::showbase;
+using std::endl;
+using std::pair;
+
 
 namespace dxrt {
 
@@ -22,7 +31,7 @@ DXRT_API vector<pair<int,string>> ioctlTable = {
     { dxrt::dxrt_ioctl_t::DXRT_IOCTL_MESSAGE, "IOCTL_MESSAGE" },
     { dxrt::dxrt_ioctl_t::DXRT_IOCTL_DUMMY, "IOCTL_DUMMY" },
 };
-map<int,string> errTable = {
+std::map<int,string> errTable = {
     {dxrt::dxrt_error_t::ERR_NPU0_HANG, "NPU0 Hang"},
     {dxrt::dxrt_error_t::ERR_NPU1_HANG, "NPU1 Hang"},
     {dxrt::dxrt_error_t::ERR_NPU2_HANG, "NPU2 Hang"},
@@ -36,7 +45,7 @@ map<int,string> errTable = {
 
 std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_err_t& error) {
     auto formatPcieBDF = [](int bus, int dev, int func) {
-        ostringstream ss;
+        std::ostringstream ss;
         ss << setfill('0') << setw(2) << hex << bus << ":"
            << setfill('0') << setw(2) << hex << dev << ":"
            << setfill('0') << setw(2) << hex << func;
@@ -84,14 +93,14 @@ std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_err_t& error) {
         os << temp << " ";
     }
     os << endl;
-    os << "  - Voltage(mV)    : [" 
-       << error.npu_voltage[0] << ", " 
-       << error.npu_voltage[1] << ", " 
+    os << "  - Voltage(mV)    : ["
+       << error.npu_voltage[0] << ", "
+       << error.npu_voltage[1] << ", "
        << error.npu_voltage[2] << "]" << endl;
 
-    os << "  - Frequency(MHz) : [" 
-       << error.npu_freq[0] << ", " 
-       << error.npu_freq[1] << ", " 
+    os << "  - Frequency(MHz) : ["
+       << error.npu_freq[0] << ", "
+       << error.npu_freq[1] << ", "
        << error.npu_freq[2] << "]" << endl;
 
     os << "------------------------------------------------------------------------------------------" << endl;
@@ -134,7 +143,7 @@ std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_err_t& error) {
 
 std::ostream& operator<<(std::ostream& os, const dxrt_error_t& error)
 {
-    os << errTable[error] ;
+    os << errTable[error];
     return os;
 }
 DXRT_API std::string ErrTable(dxrt_error_t error)
@@ -147,7 +156,7 @@ std::ostream& operator<<(std::ostream& os, const dxrt_meminfo_t& meminfo)
         << meminfo.offset << ", "
         << meminfo.base + meminfo.offset << " ~ "
         << meminfo.base + meminfo.offset + meminfo.size << ", "
-        << meminfo.size << "]" << dec ;
+        << meminfo.size << "]" << dec;
     return os;
 }
 std::ostream& operator<<(std::ostream& os, const dxrt_request_t& inf)
@@ -169,27 +178,26 @@ std::ostream& operator<<(std::ostream& os, const dxrt_request_acc_t& inf)
         << inf.model_type << "], ["
         << inf.model_cmds << "] @ ["
         << showbase << hex << inf.cmd_offset << ", "
-        << inf.weight_offset << "], [" << dec
-        << inf.model_cmds2 << "] @ ["
-        << showbase << hex << inf.cmd_offset2 << ", "
-        << inf.weight_offset2 << "], "
-        << inf.arg0 << dec;
+        << inf.weight_offset << "], "
+        << dec;
     return os;
 }
 std::ostream& operator<<(std::ostream& os, const dxrt_response_t& res)
 {
-    os << dec << "[" << res.req_id << "] "        
+    os << dec << "[" << res.req_id << "] "
         << res.inf_time << ", "
         << res.argmax << ", "
         << res.ppu_filter_num << ", "
-        << res.status ;        
+        << res.status;
     return os;
 }
 std::ostream& operator<<(std::ostream& os, const dxrt_model_t& model)
 {
     os << dec << model.npu_id << ", " << model.type << ", "
-        << model.cmd << ", "
+        << model.rmap << ", "
         << model.weight << ", "
+        << hex << model.input_all_offset << ", "
+        << model.input_all_size << ", "
         << hex << model.output_all_offset << ", "
         << model.output_all_size << ", "
         << model.last_output_offset << ", "
@@ -198,7 +206,7 @@ std::ostream& operator<<(std::ostream& os, const dxrt_model_t& model)
 }
 std::ostream& operator<<(std::ostream& os, const dxrt_device_info_t& info)
 {
-    os << showbase << dec 
+    os << showbase << dec
         << "type " << info.type << ", "
         << "var " << info.variant << ", "
         << hex << "addr " << info.mem_addr << ", "
@@ -225,12 +233,14 @@ std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_ntfy_throt_t& notif
             << ":: " << (notify.ntfy_code == NTFY_EMERGENCY_BLOCK ? "BLOCKED" : "RELEASED")
             << " temperature:: " << notify.throt_temper << "\'C";
     }
-    else if (notify.ntfy_code == NTFY_EMERGENCY_WARN) {
+    else if (notify.ntfy_code == NTFY_EMERGENCY_WARN)
+    {
         os  << "[Emergency] NPU@" << notify.npu_id
             << ":: " << "Warning - Temperature has reached the Emergency Point "
             << "(" << notify.throt_temper << ")\'C";
     }
-    else {
+    else
+    {
         os << "[Throttling] NPU@" << notify.npu_id
            << " voltage:: " << notify.throt_voltage[0] / 1000 << "mV -> " << notify.throt_voltage[1] / 1000 << "mV"
            << " frequency:: " << notify.throt_freq[0] << "mhz -> " << notify.throt_freq[1] << "mhz"
@@ -241,6 +251,9 @@ std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_ntfy_throt_t& notif
 
 std::ostream& operator<<(std::ostream& os, const otp_info_t& info)
 {
+    using std::uppercase;
+    using std::left;
+
     os << "=====================================\n"
         << "              OTP Info              \n"
         << "=====================================\n"

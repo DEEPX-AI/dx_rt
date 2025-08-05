@@ -2,18 +2,20 @@
 // Licensed under the MIT License.
 
 #include "dxrt/request.h"
+#include <iostream>
+#include <vector>
+#include <unordered_map>
+#include <mutex>
 #include "dxrt/device.h"
 #include "dxrt/task.h"
 #include "dxrt/inference_engine.h"
 #include "dxrt/inference_job.h"
 #include "dxrt/profiler.h"
 #include "dxrt/objects_pool.h"
-#include <iostream>
-#include <vector>
-#include <unordered_map>
-#include <mutex>
 
-using namespace std;
+using std::endl;
+using std::to_string;
+
 
 namespace dxrt
 {
@@ -29,9 +31,9 @@ Request::Request(int id)
     _data.requestId = id;
     _data.inputs = {};
     _data.outputs = {};
-    _timePoint = make_shared<TimePoint>();
+    _timePoint = std::make_shared<TimePoint>();
 
-    //LOG_DXRT_DBG << getData()->requestId << endl;
+    // LOG_DXRT_DBG << getData()->requestId << endl;
 }
 
 Request::Request(Task *task_, Tensors &inputs_, Tensors &outputs_)
@@ -40,10 +42,11 @@ Request::Request(Task *task_, Tensors &inputs_, Tensors &outputs_)
 
     _data.inputs = inputs_;
     _data.outputs = outputs_;
-    _timePoint = make_shared<TimePoint>();
+    _timePoint = std::make_shared<TimePoint>();
 }
 Request::~Request()
 {
+    releaseBuffers();
     // LOG_DXRT_DBG << id() << endl;
     // LOG_DXRT << id() << endl;
 }
@@ -64,8 +67,10 @@ RequestPtr Request::Create(Task *task_, Tensors inputs_, Tensors outputs_, void 
     req->inference_time() = 0;
     req->_requestorName = "";
     req->_data.jobId = jobId;
-    req->_data.output_ptr = nullptr;
-
+    req->_data.outputs_ptr = nullptr;
+    req->_modelType = task_->getData()->_npuModel.type;
+    req->_data.encoded_inputs_ptr = nullptr;
+    req->_data.encoded_outputs_ptr = nullptr;
     return req;
 }
 
@@ -75,13 +80,13 @@ RequestPtr Request::Create(Task *task_, void *input, void *output, void *userArg
     req->_task = task_;
     req->_data.taskData = task_->getData();
 
-    if(input==nullptr)
+    if (input == nullptr)
         req->setInputs({});
     else
         req->setInputs(task_->inputs(input)); // TODO: check to move to device?
-    if(output==nullptr)
+    if (output == nullptr)
         req->setOutputs({});
-    else    
+    else
         req->setOutputs(task_->outputs(output));  // TODO: move to device?
     req->_userArg = userArg;
     req->latency_valid() = true;
@@ -89,7 +94,10 @@ RequestPtr Request::Create(Task *task_, void *input, void *output, void *userArg
     req->inference_time() = 0;
     req->_requestorName = "";
     req->_data.jobId = jobId;
-    req->_data.output_ptr = nullptr;
+    req->_data.outputs_ptr = nullptr;
+    req->_modelType = task_->getData()->_npuModel.type;
+    req->_data.encoded_inputs_ptr = nullptr;
+    req->_data.encoded_outputs_ptr = nullptr;
 
     return req;
 }
@@ -107,14 +115,17 @@ void Request::ShowAll()
     for (int i = 0; i < ObjectsPool::REQUEST_MAX_COUNT; i++)
     {
         RequestPtr request = GetById(i);
-        cout << dec << "(" << request.use_count() << ") " << *request << endl;
+        std::cout << std::dec << "(" << request.use_count() << ") " << *request << endl;
     }
 }
 
 void Request::Wait()
 {
     LOG_DXRT_DBG << "request " << id() << endl;
-    while( status() == Request::Status::REQ_BUSY );
+    while (status() == Request::Status::REQ_BUSY)
+    {
+        continue;
+    }
 }
 
 void Request::SetStatus(Request::Status status)
@@ -126,15 +137,15 @@ void Request::SetStatus(Request::Status status)
 void Request::CheckTimePoint(int opt)
 {
     LOG_DXRT_DBG << endl;
-    // cout << "        tp: req" << id() << ", " << opt << endl;
-    if(opt==0)
+    // std::cout << "        tp: req" << id() << ", " << opt << endl;
+    if (opt == 0)
     {
         _timePoint->start = ProfilerClock::now();
     }
     else
     {
         _timePoint->end = ProfilerClock::now();
-        _latency = chrono::duration_cast<chrono::microseconds>(_timePoint->end - _timePoint->start).count();
+        _latency = std::chrono::duration_cast<std::chrono::microseconds>(_timePoint->end - _timePoint->start).count();
         // LOG_VALUE(_latency);
     }
 }
@@ -174,27 +185,35 @@ std::string Request::requestor_name() const
 }
 Tensors Request::inputs()
 {
-    unique_lock<mutex> lk(_reqLock);
+    std::unique_lock<std::mutex> lk(_reqLock);
     return _data.inputs;
 }
 Tensors Request::outputs()
 {
-    unique_lock<mutex> lk(_reqLock);
+    std::unique_lock<std::mutex> lk(_reqLock);
     return _data.outputs;
 }
-void * Request::input_ptr()
+void * Request::inputs_ptr()
 {
-    unique_lock<mutex> lk(_reqLock);
+    std::unique_lock<std::mutex> lk(_reqLock);
     if (_data.inputs.empty())
         return nullptr;
     return _data.inputs.front().data();
 }
-void * Request::output_ptr()
+void * Request::outputs_ptr()
 {
-    unique_lock<mutex> lk(_reqLock);
+    std::unique_lock<std::mutex> lk(_reqLock);
     if (_data.outputs.empty())
         return nullptr;
     return _data.outputs.front().data();
+}
+void * Request::encoded_inputs_ptr()
+{
+    return _data.encoded_inputs_ptr;
+}
+void * Request::encoded_outputs_ptr()
+{
+    return _data.encoded_outputs_ptr;
 }
 void * Request::user_arg() const
 {
@@ -246,7 +265,7 @@ int16_t &Request::model_type()
 }
 void Request::setNpuInferenceAcc(dxrt_request_acc_t npuInferenceAcc)
 {
-    _npuInferenceAcc=npuInferenceAcc;
+    _npuInferenceAcc = npuInferenceAcc;
 }
 void Request::setInferenceJob(InferenceJob* job)
 {
@@ -263,29 +282,46 @@ void Request::onRequestComplete(RequestPtr req)
 }
 void Request::Reset()
 {
+    LOG_DXRT_DBG << endl;
+
+    releaseBuffers();
+
     _data.taskData = nullptr;
     setInputs({});
     setOutputs({});
+
+    _data.encoded_input_ptrs.clear();
+    _data.encoded_output_ptrs.clear();
+
+    _data.outputs_ptr = nullptr;
+
+    _data.encoded_inputs_ptr = nullptr;
+    _data.encoded_outputs_ptr = nullptr;
+
+    _data.inputs = {};
+    _data.outputs = {};
 
     _userArg = nullptr;
 
     _requestorName = "";
     _job = nullptr;
     SetStatus(Status::REQ_IDLE);
-    
+    DSP_SetDspEnable(0);
+
     _task = nullptr;
     _use_flag = false;
+    _bufferReleased = false;
 }
 
 void Request::setInputs(Tensors input)
 {
-    unique_lock<mutex> lk(_reqLock);
+    std::unique_lock<std::mutex> lk(_reqLock);
     _data.inputs.clear();
     _data.inputs = input;
 }
 void Request::setOutputs(Tensors output)
 {
-    unique_lock<mutex> lk(_reqLock);
+    std::unique_lock<std::mutex> lk(_reqLock);
     _data.outputs.clear();
     _data.outputs = output;
 }
@@ -302,9 +338,9 @@ RequestMap::~RequestMap()
 RequestPtr RequestMap::GetById(int id)
 {
     LOG_DXRT_DBG << id << endl;
-    unique_lock<mutex> lk(_lock);
+    std::unique_lock<std::mutex> lk(_lock);
     auto it = _map.find(id);
-    if(it != _map.end())
+    if (it != _map.end())
     {
         // LOG_DXRT_DBG << "found request " << id << endl;
         // LOG_DXRT_DBG << "found request " << id << ": " << *it->second << endl;
@@ -319,19 +355,27 @@ RequestPtr RequestMap::GetById(int id)
 }
 int RequestMap::Add(RequestPtr req)
 {
-    unique_lock<mutex> lk(_lock);
+    std::unique_lock<std::mutex> lk(_lock);
     _map[req->id()] = req;
     return 0;
 }
 
-ostream& operator<<(ostream& os, const Request& req)
+std::ostream& operator<<(std::ostream& os, const Request& req)
 {
-    os << dec << "  Req. " << req.id() << " -> task " << ((req.getData()->taskData!=nullptr)?(to_string(req.getData()->taskData->id())):"null") << endl;
-    for(auto &tensor : req.getData()->inputs)
+    os << std::dec << "  Req. " << req.id() << " -> task ";
+    if (req.getData()->taskData == nullptr)
+    {
+        os << "null" << endl;
+    }
+    else
+    {
+        os << (req.getData()->taskData->id()) << endl;
+    }
+    for (const auto &tensor : req.getData()->inputs)
     {
         os << tensor << endl;
     }
-    for(auto &tensor : req.getData()->outputs)
+    for (const auto &tensor : req.getData()->outputs)
     {
         os << tensor << endl;
     }
@@ -339,7 +383,7 @@ ostream& operator<<(ostream& os, const Request& req)
 }
 std::ostream& operator<<(std::ostream& os, const Request::Status& status)
 {
-    switch(status)
+    switch (status)
     {
         case Request::Status::REQ_IDLE: os << "IDLE"; break;
         case Request::Status::REQ_BUSY: os << "BUSY"; break;
@@ -359,4 +403,67 @@ const RequestData* Request::getData() const
     return &_data;
 }
 
-} // namespace dxrt
+void Request::setBufferSet(std::unique_ptr<BufferSet> buffers)
+{
+    // Release existing buffer if present (but don't set _bufferReleased)
+    if (_bufferSet && _task) {
+        try {
+            _task->ReleaseAllBuffers(*_bufferSet);
+            LOG_DXRT_DBG << "Released existing buffers for request " << id() << std::endl;
+        }
+        catch (const std::exception& e) {
+            LOG_DXRT_ERR("Error releasing existing buffers for request " << id() << ": " << e.what());
+        }
+    }
+    _bufferSet = std::move(buffers);
+    // _bufferReleased is set to true only when releaseBuffers() is called
+}
+
+void Request::releaseBuffers()
+{
+    if (_bufferReleased) {
+        LOG_DXRT_DBG << "Request " << id() << " buffers already released" << std::endl;
+        return;
+    }
+
+    if (_bufferSet && _task) {
+        try {
+            _task->ReleaseAllBuffers(*_bufferSet);
+            LOG_DXRT_DBG << "Released buffers for request " << id() << std::endl;
+        }
+        catch (const std::exception& e) {
+            LOG_DXRT_ERR("Error releasing buffers for request " << id() << ": " << e.what());
+        }
+        _bufferSet.reset();
+    }
+    _bufferReleased = true;
+}
+
+bool Request::hasBufferSet() const
+{
+    return _bufferSet != nullptr;
+}
+
+bool Request::isBufferReleased() const
+{
+    return _bufferReleased;
+}
+
+void Request::markBufferReleased()
+{
+    _bufferReleased = true;
+}
+
+void Request::DSP_reqOnRequestComplete(RequestPtr req)
+{
+    _status = Request::Status::REQ_DONE;
+
+    LOG_DXRT_DBG << endl;
+
+    if (_job != nullptr)
+        _job->DSP_OnRequestComplete(req);
+
+    LOG_DXRT_DBG << " done " << endl;
+}
+
+}  // namespace dxrt
