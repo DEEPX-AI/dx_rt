@@ -33,7 +33,15 @@ public:
     uint64_t &phy_addr(); // physical address of data
     uint32_t &elem_size();
     uint64_t size_in_bytes() const {
-        uint64_t num_elements = std::accumulate(_shape.begin(), _shape.end(), 1, std::multiplies<int64_t>());
+        uint64_t num_elements = 1ULL;
+        for (const auto& dim : _shape) {
+            if (dim < 0) {
+                // negative dimension means dynamic size, so skip calculation
+                // actual size is determined at runtime
+                continue;
+            }
+            num_elements *= static_cast<uint64_t>(dim);
+        }
         return num_elements * _elemSize;
     }
     /** \brief Get pointer of specific element by tensor index. (for NHWC data type)
@@ -55,7 +63,7 @@ private:
     std::vector<int64_t> _shape;
     DataType _type;
     void *_data;
-    uint64_t _phyAddr = 0;
+    uint64_t _phyAddr = 0; // Physical address - need to verify usage
     uint32_t _inc; // addr. increasement for shape[2]
     uint32_t _elemSize;
 

@@ -10,7 +10,10 @@
     #include <windows.h>
 #endif  // __linux__
 
-using namespace std;
+using std::cout;
+using std::endl;
+using std::string;
+
 
 
 string dxrt::getCurrentPath()
@@ -145,6 +148,6 @@ bool dxrt::fileExists(const string& path)
 string dxrt::getExtension(const string& path)
 {
     size_t pos = path.find_last_of(".");
-    if(pos == string::npos) return "";
+    if (pos == string::npos) return "";
     return path.substr(pos+1);
 }

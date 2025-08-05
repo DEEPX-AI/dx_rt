@@ -1,10 +1,20 @@
 // Copyright (c) 2022 DEEPX Corporation. All rights reserved.
 // Licensed under the MIT License.
 
+#include <iostream>
+#include <memory>
+#include <string>
+#include <cstring>
 #include "dxrt/common.h"
 #include "dxrt/worker.h"
 #include "dxrt/device.h"
 #include "dxrt/profiler.h"
+
+
+using std::cout;
+using std::endl;
+using std::string;
+using std::shared_ptr;
 
 namespace dxrt {
 
@@ -16,13 +26,19 @@ DeviceEventWorker::DeviceEventWorker(string name_, Device *device_)
 }
 DeviceEventWorker::~DeviceEventWorker()
 {
-    LOG_DXRT_DBG<<endl;
+    LOG_DXRT_DBG << endl;
 }
 shared_ptr<DeviceEventWorker> DeviceEventWorker::Create(string name_, Device *device_)
 {
-    shared_ptr<DeviceEventWorker> ret = make_shared<DeviceEventWorker>(name_, device_);
+    shared_ptr<DeviceEventWorker> ret = std::make_shared<DeviceEventWorker>(name_, device_);
     return ret;
 }
+
+void DeviceEventWorker::ShowPCIEDetails()
+{
+    _device->ShowPCIEDetails();
+}
+
 void DeviceEventWorker::ThreadWork(int id)
 {
     std::ignore = id;
@@ -32,7 +48,7 @@ void DeviceEventWorker::ThreadWork(int id)
     int loopCnt = 0;
     LOG_DXRT_DBG << getName() << " : Entry" << endl;
     dxrt_cmd_t cmd = dxrt::dxrt_cmd_t::DXRT_CMD_EVENT;
-    while (_stop.load(memory_order_acquire) == false)
+    while (_stop.load(std::memory_order_acquire) == false)
     {
         //LOG_DXRT_DBG << threadName << " : wait" << endl;
         if (_stop.load(std::memory_order_acquire))
@@ -51,6 +67,7 @@ void DeviceEventWorker::ThreadWork(int id)
             {
                 _device->block();
                 LOG_DXRT_ERR(eventInfo.dx_rt_err);
+                ShowPCIEDetails();
                 break;
             }
         }
@@ -63,13 +80,19 @@ void DeviceEventWorker::ThreadWork(int id)
         {
             if (eventInfo.dx_rt_recv.action==dxrt::dxrt_recov_t::DXRT_RECOV_RMAP)
             {
-                auto model = _device->_npuModel.begin()->second[0];
-                DXRT_ASSERT(_device->Write(model.cmd, 3) == 0, "Recovery rmap failed to write model parameters(cmd)");
-                _device->StartDev();
+                auto model = _device->_npuModel.begin()->second;
+                DXRT_ASSERT(_device->Write(model.rmap, 3) == 0, "Recovery rmap failed to write model parameters(cmd)");
+
+                LOG_DXRT_ERR("RMAP data has been recovered. This error can cause issues with NPU operation.")
+                _device->StartDev(RMAP_RECOVERY_DONE);
             }
             else if (eventInfo.dx_rt_recv.action==dxrt::dxrt_recov_t::DXRT_RECOV_WEIGHT)
             {
-                /* do something */
+                auto model = _device->_npuModel.begin()->second;
+                DXRT_ASSERT(_device->Write(model.weight, 3) == 0, "Recovery weight failed to write model parameters(weight)");
+              
+                LOG_DXRT_ERR("Weight data has been recovered. This error can cause wrong result value.")
+                _device->StartDev(WEIGHT_RECOVERY_DONE);
             }
             else if (eventInfo.dx_rt_recv.action==dxrt::dxrt_recov_t::DXRT_RECOV_CPU)
             {
@@ -81,12 +104,14 @@ void DeviceEventWorker::ThreadWork(int id)
             }
             else
             {
-                LOG_DXRT_ERR("Unknown data is received from device\n");
+
+                LOG_DXRT_ERR("Unknown data is received from device " << std::hex << eventInfo.dx_rt_recv.action << "\n");
+                ShowPCIEDetails();
             }
         }
         else
         {
-            LOG_DXRT_DBG << "!! unknown event occured from device\n";
+            LOG_DXRT_DBG << "!! unknown event occured from device "<< eventInfo.event_type << endl;
         }
         loopCnt++;
     }

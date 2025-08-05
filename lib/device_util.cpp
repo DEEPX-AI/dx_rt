@@ -2,12 +2,14 @@
 // Licensed under the MIT License.
 
 #include "dxrt/device_util.h"
+#include <string>
 
-using namespace std;
+using std::to_string;
+
 namespace dxrt
 {
 
-string GetDrvVersionWithDot(uint32_t ver)
+std::string GetDrvVersionWithDot(uint32_t ver)
 {
     uint32_t major, minor, patch;
     major = ver / 1000;
@@ -16,7 +18,7 @@ string GetDrvVersionWithDot(uint32_t ver)
     return to_string(major) + "." + to_string(minor) + "." + to_string(patch);
 }
 
-string GetFwVersionWithDot(uint32_t ver)
+std::string GetFwVersionWithDot(uint32_t ver)
 {
     uint32_t major, minor, patch;
     major = ver / 100;

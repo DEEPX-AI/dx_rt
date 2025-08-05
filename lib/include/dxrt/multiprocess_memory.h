@@ -48,11 +48,16 @@ public:
     uint64_t start();
     uint64_t end();
     uint64_t size();
+    uint64_t AllocateForTask(int deviceId, int taskId, uint64_t required);
+    uint64_t BackwardAllocateForTask(int deviceId, int taskId, uint64_t required);
     void SignalScheduller(int deviceId, const dxrt_request_acc_t& req);
     void SignalEndJobs(int deviceId);
-    void SignalDeviceInit(int deviceId, npu_bound_op bound);
-    void SignalDeviceDeInit(int deviceId, npu_bound_op bound);
+    void SignalDeviceInit(int deviceId, npu_bound_op bound, int weightSize, int weightOffset, uint32_t checksum);
+    void SignalDeviceDeInit(int deviceId, npu_bound_op bound, int weightSize, int weightOffset, uint32_t checksum);
     void SignalDeviceReset(int deviceId);
+    void SignalTaskInit(int deviceId, int taskId, npu_bound_op bound, uint64_t modelMemorySize);
+    void SignalTaskDeInit(int deviceId, int taskId, npu_bound_op bound);
+    void DeallocateTaskMemory(int deviceId, int taskId);
 
 private:
     void mpConnect();
