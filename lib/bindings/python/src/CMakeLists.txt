@@ -21,7 +21,7 @@ endif()
 
 set(PYDXRT_DIR ${CMAKE_CURRENT_LIST_DIR})
 
-pybind11_add_module( ${target} py_inference_engine.cpp )
+pybind11_add_module( ${target} py_inference_engine.cpp py_configuration.cpp py_device_status.cpp)
 target_include_directories(${target} PRIVATE 
   ${CMAKE_SOURCE_DIR}/lib/include
   ${CMAKE_SOURCE_DIR}/extern/include

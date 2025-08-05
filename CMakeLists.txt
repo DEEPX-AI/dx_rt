@@ -55,7 +55,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED "ON")
 if(USE_ORT)
     set(CMAKE_CXX_STANDARD "14")
 else()
-    set(CMAKE_CXX_STANDARD "11")
+    #set(CMAKE_CXX_STANDARD "11")
+    set(CMAKE_CXX_STANDARD "14")
 endif()
 
 # global compile options
@@ -151,18 +152,76 @@ if(CMAKE_BUILD_TYPE STREQUAL "debug")
     set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS} ${ASAN_FLAGS}")
 endif()
 
+# Coverage configuration
+option(ENABLE_COVERAGE "Enable code coverage collection" OFF)
+
+if(ENABLE_COVERAGE)
+    message(STATUS "Code coverage collection is ENABLED")
+    
+    # Coverage flags for different compilers
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        # Clang coverage flags
+        set(COVERAGE_CXX_FLAGS "-fprofile-instr-generate -fcoverage-mapping --coverage -g")
+        set(COVERAGE_C_FLAGS "-fprofile-instr-generate -fcoverage-mapping --coverage -g")
+        set(COVERAGE_LINKER_FLAGS "--coverage")
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+        # GCC coverage flags
+        set(COVERAGE_CXX_FLAGS "-fprofile-arcs -ftest-coverage --coverage -g -O0")
+        set(COVERAGE_C_FLAGS "-fprofile-arcs -ftest-coverage --coverage -g -O0")
+        set(COVERAGE_LINKER_FLAGS "--coverage")
+    else()
+        message(WARNING "Coverage is only supported for GCC and Clang compilers")
+    endif()
+    
+    # Apply coverage flags
+    if(COVERAGE_CXX_FLAGS)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COVERAGE_CXX_FLAGS}")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COVERAGE_C_FLAGS}")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${COVERAGE_LINKER_FLAGS}")
+        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${COVERAGE_LINKER_FLAGS}")
+        
+        # Add coverage compile definition
+        add_compile_definitions(COVERAGE_ENABLED)
+    endif()
+    
+    # Function to clean coverage files
+    function(clean_coverage_files)
+        file(GLOB_RECURSE GCDA_FILES "${CMAKE_BINARY_DIR}/*.gcda")
+        file(GLOB_RECURSE GCNO_FILES "${CMAKE_BINARY_DIR}/*.gcno")
+        file(GLOB_RECURSE PROFRAW_FILES "${CMAKE_BINARY_DIR}/*.profraw")
+        file(GLOB_RECURSE PROFDATA_FILES "${CMAKE_BINARY_DIR}/*.profdata")
+        
+        foreach(file ${GCDA_FILES} ${GCNO_FILES} ${PROFRAW_FILES} ${PROFDATA_FILES})
+            file(REMOVE ${file})
+        endforeach()
+    endfunction()
+    
+    # Add custom target for cleaning coverage files
+    add_custom_target(clean-coverage
+        COMMAND ${CMAKE_COMMAND} -E echo "Cleaning coverage files..."
+        COMMAND ${CMAKE_COMMAND} -E remove -f ${CMAKE_BINARY_DIR}/*.gcda
+        COMMAND ${CMAKE_COMMAND} -E remove -f ${CMAKE_BINARY_DIR}/*.gcno
+        COMMAND ${CMAKE_COMMAND} -E remove -f ${CMAKE_BINARY_DIR}/*.profraw
+        COMMAND ${CMAKE_COMMAND} -E remove -f ${CMAKE_BINARY_DIR}/*.profdata
+        COMMENT "Cleaning coverage files"
+    )
+endif()
+
 if(USE_ORT)
     add_onnxruntime()
     set(USE_ORT_DEFINE "#define USE_ORT")
 else()
     set(USE_ORT_DEFINE "")
-# add_compile_definitions(USE_ORT)
 endif()
 
 if(USE_SERVICE)
     set(USE_SERVICE_DEFINE "#define USE_SERVICE")
 else()
     set(USE_SERVICE_DEFINE "")
+endif()
+
+if(ENABLE_SHOW_MODEL_INFO)
+    add_definitions(-DSHOW_MODEL_INFO_DEFINE)
 endif()
 
 #if(MSVC)
