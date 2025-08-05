@@ -1,0 +1,1962 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="05_Command_Line_Interface.html">
+      
+      
+        <link rel="next" href="07_Multi_Input_Inference.html">
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.14">
+    
+    
+      
+        <title>Inference API Guide - DXNN Runtime (DX-RT) User Manual</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.342714a4.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Noto+Sans+Display:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Noto Sans Display";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#inference>_api" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="DXNN Runtime (DX-RT) User Manual" class="md-header__button md-logo" aria-label="DXNN Runtime (DX-RT) User Manual" data-md-component="logo">
+      
+  <img src="../img/deepx.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            DXNN Runtime (DX-RT) User Manual
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Inference API Guide
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="01_DXNN_Runtime_Overview.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  DXNN Runtime Overview
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="02_Installation_on_Linux.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Installation on Linux
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="03_Installation_on_Windows.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Installation on Windows
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="04_Model_Inference.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Model Inference
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="05_Command_Line_Interface.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Command Line Interface
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="06_Inference_API.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Inference API Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="07_Multi_Input_Inference.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Multi-input Inference Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="08_Global_Instance.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Configuration and DeviceStatus Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="09_01_C%2B%2B_Tutorials.html" class="md-tabs__link">
+          
+  
+  
+  Tutorials
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="10_01_C%2B%2B_API_Reference.html" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="Appendix_Change_Log.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Change Log
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="DXNN Runtime (DX-RT) User Manual" class="md-nav__button md-logo" aria-label="DXNN Runtime (DX-RT) User Manual" data-md-component="logo">
+      
+  <img src="../img/deepx.png" alt="logo">
+
+    </a>
+    DXNN Runtime (DX-RT) User Manual
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="01_DXNN_Runtime_Overview.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    DXNN Runtime Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="02_Installation_on_Linux.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Installation on Linux
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="03_Installation_on_Windows.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Installation on Windows
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="04_Model_Inference.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Model Inference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="05_Command_Line_Interface.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Command Line Interface
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Inference API Guide
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="06_Inference_API.html" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    Inference API Guide
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#c>_inference>_engine>_api" class="md-nav__link">
+    <span class="md-ellipsis">
+      C++ Inference Engine API
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="C++ Inference Engine API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#synchronous>_inference>_api" class="md-nav__link">
+    <span class="md-ellipsis">
+      Synchronous Inference API
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#asynchronous>_inference>_api" class="md-nav__link">
+    <span class="md-ellipsis">
+      Asynchronous Inference API
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#python>_inference>_engine>_api" class="md-nav__link">
+    <span class="md-ellipsis">
+      Python Inference Engine API
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Python Inference Engine API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#synchronous>_inference>_api_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Synchronous Inference API
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#asynchronous>_inference>_api_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Asynchronous Inference API
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#input>_format>_analysis>_logic" class="md-nav__link">
+    <span class="md-ellipsis">
+      Input Format Analysis Logic
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Input Format Analysis Logic">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#python>_input>_analysis>_flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      Python Input Analysis Flow
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#listnpndarray>_analysis>_details" class="md-nav__link">
+    <span class="md-ellipsis">
+      List[np.ndarray] Analysis Details
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#output>_format>_rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      Output Format Rules
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Output Format Rules">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#single>_inference>_output" class="md-nav__link">
+    <span class="md-ellipsis">
+      Single Inference Output
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#batch>_inference>_output" class="md-nav__link">
+    <span class="md-ellipsis">
+      Batch Inference Output
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#asynchronous>_output" class="md-nav__link">
+    <span class="md-ellipsis">
+      Asynchronous Output
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#special>_cases" class="md-nav__link">
+    <span class="md-ellipsis">
+      Special Cases
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Special Cases">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#auto-split>_condition" class="md-nav__link">
+    <span class="md-ellipsis">
+      Auto-Split Condition
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#batch>_size>_determination" class="md-nav__link">
+    <span class="md-ellipsis">
+      Batch Size Determination
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error>_conditions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Error Conditions
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#output>_buffer>_handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      Output Buffer Handling
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#performance>_considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Performance Considerations
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Performance Considerations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#memory>_allocation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Memory Allocation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inference>_method" class="md-nav__link">
+    <span class="md-ellipsis">
+      Inference Method
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="07_Multi_Input_Inference.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Multi-input Inference Guide
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="08_Global_Instance.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Configuration and DeviceStatus Guide
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Tutorials
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            Tutorials
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="09_01_C%2B%2B_Tutorials.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    C++ Tutorials
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="09_02_Python_Tutorials.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Python Tutorials
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            API Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="10_01_C%2B%2B_API_Reference.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    C++ API Reference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="10_02_Python_API_Reference.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Python API Reference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="Appendix_Change_Log.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Change Log
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="inference&gt;_api">Inference API<a class="headerlink" href="#inference&gt;_api" title="Permanent link">&para;</a></h1>
+<h2 id="c&gt;_inference&gt;_engine&gt;_api">C++ Inference Engine API<a class="headerlink" href="#c&gt;_inference&gt;_engine&gt;_api" title="Permanent link">&para;</a></h2>
+<h3 id="synchronous&gt;_inference&gt;_api">Synchronous Inference API<a class="headerlink" href="#synchronous&gt;_inference&gt;_api" title="Permanent link">&para;</a></h3>
+<h4 id="run&gt;_single&gt;_inputoutput">Run (Single Input/Output)<a class="headerlink" href="#run&gt;_single&gt;_inputoutput" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">TensorPtrs</span><span class="w"> </span><span class="n">Run</span><span class="p">(</span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="n">inputPtr</span><span class="p">,</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="n">userArg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">nullptr</span><span class="p">,</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="n">outputPtr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">nullptr</span><span class="p">)</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Input Format</th>
+<th>Description</th>
+<th>Model Type</th>
+<th>Output Format</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>void* inputPtr</code></td>
+<td>Single input pointer</td>
+<td>Single-Input</td>
+<td><code>TensorPtrs</code> (Vector)</td>
+<td>Traditional method</td>
+</tr>
+<tr>
+<td><code>void* inputPtr</code></td>
+<td>Concatenated buffer pointer</td>
+<td>Multi-Input</td>
+<td><code>TensorPtrs</code> (Vector)</td>
+<td>Auto-split applied</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1">// Single input model</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">auto</span><span class="w"> </span><span class="n">outputs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">Run</span><span class="p">(</span><span class="n">inputData</span><span class="p">);</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1">// Multi-input model (auto-split)</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">auto</span><span class="w"> </span><span class="n">outputs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">Run</span><span class="p">(</span><span class="n">concatenatedInput</span><span class="p">);</span>
+</code></pre></div>
+<h4 id="run&gt;_batch">Run (Batch)<a class="headerlink" href="#run&gt;_batch" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="n">TensorPtrs</span><span class="o">&gt;</span><span class="w"> </span><span class="n">Run</span><span class="p">(</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">void</span><span class="o">*&gt;&amp;</span><span class="w"> </span><span class="n">inputBuffers</span><span class="p">,</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">void</span><span class="o">*&gt;&amp;</span><span class="w"> </span><span class="n">outputBuffers</span><span class="p">,</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">void</span><span class="o">*&gt;&amp;</span><span class="w"> </span><span class="n">userArgs</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="p">)</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Input Format</th>
+<th>Condition</th>
+<th>Interpretation</th>
+<th>Output Format</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vector&lt;void*&gt;</code> (size=1)</td>
+<td>Single-Input</td>
+<td>Single Inference</td>
+<td><code>vector&lt;TensorPtrs&gt;</code> (size=1)</td>
+<td>Special case</td>
+</tr>
+<tr>
+<td><code>vector&lt;void*&gt;</code> (size=N)</td>
+<td>Single-Input</td>
+<td>Batch Inference</td>
+<td><code>vector&lt;TensorPtrs&gt;</code> (size=N)</td>
+<td>N samples</td>
+</tr>
+<tr>
+<td><code>vector&lt;void*&gt;</code> (size=M)</td>
+<td>Multi-Input, M==input_count</td>
+<td>Single Inference</td>
+<td><code>vector&lt;TensorPtrs&gt;</code> (size=1)</td>
+<td>Multi-input single</td>
+</tr>
+<tr>
+<td><code>vector&lt;void*&gt;</code> (size=N*M)</td>
+<td>Multi-Input, N*M==multiple</td>
+<td>Batch Inference</td>
+<td><code>vector&lt;TensorPtrs&gt;</code> (size=N)</td>
+<td>N samples, M inputs</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1">// Single input batch</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">void</span><span class="o">*&gt;</span><span class="w"> </span><span class="n">batchInputs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">sample1</span><span class="p">,</span><span class="w"> </span><span class="n">sample2</span><span class="p">,</span><span class="w"> </span><span class="n">sample3</span><span class="p">};</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="k">auto</span><span class="w"> </span><span class="n">batchOutputs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">Run</span><span class="p">(</span><span class="n">batchInputs</span><span class="p">,</span><span class="w"> </span><span class="n">outputBuffers</span><span class="p">,</span><span class="w"> </span><span class="n">userArgs</span><span class="p">);</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1">// Multi-input single</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">void</span><span class="o">*&gt;</span><span class="w"> </span><span class="n">multiInputs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">input1</span><span class="p">,</span><span class="w"> </span><span class="n">input2</span><span class="p">};</span><span class="w"> </span><span class="c1">// M=2</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="k">auto</span><span class="w"> </span><span class="n">singleOutput</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">Run</span><span class="p">(</span><span class="n">multiInputs</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="n">outputBuffer</span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="n">userArg</span><span class="p">});</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="c1">// Multi-input batch</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">void</span><span class="o">*&gt;</span><span class="w"> </span><span class="n">multiBatch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">s1_i1</span><span class="p">,</span><span class="w"> </span><span class="n">s1_i2</span><span class="p">,</span><span class="w"> </span><span class="n">s2_i1</span><span class="p">,</span><span class="w"> </span><span class="n">s2_i2</span><span class="p">};</span><span class="w"> </span><span class="c1">// N=2, M=2</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="k">auto</span><span class="w"> </span><span class="n">batchOutputs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">Run</span><span class="p">(</span><span class="n">multiBatch</span><span class="p">,</span><span class="w"> </span><span class="n">outputBuffers</span><span class="p">,</span><span class="w"> </span><span class="n">userArgs</span><span class="p">);</span>
+</code></pre></div>
+<h4 id="runmultiinput&gt;_dictionary">RunMultiInput (Dictionary)<a class="headerlink" href="#runmultiinput&gt;_dictionary" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">TensorPtrs</span><span class="w"> </span><span class="n">RunMultiInput</span><span class="p">(</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">map</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="p">,</span><span class="w"> </span><span class="kt">void</span><span class="o">*&gt;&amp;</span><span class="w"> </span><span class="n">inputTensors</span><span class="p">,</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="n">userArg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">nullptr</span><span class="p">,</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="n">outputPtr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">nullptr</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="p">)</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Input Format</th>
+<th>Constraints</th>
+<th>Output Format</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>map&lt;string, void*&gt;</code></td>
+<td>Must include all input tensor names</td>
+<td><code>TensorPtrs</code></td>
+<td>For multi-input models only</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">std</span><span class="o">::</span><span class="n">map</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="p">,</span><span class="w"> </span><span class="kt">void</span><span class="o">*&gt;</span><span class="w"> </span><span class="n">inputs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">    </span><span class="p">{</span><span class="s">&quot;input1&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">data1</span><span class="p">},</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">    </span><span class="p">{</span><span class="s">&quot;input2&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">data2</span><span class="p">}</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="p">};</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="k">auto</span><span class="w"> </span><span class="n">outputs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">RunMultiInput</span><span class="p">(</span><span class="n">inputs</span><span class="p">);</span>
+</code></pre></div>
+<h4 id="runmultiinput&gt;_vector">RunMultiInput (Vector)<a class="headerlink" href="#runmultiinput&gt;_vector" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">TensorPtrs</span><span class="w"> </span><span class="n">RunMultiInput</span><span class="p">(</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">void</span><span class="o">*&gt;&amp;</span><span class="w"> </span><span class="n">inputPtrs</span><span class="p">,</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="n">userArg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">nullptr</span><span class="p">,</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="n">outputPtr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">nullptr</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="p">)</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Input Format</th>
+<th>Constraints</th>
+<th>Output Format</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vector&lt;void*&gt;</code></td>
+<td>size == input_tensor_count</td>
+<td><code>TensorPtrs</code></td>
+<td>Order matches GetInputTensorNames()</td>
+</tr>
+</tbody>
+</table>
+<h3 id="asynchronous&gt;_inference&gt;_api">Asynchronous Inference API<a class="headerlink" href="#asynchronous&gt;_inference&gt;_api" title="Permanent link">&para;</a></h3>
+<h4 id="runasync&gt;_single">RunAsync (Single)<a class="headerlink" href="#runasync&gt;_single" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kt">int</span><span class="w"> </span><span class="n">RunAsync</span><span class="p">(</span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="n">inputPtr</span><span class="p">,</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="n">userArg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">nullptr</span><span class="p">,</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="n">outputPtr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">nullptr</span><span class="p">)</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Input Format</th>
+<th>Model Type</th>
+<th>Output Format</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>void* inputPtr</code></td>
+<td>Single-Input</td>
+<td><code>int</code> (jobId)</td>
+<td>Result received via Wait(jobId)</td>
+</tr>
+<tr>
+<td><code>void* inputPtr</code></td>
+<td>Multi-Input</td>
+<td><code>int</code> (jobId)</td>
+<td>Auto-split applied</td>
+</tr>
+</tbody>
+</table>
+<h4 id="runasync&gt;_vector">RunAsync (Vector)<a class="headerlink" href="#runasync&gt;_vector" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kt">int</span><span class="w"> </span><span class="n">RunAsync</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">void</span><span class="o">*&gt;&amp;</span><span class="w"> </span><span class="n">inputPtrs</span><span class="p">,</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="n">userArg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">nullptr</span><span class="p">,</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="n">outputPtr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">nullptr</span><span class="p">)</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Input Format</th>
+<th>Condition</th>
+<th>Interpretation</th>
+<th>Output Format</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vector&lt;void*&gt;</code> (size==input_count)</td>
+<td>Multi-Input</td>
+<td>Multi-input single</td>
+<td><code>int</code> (jobId)</td>
+<td>Recommended method</td>
+</tr>
+<tr>
+<td><code>vector&lt;void*&gt;</code> (size!=input_count)</td>
+<td>Any</td>
+<td>Uses only the first element</td>
+<td><code>int</code> (jobId)</td>
+<td>Fallback</td>
+</tr>
+</tbody>
+</table>
+<h4 id="runasyncmultiinput&gt;_dictionary">RunAsyncMultiInput (Dictionary)<a class="headerlink" href="#runasyncmultiinput&gt;_dictionary" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kt">int</span><span class="w"> </span><span class="n">RunAsyncMultiInput</span><span class="p">(</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">map</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="p">,</span><span class="w"> </span><span class="kt">void</span><span class="o">*&gt;&amp;</span><span class="w"> </span><span class="n">inputTensors</span><span class="p">,</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">    </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="n">userArg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">nullptr</span><span class="p">,</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">    </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="n">outputPtr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">nullptr</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="p">)</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Input Format</th>
+<th>Constraints</th>
+<th>Output Format</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>map&lt;string, void*&gt;</code></td>
+<td>For multi-input models only</td>
+<td><code>int</code> (jobId)</td>
+<td>Most explicit method</td>
+</tr>
+</tbody>
+</table>
+<h4 id="runasyncmultiinput&gt;_vector">RunAsyncMultiInput (Vector)<a class="headerlink" href="#runasyncmultiinput&gt;_vector" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kt">int</span><span class="w"> </span><span class="n">RunAsyncMultiInput</span><span class="p">(</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">void</span><span class="o">*&gt;&amp;</span><span class="w"> </span><span class="n">inputPtrs</span><span class="p">,</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">    </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="n">userArg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">nullptr</span><span class="p">,</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">    </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="n">outputPtr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">nullptr</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="p">)</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Input Format</th>
+<th>Constraints</th>
+<th>Output Format</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vector&lt;void*&gt;</code></td>
+<td>size == input_tensor_count</td>
+<td><code>int</code> (jobId)</td>
+<td>Converted to a dictionary internally</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h4 id="wait">Wait<a class="headerlink" href="#wait" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">TensorPtrs</span><span class="w"> </span><span class="n">Wait</span><span class="p">(</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">jobId</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="p">)</span>
+</code></pre></div>
+<h2 id="python&gt;_inference&gt;_engine&gt;_api">Python Inference Engine API<a class="headerlink" href="#python&gt;_inference&gt;_engine&gt;_api" title="Permanent link">&para;</a></h2>
+<h3 id="synchronous&gt;_inference&gt;_api_1">Synchronous Inference API<a class="headerlink" href="#synchronous&gt;_inference&gt;_api_1" title="Permanent link">&para;</a></h3>
+<h4 id="run&gt;_unified&gt;_api">run (Unified API)<a class="headerlink" href="#run&gt;_unified&gt;_api" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>    <span class="n">input_data</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">],</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]]],</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>    <span class="n">output_buffers</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">],</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]]]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>    <span class="n">user_args</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="n">Any</span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">None</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">],</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]]]</span>
+</code></pre></div>
+<p><strong>Detailed Input/Output Matrix:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Input Type</th>
+<th>Input Condition</th>
+<th>Model Type</th>
+<th>Interpretation</th>
+<th>Output Type</th>
+<th>Output Structure</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>np.ndarray</code></td>
+<td>size == total_input_size</td>
+<td>Multi-Input</td>
+<td>Auto-split single</td>
+<td><code>List[np.ndarray]</code></td>
+<td>Single sample output</td>
+</tr>
+<tr>
+<td><code>np.ndarray</code></td>
+<td>size != total_input_size</td>
+<td>Single-Input</td>
+<td>Single Inference</td>
+<td><code>List[np.ndarray]</code></td>
+<td>Single sample output</td>
+</tr>
+<tr>
+<td><code>List[np.ndarray]</code></td>
+<td>len == 1</td>
+<td>Single-Input</td>
+<td>Single Inference</td>
+<td><code>List[np.ndarray]</code></td>
+<td>Single sample output</td>
+</tr>
+<tr>
+<td><code>List[np.ndarray]</code></td>
+<td>len == input_count</td>
+<td>Multi-Input</td>
+<td>Single Inference</td>
+<td><code>List[np.ndarray]</code></td>
+<td>Single sample output</td>
+</tr>
+<tr>
+<td><code>List[np.ndarray]</code></td>
+<td>len == N*input_count</td>
+<td>Multi-Input</td>
+<td>Batch Inference (N samples)</td>
+<td><code>List[List[np.ndarray]]</code></td>
+<td>N sample outputs</td>
+</tr>
+<tr>
+<td><code>List[np.ndarray]</code></td>
+<td>len &gt; 1</td>
+<td>Single-Input</td>
+<td>Batch Inference</td>
+<td><code>List[List[np.ndarray]]</code></td>
+<td><code>len</code> sample outputs</td>
+</tr>
+<tr>
+<td><code>List[List[np.ndarray]]</code></td>
+<td>Explicit batch</td>
+<td>Any</td>
+<td>Batch Inference</td>
+<td><code>List[List[np.ndarray]]</code></td>
+<td>Matches outer list size</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Auto-split Special Cases:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Condition</th>
+<th>Example Input</th>
+<th>Interpretation</th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Multi-input + first element is total_size</td>
+<td><code>[concatenated_array]</code></td>
+<td>Auto-split single</td>
+<td><code>List[np.ndarray]</code></td>
+</tr>
+<tr>
+<td>Multi-input + all elements are total_size</td>
+<td><code>[concat1, concat2, concat3]</code></td>
+<td>Auto-split batch</td>
+<td><code>List[List[np.ndarray]]</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># 1. Single array auto-split (multi-input)</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="n">concatenated</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">ie</span><span class="o">.</span><span class="n">get_input_size</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="n">outputs</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">concatenated</span><span class="p">)</span>  <span class="c1"># List[np.ndarray]</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="c1"># 2. Multi-input single</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="n">input_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">input1_array</span><span class="p">,</span> <span class="n">input2_array</span><span class="p">]</span>  <span class="c1"># len == 2</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="n">outputs</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">input_list</span><span class="p">)</span>  <span class="c1"># List[np.ndarray]</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="c1"># 3. Multi-input batch (flattened)</span>
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="n">flattened</span> <span class="o">=</span> <span class="p">[</span><span class="n">s1_i1</span><span class="p">,</span> <span class="n">s1_i2</span><span class="p">,</span> <span class="n">s2_i1</span><span class="p">,</span> <span class="n">s2_i2</span><span class="p">]</span>  <span class="c1"># 2 samples, 2 inputs each</span>
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="n">outputs</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">flattened</span><span class="p">)</span>  <span class="c1"># List[List[np.ndarray]], len=2</span>
+<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a>
+<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a><span class="c1"># 4. Multi-input batch (explicit)</span>
+<a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a><span class="n">explicit_batch</span> <span class="o">=</span> <span class="p">[[</span><span class="n">s1_i1</span><span class="p">,</span> <span class="n">s1_i2</span><span class="p">],</span> <span class="p">[</span><span class="n">s2_i1</span><span class="p">,</span> <span class="n">s2_i2</span><span class="p">]]</span>
+<a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a><span class="n">outputs</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">explicit_batch</span><span class="p">)</span>  <span class="c1"># List[List[np.ndarray]], len=2</span>
+<a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a>
+<a id="__codelineno-13-17" name="__codelineno-13-17" href="#__codelineno-13-17"></a><span class="c1"># 5. Single-input batch</span>
+<a id="__codelineno-13-18" name="__codelineno-13-18" href="#__codelineno-13-18"></a><span class="n">single_batch</span> <span class="o">=</span> <span class="p">[</span><span class="n">sample1</span><span class="p">,</span> <span class="n">sample2</span><span class="p">,</span> <span class="n">sample3</span><span class="p">]</span>
+<a id="__codelineno-13-19" name="__codelineno-13-19" href="#__codelineno-13-19"></a><span class="n">outputs</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">single_batch</span><span class="p">)</span>  <span class="c1"># List[List[np.ndarray]], len=3</span>
+</code></pre></div>
+<h4 id="run&gt;_multi&gt;_input&gt;_dictionary">run_multi_input (Dictionary)<a class="headerlink" href="#run&gt;_multi&gt;_input&gt;_dictionary" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">run_multi_input</span><span class="p">(</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>    <span class="n">input_tensors</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">],</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    <span class="n">output_buffers</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>    <span class="n">user_arg</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Input Type</th>
+<th>Constraints</th>
+<th>Output Type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Dict[str, np.ndarray]</code></td>
+<td>Must include all input tensors</td>
+<td><code>List[np.ndarray]</code></td>
+<td>For multi-input models only</td>
+</tr>
+</tbody>
+</table>
+<h3 id="asynchronous&gt;_inference&gt;_api_1">Asynchronous Inference API<a class="headerlink" href="#asynchronous&gt;_inference&gt;_api_1" title="Permanent link">&para;</a></h3>
+<h4 id="run&gt;_async">run_async<a class="headerlink" href="#run&gt;_async" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">run_async</span><span class="p">(</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>    <span class="n">input_data</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]],</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>    <span class="n">user_arg</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>    <span class="n">output_buffer</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">None</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Input Type</th>
+<th>Condition</th>
+<th>Interpretation</th>
+<th>Output Type</th>
+<th>Constraints</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>np.ndarray</code></td>
+<td>Any</td>
+<td>Single Inference</td>
+<td><code>int</code> (jobId)</td>
+<td>Batch not supported</td>
+</tr>
+<tr>
+<td><code>List[np.ndarray]</code></td>
+<td>len == input_count</td>
+<td>Multi-input single</td>
+<td><code>int</code> (jobId)</td>
+<td>Batch not supported</td>
+</tr>
+<tr>
+<td><code>List[np.ndarray]</code></td>
+<td>len == 1</td>
+<td>Single-input single</td>
+<td><code>int</code> (jobId)</td>
+<td>Batch not supported</td>
+</tr>
+</tbody>
+</table>
+<h4 id="run&gt;_async&gt;_multi&gt;_input">run_async_multi_input<a class="headerlink" href="#run&gt;_async&gt;_multi&gt;_input" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">run_async_multi_input</span><span class="p">(</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>    <span class="n">input_tensors</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">],</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>    <span class="n">user_arg</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>    <span class="n">output_buffer</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Input Type</th>
+<th>Constraints</th>
+<th>Output Type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Dict[str, np.ndarray]</code></td>
+<td>For multi-input models only</td>
+<td><code>int</code> (jobId)</td>
+<td>Single inference only</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h4 id="wait_1">wait<a class="headerlink" href="#wait_1" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">wait</span><span class="p">(</span><span class="n">job_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span>
+</code></pre></div>
+<hr />
+<h2 id="input&gt;_format&gt;_analysis&gt;_logic">Input Format Analysis Logic<a class="headerlink" href="#input&gt;_format&gt;_analysis&gt;_logic" title="Permanent link">&para;</a></h2>
+<h3 id="python&gt;_input&gt;_analysis&gt;_flow">Python Input Analysis Flow<a class="headerlink" href="#python&gt;_input&gt;_analysis&gt;_flow" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_analyze_input_format</span><span class="p">(</span><span class="n">input_data</span><span class="p">):</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>    <span class="c1"># 1. Check for np.ndarray</span>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">input_data</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>        <span class="k">if</span> <span class="n">should_auto_split_input</span><span class="p">(</span><span class="n">input_data</span><span class="p">):</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>            <span class="k">return</span> <span class="n">auto_split_single_inference</span><span class="p">()</span>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>        <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>            <span class="k">return</span> <span class="n">single_inference</span><span class="p">()</span>
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a>    <span class="c1"># 2. Check for List</span>
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">input_data</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a>        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">input_data</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="nb">list</span><span class="p">):</span>
+<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a>            <span class="c1"># List[List[np.ndarray]] - Explicit batch</span>
+<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a>            <span class="k">return</span> <span class="n">explicit_batch_inference</span><span class="p">()</span>
+<a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a>        <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a>            <span class="c1"># List[np.ndarray] - Requires complex analysis</span>
+<a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a>            <span class="k">return</span> <span class="n">analyze_list_ndarray</span><span class="p">(</span><span class="n">input_data</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="listnpndarray&gt;_analysis&gt;_details"><code>List[np.ndarray]</code> Analysis Details<a class="headerlink" href="#listnpndarray&gt;_analysis&gt;_details" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">analyze_list_ndarray</span><span class="p">(</span><span class="n">input_data</span><span class="p">):</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>    <span class="n">input_count</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">input_data</span><span class="p">)</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>    <span class="k">if</span> <span class="n">is_multi_input_model</span><span class="p">():</span>
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>        <span class="n">expected_count</span> <span class="o">=</span> <span class="n">get_input_tensor_count</span><span class="p">()</span>
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>        <span class="k">if</span> <span class="n">input_count</span> <span class="o">==</span> <span class="n">expected_count</span><span class="p">:</span>
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>            <span class="k">return</span> <span class="n">single_inference</span><span class="p">()</span>
+<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>        <span class="k">elif</span> <span class="n">input_count</span> <span class="o">%</span> <span class="n">expected_count</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a>            <span class="n">batch_size</span> <span class="o">=</span> <span class="n">input_count</span> <span class="o">//</span> <span class="n">expected_count</span>
+<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a>            <span class="k">return</span> <span class="n">batch_inference</span><span class="p">(</span><span class="n">batch_size</span><span class="p">)</span>
+<a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a>        <span class="k">elif</span> <span class="nb">all</span><span class="p">(</span><span class="n">should_auto_split_input</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span> <span class="k">for</span> <span class="n">arr</span> <span class="ow">in</span> <span class="n">input_data</span><span class="p">):</span>
+<a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a>            <span class="k">return</span> <span class="n">auto_split_batch_inference</span><span class="p">()</span>
+<a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a>        <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-19-15" name="__codelineno-19-15" href="#__codelineno-19-15"></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Invalid input count&quot;</span><span class="p">)</span>
+<a id="__codelineno-19-16" name="__codelineno-19-16" href="#__codelineno-19-16"></a>    <span class="k">else</span><span class="p">:</span>  <span class="c1"># Single-input model</span>
+<a id="__codelineno-19-17" name="__codelineno-19-17" href="#__codelineno-19-17"></a>        <span class="k">if</span> <span class="n">input_count</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+<a id="__codelineno-19-18" name="__codelineno-19-18" href="#__codelineno-19-18"></a>            <span class="k">return</span> <span class="n">single_inference</span><span class="p">()</span>
+<a id="__codelineno-19-19" name="__codelineno-19-19" href="#__codelineno-19-19"></a>        <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-19-20" name="__codelineno-19-20" href="#__codelineno-19-20"></a>            <span class="k">return</span> <span class="n">batch_inference</span><span class="p">(</span><span class="n">input_count</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="output&gt;_format&gt;_rules">Output Format Rules<a class="headerlink" href="#output&gt;_format&gt;_rules" title="Permanent link">&para;</a></h2>
+<h3 id="single&gt;_inference&gt;_output">Single Inference Output<a class="headerlink" href="#single&gt;_inference&gt;_output" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>API</th>
+<th>Output Format</th>
+<th>Structure</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>C++ Run</td>
+<td><code>TensorPtrs</code></td>
+<td><code>vector&lt;shared_ptr&lt;Tensor&gt;&gt;</code></td>
+</tr>
+<tr>
+<td>Python run</td>
+<td><code>List[np.ndarray]</code></td>
+<td><code>[output1, output2, ...]</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="batch&gt;_inference&gt;_output">Batch Inference Output<a class="headerlink" href="#batch&gt;_inference&gt;_output" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>API</th>
+<th>Output Format</th>
+<th>Structure</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>C++ Run (batch)</td>
+<td><code>vector&lt;TensorPtrs&gt;</code></td>
+<td><code>[sample1_outputs, sample2_outputs, ...]</code></td>
+</tr>
+<tr>
+<td>Python run (batch)</td>
+<td><code>List[List[np.ndarray]]</code></td>
+<td><code>[[s1_o1, s1_o2], [s2_o1, s2_o2], ...]</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="asynchronous&gt;_output">Asynchronous Output<a class="headerlink" href="#asynchronous&gt;_output" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>API</th>
+<th>Immediate Return</th>
+<th>After <code>wait</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>C++ RunAsync</td>
+<td><code>int</code> (jobId)</td>
+<td><code>TensorPtrs</code></td>
+</tr>
+<tr>
+<td>Python run_async</td>
+<td><code>int</code> (jobId)</td>
+<td><code>List[np.ndarray]</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="special&gt;_cases">Special Cases<a class="headerlink" href="#special&gt;_cases" title="Permanent link">&para;</a></h2>
+<h3 id="auto-split&gt;_condition">Auto-Split Condition<a class="headerlink" href="#auto-split&gt;_condition" title="Permanent link">&para;</a></h3>
+<p><strong>C++:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="kt">bool</span><span class="w"> </span><span class="nf">shouldAutoSplitInput</span><span class="p">()</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">_isMultiInput</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">_inputTasks</span><span class="p">.</span><span class="n">size</span><span class="p">()</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="p">}</span>
+</code></pre></div>
+<p><strong>Python:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_should_auto_split_input</span><span class="p">(</span><span class="n">input_data</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_multi_input_model</span><span class="p">():</span>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>        <span class="k">return</span> <span class="kc">False</span>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>    <span class="n">expected_total_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_input_size</span><span class="p">()</span>
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a>    <span class="n">actual_size</span> <span class="o">=</span> <span class="n">input_data</span><span class="o">.</span><span class="n">nbytes</span>
+<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a>
+<a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a>    <span class="k">return</span> <span class="n">actual_size</span> <span class="o">==</span> <span class="n">expected_total_size</span>
+</code></pre></div>
+<h3 id="batch&gt;_size&gt;_determination">Batch Size Determination<a class="headerlink" href="#batch&gt;_size&gt;_determination" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Condition</th>
+<th>Batch Size Calculation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Single-input + List[np.ndarray]</td>
+<td><code>len(input_data)</code></td>
+</tr>
+<tr>
+<td>Multi-input + List[np.ndarray]</td>
+<td><code>len(input_data) // input_tensor_count</code></td>
+</tr>
+<tr>
+<td>List[List[np.ndarray]]</td>
+<td><code>len(input_data)</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="error&gt;_conditions">Error Conditions<a class="headerlink" href="#error&gt;_conditions" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Condition</th>
+<th>Error Type</th>
+<th>Message</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Multi-input + invalid size</td>
+<td><code>ValueError</code></td>
+<td>"Invalid input count for multi-input model"</td>
+</tr>
+<tr>
+<td>Async + batch</td>
+<td><code>ValueError</code></td>
+<td>"Batch inference not supported in async"</td>
+</tr>
+<tr>
+<td>Empty input</td>
+<td><code>ValueError</code></td>
+<td>"Input data cannot be empty"</td>
+</tr>
+<tr>
+<td>Type mismatch</td>
+<td><code>TypeError</code></td>
+<td>"Expected np.ndarray or List[np.ndarray]"</td>
+</tr>
+</tbody>
+</table>
+<h3 id="output&gt;_buffer&gt;_handling">Output Buffer Handling<a class="headerlink" href="#output&gt;_buffer&gt;_handling" title="Permanent link">&para;</a></h3>
+<h4 id="python&gt;_output&gt;_buffer&gt;_matrix">Python Output Buffer Matrix<a class="headerlink" href="#python&gt;_output&gt;_buffer&gt;_matrix" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Input Format</th>
+<th>Output Buffer Format</th>
+<th>Handling</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Single Inference</td>
+<td><code>None</code></td>
+<td>Auto-allocated</td>
+</tr>
+<tr>
+<td>Single Inference</td>
+<td><code>List[np.ndarray]</code></td>
+<td>User-provided</td>
+</tr>
+<tr>
+<td>Single Inference</td>
+<td><code>np.ndarray</code> (total_size)</td>
+<td>Used after auto-split</td>
+</tr>
+<tr>
+<td>Batch Inference</td>
+<td><code>List[List[np.ndarray]]</code></td>
+<td>Explicit batch buffer</td>
+</tr>
+<tr>
+<td>Batch Inference</td>
+<td><code>List[np.ndarray]</code></td>
+<td>Flattened batch buffer</td>
+</tr>
+</tbody>
+</table>
+<h2 id="performance&gt;_considerations">Performance Considerations<a class="headerlink" href="#performance&gt;_considerations" title="Permanent link">&para;</a></h2>
+<h3 id="memory&gt;_allocation">Memory Allocation<a class="headerlink" href="#memory&gt;_allocation" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Pros</th>
+<th>Cons</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Auto-allocation (No Buffer)</td>
+<td>Ease of use</td>
+<td>Memory allocated on every call</td>
+</tr>
+<tr>
+<td>User-provided (With Buffer)</td>
+<td>Performance optimization</td>
+<td>Complex memory management</td>
+</tr>
+</tbody>
+</table>
+<h3 id="inference&gt;_method">Inference Method<a class="headerlink" href="#inference&gt;_method" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Use Case</th>
+<th>Characteristics</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Synchronous</td>
+<td>Simple processing</td>
+<td>Sequential execution</td>
+</tr>
+<tr>
+<td>Asynchronous</td>
+<td>High throughput</td>
+<td>Requires callback management</td>
+</tr>
+<tr>
+<td>Batch</td>
+<td>Bulk processing</td>
+<td>Increased memory usage</td>
+</tr>
+</tbody>
+</table>
+<hr />
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      ⓒ Copyright 2025 <a href="http://deepx.ai">DEEPX</a>. All Rights Reserved.
+    </div>
+  
+  
+</div>
+      
+        <div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://www.linkedin.com/company/deepx-corporation/" target="_blank" rel="noopener" title="www.linkedin.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5m282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "..", "features": ["toc.integrate", "content.code.annotate", "navigation.tabs", "navigation.tabs.sticky", "content.tabs.link", "content.code.copy"], "search": "../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.13a4f30d.min.js"></script>
+      
+        <script src="../javascripts/mathjax.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

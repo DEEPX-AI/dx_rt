@@ -141,34 +141,54 @@ $(function() {
 <div class="line"><a name="l00360"></a><span class="lineno">  360</span>&#160; </div>
 <div class="line"><a name="l00371"></a><span class="lineno">  371</span>&#160;    uint32_t Voltage(<span class="keywordtype">int</span> ch) <span class="keyword">const</span>;</div>
 <div class="line"><a name="l00372"></a><span class="lineno">  372</span>&#160; </div>
-<div class="line"><a name="l00383"></a><span class="lineno">  383</span>&#160;    uint32_t NpuClock(<span class="keywordtype">int</span> ch) <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00384"></a><span class="lineno">  384</span>&#160; </div>
-<div class="line"><a name="l00395"></a><span class="lineno">  395</span>&#160;    <span class="keywordtype">int</span> Temperature(<span class="keywordtype">int</span> ch) <span class="keyword">const</span>;</div>
-<div class="line"><a name="l00405"></a><span class="lineno"><a class="line" href="classdxrt_1_1DeviceStatus.html#a69ff2ada536e5098dc7a226eb9be974e">  405</a></span>&#160;    uint64_t <a class="code" href="classdxrt_1_1DeviceStatus.html#a69ff2ada536e5098dc7a226eb9be974e">DmaChannel</a>()<span class="keyword"> const </span>{ <span class="keywordflow">return</span> _info.num_dma_ch; }</div>
-<div class="line"><a name="l00406"></a><span class="lineno">  406</span>&#160; </div>
-<div class="line"><a name="l00415"></a><span class="lineno"><a class="line" href="classdxrt_1_1DeviceStatus.html#a3603b4c0e084ef9dcfea41fc98773d69">  415</a></span>&#160;    uint64_t <a class="code" href="classdxrt_1_1DeviceStatus.html#a3603b4c0e084ef9dcfea41fc98773d69">MemoryClock</a>()<span class="keyword"> const </span>{ <span class="keywordflow">return</span> _info.ddr_freq; }</div>
-<div class="line"><a name="l00416"></a><span class="lineno">  416</span>&#160; </div>
-<div class="line"><a name="l00417"></a><span class="lineno">  417</span>&#160;    DeviceType GetDeviceType()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <span class="keyword">static_cast&lt;</span>DeviceType<span class="keyword">&gt;</span>(_info.type);}</div>
-<div class="line"><a name="l00418"></a><span class="lineno">  418</span>&#160; </div>
-<div class="line"><a name="l00419"></a><span class="lineno">  419</span>&#160; <span class="keyword">private</span>:</div>
-<div class="line"><a name="l00420"></a><span class="lineno">  420</span>&#160;    <span class="keywordtype">int</span> _id;</div>
-<div class="line"><a name="l00421"></a><span class="lineno">  421</span>&#160;    dxrt_device_info_t   _info;</div>
-<div class="line"><a name="l00422"></a><span class="lineno">  422</span>&#160;    dxrt_device_status_t _status;</div>
-<div class="line"><a name="l00423"></a><span class="lineno">  423</span>&#160;    dxrt_dev_info_t      _devInfo;</div>
-<div class="line"><a name="l00424"></a><span class="lineno">  424</span>&#160; </div>
-<div class="line"><a name="l00425"></a><span class="lineno">  425</span>&#160;    DeviceStatus(<span class="keywordtype">int</span> <span class="keywordtype">id</span>, dxrt_device_info_t info, dxrt_device_status_t status, dxrt_dev_info_t devInfo);</div>
-<div class="line"><a name="l00426"></a><span class="lineno">  426</span>&#160;};</div>
-<div class="line"><a name="l00427"></a><span class="lineno">  427</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp; os, <span class="keyword">const</span> DeviceStatus&amp; d);</div>
-<div class="line"><a name="l00428"></a><span class="lineno">  428</span>&#160; </div>
-<div class="line"><a name="l00429"></a><span class="lineno">  429</span>&#160;}  <span class="comment">// namespace dxrt</span></div>
+<div class="line"><a name="l00383"></a><span class="lineno"><a class="line" href="classdxrt_1_1DeviceStatus.html#a67f94ba6a6ad2fe0f26ddbd1d5ea7ce7">  383</a></span>&#160;    uint32_t <a class="code" href="classdxrt_1_1DeviceStatus.html#a67f94ba6a6ad2fe0f26ddbd1d5ea7ce7">GetNpuVoltage</a>(<span class="keywordtype">int</span> ch)<span class="keyword"> const</span></div>
+<div class="line"><a name="l00384"></a><span class="lineno">  384</span>&#160;<span class="keyword">    </span>{</div>
+<div class="line"><a name="l00385"></a><span class="lineno">  385</span>&#160;      <span class="keywordflow">return</span> Voltage(ch);</div>
+<div class="line"><a name="l00386"></a><span class="lineno">  386</span>&#160;    }</div>
+<div class="line"><a name="l00387"></a><span class="lineno">  387</span>&#160; </div>
+<div class="line"><a name="l00398"></a><span class="lineno">  398</span>&#160;    uint32_t NpuClock(<span class="keywordtype">int</span> ch) <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00399"></a><span class="lineno">  399</span>&#160; </div>
+<div class="line"><a name="l00400"></a><span class="lineno">  400</span>&#160; </div>
+<div class="line"><a name="l00411"></a><span class="lineno"><a class="line" href="classdxrt_1_1DeviceStatus.html#ab87b9113bdb9e56d31066a121b3675dc">  411</a></span>&#160;    uint32_t <a class="code" href="classdxrt_1_1DeviceStatus.html#ab87b9113bdb9e56d31066a121b3675dc">GetNpuClock</a>(<span class="keywordtype">int</span> ch)<span class="keyword"> const</span></div>
+<div class="line"><a name="l00412"></a><span class="lineno">  412</span>&#160;<span class="keyword">    </span>{</div>
+<div class="line"><a name="l00413"></a><span class="lineno">  413</span>&#160;         <span class="keywordflow">return</span> NpuClock(ch);</div>
+<div class="line"><a name="l00414"></a><span class="lineno">  414</span>&#160;    }</div>
+<div class="line"><a name="l00415"></a><span class="lineno">  415</span>&#160; </div>
+<div class="line"><a name="l00426"></a><span class="lineno">  426</span>&#160;    <span class="keywordtype">int</span> Temperature(<span class="keywordtype">int</span> ch) <span class="keyword">const</span>;</div>
+<div class="line"><a name="l00427"></a><span class="lineno">  427</span>&#160; </div>
+<div class="line"><a name="l00438"></a><span class="lineno"><a class="line" href="classdxrt_1_1DeviceStatus.html#ad9f4b3625c9a72aaaa8e5bc70f75eb41">  438</a></span>&#160;    <span class="keywordtype">int</span> <a class="code" href="classdxrt_1_1DeviceStatus.html#ad9f4b3625c9a72aaaa8e5bc70f75eb41">GetTemperature</a>(<span class="keywordtype">int</span> ch)<span class="keyword"> const</span></div>
+<div class="line"><a name="l00439"></a><span class="lineno">  439</span>&#160;<span class="keyword">    </span>{</div>
+<div class="line"><a name="l00440"></a><span class="lineno">  440</span>&#160;      <span class="keywordflow">return</span> Temperature(ch);</div>
+<div class="line"><a name="l00441"></a><span class="lineno">  441</span>&#160;    }</div>
+<div class="line"><a name="l00442"></a><span class="lineno">  442</span>&#160; </div>
+<div class="line"><a name="l00452"></a><span class="lineno"><a class="line" href="classdxrt_1_1DeviceStatus.html#a69ff2ada536e5098dc7a226eb9be974e">  452</a></span>&#160;    uint64_t <a class="code" href="classdxrt_1_1DeviceStatus.html#a69ff2ada536e5098dc7a226eb9be974e">DmaChannel</a>()<span class="keyword"> const </span>{ <span class="keywordflow">return</span> _info.num_dma_ch; }</div>
+<div class="line"><a name="l00453"></a><span class="lineno">  453</span>&#160; </div>
+<div class="line"><a name="l00462"></a><span class="lineno"><a class="line" href="classdxrt_1_1DeviceStatus.html#a3603b4c0e084ef9dcfea41fc98773d69">  462</a></span>&#160;    uint64_t <a class="code" href="classdxrt_1_1DeviceStatus.html#a3603b4c0e084ef9dcfea41fc98773d69">MemoryClock</a>()<span class="keyword"> const </span>{ <span class="keywordflow">return</span> _info.ddr_freq; }</div>
+<div class="line"><a name="l00463"></a><span class="lineno">  463</span>&#160; </div>
+<div class="line"><a name="l00464"></a><span class="lineno">  464</span>&#160;    DeviceType GetDeviceType()<span class="keyword"> const </span>{<span class="keywordflow">return</span> <span class="keyword">static_cast&lt;</span>DeviceType<span class="keyword">&gt;</span>(_info.type);}</div>
+<div class="line"><a name="l00465"></a><span class="lineno">  465</span>&#160; </div>
+<div class="line"><a name="l00466"></a><span class="lineno">  466</span>&#160; <span class="keyword">private</span>:</div>
+<div class="line"><a name="l00467"></a><span class="lineno">  467</span>&#160;    <span class="keywordtype">int</span> _id;</div>
+<div class="line"><a name="l00468"></a><span class="lineno">  468</span>&#160;    dxrt_device_info_t   _info;</div>
+<div class="line"><a name="l00469"></a><span class="lineno">  469</span>&#160;    dxrt_device_status_t _status;</div>
+<div class="line"><a name="l00470"></a><span class="lineno">  470</span>&#160;    dxrt_dev_info_t      _devInfo;</div>
+<div class="line"><a name="l00471"></a><span class="lineno">  471</span>&#160; </div>
+<div class="line"><a name="l00472"></a><span class="lineno">  472</span>&#160;    DeviceStatus(<span class="keywordtype">int</span> <span class="keywordtype">id</span>, dxrt_device_info_t info, dxrt_device_status_t status, dxrt_dev_info_t devInfo);</div>
+<div class="line"><a name="l00473"></a><span class="lineno">  473</span>&#160;};</div>
+<div class="line"><a name="l00474"></a><span class="lineno">  474</span>&#160;DXRT_API std::ostream&amp; operator&lt;&lt;(std::ostream&amp; os, <span class="keyword">const</span> DeviceStatus&amp; d);</div>
+<div class="line"><a name="l00475"></a><span class="lineno">  475</span>&#160; </div>
+<div class="line"><a name="l00476"></a><span class="lineno">  476</span>&#160;}  <span class="comment">// namespace dxrt</span></div>
 </div><!-- fragment --></div><!-- contents -->
+<div class="ttc" id="aclassdxrt_1_1DeviceStatus_html_a67f94ba6a6ad2fe0f26ddbd1d5ea7ce7"><div class="ttname"><a href="classdxrt_1_1DeviceStatus.html#a67f94ba6a6ad2fe0f26ddbd1d5ea7ce7">dxrt::DeviceStatus::GetNpuVoltage</a></div><div class="ttdeci">uint32_t GetNpuVoltage(int ch) const</div><div class="ttdoc">Retrieves the voltage level of the specified NPU channel.</div><div class="ttdef"><b>Definition:</b> device_info_status.h:383</div></div>
+<div class="ttc" id="aclassdxrt_1_1DeviceStatus_html_ad9f4b3625c9a72aaaa8e5bc70f75eb41"><div class="ttname"><a href="classdxrt_1_1DeviceStatus.html#ad9f4b3625c9a72aaaa8e5bc70f75eb41">dxrt::DeviceStatus::GetTemperature</a></div><div class="ttdeci">int GetTemperature(int ch) const</div><div class="ttdoc">Retrieves the temperature of the specified NPU channel.</div><div class="ttdef"><b>Definition:</b> device_info_status.h:438</div></div>
 <div class="ttc" id="aclassdxrt_1_1DeviceStatus_html_a8d0fd63116eeaa29282eaa9280279bf6"><div class="ttname"><a href="classdxrt_1_1DeviceStatus.html#a8d0fd63116eeaa29282eaa9280279bf6">dxrt::DeviceStatus::MemorySize</a></div><div class="ttdeci">int64_t MemorySize() const</div><div class="ttdoc">Retrieves the total memory size available for the NPU.</div><div class="ttdef"><b>Definition:</b> device_info_status.h:142</div></div>
-<div class="ttc" id="aclassdxrt_1_1DeviceStatus_html_a3603b4c0e084ef9dcfea41fc98773d69"><div class="ttname"><a href="classdxrt_1_1DeviceStatus.html#a3603b4c0e084ef9dcfea41fc98773d69">dxrt::DeviceStatus::MemoryClock</a></div><div class="ttdeci">uint64_t MemoryClock() const</div><div class="ttdoc">Retrieves the memory clock frequency of the NPU.</div><div class="ttdef"><b>Definition:</b> device_info_status.h:415</div></div>
+<div class="ttc" id="aclassdxrt_1_1DeviceStatus_html_a3603b4c0e084ef9dcfea41fc98773d69"><div class="ttname"><a href="classdxrt_1_1DeviceStatus.html#a3603b4c0e084ef9dcfea41fc98773d69">dxrt::DeviceStatus::MemoryClock</a></div><div class="ttdeci">uint64_t MemoryClock() const</div><div class="ttdoc">Retrieves the memory clock frequency of the NPU.</div><div class="ttdef"><b>Definition:</b> device_info_status.h:462</div></div>
 <div class="ttc" id="aclassdxrt_1_1DeviceStatus_html_a5d878da88e34e4f3a55e6911d685983e"><div class="ttname"><a href="classdxrt_1_1DeviceStatus.html#a5d878da88e34e4f3a55e6911d685983e">dxrt::DeviceStatus::MemoryFrequency</a></div><div class="ttdeci">int MemoryFrequency() const</div><div class="ttdoc">Retrieves the memory operating frequency of the device.</div><div class="ttdef"><b>Definition:</b> device_info_status.h:157</div></div>
+<div class="ttc" id="aclassdxrt_1_1DeviceStatus_html_ab87b9113bdb9e56d31066a121b3675dc"><div class="ttname"><a href="classdxrt_1_1DeviceStatus.html#ab87b9113bdb9e56d31066a121b3675dc">dxrt::DeviceStatus::GetNpuClock</a></div><div class="ttdeci">uint32_t GetNpuClock(int ch) const</div><div class="ttdoc">Retrieves the clock frequency of the specified NPU channel.</div><div class="ttdef"><b>Definition:</b> device_info_status.h:411</div></div>
 <div class="ttc" id="aclassdxrt_1_1DeviceStatus_html"><div class="ttname"><a href="classdxrt_1_1DeviceStatus.html">dxrt::DeviceStatus</a></div><div class="ttdoc">A class that provides an abstraction of device information.</div><div class="ttdef"><b>Definition:</b> device_info_status.h:35</div></div>
 <div class="ttc" id="aclassdxrt_1_1DeviceStatus_html_afffb324a240aef38eca6d8d9efd0d11d"><div class="ttname"><a href="classdxrt_1_1DeviceStatus.html#afffb324a240aef38eca6d8d9efd0d11d">dxrt::DeviceStatus::GetId</a></div><div class="ttdeci">int GetId() const</div><div class="ttdoc">Retrieves the unique identifier of the device.</div><div class="ttdef"><b>Definition:</b> device_info_status.h:91</div></div>
 <div class="ttc" id="anamespacedxrt_html"><div class="ttname"><a href="namespacedxrt.html">dxrt</a></div><div class="ttdoc">DXRT C++ APIs are provided in this namespace.</div><div class="ttdef"><b>Definition:</b> buffer.h:8</div></div>
-<div class="ttc" id="aclassdxrt_1_1DeviceStatus_html_a69ff2ada536e5098dc7a226eb9be974e"><div class="ttname"><a href="classdxrt_1_1DeviceStatus.html#a69ff2ada536e5098dc7a226eb9be974e">dxrt::DeviceStatus::DmaChannel</a></div><div class="ttdeci">uint64_t DmaChannel() const</div><div class="ttdoc">Retrieves the number of DMA (Direct Memory Access) channels available for the NPU.</div><div class="ttdef"><b>Definition:</b> device_info_status.h:405</div></div>
+<div class="ttc" id="aclassdxrt_1_1DeviceStatus_html_a69ff2ada536e5098dc7a226eb9be974e"><div class="ttname"><a href="classdxrt_1_1DeviceStatus.html#a69ff2ada536e5098dc7a226eb9be974e">dxrt::DeviceStatus::DmaChannel</a></div><div class="ttdeci">uint64_t DmaChannel() const</div><div class="ttdoc">Retrieves the number of DMA (Direct Memory Access) channels available for the NPU.</div><div class="ttdef"><b>Definition:</b> device_info_status.h:452</div></div>
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
 Generated by &#160;<a href="http://www.doxygen.org/index.html">

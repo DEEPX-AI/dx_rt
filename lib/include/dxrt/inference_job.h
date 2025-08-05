@@ -10,6 +10,7 @@
 #include <vector>
 #include <memory>
 #include <atomic>
+#include <map>
 
 #include "dxrt/common.h"
 #include "dxrt/tensor.h"
@@ -18,7 +19,7 @@
 #include "dxrt/driver.h"
 #include "dxrt/inference_timer.h"
 
-namespace dxrt { 
+namespace dxrt {
 class Task;
 class TaskData;
 struct TimePoint;
@@ -31,23 +32,48 @@ class InferenceEngine;
 class InferenceJob
 {
  public:
-   enum Status
-   {
-      TASK_IDLE,
-      TASK_READY,
-      TASK_BUSY,
-      TASK_DONE,
-   };
-    InferenceJob(int id) noexcept ;
+    enum Status
+    {
+        TASK_IDLE,
+        TASK_READY,
+        TASK_BUSY,
+        TASK_DONE,
+    };
+    explicit InferenceJob(int id) noexcept;
     ~InferenceJob();
 
-    void SetInferenceJob(std::vector<std::shared_ptr<Task>>& tasks_, std::shared_ptr<Task> head_, std::vector<string> lastOutputOrder);
+    void SetInferenceJob(std::vector<std::shared_ptr<Task>>& tasks_, std::shared_ptr<Task> head_, std::vector<std::string> lastOutputOrder);
+
+    /** @brief Set inference job with multi-head support using input tasks
+     * @param[in] tasks_ All tasks in the model
+     * @param[in] inputTasks_ Tasks that receive external inputs (head tasks)
+     * @param[in] lastOutputOrder Output tensor order
+     */
+    void SetInferenceJobMultiHead(std::vector<std::shared_ptr<Task>>& tasks_, 
+                                  const std::vector<std::shared_ptr<Task>>& inputTasks_, 
+                                  std::vector<std::string> lastOutputOrder);
+
 
     void onRequestComplete(RequestPtr req);
     bool checkAndSetTaskReady(TaskPtr taskPtr);
     void processReadyTask(TaskPtr taskPtr);
 
     int startJob(void *inputPtr, void *userArg, void *outputPtr);
+    int DSP_StartJob(dxrt_dspcvmat_t *dspCvMatInPtr, dxrt_dspcvmat_t *dspCvMatOutPtr, void *userArg);
+    void DSP_OnRequestComplete(RequestPtr req);
+    void DSP_SetDspEnable(int enable) { _isDsp.store(enable); }
+    int DSP_GetDspEnable() { return _isDsp.load(); }
+    void *DSP_GetOutput() { return _dspOutputPtr; }
+
+    
+    /** @brief Start inference job with multiple input tensors
+     * @param[in] inputTensors Map of tensor name to input data pointer
+     * @param[in] userArg user-defined arguments
+     * @param[out] outputPtr pointer to output data
+     * @return job ID
+     */
+    int startMultiInputJob(const std::map<std::string, void*>& inputTensors, void *userArg, void *outputPtr);
+
     // void endRequest(RequestPtr req);
 
     TensorPtrs getOutput();
@@ -85,7 +111,17 @@ class InferenceJob
     uint32_t _infTime;
     int _jobId;
 
-    std::function<void(RequestPtr)> onRequestCompleteFunction();
+    // Tasks for multi-input support
+    std::vector<std::shared_ptr<Task>> _tasks;
+
+    // Multi-head support
+    std::vector<std::shared_ptr<Task>> _inputTasks;  // Tasks that receive external inputs
+    bool _isMultiHead = false;
+	
+    std::atomic<int> _isDsp{0};
+    void* _dspOutputPtr;
+
+    // std::function<void(RequestPtr)> onRequestCompleteFunction();
 
     void onAllRequestComplete();
     InferenceEngine* _inferenceEnginePtr;
@@ -97,7 +133,7 @@ class InferenceJob
     void* _outputPtr;
     std::atomic<bool> _use_flag = {false};
 
-    // Limit access to shared resources to one thread at a time. 
+    // Limit access to shared resources to one thread at a time.
     // Acquire the mutex when reading or writing the _status value, and release it after the operation is complete.
     std::atomic<Request::Status> _status = {Request::Status::REQ_IDLE};
     std::mutex _lock;
@@ -107,7 +143,7 @@ class InferenceJob
     std::mutex _waitMutex;
 
     std::atomic<bool> _occupiedJob {false};
-   
+
 };
 
 using InferenceJobPtr = std::shared_ptr<InferenceJob>;

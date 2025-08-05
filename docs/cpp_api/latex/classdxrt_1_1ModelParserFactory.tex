@@ -1,0 +1,134 @@
+\hypertarget{classdxrt_1_1ModelParserFactory}{}\doxysection{dxrt\+::Model\+Parser\+Factory Class Reference}
+\label{classdxrt_1_1ModelParserFactory}\index{dxrt::ModelParserFactory@{dxrt::ModelParserFactory}}
+
+
+Factory class for creating version-\/specific model parsers.  
+
+
+
+
+{\ttfamily \#include $<$model\+\_\+parser.\+h$>$}
+
+\doxysubsection*{Static Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+static std\+::unique\+\_\+ptr$<$ \mbox{\hyperlink{classdxrt_1_1IModelParser}{I\+Model\+Parser}} $>$ \mbox{\hyperlink{classdxrt_1_1ModelParserFactory_adb9a655b52de906d30331aaaea69a2c7}{Create\+Parser}} (const std\+::string \&file\+Path)
+\begin{DoxyCompactList}\small\item\em Create a parser for the specified file. \end{DoxyCompactList}\item 
+static std\+::unique\+\_\+ptr$<$ \mbox{\hyperlink{classdxrt_1_1IModelParser}{I\+Model\+Parser}} $>$ \mbox{\hyperlink{classdxrt_1_1ModelParserFactory_a423e8bfa84a756411b48c94a646014ab}{Create\+Parser}} (int version)
+\begin{DoxyCompactList}\small\item\em Create a parser for a specific version. \end{DoxyCompactList}\item 
+static int \mbox{\hyperlink{classdxrt_1_1ModelParserFactory_a985bf91ebf98585b7b87b528bfc9e435}{Get\+File\+Format\+Version}} (const std\+::string \&file\+Path)
+\begin{DoxyCompactList}\small\item\em Get the file format version from a D\+X\+NN file. \end{DoxyCompactList}\item 
+static bool \mbox{\hyperlink{classdxrt_1_1ModelParserFactory_af453690f6369731527ad2506288a7366}{Is\+Version\+Supported}} (int version)
+\begin{DoxyCompactList}\small\item\em Check if a version is supported. \end{DoxyCompactList}\item 
+static std\+::vector$<$ int $>$ \mbox{\hyperlink{classdxrt_1_1ModelParserFactory_aa4053583bd49036912d4729496c34516}{Get\+Supported\+Versions}} ()
+\begin{DoxyCompactList}\small\item\em Get list of supported versions. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Factory class for creating version-\/specific model parsers. 
+
+This factory automatically detects the D\+X\+NN file version and creates the appropriate parser instance. 
+
+\doxysubsection{Member Function Documentation}
+\mbox{\Hypertarget{classdxrt_1_1ModelParserFactory_adb9a655b52de906d30331aaaea69a2c7}\label{classdxrt_1_1ModelParserFactory_adb9a655b52de906d30331aaaea69a2c7}} 
+\index{dxrt::ModelParserFactory@{dxrt::ModelParserFactory}!CreateParser@{CreateParser}}
+\index{CreateParser@{CreateParser}!dxrt::ModelParserFactory@{dxrt::ModelParserFactory}}
+\doxysubsubsection{\texorpdfstring{CreateParser()}{CreateParser()}\hspace{0.1cm}{\footnotesize\ttfamily [1/2]}}
+{\footnotesize\ttfamily static std\+::unique\+\_\+ptr$<$\mbox{\hyperlink{classdxrt_1_1IModelParser}{I\+Model\+Parser}}$>$ dxrt\+::\+Model\+Parser\+Factory\+::\+Create\+Parser (\begin{DoxyParamCaption}\item[{const std\+::string \&}]{file\+Path }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+
+
+Create a parser for the specified file. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em file\+Path} & Path to the D\+X\+NN file \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+Unique pointer to the appropriate parser 
+\end{DoxyReturn}
+
+\begin{DoxyExceptions}{Exceptions}
+{\em Invalid\+Model\+Exception} & if version is not supported \\
+\hline
+\end{DoxyExceptions}
+\mbox{\Hypertarget{classdxrt_1_1ModelParserFactory_a423e8bfa84a756411b48c94a646014ab}\label{classdxrt_1_1ModelParserFactory_a423e8bfa84a756411b48c94a646014ab}} 
+\index{dxrt::ModelParserFactory@{dxrt::ModelParserFactory}!CreateParser@{CreateParser}}
+\index{CreateParser@{CreateParser}!dxrt::ModelParserFactory@{dxrt::ModelParserFactory}}
+\doxysubsubsection{\texorpdfstring{CreateParser()}{CreateParser()}\hspace{0.1cm}{\footnotesize\ttfamily [2/2]}}
+{\footnotesize\ttfamily static std\+::unique\+\_\+ptr$<$\mbox{\hyperlink{classdxrt_1_1IModelParser}{I\+Model\+Parser}}$>$ dxrt\+::\+Model\+Parser\+Factory\+::\+Create\+Parser (\begin{DoxyParamCaption}\item[{int}]{version }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+
+
+Create a parser for a specific version. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em version} & D\+X\+NN file format version \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+Unique pointer to the appropriate parser 
+\end{DoxyReturn}
+
+\begin{DoxyExceptions}{Exceptions}
+{\em Invalid\+Model\+Exception} & if version is not supported \\
+\hline
+\end{DoxyExceptions}
+\mbox{\Hypertarget{classdxrt_1_1ModelParserFactory_a985bf91ebf98585b7b87b528bfc9e435}\label{classdxrt_1_1ModelParserFactory_a985bf91ebf98585b7b87b528bfc9e435}} 
+\index{dxrt::ModelParserFactory@{dxrt::ModelParserFactory}!GetFileFormatVersion@{GetFileFormatVersion}}
+\index{GetFileFormatVersion@{GetFileFormatVersion}!dxrt::ModelParserFactory@{dxrt::ModelParserFactory}}
+\doxysubsubsection{\texorpdfstring{GetFileFormatVersion()}{GetFileFormatVersion()}}
+{\footnotesize\ttfamily static int dxrt\+::\+Model\+Parser\+Factory\+::\+Get\+File\+Format\+Version (\begin{DoxyParamCaption}\item[{const std\+::string \&}]{file\+Path }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+
+
+Get the file format version from a D\+X\+NN file. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em file\+Path} & Path to the D\+X\+NN file \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+Version number 
+\end{DoxyReturn}
+
+\begin{DoxyExceptions}{Exceptions}
+{\em File\+Not\+Found\+Exception} & if file doesn\textquotesingle{}t exist \\
+\hline
+{\em Invalid\+Model\+Exception} & if file format is invalid \\
+\hline
+\end{DoxyExceptions}
+\mbox{\Hypertarget{classdxrt_1_1ModelParserFactory_aa4053583bd49036912d4729496c34516}\label{classdxrt_1_1ModelParserFactory_aa4053583bd49036912d4729496c34516}} 
+\index{dxrt::ModelParserFactory@{dxrt::ModelParserFactory}!GetSupportedVersions@{GetSupportedVersions}}
+\index{GetSupportedVersions@{GetSupportedVersions}!dxrt::ModelParserFactory@{dxrt::ModelParserFactory}}
+\doxysubsubsection{\texorpdfstring{GetSupportedVersions()}{GetSupportedVersions()}}
+{\footnotesize\ttfamily static std\+::vector$<$int$>$ dxrt\+::\+Model\+Parser\+Factory\+::\+Get\+Supported\+Versions (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+
+
+Get list of supported versions. 
+
+\begin{DoxyReturn}{Returns}
+Vector of supported version numbers 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1ModelParserFactory_af453690f6369731527ad2506288a7366}\label{classdxrt_1_1ModelParserFactory_af453690f6369731527ad2506288a7366}} 
+\index{dxrt::ModelParserFactory@{dxrt::ModelParserFactory}!IsVersionSupported@{IsVersionSupported}}
+\index{IsVersionSupported@{IsVersionSupported}!dxrt::ModelParserFactory@{dxrt::ModelParserFactory}}
+\doxysubsubsection{\texorpdfstring{IsVersionSupported()}{IsVersionSupported()}}
+{\footnotesize\ttfamily static bool dxrt\+::\+Model\+Parser\+Factory\+::\+Is\+Version\+Supported (\begin{DoxyParamCaption}\item[{int}]{version }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+
+
+Check if a version is supported. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em version} & Version number to check \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true if supported, false otherwise 
+\end{DoxyReturn}

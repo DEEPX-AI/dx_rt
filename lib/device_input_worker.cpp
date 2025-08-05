@@ -10,6 +10,15 @@
 #include "dxrt/request.h"
 #include "dxrt/configuration.h"
 
+#include <iostream>
+#include <string>
+#include <mutex>
+#include <memory>
+using std::cout;
+using std::endl;
+using std::string;
+using std::to_string;
+
 namespace dxrt {
 
 DeviceInputWorker::DeviceInputWorker(string name_, int numThreads, Device *device_)
@@ -19,25 +28,25 @@ DeviceInputWorker::DeviceInputWorker(string name_, int numThreads, Device *devic
 }
 DeviceInputWorker::~DeviceInputWorker()
 {
-    LOG_DXRT_DBG<<endl;
+    LOG_DXRT_DBG << endl;
     _cv.notify_all();
 }
 
 shared_ptr<DeviceInputWorker> DeviceInputWorker::Create(string name_, int numThreads, Device *device_)
 {
-    shared_ptr<DeviceInputWorker> ret = make_shared<DeviceInputWorker>(name_, numThreads, device_);
+    std::shared_ptr<DeviceInputWorker> ret = std::make_shared<DeviceInputWorker>(name_, numThreads, device_);
     return ret;
 }
 
 int DeviceInputWorker::request(int requestId)
 {
-    unique_lock<mutex> lk(_lock);
-    RequestPtr req = Request::GetById(requestId); //for DEBUG
+    std::unique_lock<std::mutex> lk(_lock);
+    RequestPtr req = Request::GetById(requestId);  //for DEBUG
     _queue.push(requestId);
-    //if(requestId%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || requestId%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
-    //{
+    //i f(requestId%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || requestId%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
+    // {
     //    cout<<"[PROC         ][Job_"<<req->getData()->jobId<<"][Req_"<<requestId<<"][Dev_"<<_device->id()<<"][Buffer] Input Notify all"<<endl;
-    //}
+    // }
     _cv.notify_all();
 
     return 0;
@@ -46,7 +55,7 @@ int DeviceInputWorker::request(int requestId)
 void DeviceInputWorker::ThreadWork(int id)
 {
     string threadName = getName() +"_t"+ to_string(id);
-    //thread::id thisId = this_thread::get_id();
+    // std::thread::id thisId = this_thread::get_id();
     int loopCnt = 0;  // int processCnt = 0;
     LOG_DXRT_DBG << getName() << " : Entry" << endl;
     int load;
@@ -58,12 +67,19 @@ void DeviceInputWorker::ThreadWork(int id)
 #ifdef USE_PROFILER
     auto& profiler = dxrt::Profiler::GetInstance();
 #endif
-    dxrt_cmd_t cmd = //static_cast<dxrt_cmd_t>(static_cast<int>(dxrt::dxrt_cmd_t::DXRT_CMD_WRITE_INPUT_DMA_CH0)+id);
+
+#if DXRT_USB_NETWORK_DRIVER
+    do {
+        ;
+    } while (_hold);
+#endif
+
+    dxrt_cmd_t cmd =  // static_cast<dxrt_cmd_t>(static_cast<int>(dxrt::dxrt_cmd_t::DXRT_CMD_WRITE_INPUT_DMA_CH0)+id);
         dxrt::dxrt_cmd_t::DXRT_CMD_NPU_RUN_REQ;
-    while (_stop.load(memory_order_acquire) == false)
+    while (_stop.load(std::memory_order_acquire) == false)
     {
         LOG_DXRT_DBG << threadName << " : wait" << endl;
-        unique_lock<mutex> lk(_lock);
+        std::unique_lock<std::mutex> lk(_lock);
         _cv.wait(
             lk, [this] {
                 return _queue.size() || _stop.load(std::memory_order_acquire);
@@ -81,7 +97,7 @@ void DeviceInputWorker::ThreadWork(int id)
                 double avgLoad = GetAverageLoad();
                 double loadPercent = 0.0;
 
-                if (avgLoad > 1) {
+                if (avgLoad > 1 && DXRT_TASK_MAX_LOAD > 1) {
                     loadPercent = (avgLoad - 1) / (DXRT_TASK_MAX_LOAD - 1) * 100;
                 }
                 if (SHOW_PROFILE || Configuration::GetInstance().GetEnable(Configuration::ITEM::SHOW_PROFILE) )
@@ -103,10 +119,10 @@ void DeviceInputWorker::ThreadWork(int id)
         {
             auto inferenceAcc = _device->peekInferenceAcc(requestId);
             int channel = id;
-            
+
             if (cycle_ch)
             {
-                channel = loopCnt % dma_ch; 
+                channel = loopCnt % dma_ch;
             }
             inferenceAcc.dma_ch = channel;
             RequestPtr req = Request::GetById(requestId);
@@ -114,15 +130,20 @@ void DeviceInputWorker::ThreadWork(int id)
             {
                 TASK_FLOW("["+to_string(req->job_id())+"]"+req->taskData()->name()+" write input, load: "+to_string(load));
 #ifdef USE_PROFILER
-                profiler.Start("PCIe Write(" + to_string(inferenceAcc.dma_ch)+")");
+                profiler.Start("PCIe Write[Job_" + to_string(req->job_id()) + "][" + req->taskData()->name() + "][Req_" + to_string(req->id()) + "](" + to_string(inferenceAcc.dma_ch)+")");
 #endif
-                _device->Write(inferenceAcc.input, channel);
+                ret = _device->Write(inferenceAcc.input, id);
+                if (ret < 0)
+                {
+                    LOG_DXRT_DBG << inferenceAcc.input << endl;
+                    LOG_DXRT_DBG << "write failed: " << ret << endl;
+                }
                 //if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
                 //{
                 //    cout<<"[    IN_W     ][Job_"<<req->getData()->jobId<<"][Req_"<<req->id()<<"][Dev_"<<deviceId<<"][Buffer] INPUT2DEV"<<endl;
                 //}
 #ifdef USE_PROFILER
-                profiler.End("PCIe Write(" + to_string(inferenceAcc.dma_ch)+")");
+                profiler.End("PCIe Write[Job_" + to_string(req->job_id()) + "][" + req->taskData()->name() + "][Req_" + to_string(req->id()) + "](" + to_string(inferenceAcc.dma_ch)+")");
 #endif
             }
 #ifdef USE_SERVICE
@@ -130,7 +151,8 @@ void DeviceInputWorker::ThreadWork(int id)
             {
                 if (DEBUG_DATA > 0)
                 {
-                    DataDumpBin(req->taskData()->name() + "_input.bin", req->inputs());
+                    DataDumpBin(req->taskData()->name() + "_encoder_input.bin", req->inputs());
+                    DataDumpBin(req->taskData()->name() + "_input.bin", req->encoded_inputs_ptr(), req->taskData()->encoded_input_size());
                 }
                 std::ignore = ret;
                 TASK_FLOW("["+to_string(req->job_id())+"]"+req->taskData()->name()+" signal to service input");
@@ -144,9 +166,13 @@ void DeviceInputWorker::ThreadWork(int id)
             else
 #endif
             {
-                while (_stop.load(memory_order_acquire) == false)
+                while (_stop.load(std::memory_order_acquire) == false)
                 {
+#if DXRT_USB_NETWORK_DRIVER
+                    ret = _device->Process(cmd, &inferenceAcc, sizeof(dxrt_request_acc_t));
+#else
                     ret = _device->Process(cmd, &inferenceAcc);
+#endif
                     LOG_DXRT_DBG << "Input signalled " << id << " " << inferenceAcc.req_id<< endl;
                     if (ret == 0 || _stop.load())
                     {
@@ -172,13 +198,14 @@ void DeviceInputWorker::ThreadWork(int id)
         else
         {
 #ifdef USE_PROFILER
-            profiler.Start("Input Reqeust");
+            RequestPtr req = Request::GetById(requestId);
+            profiler.Start("Input Request[Job_" + to_string(req->job_id()) + "][" + req->taskData()->name() + "][Req_" + to_string(req->id()) + "]");
 #endif
             auto inference = _device->peekInferenceStd(requestId); 
             LOG_DXRT_DBG << inference << endl; // for debug.
             ret = _device->Process(cmd, inference);
 #ifdef USE_PROFILER
-            profiler.End("Input Request");
+            profiler.End("Input Request[Job_" + to_string(req->job_id()) + "][" + req->taskData()->name() + "][Req_" + to_string(req->id()) + "]");
 #endif
         }
         loopCnt++;

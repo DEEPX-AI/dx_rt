@@ -16,7 +16,6 @@
     #pragma comment(lib, "dbghelp.lib")
 #endif
 
-using namespace std;
 
 namespace dxrt {
 

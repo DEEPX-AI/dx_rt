@@ -1,0 +1,1532 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="10_01_C%2B%2B_API_Reference.html">
+      
+      
+        <link rel="next" href="Appendix_Change_Log.html">
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.14">
+    
+    
+      
+        <title>Python API Reference - DXNN Runtime (DX-RT) User Manual</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.342714a4.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Noto+Sans+Display:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Noto Sans Display";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#class>_dx>_engineinferenceengine" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="DXNN Runtime (DX-RT) User Manual" class="md-header__button md-logo" aria-label="DXNN Runtime (DX-RT) User Manual" data-md-component="logo">
+      
+  <img src="../img/deepx.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            DXNN Runtime (DX-RT) User Manual
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Python API Reference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="01_DXNN_Runtime_Overview.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  DXNN Runtime Overview
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="02_Installation_on_Linux.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Installation on Linux
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="03_Installation_on_Windows.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Installation on Windows
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="04_Model_Inference.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Model Inference
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="05_Command_Line_Interface.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Command Line Interface
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="06_Inference_API.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Inference API Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="07_Multi_Input_Inference.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Multi-input Inference Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="08_Global_Instance.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Configuration and DeviceStatus Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="09_01_C%2B%2B_Tutorials.html" class="md-tabs__link">
+          
+  
+  
+  Tutorials
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="10_01_C%2B%2B_API_Reference.html" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="Appendix_Change_Log.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Change Log
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="DXNN Runtime (DX-RT) User Manual" class="md-nav__button md-logo" aria-label="DXNN Runtime (DX-RT) User Manual" data-md-component="logo">
+      
+  <img src="../img/deepx.png" alt="logo">
+
+    </a>
+    DXNN Runtime (DX-RT) User Manual
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="01_DXNN_Runtime_Overview.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    DXNN Runtime Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="02_Installation_on_Linux.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Installation on Linux
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="03_Installation_on_Windows.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Installation on Windows
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="04_Model_Inference.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Model Inference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="05_Command_Line_Interface.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Command Line Interface
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="06_Inference_API.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Inference API Guide
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="07_Multi_Input_Inference.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Multi-input Inference Guide
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="08_Global_Instance.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Configuration and DeviceStatus Guide
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Tutorials
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            Tutorials
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="09_01_C%2B%2B_Tutorials.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    C++ Tutorials
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="09_02_Python_Tutorials.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Python Tutorials
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            API Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="10_01_C%2B%2B_API_Reference.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    C++ API Reference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Python API Reference
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="10_02_Python_API_Reference.html" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    Python API Reference
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#class>_dx>_engineinferenceengine" class="md-nav__link">
+    <span class="md-ellipsis">
+      class dx_engine.InferenceEngine
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#class>_dx>_engineinferenceoption" class="md-nav__link">
+    <span class="md-ellipsis">
+      class dx_engine.InferenceOption
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#class>_dx>_engineconfiguration" class="md-nav__link">
+    <span class="md-ellipsis">
+      class dx_engine.Configuration
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#class>_dx>_enginedevicestatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      class dx_engine.DeviceStatus
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#standalone>_functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Standalone Functions
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="Appendix_Change_Log.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Change Log
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+  <h1>Python API Reference</h1>
+
+<h3 id="class&gt;_dx&gt;_engineinferenceengine"><code>class dx_engine.InferenceEngine</code><a class="headerlink" href="#class&gt;_dx&gt;_engineinferenceengine" title="Permanent link">&para;</a></h3>
+<p>This class is the main Python wrapper for the DXRT Inference Engine. It provides an interface to load a compiled model and perform inference tasks, either synchronously or asynchronously, supporting both single and batch inference.</p>
+<h4 id="constructor">Constructor<a class="headerlink" href="#constructor" title="Permanent link">&para;</a></h4>
+<h5 id="&gt;_init&gt;_self&gt;_model&gt;_path&gt;_str&gt;_inference&gt;_option&gt;_optionalinferenceoption&gt;_none"><code>__init__(self, model_path: str, inference_option: Optional[InferenceOption] = None)</code><a class="headerlink" href="#&gt;_init&gt;_self&gt;_model&gt;_path&gt;_str&gt;_inference&gt;_option&gt;_optionalinferenceoption&gt;_none" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Description</strong>: Initializes the InferenceEngine by loading a compiled model from the specified path.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>model_path</code>: <code>str</code>. Path to the compiled model file (e.g., <code>*.dxnn</code>).</li>
+<li><code>inference_option</code>: <code>Optional[InferenceOption]</code>. An <code>InferenceOption</code> object for configuration. If <code>None</code>, default options are used.</li>
+</ul>
+</li>
+<li><strong>Raises</strong>: <code>RuntimeError</code> if the underlying C++ engine fails to initialize.</li>
+</ul>
+<h4 id="member&gt;_functions">Member Functions<a class="headerlink" href="#member&gt;_functions" title="Permanent link">&para;</a></h4>
+<h5 id="disposeself"><code>dispose(self)</code><a class="headerlink" href="#disposeself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def dispose(self) -&gt; None</code></li>
+<li><strong>Description</strong>: Explicitly releases the underlying C++ resources held by the inference engine. This is automatically called when using a <code>with</code> statement, so manual invocation is typically not required.</li>
+</ul>
+<h5 id="get&gt;_all&gt;_task&gt;_outputsself"><code>get_all_task_outputs(self)</code><a class="headerlink" href="#get&gt;_all&gt;_task&gt;_outputsself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_all_task_outputs(self) -&gt; List[List[np.ndarray]]</code></li>
+<li><strong>Description</strong>: Retrieves the outputs of all internal tasks in their execution order. This is useful for debugging the intermediate steps of a model.</li>
+<li><strong>Returns</strong>: A list of lists, where each inner list contains the output <code>np.ndarray</code> objects for a single task.</li>
+</ul>
+<h5 id="get&gt;_bitmatch&gt;_maskself&gt;_index&gt;_int&gt;_0"><code>get_bitmatch_mask(self, index: int = 0)</code><a class="headerlink" href="#get&gt;_bitmatch&gt;_maskself&gt;_index&gt;_int&gt;_0" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_bitmatch_mask(self, index: int = 0) -&gt; np.ndarray</code></li>
+<li><strong>Description</strong>: Retrieves a bitmatch mask for a specific NPU task, which can be used for validation and debugging purposes.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>index</code>: <code>int</code>. The index of the NPU task.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: A boolean <code>np.ndarray</code> representing the bitmatch mask.</li>
+</ul>
+<h5 id="get&gt;_compile&gt;_typeself"><code>get_compile_type(self)</code><a class="headerlink" href="#get&gt;_compile&gt;_typeself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_compile_type(self) -&gt; str</code></li>
+<li><strong>Description</strong>: Returns the compilation type or strategy of the loaded model (e.g., "debug", "release").</li>
+<li><strong>Returns</strong>: The compilation type as a string.</li>
+</ul>
+<h5 id="get&gt;_input&gt;_sizeself"><code>get_input_size(self)</code><a class="headerlink" href="#get&gt;_input&gt;_sizeself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_input_size(self) -&gt; int</code></li>
+<li><strong>Description</strong>: Gets the total expected size of all input tensors combined in bytes.</li>
+<li><strong>Returns</strong>: The total input size as an integer.</li>
+</ul>
+<h5 id="get&gt;_input&gt;_tensor&gt;_countself"><code>get_input_tensor_count(self)</code><a class="headerlink" href="#get&gt;_input&gt;_tensor&gt;_countself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_input_tensor_count(self) -&gt; int</code></li>
+<li><strong>Description</strong>: Returns the number of input tensors required by the model.</li>
+<li><strong>Returns</strong>: The number of input tensors.</li>
+</ul>
+<h5 id="get&gt;_input&gt;_tensor&gt;_namesself"><code>get_input_tensor_names(self)</code><a class="headerlink" href="#get&gt;_input&gt;_tensor&gt;_namesself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_input_tensor_names(self) -&gt; List[str]</code></li>
+<li><strong>Description</strong>: Returns the names of all input tensors in the order they should be provided.</li>
+<li><strong>Returns</strong>: A list of input tensor names.</li>
+</ul>
+<h5 id="get&gt;_input&gt;_tensor&gt;_sizesself"><code>get_input_tensor_sizes(self)</code><a class="headerlink" href="#get&gt;_input&gt;_tensor&gt;_sizesself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_input_tensor_sizes(self) -&gt; List[int]</code></li>
+<li><strong>Description</strong>: Gets the individual sizes of each input tensor in bytes, in their correct order.</li>
+<li><strong>Returns</strong>: A list of integer sizes.</li>
+</ul>
+<h5 id="get&gt;_input&gt;_tensor&gt;_to&gt;_task&gt;_mappingself"><code>get_input_tensor_to_task_mapping(self)</code><a class="headerlink" href="#get&gt;_input&gt;_tensor&gt;_to&gt;_task&gt;_mappingself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_input_tensor_to_task_mapping(self) -&gt; Dict[str, str]</code></li>
+<li><strong>Description</strong>: Returns the mapping from input tensor names to their target tasks within the model graph.</li>
+<li><strong>Returns</strong>: A dictionary mapping tensor names to task names.</li>
+</ul>
+<h5 id="get&gt;_input&gt;_tensors&gt;_infoself"><code>get_input_tensors_info(self)</code><a class="headerlink" href="#get&gt;_input&gt;_tensors&gt;_infoself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_input_tensors_info(self) -&gt; List[Dict[str, Any]]</code></li>
+<li><strong>Description</strong>: Returns detailed information for each input tensor.</li>
+<li><strong>Returns</strong>: A list of dictionaries, where each dictionary contains keys: <code>'name'</code> (str), <code>'shape'</code> (List[int]), <code>'dtype'</code> (np.dtype), and <code>'elem_size'</code> (int).</li>
+</ul>
+<h5 id="get&gt;_latencyself"><code>get_latency(self)</code><a class="headerlink" href="#get&gt;_latencyself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_latency(self) -&gt; int</code></li>
+<li><strong>Description</strong>: Returns the latency of the most recent inference in microseconds.</li>
+<li><strong>Returns</strong>: The latency value as an integer.</li>
+</ul>
+<h5 id="get&gt;_latency&gt;_countself"><code>get_latency_count(self)</code><a class="headerlink" href="#get&gt;_latency&gt;_countself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_latency_count(self) -&gt; int</code></li>
+<li><strong>Description</strong>: Returns the total count of latency values collected since initialization.</li>
+<li><strong>Returns</strong>: The number of measurements.</li>
+</ul>
+<h5 id="get&gt;_latency&gt;_listself"><code>get_latency_list(self)</code><a class="headerlink" href="#get&gt;_latency&gt;_listself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_latency_list(self) -&gt; List[int]</code></li>
+<li><strong>Description</strong>: Returns a list of recent latency measurements in microseconds.</li>
+<li><strong>Returns</strong>: A list of integers.</li>
+</ul>
+<h5 id="get&gt;_latency&gt;_meanself"><code>get_latency_mean(self)</code><a class="headerlink" href="#get&gt;_latency&gt;_meanself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_latency_mean(self) -&gt; float</code></li>
+<li><strong>Description</strong>: Returns the mean (average) of all collected latency values.</li>
+<li><strong>Returns</strong>: The mean latency as a float.</li>
+</ul>
+<h5 id="get&gt;_latency&gt;_stdself"><code>get_latency_std(self)</code><a class="headerlink" href="#get&gt;_latency&gt;_stdself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_latency_std(self) -&gt; float</code></li>
+<li><strong>Description</strong>: Returns the standard deviation of all collected latency values.</li>
+<li><strong>Returns</strong>: The standard deviation as a float.</li>
+</ul>
+<h5 id="get&gt;_model&gt;_versionself"><code>get_model_version(self)</code><a class="headerlink" href="#get&gt;_model&gt;_versionself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_model_version(self) -&gt; str</code></li>
+<li><strong>Description</strong>: Returns the DXNN file format version of the loaded model.</li>
+<li><strong>Returns</strong>: The model version string.</li>
+</ul>
+<h5 id="get&gt;_npu&gt;_inference&gt;_timeself"><code>get_npu_inference_time(self)</code><a class="headerlink" href="#get&gt;_npu&gt;_inference&gt;_timeself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_npu_inference_time(self) -&gt; int</code></li>
+<li><strong>Description</strong>: Returns the pure NPU processing time for the most recent inference in microseconds.</li>
+<li><strong>Returns</strong>: The NPU inference time as an integer.</li>
+</ul>
+<h5 id="get&gt;_npu&gt;_inference&gt;_time&gt;_countself"><code>get_npu_inference_time_count(self)</code><a class="headerlink" href="#get&gt;_npu&gt;_inference&gt;_time&gt;_countself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_npu_inference_time_count(self) -&gt; int</code></li>
+<li><strong>Description</strong>: Returns the total count of NPU inference time values collected.</li>
+<li><strong>Returns</strong>: The number of measurements.</li>
+</ul>
+<h5 id="get&gt;_npu&gt;_inference&gt;_time&gt;_listself"><code>get_npu_inference_time_list(self)</code><a class="headerlink" href="#get&gt;_npu&gt;_inference&gt;_time&gt;_listself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_npu_inference_time_list(self) -&gt; List[int]</code></li>
+<li><strong>Description</strong>: Returns a list of recent NPU inference time measurements in microseconds.</li>
+<li><strong>Returns</strong>: A list of integers.</li>
+</ul>
+<h5 id="get&gt;_npu&gt;_inference&gt;_time&gt;_meanself"><code>get_npu_inference_time_mean(self)</code><a class="headerlink" href="#get&gt;_npu&gt;_inference&gt;_time&gt;_meanself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_npu_inference_time_mean(self) -&gt; float</code></li>
+<li><strong>Description</strong>: Returns the mean (average) of all collected NPU inference times.</li>
+<li><strong>Returns</strong>: The mean time as a float.</li>
+</ul>
+<h5 id="get&gt;_npu&gt;_inference&gt;_time&gt;_stdself"><code>get_npu_inference_time_std(self)</code><a class="headerlink" href="#get&gt;_npu&gt;_inference&gt;_time&gt;_stdself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_npu_inference_time_std(self) -&gt; float</code></li>
+<li><strong>Description</strong>: Returns the standard deviation of all collected NPU inference times.</li>
+<li><strong>Returns</strong>: The standard deviation as a float.</li>
+</ul>
+<h5 id="get&gt;_num&gt;_tail&gt;_tasksself"><code>get_num_tail_tasks(self)</code><a class="headerlink" href="#get&gt;_num&gt;_tail&gt;_tasksself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_num_tail_tasks(self) -&gt; int</code></li>
+<li><strong>Description</strong>: Returns the number of 'tail' tasks (tasks with no successors) in the model graph.</li>
+<li><strong>Returns</strong>: The number of tail tasks.</li>
+</ul>
+<h5 id="get&gt;_output&gt;_sizeself"><code>get_output_size(self)</code><a class="headerlink" href="#get&gt;_output&gt;_sizeself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_output_size(self) -&gt; int</code></li>
+<li><strong>Description</strong>: Gets the total size of all output tensors combined in bytes.</li>
+<li><strong>Returns</strong>: The total output size as an integer.</li>
+</ul>
+<h5 id="get&gt;_output&gt;_tensor&gt;_countself"><code>get_output_tensor_count(self)</code><a class="headerlink" href="#get&gt;_output&gt;_tensor&gt;_countself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_output_tensor_count(self) -&gt; int</code></li>
+<li><strong>Description</strong>: Returns the number of output tensors produced by the model.</li>
+<li><strong>Returns</strong>: The number of output tensors.</li>
+</ul>
+<h5 id="get&gt;_output&gt;_tensor&gt;_namesself"><code>get_output_tensor_names(self)</code><a class="headerlink" href="#get&gt;_output&gt;_tensor&gt;_namesself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_output_tensor_names(self) -&gt; List[str]</code></li>
+<li><strong>Description</strong>: Returns the names of all output tensors in the order they are produced.</li>
+<li><strong>Returns</strong>: A list of output tensor names.</li>
+</ul>
+<h5 id="get&gt;_output&gt;_tensor&gt;_sizesself"><code>get_output_tensor_sizes(self)</code><a class="headerlink" href="#get&gt;_output&gt;_tensor&gt;_sizesself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_output_tensor_sizes(self) -&gt; List[int]</code></li>
+<li><strong>Description</strong>: Gets the individual sizes of each output tensor in bytes, in their correct order.</li>
+<li><strong>Returns</strong>: A list of integer sizes.</li>
+</ul>
+<h5 id="get&gt;_output&gt;_tensors&gt;_infoself"><code>get_output_tensors_info(self)</code><a class="headerlink" href="#get&gt;_output&gt;_tensors&gt;_infoself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_output_tensors_info(self) -&gt; List[Dict[str, Any]]</code></li>
+<li><strong>Description</strong>: Returns detailed information for each output tensor.</li>
+<li><strong>Returns</strong>: A list of dictionaries with keys: <code>'name'</code> (str), <code>'shape'</code> (List[int]), <code>'dtype'</code> (np.dtype), and <code>'elem_size'</code> (int).</li>
+</ul>
+<h5 id="get&gt;_task&gt;_orderself"><code>get_task_order(self)</code><a class="headerlink" href="#get&gt;_task&gt;_orderself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_task_order(self) -&gt; np.ndarray</code></li>
+<li><strong>Description</strong>: Returns the execution order of tasks/subgraphs within the model.</li>
+<li><strong>Returns</strong>: A numpy array of strings representing the task order.</li>
+</ul>
+<h5 id="is&gt;_multi&gt;_input&gt;_modelself"><code>is_multi_input_model(self)</code><a class="headerlink" href="#is&gt;_multi&gt;_input&gt;_modelself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def is_multi_input_model(self) -&gt; bool</code></li>
+<li><strong>Description</strong>: Checks if the loaded model requires multiple input tensors.</li>
+<li><strong>Returns</strong>: <code>True</code> if the model has multiple inputs, <code>False</code> otherwise.</li>
+</ul>
+<h5 id="is&gt;_ppuself"><code>is_ppu(self)</code><a class="headerlink" href="#is&gt;_ppuself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def is_ppu(self) -&gt; bool</code></li>
+<li><strong>Description</strong>: Checks if the loaded model utilizes a Post-Processing Unit (PPU).</li>
+<li><strong>Returns</strong>: <code>True</code> if the model uses a PPU, <code>False</code> otherwise.</li>
+</ul>
+<h5 id="register&gt;_callbackself&gt;_callback&gt;_optionalcallablelistnpndarray&gt;_any&gt;_int"><code>register_callback(self, callback: Optional[Callable[[List[np.ndarray], Any], int]])</code><a class="headerlink" href="#register&gt;_callbackself&gt;_callback&gt;_optionalcallablelistnpndarray&gt;_any&gt;_int" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def register_callback(self, callback: Optional[Callable[[List[np.ndarray], Any], int]]) -&gt; None</code></li>
+<li><strong>Description</strong>: Registers a user-defined callback function to be executed upon completion of an asynchronous inference.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>callback</code>: A callable function or <code>None</code> to unregister. The callback receives the list of output arrays and the user argument.</li>
+</ul>
+</li>
+</ul>
+<h5 id="runself&gt;_input&gt;_data&gt;_unionnpndarray&gt;_listnpndarray&gt;_listlistnpndarray&gt;_output&gt;_buffers&gt;_optionalunionlistnpndarray&gt;_listlistnpndarray&gt;_none&gt;_user&gt;_args&gt;_optionalunionany&gt;_listany&gt;_none"><code>run(self, input_data: Union[np.ndarray, List[np.ndarray], List[List[np.ndarray]]], output_buffers: Optional[Union[List[np.ndarray], List[List[np.ndarray]]]] = None, user_args: Optional[Union[Any, List[Any]]] = None)</code><a class="headerlink" href="#runself&gt;_input&gt;_data&gt;_unionnpndarray&gt;_listnpndarray&gt;_listlistnpndarray&gt;_output&gt;_buffers&gt;_optionalunionlistnpndarray&gt;_listlistnpndarray&gt;_none&gt;_user&gt;_args&gt;_optionalunionany&gt;_listany&gt;_none" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def run(self, input_data, output_buffers=None, user_args=None) -&gt; Union[List[np.ndarray], List[List[np.ndarray]]]</code></li>
+<li><strong>Description</strong>: Runs inference synchronously. This versatile method handles single-item, multi-input, and batch inference based on the format of <code>input_data</code>.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>input_data</code>: Input data in various formats (<code>np.ndarray</code>, <code>List[np.ndarray]</code>, <code>List[List[np.ndarray]]</code>).</li>
+<li><code>output_buffers</code>: Optional pre-allocated buffers for the output.</li>
+<li><code>user_args</code>: Optional user-defined argument or list of arguments for batch mode.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: The inference result(s). A <code>List[np.ndarray]</code> for single inference or a <code>List[List[np.ndarray]]</code> for batch inference.</li>
+</ul>
+<h5 id="run&gt;_asyncself&gt;_input&gt;_data&gt;_unionnpndarray&gt;_listnpndarray&gt;_user&gt;_arg&gt;_any&gt;_none&gt;_output&gt;_buffer&gt;_optionalunionnpndarray&gt;_listnpndarray&gt;_none"><code>run_async(self, input_data: Union[np.ndarray, List[np.ndarray]], user_arg: Any = None, output_buffer: Optional[Union[np.ndarray, List[np.ndarray]]] = None)</code><a class="headerlink" href="#run&gt;_asyncself&gt;_input&gt;_data&gt;_unionnpndarray&gt;_listnpndarray&gt;_user&gt;_arg&gt;_any&gt;_none&gt;_output&gt;_buffer&gt;_optionalunionnpndarray&gt;_listnpndarray&gt;_none" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def run_async(self, input_data, user_arg=None, output_buffer=None) -&gt; int</code></li>
+<li><strong>Description</strong>: Runs inference asynchronously for a single item. Batch processing is not supported with this method.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>input_data</code>: A single <code>np.ndarray</code> or a <code>List[np.ndarray]</code> for multi-input models.</li>
+<li><code>user_arg</code>: An optional user-defined argument to be passed to the callback.</li>
+<li><code>output_buffer</code>: An optional pre-allocated buffer for the output.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: An integer <code>job_id</code> for this asynchronous operation.</li>
+</ul>
+<h5 id="run&gt;_async&gt;_multi&gt;_inputself&gt;_input&gt;_tensors&gt;_dictstr&gt;_npndarray&gt;_user&gt;_arg&gt;_any&gt;_none&gt;_output&gt;_buffer&gt;_optionallistnpndarray&gt;_none"><code>run_async_multi_input(self, input_tensors: Dict[str, np.ndarray], user_arg: Any = None, output_buffer: Optional[List[np.ndarray]] = None)</code><a class="headerlink" href="#run&gt;_async&gt;_multi&gt;_inputself&gt;_input&gt;_tensors&gt;_dictstr&gt;_npndarray&gt;_user&gt;_arg&gt;_any&gt;_none&gt;_output&gt;_buffer&gt;_optionallistnpndarray&gt;_none" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def run_async_multi_input(self, input_tensors, user_arg=None, output_buffer=None) -&gt; int</code></li>
+<li><strong>Description</strong>: A convenience method to run asynchronous inference on a multi-input model using a dictionary of named tensors.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>input_tensors</code>: A dictionary mapping input tensor names to <code>np.ndarray</code> data.</li>
+<li><code>user_arg</code>: An optional user-defined argument.</li>
+<li><code>output_buffer</code>: An optional list of pre-allocated output arrays.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: An integer <code>job_id</code>.</li>
+</ul>
+<h5 id="run&gt;_benchmarkself&gt;_num&gt;_loops&gt;_int&gt;_input&gt;_data&gt;_optionallistnpndarray&gt;_none"><code>run_benchmark(self, num_loops: int, input_data: Optional[List[np.ndarray]] = None)</code><a class="headerlink" href="#run&gt;_benchmarkself&gt;_num&gt;_loops&gt;_int&gt;_input&gt;_data&gt;_optionallistnpndarray&gt;_none" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def run_benchmark(self, num_loops: int, input_data: Optional[List[np.ndarray]] = None) -&gt; float</code></li>
+<li><strong>Description</strong>: Runs a performance benchmark for a specified number of loops.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>num_loops</code>: The number of inference iterations to run.</li>
+<li><code>input_data</code>: An optional list of <code>np.ndarray</code> to use as input for the benchmark.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: The average frames per second (FPS) as a float.</li>
+</ul>
+<h5 id="run&gt;_multi&gt;_inputself&gt;_input&gt;_tensors&gt;_dictstr&gt;_npndarray&gt;_output&gt;_buffers&gt;_optionallistnpndarray&gt;_none&gt;_user&gt;_arg&gt;_any&gt;_none"><code>run_multi_input(self, input_tensors: Dict[str, np.ndarray], output_buffers: Optional[List[np.ndarray]] = None, user_arg: Any = None)</code><a class="headerlink" href="#run&gt;_multi&gt;_inputself&gt;_input&gt;_tensors&gt;_dictstr&gt;_npndarray&gt;_output&gt;_buffers&gt;_optionallistnpndarray&gt;_none&gt;_user&gt;_arg&gt;_any&gt;_none" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def run_multi_input(self, input_tensors, output_buffers=None, user_arg=None) -&gt; List[np.ndarray]</code></li>
+<li><strong>Description</strong>: A convenience method to run synchronous inference on a multi-input model using a dictionary of named tensors.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>input_tensors</code>: A dictionary mapping input tensor names to <code>np.ndarray</code> data.</li>
+<li><code>output_buffers</code>: An optional list of pre-allocated output arrays.</li>
+<li><code>user_arg</code>: An optional user-defined argument.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: A list of <code>np.ndarray</code> objects containing the output.</li>
+</ul>
+<h5 id="waitself&gt;_job&gt;_id&gt;_int"><code>wait(self, job_id: int)</code><a class="headerlink" href="#waitself&gt;_job&gt;_id&gt;_int" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def wait(self, job_id: int) -&gt; List[np.ndarray]</code></li>
+<li><strong>Description</strong>: Waits for an asynchronous job (identified by <code>job_id</code>) to complete and retrieves its output.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>job_id</code>: The integer job ID returned from a <code>run_async</code> call.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: A list of <code>np.ndarray</code> objects containing the output from the completed job.</li>
+</ul>
+<hr />
+<h3 id="class&gt;_dx&gt;_engineinferenceoption"><code>class dx_engine.InferenceOption</code><a class="headerlink" href="#class&gt;_dx&gt;_engineinferenceoption" title="Permanent link">&para;</a></h3>
+<p>This class provides a Pythonic interface to configure inference options such as device selection and core binding. It wraps the C++ <code>InferenceOption</code> struct.</p>
+<h4 id="constructor_1">Constructor<a class="headerlink" href="#constructor_1" title="Permanent link">&para;</a></h4>
+<h5 id="&gt;_init&gt;_self"><code>__init__(self)</code><a class="headerlink" href="#&gt;_init&gt;_self" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def __init__(self) -&gt; None</code></li>
+<li><strong>Description</strong>: Initializes a new <code>InferenceOption</code> object with default values from the C++ backend.</li>
+</ul>
+<h4 id="properties">Properties<a class="headerlink" href="#properties" title="Permanent link">&para;</a></h4>
+<h5 id="bound&gt;_option"><code>bound_option</code><a class="headerlink" href="#bound&gt;_option" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Description</strong>: Gets or sets the NPU core binding strategy.</li>
+<li><strong>Type</strong>: <code>InferenceOption.BOUND_OPTION</code> (Enum).</li>
+</ul>
+<h5 id="devices"><code>devices</code><a class="headerlink" href="#devices" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Description</strong>: Gets or sets the list of device IDs to be used for inference. An empty list means all available devices will be used.</li>
+<li><strong>Type</strong>: <code>List[int]</code>.</li>
+</ul>
+<h5 id="use&gt;_ort"><code>use_ort</code><a class="headerlink" href="#use&gt;_ort" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Description</strong>: Gets or sets whether to use the ONNX Runtime for executing CPU-based tasks in the model graph.</li>
+<li><strong>Type</strong>: <code>bool</code>.</li>
+</ul>
+<h4 id="member&gt;_functions_1">Member Functions<a class="headerlink" href="#member&gt;_functions_1" title="Permanent link">&para;</a></h4>
+<h5 id="get&gt;_bound&gt;_optionself"><code>get_bound_option(self)</code><a class="headerlink" href="#get&gt;_bound&gt;_optionself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_bound_option(self) -&gt; BOUND_OPTION</code></li>
+<li><strong>Description</strong>: Returns the current NPU core binding option.</li>
+<li><strong>Returns</strong>: An <code>InferenceOption.BOUND_OPTION</code> enum member.</li>
+</ul>
+<h5 id="get&gt;_devicesself"><code>get_devices(self)</code><a class="headerlink" href="#get&gt;_devicesself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_devices(self) -&gt; List[int]</code></li>
+<li><strong>Description</strong>: Returns the list of device IDs targeted for inference.</li>
+<li><strong>Returns</strong>: A list of integers.</li>
+</ul>
+<h5 id="get&gt;_use&gt;_ortself"><code>get_use_ort(self)</code><a class="headerlink" href="#get&gt;_use&gt;_ortself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_use_ort(self) -&gt; bool</code></li>
+<li><strong>Description</strong>: Returns whether ONNX Runtime usage is enabled.</li>
+<li><strong>Returns</strong>: A boolean value.</li>
+</ul>
+<h5 id="set&gt;_bound&gt;_optionself&gt;_boundoption&gt;_bound&gt;_option"><code>set_bound_option(self, boundOption: BOUND_OPTION)</code><a class="headerlink" href="#set&gt;_bound&gt;_optionself&gt;_boundoption&gt;_bound&gt;_option" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def set_bound_option(self, boundOption: BOUND_OPTION)</code></li>
+<li><strong>Description</strong>: Sets the NPU core binding option.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>boundOption</code>: An <code>InferenceOption.BOUND_OPTION</code> enum member.</li>
+</ul>
+</li>
+</ul>
+<h5 id="set&gt;_devicesself&gt;_devices&gt;_listint"><code>set_devices(self, devices: List[int])</code><a class="headerlink" href="#set&gt;_devicesself&gt;_devices&gt;_listint" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def set_devices(self, devices: List[int])</code></li>
+<li><strong>Description</strong>: Sets the list of device IDs to be used for inference.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>devices</code>: A list of integers representing device IDs.</li>
+</ul>
+</li>
+</ul>
+<h5 id="set&gt;_use&gt;_ortself&gt;_use&gt;_ort&gt;_bool"><code>set_use_ort(self, use_ort: bool)</code><a class="headerlink" href="#set&gt;_use&gt;_ortself&gt;_use&gt;_ort&gt;_bool" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def set_use_ort(self, use_ort: bool)</code></li>
+<li><strong>Description</strong>: Enables or disables the use of ONNX Runtime for CPU tasks.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>use_ort</code>: A boolean value.</li>
+</ul>
+</li>
+</ul>
+<h4 id="nested&gt;_classes">Nested Classes<a class="headerlink" href="#nested&gt;_classes" title="Permanent link">&para;</a></h4>
+<h5 id="class&gt;_bound&gt;_optionenum"><code>class BOUND_OPTION(Enum)</code><a class="headerlink" href="#class&gt;_bound&gt;_optionenum" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Description</strong>: An enumeration defining how NPU cores are utilized.</li>
+<li><strong>Members</strong>: <code>NPU_ALL</code>, <code>NPU_0</code>, <code>NPU_1</code>, <code>NPU_2</code>, <code>NPU_01</code>, <code>NPU_12</code>, <code>NPU_02</code>.</li>
+</ul>
+<hr />
+<h3 id="class&gt;_dx&gt;_engineconfiguration"><code>class dx_engine.Configuration</code><a class="headerlink" href="#class&gt;_dx&gt;_engineconfiguration" title="Permanent link">&para;</a></h3>
+<p>Provides access to the global DXRT configuration singleton, allowing for system-wide settings like enabling the profiler.</p>
+<h4 id="constructor_2">Constructor<a class="headerlink" href="#constructor_2" title="Permanent link">&para;</a></h4>
+<h5 id="&gt;_init&gt;_self_1"><code>__init__(self)</code><a class="headerlink" href="#&gt;_init&gt;_self_1" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def __init__(self)</code></li>
+<li><strong>Description</strong>: Initializes the Configuration object by getting a reference to the underlying C++ singleton instance.</li>
+</ul>
+<h4 id="member&gt;_functions_2">Member Functions<a class="headerlink" href="#member&gt;_functions_2" title="Permanent link">&para;</a></h4>
+<h5 id="get&gt;_attributeself&gt;_item&gt;_item&gt;_attrib&gt;_attribute"><code>get_attribute(self, item: ITEM, attrib: ATTRIBUTE)</code><a class="headerlink" href="#get&gt;_attributeself&gt;_item&gt;_item&gt;_attrib&gt;_attribute" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_attribute(self, item: ITEM, attrib: ATTRIBUTE) -&gt; str</code></li>
+<li><strong>Description</strong>: Retrieves the value of a specific attribute for a configuration item.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>item</code>: The configuration category (e.g., <code>Configuration.ITEM.PROFILER</code>).</li>
+<li><code>attrib</code>: The attribute to retrieve (e.g., <code>Configuration.ATTRIBUTE.PROFILER_SHOW_DATA</code>).</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: The attribute value as a string.</li>
+</ul>
+<h5 id="get&gt;_driver&gt;_versionself"><code>get_driver_version(self)</code><a class="headerlink" href="#get&gt;_driver&gt;_versionself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_driver_version(self) -&gt; str</code></li>
+<li><strong>Description</strong>: Returns the version of the installed device driver.</li>
+<li><strong>Returns</strong>: The driver version string.</li>
+</ul>
+<h5 id="get&gt;_enableself&gt;_item&gt;_item"><code>get_enable(self, item: ITEM)</code><a class="headerlink" href="#get&gt;_enableself&gt;_item&gt;_item" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_enable(self, item: ITEM) -&gt; bool</code></li>
+<li><strong>Description</strong>: Checks if a specific configuration item is enabled.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>item</code>: The configuration category to check.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: <code>True</code> if enabled, <code>False</code> otherwise.</li>
+</ul>
+<h5 id="get&gt;_pcie&gt;_driver&gt;_versionself"><code>get_pcie_driver_version(self)</code><a class="headerlink" href="#get&gt;_pcie&gt;_driver&gt;_versionself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_pcie_driver_version(self) -&gt; str</code></li>
+<li><strong>Description</strong>: Returns the version of the installed PCIe driver.</li>
+<li><strong>Returns</strong>: The PCIe driver version string.</li>
+</ul>
+<h5 id="get&gt;_versionself"><code>get_version(self)</code><a class="headerlink" href="#get&gt;_versionself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_version(self) -&gt; str</code></li>
+<li><strong>Description</strong>: Returns the version of the DXRT library.</li>
+<li><strong>Returns</strong>: The library version string.</li>
+</ul>
+<h5 id="load&gt;_config&gt;_fileself&gt;_file&gt;_name&gt;_str"><code>load_config_file(self, file_name: str)</code><a class="headerlink" href="#load&gt;_config&gt;_fileself&gt;_file&gt;_name&gt;_str" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def load_config_file(self, file_name: str)</code></li>
+<li><strong>Description</strong>: Loads configuration settings from a specified file.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>file_name</code>: The path to the configuration file.</li>
+</ul>
+</li>
+</ul>
+<h5 id="set&gt;_attributeself&gt;_item&gt;_item&gt;_attrib&gt;_attribute&gt;_value&gt;_str"><code>set_attribute(self, item: ITEM, attrib: ATTRIBUTE, value: str)</code><a class="headerlink" href="#set&gt;_attributeself&gt;_item&gt;_item&gt;_attrib&gt;_attribute&gt;_value&gt;_str" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def set_attribute(self, item: ITEM, attrib: ATTRIBUTE, value: str)</code></li>
+<li><strong>Description</strong>: Sets a string value for a specific attribute of a configuration item (e.g., setting <code>PROFILER_SAVE_DATA</code> to <code>"ON"</code>).</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>item</code>: The configuration category.</li>
+<li><code>attrib</code>: The attribute to set.</li>
+<li><code>value</code>: The string value to assign.</li>
+</ul>
+</li>
+</ul>
+<h5 id="set&gt;_enableself&gt;_item&gt;_item&gt;_enabled&gt;_bool"><code>set_enable(self, item: ITEM, enabled: bool)</code><a class="headerlink" href="#set&gt;_enableself&gt;_item&gt;_item&gt;_enabled&gt;_bool" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def set_enable(self, item: ITEM, enabled: bool)</code></li>
+<li><strong>Description</strong>: Enables or disables a global configuration item, such as <code>PROFILER</code>.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>item</code>: The configuration category.</li>
+<li><code>enabled</code>: A boolean value to enable (<code>True</code>) or disable (<code>False</code>) the item.</li>
+</ul>
+</li>
+</ul>
+<h4 id="nested&gt;_classes_1">Nested Classes<a class="headerlink" href="#nested&gt;_classes_1" title="Permanent link">&para;</a></h4>
+<h5 id="class&gt;_item"><code>class ITEM</code><a class="headerlink" href="#class&gt;_item" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Description</strong>: An enumeration-like class defining configuration categories.</li>
+<li><strong>Members</strong>: <code>DEBUG</code>, <code>PROFILER</code>, <code>SERVICE</code>, <code>DYNAMIC_CPU_THREAD</code>, <code>TASK_FLOW</code>, <code>SHOW_THROTTLING</code>, <code>SHOW_PROFILE</code>, <code>SHOW_MODEL_INFO</code>.</li>
+</ul>
+<h5 id="class&gt;_attribute"><code>class ATTRIBUTE</code><a class="headerlink" href="#class&gt;_attribute" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Description</strong>: An enumeration-like class defining attributes for configuration items.</li>
+<li><strong>Members</strong>: <code>PROFILER_SHOW_DATA</code>, <code>PROFILER_SAVE_DATA</code>.</li>
+</ul>
+<hr />
+<h3 id="class&gt;_dx&gt;_enginedevicestatus"><code>class dx_engine.DeviceStatus</code><a class="headerlink" href="#class&gt;_dx&gt;_enginedevicestatus" title="Permanent link">&para;</a></h3>
+<p>Provides an interface to query real-time status and static information about hardware devices.</p>
+<h4 id="class&gt;_methods">Class Methods<a class="headerlink" href="#class&gt;_methods" title="Permanent link">&para;</a></h4>
+<h5 id="get&gt;_current&gt;_statuscls&gt;_deviceid&gt;_int"><code>get_current_status(cls, deviceId: int)</code><a class="headerlink" href="#get&gt;_current&gt;_statuscls&gt;_deviceid&gt;_int" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_current_status(cls, deviceId: int) -&gt; object</code></li>
+<li><strong>Description</strong>: Creates and returns a <code>DeviceStatus</code> object populated with the current status of the specified device.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>deviceId</code>: The integer ID of the device to query.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: An instance of <code>DeviceStatus</code>.</li>
+</ul>
+<h5 id="get&gt;_device&gt;_countcls"><code>get_device_count(cls)</code><a class="headerlink" href="#get&gt;_device&gt;_countcls" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_device_count(cls) -&gt; int</code></li>
+<li><strong>Description</strong>: Returns the total number of hardware devices detected by the system.</li>
+<li><strong>Returns</strong>: The number of devices as an integer.</li>
+</ul>
+<h4 id="instance&gt;_methods">Instance Methods<a class="headerlink" href="#instance&gt;_methods" title="Permanent link">&para;</a></h4>
+<h5 id="get&gt;_idself"><code>get_id(self)</code><a class="headerlink" href="#get&gt;_idself" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_id(self) -&gt; int</code></li>
+<li><strong>Description</strong>: Returns the unique ID of the device associated with this <code>DeviceStatus</code> instance.</li>
+<li><strong>Returns</strong>: The device ID as an integer.</li>
+</ul>
+<h5 id="get&gt;_npu&gt;_clockself&gt;_ch&gt;_int"><code>get_npu_clock(self, ch: int)</code><a class="headerlink" href="#get&gt;_npu&gt;_clockself&gt;_ch&gt;_int" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_npu_clock(self, ch: int) -&gt; int</code></li>
+<li><strong>Description</strong>: Returns the current clock frequency of a specific NPU core.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>ch</code>: The integer index of the NPU core.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: The clock speed in MHz.</li>
+</ul>
+<h5 id="get&gt;_npu&gt;_voltageself&gt;_ch&gt;_int"><code>get_npu_voltage(self, ch: int)</code><a class="headerlink" href="#get&gt;_npu&gt;_voltageself&gt;_ch&gt;_int" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_npu_voltage(self, ch: int) -&gt; int</code></li>
+<li><strong>Description</strong>: Returns the current voltage of a specific NPU core.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>ch</code>: The integer index of the NPU core.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: The voltage in millivolts (mV).</li>
+</ul>
+<h5 id="get&gt;_temperatureself&gt;_ch&gt;_int"><code>get_temperature(self, ch: int)</code><a class="headerlink" href="#get&gt;_temperatureself&gt;_ch&gt;_int" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>def get_temperature(self, ch: int) -&gt; int</code></li>
+<li><strong>Description</strong>: Returns the current temperature of a specific NPU core.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>ch</code>: The integer index of the NPU core.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: The temperature in degrees Celsius.</li>
+</ul>
+<hr />
+<h3 id="standalone&gt;_functions">Standalone Functions<a class="headerlink" href="#standalone&gt;_functions" title="Permanent link">&para;</a></h3>
+<h4 id="dx&gt;_engineparse&gt;_modelmodel&gt;_path&gt;_str"><code>dx_engine.parse_model(model_path: str)</code><a class="headerlink" href="#dx&gt;_engineparse&gt;_modelmodel&gt;_path&gt;_str" title="Permanent link">&para;</a></h4>
+<ul>
+<li><strong>Signature</strong>: <code>def parse_model(model_path: str) -&gt; str</code></li>
+<li><strong>Description</strong>: Parses a model file using the C++ backend and returns a string containing information about the model's structure and properties.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>model_path</code>: The path to the compiled model file.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: A string with model information.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      ⓒ Copyright 2025 <a href="http://deepx.ai">DEEPX</a>. All Rights Reserved.
+    </div>
+  
+  
+</div>
+      
+        <div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://www.linkedin.com/company/deepx-corporation/" target="_blank" rel="noopener" title="www.linkedin.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5m282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "..", "features": ["toc.integrate", "content.code.annotate", "navigation.tabs", "navigation.tabs.sticky", "content.tabs.link", "content.code.copy"], "search": "../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.13a4f30d.min.js"></script>
+      
+        <script src="../javascripts/mathjax.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

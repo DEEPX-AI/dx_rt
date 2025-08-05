@@ -10,7 +10,7 @@ Model dir.
 - `graph.dxnn`  
   : A unified DEEPX artifact that contains  NPU command data, model metadata, model parameters.  
 
-This file is used directly for inference on DEEPX hardware or simulator.  
+This file is used directly for inference on DEEPX hardware
 
 ---
 
@@ -27,10 +27,10 @@ Figure. Inference Workflow
 </p>
 </div>
 
-- **1**. Compiled Model and optional InferenceOption are provided to initialize the InferenceEngine.  
-- **2**. Pre-processed Input Tensors are passed to the InferenceEngine for inference.  
-- **3**. The InferenceEngine produces Output Tensors as a result of the inference.  
-- **4**. These outputs are then passed to the Post-Processing stage for interpretation or further action.  
+- Compiled Model and optional InferenceOption are provided to initialize the InferenceEngine.  
+- Pre-processed Input Tensors are passed to the InferenceEngine for inference.  
+- The InferenceEngine produces Output Tensors as a result of the inference.  
+- These outputs are then passed to the Post-Processing stage for interpretation or further action.  
 
 
 ### Prepare the Model  
@@ -73,7 +73,7 @@ Refer to **DX-APP User Guide** for practical examples on connecting inference en
 
 **DX-RT** provides both synchronous and asynchronous execution modes for flexible inference handling.  
 
-**1. Run - Synchronous Execution**  
+#### Run - Synchronous Execution
 Use the `dxrt::InferenceEngine::Run()` method for blocking, single-core inference.  
 
 ```
@@ -84,9 +84,9 @@ auto outputs = ie.Run(inputBuf.data());
 - This method is suitable for simple and sequential workloads.  
 
 
-**2. Run - Asynchronous Execution**  
+#### Run - Asynchronous Execution
 
-**a.** With `Wait()`  
+##### With `Wait()`  
 
 Use `RunAsync()` to perform the inference in non-blocking mode, and retrieve results later with `Wait()`.  
 
@@ -98,7 +98,7 @@ auto outputs = ie.Wait(jobId);
 - This method is ideal for parallel workloads where inference can run in the background.  
 - This method is continuously executed while waiting for the result.  
 
-**b.** With Callback  
+##### With `Callback function`  
 
 Use a callback function to handle output as soon as inference completes. 
 
@@ -174,6 +174,18 @@ You can profile events within your application using the Profiler APIs. Please r
 Here is a basic usage example. 
 
 ```
+// Built-in core profiling event
+
+// Enable the profiler
+dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::PROFILER, true);
+
+// Set attributes to show data in console and save to a file
+dxrt::Configuration::GetInstance().SetAttribute(dxrt::Configuration::ITEM::PROFILER, 
+                                                    dxrt::Configuration::ATTRIBUTE::PROFILER_SHOW_DATA, "ON");
+dxrt::Configuration::GetInstance().SetAttribute(dxrt::Configuration::ITEM::PROFILER, 
+                                                    dxrt::Configuration::ATTRIBUTE::PROFILER_SAVE_DATA, "ON");
+
+// User's profiling event
 auto& profiler = dxrt::Profiler::GetInstance();
 profiler.Start("1sec");
 sleep(1);

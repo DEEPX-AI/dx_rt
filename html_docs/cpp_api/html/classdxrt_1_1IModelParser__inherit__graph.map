@@ -1,0 +1,5 @@
+<map id="dxrt::IModelParser" name="dxrt::IModelParser">
+<area shape="rect" id="node1" title="Abstract base class for version&#45;specific model parsers." alt="" coords="100,5,240,32"/>
+<area shape="rect" id="node2" href="$classdxrt_1_1V6ModelParser.html" title="Parser for DXNN V6 format." alt="" coords="5,80,159,107"/>
+<area shape="rect" id="node3" href="$classdxrt_1_1V7ModelParser.html" title="Parser for DXNN V7 format." alt="" coords="183,80,336,107"/>
+</map>

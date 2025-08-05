@@ -6,7 +6,7 @@
 #include <string>
 #include "dxrt/common.h"
 #include "dxrt/device.h"
-#include "cxxopts.hpp"
+#include "dxrt/extern/cxxopts.hpp"
 
 
 namespace dxrt {
@@ -46,13 +46,6 @@ class DXRT_API DeviceStatusMonitor : public CLICommand
    private:
       void doCommand(DevicePtr devicePtr) override;
 };
-class DXRT_API DeviceMonitorDebug : public CLICommand
-{
-   public:
-      explicit DeviceMonitorDebug(cxxopts::ParseResult &);
-   private:
-      void doCommand(DevicePtr devicePtr) override;
-};
 class DXRT_API FWVersionCommand : public CLICommand
 {
  public:
@@ -73,8 +66,14 @@ class DXRT_API FWUpdateCommand : public CLICommand
     explicit FWUpdateCommand(cxxopts::ParseResult &);
  private:
     void doCommand(DevicePtr devicePtr) override;
+    std::string getSubCmdString();
     uint32_t _fwUpdateSubCmd;
     std::string _fwUpdateFile;
+    bool _showLogOnce;
+    bool _showDonotTunrOff;
+    int _deviceTotalCount;
+    int _deviceCount;
+    int _updateDeviceCount;
 };
 
 class DXRT_API FWUploadCommand : public CLICommand
@@ -112,22 +111,6 @@ class DXRT_API FWConfigCommandJson : public CLICommand
     void doCommand(DevicePtr devicePtr) override;
 };
 
-class DXRT_API DDRTargetCommand : public CLICommand
-{
-   public:
-      explicit DDRTargetCommand(cxxopts::ParseResult &);
-   private:
-      void doCommand(DevicePtr devicePtr) override;
-};
-
-class DXRT_API OTPCommand : public CLICommand
-{
-   public:
-      explicit OTPCommand(cxxopts::ParseResult &);
-   private:
-      void doCommand(DevicePtr devicePtr) override;
-};
-
 class DXRT_API FWLogCommand : public CLICommand
 {
  public:
@@ -143,5 +126,18 @@ class DXRT_API ShowVersionCommand : public CLICommand
  private:
     void doCommand(DevicePtr devicePtr) override;
 };
-
+class DXRT_API PcieStatusCLICommand : public CLICommand
+{
+ public:
+    explicit PcieStatusCLICommand(cxxopts::ParseResult &);
+ private:
+    void doCommand(DevicePtr devicePtr) override;
+};
+class DXRT_API DDRErrorCLICommand : public CLICommand
+{
+ public:
+    explicit DDRErrorCLICommand(cxxopts::ParseResult &);
+ private:
+    void doCommand(DevicePtr devicePtr) override;
+};
 }  // namespace dxrt

@@ -1,0 +1,1276 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.14">
+    
+    
+      
+        <title>Multi-Input 모델 추론 API 가이드 - DXNN Runtime (DX-RT) User Manual</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.342714a4.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Noto+Sans+Display:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Noto Sans Display";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#multi-input>_api" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="DXNN Runtime (DX-RT) User Manual" class="md-header__button md-logo" aria-label="DXNN Runtime (DX-RT) User Manual" data-md-component="logo">
+      
+  <img src="../img/deepx.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            DXNN Runtime (DX-RT) User Manual
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Multi-Input 모델 추론 API 가이드
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../docs/01_DXNN_Runtime_Overview.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  DXNN Runtime Overview
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../docs/02_Installation_on_Linux.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Installation on Linux
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../docs/03_Installation_on_Windows.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Installation on Windows
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../docs/04_Model_Inference.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Model Inference
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../docs/05_Command_Line_Interface.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Command Line Interface
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../docs/06_Inference_API.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Inference API Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../docs/07_Multi_Input_Inference.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Multi-input Inference Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../docs/08_Global_Instance.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Configuration and DeviceStatus Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../docs/09_01_C%2B%2B_Tutorials.html" class="md-tabs__link">
+          
+  
+  
+  Tutorials
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../docs/10_01_C%2B%2B_API_Reference.html" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../docs/Appendix_Change_Log.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Change Log
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="DXNN Runtime (DX-RT) User Manual" class="md-nav__button md-logo" aria-label="DXNN Runtime (DX-RT) User Manual" data-md-component="logo">
+      
+  <img src="../img/deepx.png" alt="logo">
+
+    </a>
+    DXNN Runtime (DX-RT) User Manual
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/01_DXNN_Runtime_Overview.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    DXNN Runtime Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/02_Installation_on_Linux.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Installation on Linux
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/03_Installation_on_Windows.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Installation on Windows
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/04_Model_Inference.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Model Inference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/05_Command_Line_Interface.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Command Line Interface
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/06_Inference_API.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Inference API Guide
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/07_Multi_Input_Inference.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Multi-input Inference Guide
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/08_Global_Instance.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Configuration and DeviceStatus Guide
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Tutorials
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            Tutorials
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/09_01_C%2B%2B_Tutorials.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    C++ Tutorials
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/09_02_Python_Tutorials.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Python Tutorials
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            API Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/10_01_C%2B%2B_API_Reference.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    C++ API Reference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/10_02_Python_API_Reference.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Python API Reference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/Appendix_Change_Log.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Change Log
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="multi-input&gt;_api">Multi-Input 모델 추론 API 가이드<a class="headerlink" href="#multi-input&gt;_api" title="Permanent link">&para;</a></h1>
+<h2 id="_1">개요<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>DXRT는 여러 개의 입력 텐서를 가진 multi-input 모델에 대한 다양한 추론 방식을 지원합니다. 이 문서는 multi-input 모델의 추론 API 활용 방법을 설명합니다.</p>
+<h2 id="multi-input">Multi-Input 모델 확인<a class="headerlink" href="#multi-input" title="Permanent link">&para;</a></h2>
+<h3 id="c">C++<a class="headerlink" href="#c" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">dxrt</span><span class="o">::</span><span class="n">InferenceEngine</span><span class="w"> </span><span class="nf">ie</span><span class="p">(</span><span class="n">modelPath</span><span class="p">);</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1">// 모델이 multi-input인지 확인</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="kt">bool</span><span class="w"> </span><span class="n">isMultiInput</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">IsMultiInputModel</span><span class="p">();</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1">// 입력 텐서 개수 확인</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="kt">int</span><span class="w"> </span><span class="n">inputCount</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">GetInputTensorCount</span><span class="p">();</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c1">// 입력 텐서 이름들 확인</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="o">&gt;</span><span class="w"> </span><span class="n">inputNames</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">GetInputTensorNames</span><span class="p">();</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="c1">// 입력 텐서와 태스크 매핑 확인</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="n">std</span><span class="o">::</span><span class="n">map</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="p">,</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="o">&gt;</span><span class="w"> </span><span class="n">mapping</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">GetInputTensorToTaskMapping</span><span class="p">();</span>
+</code></pre></div>
+<h3 id="python">Python<a class="headerlink" href="#python" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dx_engine</span><span class="w"> </span><span class="kn">import</span> <span class="n">InferenceEngine</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">ie</span> <span class="o">=</span> <span class="n">InferenceEngine</span><span class="p">(</span><span class="n">model_path</span><span class="p">)</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1"># 모델이 multi-input인지 확인</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="n">is_multi_input</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">is_multi_input_model</span><span class="p">()</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="c1"># 입력 텐서 개수 확인</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="n">input_count</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">get_input_tensor_count</span><span class="p">()</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="c1"># 입력 텐서 이름들 확인</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="n">input_names</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">get_input_tensor_names</span><span class="p">()</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="c1"># 입력 텐서와 태스크 매핑 확인</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="n">mapping</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">get_input_tensor_to_task_mapping</span><span class="p">()</span>
+</code></pre></div>
+<h2 id="multi-input_1">Multi-Input 추론 방식<a class="headerlink" href="#multi-input_1" title="Permanent link">&para;</a></h2>
+<h3 id="1&gt;_no&gt;_output&gt;_buffer&gt;_tests">1. No Output Buffer Tests (자동 할당)<a class="headerlink" href="#1&gt;_no&gt;_output&gt;_buffer&gt;_tests" title="Permanent link">&para;</a></h3>
+<p>출력 버퍼를 제공하지 않고 추론 엔진이 자동으로 메모리를 할당하는 방식입니다.</p>
+<h4 id="11&gt;_dictionary&gt;_format">1.1 Dictionary Format (권장)<a class="headerlink" href="#11&gt;_dictionary&gt;_format" title="Permanent link">&para;</a></h4>
+<p>입력 텐서를 이름으로 매핑하여 제공하는 방식입니다. 가장 명확하고 실수가 적은 방법입니다.</p>
+<h5 id="c_1">C++<a class="headerlink" href="#c_1" title="Permanent link">&para;</a></h5>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1">// Dictionary format 사용 (자동 할당)</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">std</span><span class="o">::</span><span class="n">map</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="p">,</span><span class="w"> </span><span class="kt">void</span><span class="o">*&gt;</span><span class="w"> </span><span class="n">inputTensors</span><span class="p">;</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">inputTensors</span><span class="p">[</span><span class="s">&quot;input1&quot;</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">input1_data</span><span class="p">;</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">inputTensors</span><span class="p">[</span><span class="s">&quot;input2&quot;</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">input2_data</span><span class="p">;</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="c1">// 출력 버퍼 없이 동기 추론 (자동 할당)</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="k">auto</span><span class="w"> </span><span class="n">outputs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">RunMultiInput</span><span class="p">(</span><span class="n">inputTensors</span><span class="p">);</span>
+</code></pre></div>
+<h5 id="python_1">Python<a class="headerlink" href="#python_1" title="Permanent link">&para;</a></h5>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Dictionary format 사용 (자동 할당)</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">input_tensors</span> <span class="o">=</span> <span class="p">{</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="s2">&quot;input1&quot;</span><span class="p">:</span> <span class="n">input1_array</span><span class="p">,</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="s2">&quot;input2&quot;</span><span class="p">:</span> <span class="n">input2_array</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="p">}</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># 출력 버퍼 없이 동기 추론 (자동 할당)</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="n">outputs</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">run_multi_input</span><span class="p">(</span><span class="n">input_tensors</span><span class="p">)</span>
+</code></pre></div>
+<h4 id="12&gt;_vector&gt;_format">1.2 Vector Format<a class="headerlink" href="#12&gt;_vector&gt;_format" title="Permanent link">&para;</a></h4>
+<p>입력 텐서를 순서대로 벡터/리스트로 제공하는 방식입니다. <code>GetInputTensorNames()</code>로 반환된 순서와 일치해야 합니다.</p>
+<h5 id="c_2">C++<a class="headerlink" href="#c_2" title="Permanent link">&para;</a></h5>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1">// Vector format 사용 (GetInputTensorNames() 순서와 일치)</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">void</span><span class="o">*&gt;</span><span class="w"> </span><span class="n">inputPtrs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">input1_data</span><span class="p">,</span><span class="w"> </span><span class="n">input2_data</span><span class="p">};</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1">// 출력 버퍼 없이 동기 추론 (자동 할당)</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="k">auto</span><span class="w"> </span><span class="n">outputs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">RunMultiInput</span><span class="p">(</span><span class="n">inputPtrs</span><span class="p">);</span>
+</code></pre></div>
+<h5 id="python_2">Python<a class="headerlink" href="#python_2" title="Permanent link">&para;</a></h5>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Vector format 사용 (get_input_tensor_names() 순서와 일치)</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">input_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">input1_array</span><span class="p">,</span> <span class="n">input2_array</span><span class="p">]</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># 출력 버퍼 없이 동기 추론 (자동 할당)</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">outputs</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">input_list</span><span class="p">)</span>
+</code></pre></div>
+<h4 id="13&gt;_auto-split&gt;_format">1.3 Auto-Split Format<a class="headerlink" href="#13&gt;_auto-split&gt;_format" title="Permanent link">&para;</a></h4>
+<p>단일 연결된 버퍼를 자동으로 여러 입력으로 분할하는 방식입니다. 총 입력 크기가 일치할 때 자동으로 적용됩니다.</p>
+<h5 id="c_3">C++<a class="headerlink" href="#c_3" title="Permanent link">&para;</a></h5>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1">// 모든 입력을 연결한 단일 버퍼</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">uint8_t</span><span class="o">&gt;</span><span class="w"> </span><span class="n">concatenatedInput</span><span class="p">(</span><span class="n">ie</span><span class="p">.</span><span class="n">GetInputSize</span><span class="p">());</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="c1">// ... 데이터 채우기 ...</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="c1">// 자동 분할되어 처리됨 (출력 버퍼 자동 할당)</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="k">auto</span><span class="w"> </span><span class="n">outputs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">Run</span><span class="p">(</span><span class="n">concatenatedInput</span><span class="p">.</span><span class="n">data</span><span class="p">());</span>
+</code></pre></div>
+<h5 id="python_3">Python<a class="headerlink" href="#python_3" title="Permanent link">&para;</a></h5>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># 모든 입력을 연결한 단일 배열</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">concatenated_input</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">ie</span><span class="o">.</span><span class="n">get_input_size</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="c1"># ... 데이터 채우기 ...</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="c1"># 자동 분할되어 처리됨 (출력 버퍼 자동 할당)</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="n">outputs</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">concatenated_input</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="2&gt;_with&gt;_output&gt;_buffer&gt;_tests">2. With Output Buffer Tests (사용자 제공)<a class="headerlink" href="#2&gt;_with&gt;_output&gt;_buffer&gt;_tests" title="Permanent link">&para;</a></h3>
+<p>사용자가 출력 버퍼를 미리 할당하여 제공하는 방식입니다. 메모리 관리와 성능 최적화에 유리합니다.</p>
+<h4 id="21&gt;_dictionary&gt;_format">2.1 Dictionary Format<a class="headerlink" href="#21&gt;_dictionary&gt;_format" title="Permanent link">&para;</a></h4>
+<h5 id="c_4">C++<a class="headerlink" href="#c_4" title="Permanent link">&para;</a></h5>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1">// Dictionary format 사용</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">std</span><span class="o">::</span><span class="n">map</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="p">,</span><span class="w"> </span><span class="kt">void</span><span class="o">*&gt;</span><span class="w"> </span><span class="n">inputTensors</span><span class="p">;</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">inputTensors</span><span class="p">[</span><span class="s">&quot;input1&quot;</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">input1_data</span><span class="p">;</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">inputTensors</span><span class="p">[</span><span class="s">&quot;input2&quot;</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">input2_data</span><span class="p">;</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="c1">// 출력 버퍼 생성</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">uint8_t</span><span class="o">&gt;</span><span class="w"> </span><span class="n">outputBuffer</span><span class="p">(</span><span class="n">ie</span><span class="p">.</span><span class="n">GetOutputSize</span><span class="p">());</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="c1">// 동기 추론 (사용자 출력 버퍼)</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="k">auto</span><span class="w"> </span><span class="n">outputs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">RunMultiInput</span><span class="p">(</span><span class="n">inputTensors</span><span class="p">,</span><span class="w"> </span><span class="n">userArg</span><span class="p">,</span><span class="w"> </span><span class="n">outputBuffer</span><span class="p">.</span><span class="n">data</span><span class="p">());</span>
+</code></pre></div>
+<h5 id="python_4">Python<a class="headerlink" href="#python_4" title="Permanent link">&para;</a></h5>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># Dictionary format 사용</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">input_tensors</span> <span class="o">=</span> <span class="p">{</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="s2">&quot;input1&quot;</span><span class="p">:</span> <span class="n">input1_array</span><span class="p">,</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    <span class="s2">&quot;input2&quot;</span><span class="p">:</span> <span class="n">input2_array</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="p">}</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="c1"># 출력 버퍼 생성</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="n">output_buffers</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">size</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span> <span class="k">for</span> <span class="n">size</span> <span class="ow">in</span> <span class="n">ie</span><span class="o">.</span><span class="n">get_output_tensor_sizes</span><span class="p">()]</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="c1"># 동기 추론 (사용자 출력 버퍼)</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="n">outputs</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">run_multi_input</span><span class="p">(</span><span class="n">input_tensors</span><span class="p">,</span> <span class="n">output_buffers</span><span class="o">=</span><span class="n">output_buffers</span><span class="p">)</span>
+</code></pre></div>
+<h4 id="22&gt;_vector&gt;_format">2.2 Vector Format<a class="headerlink" href="#22&gt;_vector&gt;_format" title="Permanent link">&para;</a></h4>
+<h5 id="c_5">C++<a class="headerlink" href="#c_5" title="Permanent link">&para;</a></h5>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1">// Vector format 사용 (GetInputTensorNames() 순서와 일치)</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">void</span><span class="o">*&gt;</span><span class="w"> </span><span class="n">inputPtrs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">input1_data</span><span class="p">,</span><span class="w"> </span><span class="n">input2_data</span><span class="p">};</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1">// 출력 버퍼 생성</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">uint8_t</span><span class="o">&gt;</span><span class="w"> </span><span class="n">outputBuffer</span><span class="p">(</span><span class="n">ie</span><span class="p">.</span><span class="n">GetOutputSize</span><span class="p">());</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="c1">// 동기 추론 (사용자 출력 버퍼)</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="k">auto</span><span class="w"> </span><span class="n">outputs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">RunMultiInput</span><span class="p">(</span><span class="n">inputPtrs</span><span class="p">,</span><span class="w"> </span><span class="n">userArg</span><span class="p">,</span><span class="w"> </span><span class="n">outputBuffer</span><span class="p">.</span><span class="n">data</span><span class="p">());</span>
+</code></pre></div>
+<h5 id="python_5">Python<a class="headerlink" href="#python_5" title="Permanent link">&para;</a></h5>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Vector format 사용 (get_input_tensor_names() 순서와 일치)</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="n">input_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">input1_array</span><span class="p">,</span> <span class="n">input2_array</span><span class="p">]</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># 출력 버퍼 생성</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="n">output_buffers</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">size</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span> <span class="k">for</span> <span class="n">size</span> <span class="ow">in</span> <span class="n">ie</span><span class="o">.</span><span class="n">get_output_tensor_sizes</span><span class="p">()]</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="c1"># 동기 추론 (사용자 출력 버퍼)</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="n">outputs</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">input_list</span><span class="p">,</span> <span class="n">output_buffers</span><span class="o">=</span><span class="n">output_buffers</span><span class="p">)</span>
+</code></pre></div>
+<h4 id="23&gt;_auto-split&gt;_format">2.3 Auto-Split Format<a class="headerlink" href="#23&gt;_auto-split&gt;_format" title="Permanent link">&para;</a></h4>
+<h5 id="c_6">C++<a class="headerlink" href="#c_6" title="Permanent link">&para;</a></h5>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1">// 모든 입력을 연결한 단일 버퍼</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">uint8_t</span><span class="o">&gt;</span><span class="w"> </span><span class="n">concatenatedInput</span><span class="p">(</span><span class="n">ie</span><span class="p">.</span><span class="n">GetInputSize</span><span class="p">());</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="c1">// ... 데이터 채우기 ...</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="c1">// 출력 버퍼 생성</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">uint8_t</span><span class="o">&gt;</span><span class="w"> </span><span class="n">outputBuffer</span><span class="p">(</span><span class="n">ie</span><span class="p">.</span><span class="n">GetOutputSize</span><span class="p">());</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="c1">// 자동 분할되어 처리됨 (사용자 출력 버퍼)</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="k">auto</span><span class="w"> </span><span class="n">outputs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">Run</span><span class="p">(</span><span class="n">concatenatedInput</span><span class="p">.</span><span class="n">data</span><span class="p">(),</span><span class="w"> </span><span class="n">userArg</span><span class="p">,</span><span class="w"> </span><span class="n">outputBuffer</span><span class="p">.</span><span class="n">data</span><span class="p">());</span>
+</code></pre></div>
+<h5 id="python_6">Python<a class="headerlink" href="#python_6" title="Permanent link">&para;</a></h5>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># 모든 입력을 연결한 단일 배열</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="n">concatenated_input</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">ie</span><span class="o">.</span><span class="n">get_input_size</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="c1"># ... 데이터 채우기 ...</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="c1"># 출력 버퍼 생성</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="n">output_buffers</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">size</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span> <span class="k">for</span> <span class="n">size</span> <span class="ow">in</span> <span class="n">ie</span><span class="o">.</span><span class="n">get_output_tensor_sizes</span><span class="p">()]</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="c1"># 자동 분할되어 처리됨 (사용자 출력 버퍼)</span>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="n">outputs</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">concatenated_input</span><span class="p">,</span> <span class="n">output_buffers</span><span class="o">=</span><span class="n">output_buffers</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="multi-input&gt;_batch">Multi-Input Batch 추론<a class="headerlink" href="#multi-input&gt;_batch" title="Permanent link">&para;</a></h2>
+<h3 id="explicit&gt;_batch&gt;_format">Explicit Batch Format<a class="headerlink" href="#explicit&gt;_batch&gt;_format" title="Permanent link">&para;</a></h3>
+<p>각 배치 아이템에 대해 명시적으로 입력 텐서들을 제공하는 방식입니다.</p>
+<h4 id="python_7">Python<a class="headerlink" href="#python_7" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1"># List[List[np.ndarray]] 형태</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="n">batch_inputs</span> <span class="o">=</span> <span class="p">[</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    <span class="p">[</span><span class="n">sample1_input1</span><span class="p">,</span> <span class="n">sample1_input2</span><span class="p">],</span>  <span class="c1"># 첫 번째 샘플</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>    <span class="p">[</span><span class="n">sample2_input1</span><span class="p">,</span> <span class="n">sample2_input2</span><span class="p">],</span>  <span class="c1"># 두 번째 샘플</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>    <span class="p">[</span><span class="n">sample3_input1</span><span class="p">,</span> <span class="n">sample3_input2</span><span class="p">]</span>   <span class="c1"># 세 번째 샘플</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="p">]</span>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="n">batch_outputs</span> <span class="o">=</span> <span class="p">[</span>
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>    <span class="p">[</span><span class="n">sample1_output1</span><span class="p">,</span> <span class="n">sample1_output2</span><span class="p">],</span>  <span class="c1"># 첫 번째 샘플 출력 버퍼</span>
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>    <span class="p">[</span><span class="n">sample2_output1</span><span class="p">,</span> <span class="n">sample2_output2</span><span class="p">],</span>  <span class="c1"># 두 번째 샘플 출력 버퍼</span>
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>    <span class="p">[</span><span class="n">sample3_output1</span><span class="p">,</span> <span class="n">sample3_output2</span><span class="p">]</span>   <span class="c1"># 세 번째 샘플 출력 버퍼</span>
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a><span class="p">]</span>
+<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>
+<a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a><span class="c1"># 배치 추론</span>
+<a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a><span class="n">results</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">batch_inputs</span><span class="p">,</span> <span class="n">output_buffers</span><span class="o">=</span><span class="n">batch_outputs</span><span class="p">)</span>
+</code></pre></div>
+<h4 id="c_7">C++<a class="headerlink" href="#c_7" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1">// 배치 입력 버퍼들 (연결된 형태)</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">void</span><span class="o">*&gt;</span><span class="w"> </span><span class="n">batchInputs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">sample1_ptr</span><span class="p">,</span><span class="w"> </span><span class="n">sample2_ptr</span><span class="p">,</span><span class="w"> </span><span class="n">sample3_ptr</span><span class="p">};</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">void</span><span class="o">*&gt;</span><span class="w"> </span><span class="n">batchOutputs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">output1_ptr</span><span class="p">,</span><span class="w"> </span><span class="n">output2_ptr</span><span class="p">,</span><span class="w"> </span><span class="n">output3_ptr</span><span class="p">};</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">void</span><span class="o">*&gt;</span><span class="w"> </span><span class="n">userArgs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">userArg1</span><span class="p">,</span><span class="w"> </span><span class="n">userArg2</span><span class="p">,</span><span class="w"> </span><span class="n">userArg3</span><span class="p">};</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="c1">// 배치 추론</span>
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="k">auto</span><span class="w"> </span><span class="n">results</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">Run</span><span class="p">(</span><span class="n">batchInputs</span><span class="p">,</span><span class="w"> </span><span class="n">batchOutputs</span><span class="p">,</span><span class="w"> </span><span class="n">userArgs</span><span class="p">);</span>
+</code></pre></div>
+<h3 id="flattened&gt;_batch&gt;_format">Flattened Batch Format<a class="headerlink" href="#flattened&gt;_batch&gt;_format" title="Permanent link">&para;</a></h3>
+<p>모든 입력을 플래튼된 형태로 제공하는 방식입니다.</p>
+<h4 id="python_8">Python<a class="headerlink" href="#python_8" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="c1"># 플래튼된 형태: [sample1_input1, sample1_input2, sample2_input1, sample2_input2, ...]</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="n">flattened_inputs</span> <span class="o">=</span> <span class="p">[</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>    <span class="n">sample1_input1</span><span class="p">,</span> <span class="n">sample1_input2</span><span class="p">,</span>  <span class="c1"># 첫 번째 샘플</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>    <span class="n">sample2_input1</span><span class="p">,</span> <span class="n">sample2_input2</span><span class="p">,</span>  <span class="c1"># 두 번째 샘플</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>    <span class="n">sample3_input1</span><span class="p">,</span> <span class="n">sample3_input2</span>   <span class="c1"># 세 번째 샘플</span>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="p">]</span>
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a><span class="c1"># 자동으로 배치로 인식됨 (입력 개수가 모델 입력 개수의 배수)</span>
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="n">results</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">flattened_inputs</span><span class="p">,</span> <span class="n">output_buffers</span><span class="o">=</span><span class="n">batch_outputs</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="_2">비동기 추론<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<h3 id="1">1. 콜백 기반 비동기 추론<a class="headerlink" href="#1" title="Permanent link">&para;</a></h3>
+<h4 id="c_8">C++<a class="headerlink" href="#c_8" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="c1">// 콜백 함수 등록</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="n">ie</span><span class="p">.</span><span class="n">RegisterCallback</span><span class="p">([](</span><span class="n">dxrt</span><span class="o">::</span><span class="n">TensorPtrs</span><span class="o">&amp;</span><span class="w"> </span><span class="n">outputs</span><span class="p">,</span><span class="w"> </span><span class="kt">void</span><span class="o">*</span><span class="w"> </span><span class="n">userArg</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">    </span><span class="c1">// 출력 처리</span>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="p">});</span>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="c1">// Dictionary format 비동기 추론</span>
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="kt">int</span><span class="w"> </span><span class="n">jobId</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">RunAsyncMultiInput</span><span class="p">(</span><span class="n">inputTensors</span><span class="p">,</span><span class="w"> </span><span class="n">userArg</span><span class="p">);</span>
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="c1">// Vector format 비동기 추론</span>
+<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a><span class="kt">int</span><span class="w"> </span><span class="n">jobId</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">RunAsyncMultiInput</span><span class="p">(</span><span class="n">inputPtrs</span><span class="p">,</span><span class="w"> </span><span class="n">userArg</span><span class="p">);</span>
+</code></pre></div>
+<h4 id="python_9">Python<a class="headerlink" href="#python_9" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="c1"># 콜백 함수 정의</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">callback_handler</span><span class="p">(</span><span class="n">outputs</span><span class="p">,</span> <span class="n">user_arg</span><span class="p">):</span>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>    <span class="c1"># 출력 처리 및 검증</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>    <span class="k">return</span> <span class="mi">0</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="c1"># 콜백 등록</span>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="n">ie</span><span class="o">.</span><span class="n">register_callback</span><span class="p">(</span><span class="n">callback_handler</span><span class="p">)</span>
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="c1"># Dictionary format 비동기 추론</span>
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a><span class="n">job_id</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">run_async_multi_input</span><span class="p">(</span><span class="n">input_tensors</span><span class="p">,</span> <span class="n">user_arg</span><span class="o">=</span><span class="n">user_arg</span><span class="p">)</span>
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a>
+<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a><span class="c1"># Vector format 비동기 추론</span>
+<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a><span class="n">job_id</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">run_async</span><span class="p">(</span><span class="n">input_list</span><span class="p">,</span> <span class="n">user_arg</span><span class="o">=</span><span class="n">user_arg</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="2">2. 간단한 비동기 추론<a class="headerlink" href="#2" title="Permanent link">&para;</a></h3>
+<h4 id="c_9">C++<a class="headerlink" href="#c_9" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="c1">// 단일 버퍼 비동기 추론</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="kt">int</span><span class="w"> </span><span class="n">jobId</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">RunAsync</span><span class="p">(</span><span class="n">inputPtr</span><span class="p">,</span><span class="w"> </span><span class="n">userArg</span><span class="p">);</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="c1">// 결과 대기</span>
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="k">auto</span><span class="w"> </span><span class="n">outputs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">Wait</span><span class="p">(</span><span class="n">jobId</span><span class="p">);</span>
+</code></pre></div>
+<h4 id="python_10">Python<a class="headerlink" href="#python_10" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="c1"># 단일 버퍼 비동기 추론</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="n">job_id</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">run_async</span><span class="p">(</span><span class="n">input_buffer</span><span class="p">,</span> <span class="n">user_arg</span><span class="o">=</span><span class="n">user_arg</span><span class="p">)</span>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="c1"># 결과 대기</span>
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="n">outputs</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span><span class="n">job_id</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="_3">장치 검증<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<p>Multi-input 모델에 대한 NPU 장치 검증도 지원됩니다.</p>
+<h3 id="c_10">C++<a class="headerlink" href="#c_10" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="c1">// Dictionary format</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="n">std</span><span class="o">::</span><span class="n">map</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="p">,</span><span class="w"> </span><span class="kt">void</span><span class="o">*&gt;</span><span class="w"> </span><span class="n">inputTensors</span><span class="p">;</span>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="n">inputTensors</span><span class="p">[</span><span class="s">&quot;input1&quot;</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">input1_data</span><span class="p">;</span>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="n">inputTensors</span><span class="p">[</span><span class="s">&quot;input2&quot;</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">input2_data</span><span class="p">;</span>
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="k">auto</span><span class="w"> </span><span class="n">validationResults</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">ValidateDeviceMultiInput</span><span class="p">(</span><span class="n">inputTensors</span><span class="p">,</span><span class="w"> </span><span class="n">deviceId</span><span class="p">);</span>
+<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a>
+<a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a><span class="c1">// Vector format</span>
+<a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">void</span><span class="o">*&gt;</span><span class="w"> </span><span class="n">inputPtrs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">input1_data</span><span class="p">,</span><span class="w"> </span><span class="n">input2_data</span><span class="p">};</span>
+<a id="__codelineno-21-10" name="__codelineno-21-10" href="#__codelineno-21-10"></a><span class="k">auto</span><span class="w"> </span><span class="n">validationResults</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">ValidateDevice</span><span class="p">(</span><span class="n">inputPtrs</span><span class="p">,</span><span class="w"> </span><span class="n">deviceId</span><span class="p">);</span>
+</code></pre></div>
+<h3 id="python_11">Python<a class="headerlink" href="#python_11" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="c1"># Dictionary format</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="n">input_tensors</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;input1&quot;</span><span class="p">:</span> <span class="n">input1_array</span><span class="p">,</span> <span class="s2">&quot;input2&quot;</span><span class="p">:</span> <span class="n">input2_array</span><span class="p">}</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="n">validation_results</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">validate_device_multi_input</span><span class="p">(</span><span class="n">input_tensors</span><span class="p">,</span> <span class="n">device_id</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="c1"># Vector format  </span>
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="n">input_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">input1_array</span><span class="p">,</span> <span class="n">input2_array</span><span class="p">]</span>
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="n">validation_results</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">validate_device</span><span class="p">(</span><span class="n">input_list</span><span class="p">,</span> <span class="n">device_id</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="_4">출력 검증<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<p>강화된 출력 검증 기능이 포함되어 있습니다:</p>
+<h3 id="_5">검증 항목<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>출력 존재 여부</strong>: None 또는 빈 리스트 검사</li>
+<li><strong>데이터 타입</strong>: numpy.ndarray 타입 검증</li>
+<li><strong>텐서 크기</strong>: 빈 텐서 (size=0) 검사</li>
+<li><strong>형태 유효성</strong>: 유효하지 않은 shape 검사</li>
+<li><strong>수치 유효성</strong>: NaN, Inf 값 검사 (Python)</li>
+<li><strong>포인터 유효성</strong>: null 포인터 검사 (C++)</li>
+<li><strong>배치 구조</strong>: 배치 출력의 올바른 중첩 구조 검증</li>
+</ol>
+<h3 id="python_12">검증 예제 (Python)<a class="headerlink" href="#python_12" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">validate_outputs</span><span class="p">(</span><span class="n">outputs</span><span class="p">,</span> <span class="n">expected_count</span><span class="p">,</span> <span class="n">test_name</span><span class="p">):</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>    <span class="c1"># 1. 기본 존재 여부 검사</span>
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>    <span class="k">if</span> <span class="n">outputs</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">outputs</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>        <span class="k">return</span> <span class="kc">False</span>
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>    <span class="c1"># 2. 배치/단일 출력 구분</span>
+<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a>    <span class="n">is_batch</span> <span class="o">=</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="nb">list</span><span class="p">)</span>
+<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>
+<a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a>    <span class="c1"># 3. 각 텐서별 상세 검증</span>
+<a id="__codelineno-23-10" name="__codelineno-23-10" href="#__codelineno-23-10"></a>    <span class="k">for</span> <span class="n">output</span> <span class="ow">in</span> <span class="n">outputs</span><span class="p">:</span>
+<a id="__codelineno-23-11" name="__codelineno-23-11" href="#__codelineno-23-11"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+<a id="__codelineno-23-12" name="__codelineno-23-12" href="#__codelineno-23-12"></a>            <span class="k">return</span> <span class="kc">False</span>
+<a id="__codelineno-23-13" name="__codelineno-23-13" href="#__codelineno-23-13"></a>        <span class="k">if</span> <span class="n">output</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>  <span class="c1"># 빈 텐서</span>
+<a id="__codelineno-23-14" name="__codelineno-23-14" href="#__codelineno-23-14"></a>            <span class="k">return</span> <span class="kc">False</span>
+<a id="__codelineno-23-15" name="__codelineno-23-15" href="#__codelineno-23-15"></a>        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">output</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>  <span class="c1"># 잘못된 형태</span>
+<a id="__codelineno-23-16" name="__codelineno-23-16" href="#__codelineno-23-16"></a>            <span class="k">return</span> <span class="kc">False</span>
+<a id="__codelineno-23-17" name="__codelineno-23-17" href="#__codelineno-23-17"></a>        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">output</span><span class="p">))</span> <span class="ow">or</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isinf</span><span class="p">(</span><span class="n">output</span><span class="p">)):</span>  <span class="c1"># 수치 오류</span>
+<a id="__codelineno-23-18" name="__codelineno-23-18" href="#__codelineno-23-18"></a>            <span class="k">return</span> <span class="kc">False</span>
+<a id="__codelineno-23-19" name="__codelineno-23-19" href="#__codelineno-23-19"></a>
+<a id="__codelineno-23-20" name="__codelineno-23-20" href="#__codelineno-23-20"></a>    <span class="k">return</span> <span class="kc">True</span>
+</code></pre></div>
+<h2 id="_6">테스트 시나리오<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
+<p>현재 예제 코드는 다음 10가지 시나리오를 테스트합니다:</p>
+<h3 id="no&gt;_output&gt;_buffer">단일 추론 (No Output Buffer)<a class="headerlink" href="#no&gt;_output&gt;_buffer" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Dictionary Format (No Buffer)</strong>: 딕셔너리 형태, 자동 할당</li>
+<li><strong>Vector Format (No Buffer)</strong>: 벡터 형태, 자동 할당</li>
+<li><strong>Auto-Split (No Buffer)</strong>: 자동 분할, 자동 할당</li>
+</ol>
+<h3 id="with&gt;_output&gt;_buffer">단일 추론 (With Output Buffer)<a class="headerlink" href="#with&gt;_output&gt;_buffer" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Dictionary Format (With Buffer)</strong>: 딕셔너리 형태, 사용자 버퍼</li>
+<li><strong>Vector Format (With Buffer)</strong>: 벡터 형태, 사용자 버퍼</li>
+<li><strong>Auto-Split (With Buffer)</strong>: 자동 분할, 사용자 버퍼</li>
+</ol>
+<h3 id="_7">배치 추론<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Batch Explicit</strong>: 명시적 배치 형태</li>
+<li><strong>Batch Flattened</strong>: 플래튼된 배치 형태 (Python만)</li>
+</ol>
+<h3 id="_8">비동기 추론<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Async Callback</strong>: 콜백 기반 비동기</li>
+<li><strong>Simple Async</strong>: 간단한 비동기</li>
+</ol>
+<h2 id="_9">권장사항<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Dictionary Format 사용</strong>: 가장 명확하고 실수가 적음</li>
+<li><strong>입력 텐서 정보 확인</strong>: <code>GetInputTensorNames()</code> 등을 사용하여 모델 요구사항 확인</li>
+<li><strong>데이터 연속성</strong>: Python에서는 C-contiguous 배열 사용 권장</li>
+<li><strong>메모리 관리</strong>: 출력 버퍼를 미리 할당하여 성능 향상</li>
+<li><strong>에러 처리</strong>: 잘못된 입력 형태나 크기에 대한 예외 처리</li>
+<li><strong>출력 검증</strong>: 강화된 출력 검증으로 False Positive 방지</li>
+</ol>
+<h2 id="_10">제약사항<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>비동기 추론</strong>: 배치 추론은 지원하지 않음 (단일 추론만)</li>
+<li><strong>입력 순서</strong>: Vector format 사용 시 <code>GetInputTensorNames()</code> 순서 준수 필요</li>
+<li><strong>데이터 타입</strong>: 모델에서 요구하는 데이터 타입과 일치해야 함</li>
+<li><strong>버퍼 크기</strong>: 입력/출력 버퍼 크기가 모델 요구사항과 일치해야 함</li>
+<li><strong>장치 검증</strong>: Debug 모드로 컴파일된 모델에서만 지원 </li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      ⓒ Copyright 2025 <a href="http://deepx.ai">DEEPX</a>. All Rights Reserved.
+    </div>
+  
+  
+</div>
+      
+        <div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://www.linkedin.com/company/deepx-corporation/" target="_blank" rel="noopener" title="www.linkedin.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5m282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "..", "features": ["toc.integrate", "content.code.annotate", "navigation.tabs", "navigation.tabs.sticky", "content.tabs.link", "content.code.copy"], "search": "../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.13a4f30d.min.js"></script>
+      
+        <script src="../javascripts/mathjax.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

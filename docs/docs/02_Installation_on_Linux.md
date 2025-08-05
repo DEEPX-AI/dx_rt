@@ -16,10 +16,10 @@ This section describes the hardware and software requirements for running **DX-R
 
 **Hardware and Software Requirements**  
 
-- **CPU:** aarch64, x86_64, riscv64
+- **CPU:** x86_64, aarch64
 - **RAM:** 8GB RAM (16GB RAM or higher is recommended)
 - **Storage:** 4GB or higher available disk space
-- **OS:** Ubuntu 20.04 / 22.04 / 24.04 (x64 / aarch64 / riscv64)
+- **OS:** Ubuntu 20.04 / 22.04 / 24.04 (x86_64 / aarch64)
 - **Hardware:** The system **must** support connection to an **M1 M.2** module with the **M.2 interface** on the host PC. 
 
 <div class="center-text">
@@ -229,7 +229,7 @@ Here are the `build.sh` options and their descriptions.
    --clean	Cleans previous build artifacts
    --verbose	Shows full build commands during execution
    --type 	Specifies the cmake build type : [ Release, Debug, RelWithDebInfo ]
-   --arch 	Sets target CPU architecture : [ x86_64, aarch64, riscv64 ]
+   --arch 	Sets target CPU architecture : [ x86_64, aarch64 ]
    --install	Installs build libraries 
    --uninstall 	Removes installed DX-RT files
 ```

@@ -74,12 +74,15 @@ $(function() {
 <li>AllMemoryInfoStr()
 : <a class="el" href="classdxrt_1_1DeviceStatus.html#af1306b887625b2fa0336248560f4b262">dxrt::DeviceStatus</a>
 </li>
+<li>ATTRIBUTE
+: <a class="el" href="classdxrt_1_1Configuration.html#a88b1df74ad426aaf01e606957b83223b">dxrt::Configuration</a>
+</li>
 </ul>
 
 
 <h3><a id="index_b"></a>- b -</h3><ul>
 <li>bitmatch_mask()
-: <a class="el" href="classdxrt_1_1InferenceEngine.html#a0e23ce411e6d6d45e6939fe1b3a7e700">dxrt::InferenceEngine</a>
+: <a class="el" href="classdxrt_1_1InferenceEngine.html#aa8ab6719ae0efdf0f5c678e3401ab57d">dxrt::InferenceEngine</a>
 </li>
 <li>BoardTypeStr()
 : <a class="el" href="classdxrt_1_1DeviceStatus.html#a01e24b6255ff24953962779fda9c8fd1">dxrt::DeviceStatus</a>
@@ -93,6 +96,9 @@ $(function() {
 <h3><a id="index_c"></a>- c -</h3><ul>
 <li>Clear()
 : <a class="el" href="classdxrt_1_1Profiler.html#a045db4392f2c50693b819d48c4bdf63a">dxrt::Profiler</a>
+</li>
+<li>CreateParser()
+: <a class="el" href="classdxrt_1_1ModelParserFactory.html#a423e8bfa84a756411b48c94a646014ab">dxrt::ModelParserFactory</a>
 </li>
 </ul>
 
@@ -153,28 +159,43 @@ $(function() {
 : <a class="el" href="classdxrt_1_1Profiler.html#ad71927e9b626848a62fba23383924c96">dxrt::Profiler</a>
 </li>
 <li>get_compile_type()
-: <a class="el" href="classdxrt_1_1InferenceEngine.html#adb7b0c6f4a8411823d7eaed57cedd36d">dxrt::InferenceEngine</a>
+: <a class="el" href="classdxrt_1_1InferenceEngine.html#a265ff0d27c6bac98c0c641c0e5f8f6ba">dxrt::InferenceEngine</a>
 </li>
 <li>get_num_tails()
 : <a class="el" href="classdxrt_1_1InferenceEngine.html#a0b38cd5001ec327cbdc5b00a7143d0e2">dxrt::InferenceEngine</a>
 </li>
 <li>get_outputs()
-: <a class="el" href="classdxrt_1_1InferenceEngine.html#a077977d15551f525f546e2a3f6ab010c">dxrt::InferenceEngine</a>
+: <a class="el" href="classdxrt_1_1InferenceEngine.html#a34dfe51c8f5289bd54ff96be8d64bc12">dxrt::InferenceEngine</a>
 </li>
 <li>GetAllTaskOutputs()
-: <a class="el" href="classdxrt_1_1InferenceEngine.html#a12ebd04c3d8780e2d6c08d0fc2913534">dxrt::InferenceEngine</a>
+: <a class="el" href="classdxrt_1_1InferenceEngine.html#ae936aff8999d075130a531f3de60125a">dxrt::InferenceEngine</a>
+</li>
+<li>GetAttribute()
+: <a class="el" href="classdxrt_1_1Configuration.html#a50d8474ace2a8ea9218bc9f2608317c6">dxrt::Configuration</a>
 </li>
 <li>GetAverage()
 : <a class="el" href="classdxrt_1_1Profiler.html#a4e58ab716a6ae7a22d0bc38340a4fbb4">dxrt::Profiler</a>
 </li>
 <li>GetCompileType()
-: <a class="el" href="classdxrt_1_1InferenceEngine.html#ae6f83c617959dc76fc993b9da3c51769">dxrt::InferenceEngine</a>
+: <a class="el" href="classdxrt_1_1InferenceEngine.html#a9308cfc747e8d56119febfd2b48b876c">dxrt::InferenceEngine</a>
 </li>
 <li>GetCurrentStatus()
 : <a class="el" href="classdxrt_1_1DeviceStatus.html#a61fc4274ed2af2e0930495d09d37397a">dxrt::DeviceStatus</a>
 </li>
 <li>GetDeviceCount()
 : <a class="el" href="classdxrt_1_1DeviceStatus.html#ad6118a521b2ec7f9b1ed787d914c57b7">dxrt::DeviceStatus</a>
+</li>
+<li>GetDriverVersion()
+: <a class="el" href="classdxrt_1_1Configuration.html#a5a8960bcdcedad6f40c627d8ebac3d31">dxrt::Configuration</a>
+</li>
+<li>GetEnable()
+: <a class="el" href="classdxrt_1_1Configuration.html#ab0fab24cd6c975e7d3ba47c3f7138a95">dxrt::Configuration</a>
+</li>
+<li>GetFileFormatVersion()
+: <a class="el" href="classdxrt_1_1ModelParserFactory.html#a985bf91ebf98585b7b87b528bfc9e435">dxrt::ModelParserFactory</a>
+</li>
+<li>GetFirmwareVersions()
+: <a class="el" href="classdxrt_1_1Configuration.html#a2e451f152958802b869cdec1f8304749">dxrt::Configuration</a>
 </li>
 <li>GetId()
 : <a class="el" href="classdxrt_1_1DeviceStatus.html#afffb324a240aef38eca6d8d9efd0d11d">dxrt::DeviceStatus</a>
@@ -188,8 +209,21 @@ $(function() {
 <li>GetInputSize()
 : <a class="el" href="classdxrt_1_1InferenceEngine.html#ad2c11689c4839b5dbb3571107a7b3a7c">dxrt::InferenceEngine</a>
 </li>
+<li>GetInputTensorCount()
+: <a class="el" href="classdxrt_1_1InferenceEngine.html#ab7e4e88fea3dfcc9c276531f7674c20b">dxrt::InferenceEngine</a>
+</li>
+<li>GetInputTensorNames()
+: <a class="el" href="classdxrt_1_1InferenceEngine.html#a41f090eff09ddb3e3963666eb507d7dc">dxrt::InferenceEngine</a>
+</li>
+<li>GetInputTensorSizes()
+: <a class="el" href="classdxrt_1_1InferenceEngine.html#a62b2716dbe26bbca8dac24d4954f8c17">dxrt::InferenceEngine</a>
+</li>
+<li>GetInputTensorToTaskMapping()
+: <a class="el" href="classdxrt_1_1InferenceEngine.html#a937480e5d622b1ddcfdd430ed2ba0476">dxrt::InferenceEngine</a>
+</li>
 <li>GetInstance()
-: <a class="el" href="classdxrt_1_1Profiler.html#a6afdfa9072f7e182b1f8e56497f5684b">dxrt::Profiler</a>
+: <a class="el" href="classdxrt_1_1Configuration.html#a14ed8c3eeec6be9e737e41ee30d99839">dxrt::Configuration</a>
+, <a class="el" href="classdxrt_1_1Profiler.html#a6afdfa9072f7e182b1f8e56497f5684b">dxrt::Profiler</a>
 </li>
 <li>GetLatency()
 : <a class="el" href="classdxrt_1_1InferenceEngine.html#a3758aeb28d7ed75216770a5fd5dd9619">dxrt::InferenceEngine</a>
@@ -209,6 +243,12 @@ $(function() {
 <li>GetModelName()
 : <a class="el" href="classdxrt_1_1InferenceEngine.html#a7ed90b0eaa55ce7c097cc7163009c66e">dxrt::InferenceEngine</a>
 </li>
+<li>GetModelVersion()
+: <a class="el" href="classdxrt_1_1InferenceEngine.html#a1b3771241a7424353e97a0c81a28d875">dxrt::InferenceEngine</a>
+</li>
+<li>GetNpuClock()
+: <a class="el" href="classdxrt_1_1DeviceStatus.html#ab87b9113bdb9e56d31066a121b3675dc">dxrt::DeviceStatus</a>
+</li>
 <li>GetNpuInferenceTime()
 : <a class="el" href="classdxrt_1_1InferenceEngine.html#a1ee64321b5d6c50cb95be282080f326d">dxrt::InferenceEngine</a>
 </li>
@@ -224,8 +264,14 @@ $(function() {
 <li>GetNpuInferenceTimeVector()
 : <a class="el" href="classdxrt_1_1InferenceEngine.html#aad79d35e5a285878517eb784439737a9">dxrt::InferenceEngine</a>
 </li>
+<li>GetNpuVoltage()
+: <a class="el" href="classdxrt_1_1DeviceStatus.html#a67f94ba6a6ad2fe0f26ddbd1d5ea7ce7">dxrt::DeviceStatus</a>
+</li>
 <li>GetNumTailTasks()
 : <a class="el" href="classdxrt_1_1InferenceEngine.html#a110445fe04396f2d2ea309c18c3bb930">dxrt::InferenceEngine</a>
+</li>
+<li>GetONNXRuntimeVersion()
+: <a class="el" href="classdxrt_1_1Configuration.html#a5ca007ca188b9dfb00b4c6816befa773">dxrt::Configuration</a>
 </li>
 <li>GetOutputs()
 : <a class="el" href="classdxrt_1_1InferenceEngine.html#a411b78e6c9560119f9a39c30ee1021af">dxrt::InferenceEngine</a>
@@ -233,11 +279,45 @@ $(function() {
 <li>GetOutputSize()
 : <a class="el" href="classdxrt_1_1InferenceEngine.html#a82af5685f6b43643c3ddf47bf0a4ade8">dxrt::InferenceEngine</a>
 </li>
+<li>GetOutputTensorNames()
+: <a class="el" href="classdxrt_1_1InferenceEngine.html#a1edebbe4f7b03f042a550e822ac16284">dxrt::InferenceEngine</a>
+</li>
+<li>GetOutputTensorOffset()
+: <a class="el" href="classdxrt_1_1InferenceEngine.html#aa861889fd3d562742950053868077086">dxrt::InferenceEngine</a>
+</li>
+<li>GetOutputTensorSizes()
+: <a class="el" href="classdxrt_1_1InferenceEngine.html#aee8bc8dd933efeed07de606fcf2fb161">dxrt::InferenceEngine</a>
+</li>
+<li>GetParserName()
+: <a class="el" href="classdxrt_1_1IModelParser.html#a7a4a67d2ee08393d4954e35114ecabad">dxrt::IModelParser</a>
+, <a class="el" href="classdxrt_1_1V6ModelParser.html#ac875c07522b4f03dbc8d4fa37b8d3407">dxrt::V6ModelParser</a>
+, <a class="el" href="classdxrt_1_1V7ModelParser.html#ad23bf7c4767fde10f69a99d5ce7ff206">dxrt::V7ModelParser</a>
+</li>
+<li>GetPCIeDriverVersion()
+: <a class="el" href="classdxrt_1_1Configuration.html#a932866508a6669f10871f76fc437c5a9">dxrt::Configuration</a>
+</li>
 <li>GetStatusString()
 : <a class="el" href="classdxrt_1_1DeviceStatus.html#a96d56a215860360c237fd0cabe5a59e3">dxrt::DeviceStatus</a>
 </li>
+<li>GetSupportedVersion()
+: <a class="el" href="classdxrt_1_1IModelParser.html#a495d2b4c58557bafaecfbf9c4ef16fde">dxrt::IModelParser</a>
+, <a class="el" href="classdxrt_1_1V6ModelParser.html#a1ca332dfd7b056cf5886f7dad973e92d">dxrt::V6ModelParser</a>
+, <a class="el" href="classdxrt_1_1V7ModelParser.html#a91ca90cdce167088f109305c950d0f22">dxrt::V7ModelParser</a>
+</li>
+<li>GetSupportedVersions()
+: <a class="el" href="classdxrt_1_1ModelParserFactory.html#aa4053583bd49036912d4729496c34516">dxrt::ModelParserFactory</a>
+</li>
 <li>GetTaskOrder()
-: <a class="el" href="classdxrt_1_1InferenceEngine.html#a0fabc1c0f736be0d297b2ce14929847b">dxrt::InferenceEngine</a>
+: <a class="el" href="classdxrt_1_1InferenceEngine.html#a8b759a7bb098d710e1c3052170057143">dxrt::InferenceEngine</a>
+</li>
+<li>GetTemperature()
+: <a class="el" href="classdxrt_1_1DeviceStatus.html#ad9f4b3625c9a72aaaa8e5bc70f75eb41">dxrt::DeviceStatus</a>
+</li>
+<li>getTensorOffset()
+: <a class="el" href="classdxrt_1_1InferenceEngine.html#a2338c50d4d24b081179372bfea9d5f2c">dxrt::InferenceEngine</a>
+</li>
+<li>GetVersion()
+: <a class="el" href="classdxrt_1_1Configuration.html#a98f6b1b01429f00292968d7770835c0d">dxrt::Configuration</a>
 </li>
 </ul>
 
@@ -253,13 +333,25 @@ $(function() {
 : <a class="el" href="classdxrt_1_1InferenceEngine.html#a96c4e5953a0daf4a1c886002c052a6ba">dxrt::InferenceEngine</a>
 </li>
 <li>inputs()
-: <a class="el" href="classdxrt_1_1InferenceEngine.html#af81b48e8ccd95953dd9bc483e5ec678b">dxrt::InferenceEngine</a>
+: <a class="el" href="classdxrt_1_1InferenceEngine.html#afbee8b031fdd6c0a3916ed00d08c9cd8">dxrt::InferenceEngine</a>
 </li>
 <li>is_PPU()
 : <a class="el" href="classdxrt_1_1InferenceEngine.html#a9aeb596b415843e7e318c47938444259">dxrt::InferenceEngine</a>
 </li>
+<li>IsMultiInputModel()
+: <a class="el" href="classdxrt_1_1InferenceEngine.html#a896b05b9798d0ae33b3ba25e82e9df4c">dxrt::InferenceEngine</a>
+</li>
+<li>IsOrtConfigured()
+: <a class="el" href="classdxrt_1_1InferenceEngine.html#a498ec2af6a8ebdd4e8edd26cba1faf24">dxrt::InferenceEngine</a>
+</li>
 <li>IsPPU()
 : <a class="el" href="classdxrt_1_1InferenceEngine.html#ab6fd915af259467afe1681098b315dca">dxrt::InferenceEngine</a>
+</li>
+<li>IsVersionSupported()
+: <a class="el" href="classdxrt_1_1ModelParserFactory.html#af453690f6369731527ad2506288a7366">dxrt::ModelParserFactory</a>
+</li>
+<li>ITEM
+: <a class="el" href="classdxrt_1_1Configuration.html#a05c6f5c1bc9c32f709df3bd5778c9a95">dxrt::Configuration</a>
 </li>
 </ul>
 
@@ -267,6 +359,12 @@ $(function() {
 <h3><a id="index_l"></a>- l -</h3><ul>
 <li>latency()
 : <a class="el" href="classdxrt_1_1InferenceEngine.html#a990ca720e7f8a28ac5394206eb6f9491">dxrt::InferenceEngine</a>
+</li>
+<li>LoadConfigFile()
+: <a class="el" href="classdxrt_1_1Configuration.html#a1f869303160c086ded7e3f2dcfbe5ee4">dxrt::Configuration</a>
+</li>
+<li>LockEnable()
+: <a class="el" href="classdxrt_1_1Configuration.html#a4fde9176d3dda8c945442636b6651330">dxrt::Configuration</a>
 </li>
 </ul>
 
@@ -317,6 +415,11 @@ $(function() {
 
 
 <h3><a id="index_p"></a>- p -</h3><ul>
+<li>ParseModel()
+: <a class="el" href="classdxrt_1_1IModelParser.html#a6fe10da0bcd04a90873940997443a4d0">dxrt::IModelParser</a>
+, <a class="el" href="classdxrt_1_1V6ModelParser.html#aabcefc34b1cf899ff482127aa01e3f59">dxrt::V6ModelParser</a>
+, <a class="el" href="classdxrt_1_1V7ModelParser.html#a1e001578850b4f80127486f6d6bafcc3">dxrt::V7ModelParser</a>
+</li>
 <li>PcieInfoStr()
 : <a class="el" href="classdxrt_1_1DeviceStatus.html#a37337069fb67e4adbdf16f085205bf0e">dxrt::DeviceStatus</a>
 </li>
@@ -324,11 +427,11 @@ $(function() {
 
 
 <h3><a id="index_r"></a>- r -</h3><ul>
-<li>RegisterCallBack()
-: <a class="el" href="classdxrt_1_1InferenceEngine.html#a3d3fc75faa79470d9a3bdbdc61561a3a">dxrt::InferenceEngine</a>
-</li>
 <li>RegisterCallback()
 : <a class="el" href="classdxrt_1_1InferenceEngine.html#a1d8b33fa324a48b43433c401bd54280a">dxrt::InferenceEngine</a>
+</li>
+<li>RegisterCallBack()
+: <a class="el" href="classdxrt_1_1InferenceEngine.html#a3d3fc75faa79470d9a3bdbdc61561a3a">dxrt::InferenceEngine</a>
 </li>
 <li>Run()
 : <a class="el" href="classdxrt_1_1InferenceEngine.html#ab54d666cc65cef4d6ae2fe4c300d7ba1">dxrt::InferenceEngine</a>
@@ -336,11 +439,17 @@ $(function() {
 <li>RunAsync()
 : <a class="el" href="classdxrt_1_1InferenceEngine.html#af3006c9a7183f7e42d1528aa8a6fea24">dxrt::InferenceEngine</a>
 </li>
+<li>RunAsyncMultiInput()
+: <a class="el" href="classdxrt_1_1InferenceEngine.html#a8a61dde8d97418d77e5bfd348011517f">dxrt::InferenceEngine</a>
+</li>
 <li>RunBenchmark()
 : <a class="el" href="classdxrt_1_1InferenceEngine.html#a3846a2f47ea39933136e589aad036eb0">dxrt::InferenceEngine</a>
 </li>
 <li>RunBenchMark()
 : <a class="el" href="classdxrt_1_1InferenceEngine.html#ab0c6629f048341d62bfa3a400c90e827">dxrt::InferenceEngine</a>
+</li>
+<li>RunMultiInput()
+: <a class="el" href="classdxrt_1_1InferenceEngine.html#aff7eaeecfb9fbf7aa1ea8e27d0572b92">dxrt::InferenceEngine</a>
 </li>
 </ul>
 
@@ -349,18 +458,27 @@ $(function() {
 <li>Save()
 : <a class="el" href="classdxrt_1_1Profiler.html#ae7a4f64cc8dcfea179ab9eb0a8bea8da">dxrt::Profiler</a>
 </li>
+<li>SetAttribute()
+: <a class="el" href="classdxrt_1_1Configuration.html#a3b5ee02eda6d70601f18f0f3ec553008">dxrt::Configuration</a>
+</li>
+<li>SetEnable()
+: <a class="el" href="classdxrt_1_1Configuration.html#a2586b87f014e7a4e8c071c6016a887f8">dxrt::Configuration</a>
+</li>
 <li>Show()
 : <a class="el" href="classdxrt_1_1Profiler.html#a8b3f38d3b67f15fd530cca295c8a50a8">dxrt::Profiler</a>
 </li>
 <li>Start()
 : <a class="el" href="classdxrt_1_1Profiler.html#aec94050841dbf409644cf73a1647820b">dxrt::Profiler</a>
 </li>
+<li>supportsTensorCentricOffsets()
+: <a class="el" href="classdxrt_1_1InferenceEngine.html#aa227ad7501e794726b9af17e88418cf1">dxrt::InferenceEngine</a>
+</li>
 </ul>
 
 
 <h3><a id="index_t"></a>- t -</h3><ul>
 <li>task_order()
-: <a class="el" href="classdxrt_1_1InferenceEngine.html#a22087ed8a6839bfc1c4a6b9c21629236">dxrt::InferenceEngine</a>
+: <a class="el" href="classdxrt_1_1InferenceEngine.html#a578a0098f9b49902fa4c81d95945baa4">dxrt::InferenceEngine</a>
 </li>
 <li>Temperature()
 : <a class="el" href="classdxrt_1_1DeviceStatus.html#ab241b8ae83657a81f973023d61b28d36">dxrt::DeviceStatus</a>
@@ -378,6 +496,9 @@ $(function() {
 <h3><a id="index_v"></a>- v -</h3><ul>
 <li>ValidateDevice()
 : <a class="el" href="classdxrt_1_1InferenceEngine.html#aef4c9502a5d5a9d256d3899391376aba">dxrt::InferenceEngine</a>
+</li>
+<li>ValidateDeviceMultiInput()
+: <a class="el" href="classdxrt_1_1InferenceEngine.html#af252439b3ba07ea017792c4fe6d82c7a">dxrt::InferenceEngine</a>
 </li>
 <li>Voltage()
 : <a class="el" href="classdxrt_1_1DeviceStatus.html#aeeede2b02a7384915a161f522dbebaa0">dxrt::DeviceStatus</a>

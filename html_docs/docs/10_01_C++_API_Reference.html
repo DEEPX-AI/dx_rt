@@ -1,0 +1,1787 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="09_02_Python_Tutorials.html">
+      
+      
+        <link rel="next" href="10_02_Python_API_Reference.html">
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.14">
+    
+    
+      
+        <title>C++ API Reference - DXNN Runtime (DX-RT) User Manual</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.342714a4.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Noto+Sans+Display:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Noto Sans Display";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#class>_dxrtinferenceengine" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="DXNN Runtime (DX-RT) User Manual" class="md-header__button md-logo" aria-label="DXNN Runtime (DX-RT) User Manual" data-md-component="logo">
+      
+  <img src="../img/deepx.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            DXNN Runtime (DX-RT) User Manual
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              C++ API Reference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="01_DXNN_Runtime_Overview.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  DXNN Runtime Overview
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="02_Installation_on_Linux.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Installation on Linux
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="03_Installation_on_Windows.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Installation on Windows
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="04_Model_Inference.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Model Inference
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="05_Command_Line_Interface.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Command Line Interface
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="06_Inference_API.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Inference API Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="07_Multi_Input_Inference.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Multi-input Inference Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="08_Global_Instance.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Configuration and DeviceStatus Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="09_01_C%2B%2B_Tutorials.html" class="md-tabs__link">
+          
+  
+  
+  Tutorials
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="10_01_C%2B%2B_API_Reference.html" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="Appendix_Change_Log.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Change Log
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="DXNN Runtime (DX-RT) User Manual" class="md-nav__button md-logo" aria-label="DXNN Runtime (DX-RT) User Manual" data-md-component="logo">
+      
+  <img src="../img/deepx.png" alt="logo">
+
+    </a>
+    DXNN Runtime (DX-RT) User Manual
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="01_DXNN_Runtime_Overview.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    DXNN Runtime Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="02_Installation_on_Linux.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Installation on Linux
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="03_Installation_on_Windows.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Installation on Windows
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="04_Model_Inference.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Model Inference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="05_Command_Line_Interface.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Command Line Interface
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="06_Inference_API.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Inference API Guide
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="07_Multi_Input_Inference.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Multi-input Inference Guide
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="08_Global_Instance.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Configuration and DeviceStatus Guide
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Tutorials
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            Tutorials
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="09_01_C%2B%2B_Tutorials.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    C++ Tutorials
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="09_02_Python_Tutorials.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Python Tutorials
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            API Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    C++ API Reference
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="10_01_C%2B%2B_API_Reference.html" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    C++ API Reference
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#class>_dxrtinferenceengine" class="md-nav__link">
+    <span class="md-ellipsis">
+      class dxrt::InferenceEngine
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#class>_dxrtinferenceoption" class="md-nav__link">
+    <span class="md-ellipsis">
+      class dxrt::InferenceOption
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#class>_dxrtconfiguration" class="md-nav__link">
+    <span class="md-ellipsis">
+      class dxrt::Configuration
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#class>_dxrtdevicestatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      class dxrt::DeviceStatus
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#class>_dxrttensor" class="md-nav__link">
+    <span class="md-ellipsis">
+      class dxrt::Tensor
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="10_02_Python_API_Reference.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Python API Reference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="Appendix_Change_Log.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Change Log
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+  <h1>C++ API Reference</h1>
+
+<h3 id="class&gt;_dxrtinferenceengine"><code>class dxrt::InferenceEngine</code><a class="headerlink" href="#class&gt;_dxrtinferenceengine" title="Permanent link">&para;</a></h3>
+<p>This class abstracts the runtime inference executor for a user's compiled model. After a model is loaded, real-time device tasks are scheduled by internal runtime libraries. It supports both synchronous and asynchronous inference modes.</p>
+<h4 id="constructor">Constructor<a class="headerlink" href="#constructor" title="Permanent link">&para;</a></h4>
+<h5 id="explicit&gt;_inferenceengineconst&gt;_stdstring&gt;_modelpath&gt;_inferenceoption&gt;_option&gt;_defaultinferenceoption"><code>explicit InferenceEngine(const std::string &amp;modelPath, InferenceOption &amp;option = DefaultInferenceOption)</code><a class="headerlink" href="#explicit&gt;_inferenceengineconst&gt;_stdstring&gt;_modelpath&gt;_inferenceoption&gt;_option&gt;_defaultinferenceoption" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Description</strong>: Loads a model from the specified path and configures the NPU to run it.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>modelPath</code>: The file path to the compiled model (e.g., <code>model.dxnn</code>).</li>
+<li><code>option</code>: A reference to an <code>InferenceOption</code> object to configure devices and NPU cores.</li>
+</ul>
+</li>
+</ul>
+<h4 id="member&gt;_functions">Member Functions<a class="headerlink" href="#member&gt;_functions" title="Permanent link">&para;</a></h4>
+<h5 id="dispose"><code>Dispose()</code><a class="headerlink" href="#dispose" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>void Dispose()</code></li>
+<li><strong>Description</strong>: Deallocates resources and performs cleanup. This should be called to release memory and handles held by the engine.</li>
+</ul>
+<h5 id="getalltaskoutputs"><code>GetAllTaskOutputs()</code><a class="headerlink" href="#getalltaskoutputs" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::vector&lt;TensorPtrs&gt; GetAllTaskOutputs()</code></li>
+<li><strong>Description</strong>: Retrieves the output tensors of all internal tasks in the model.</li>
+<li><strong>Returns</strong>: A vector of <code>TensorPtrs</code>, where each element represents the outputs of a single task.</li>
+<li><strong>Note</strong>: The legacy function <code>get_outputs()</code> is deprecated.</li>
+</ul>
+<h5 id="getbitmatchmaskint&gt;_index"><code>GetBitmatchMask(int index)</code><a class="headerlink" href="#getbitmatchmaskint&gt;_index" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::vector&lt;uint8_t&gt; GetBitmatchMask(int index)</code></li>
+<li><strong>Description</strong>: An internal function to get the bitmatch mask for a given NPU task index.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>index</code>: The index of the NPU task.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: A vector of <code>uint8_t</code> representing the mask.</li>
+<li><strong>Note</strong>: The legacy function <code>bitmatch_mask(int index)</code> is deprecated.</li>
+</ul>
+<h5 id="getcompiletype"><code>GetCompileType()</code><a class="headerlink" href="#getcompiletype" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::string GetCompileType()</code></li>
+<li><strong>Description</strong>: Returns the compile type of the loaded model.</li>
+<li><strong>Returns</strong>: The compile type as a <code>std::string</code>.</li>
+<li><strong>Note</strong>: The legacy function <code>get_compile_type()</code> is deprecated.</li>
+</ul>
+<h5 id="getinputsize"><code>GetInputSize()</code><a class="headerlink" href="#getinputsize" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>uint64_t GetInputSize()</code></li>
+<li><strong>Description</strong>: Gets the total size of all input tensors combined in bytes.</li>
+<li><strong>Returns</strong>: The total input size as a <code>uint64_t</code>.</li>
+<li><strong>Note</strong>: The legacy function <code>input_size()</code> is deprecated.</li>
+</ul>
+<h5 id="getinputsvoid&gt;_ptr&gt;_nullptr&gt;_uint64&gt;_t&gt;_phyaddr&gt;_0"><code>GetInputs(void *ptr = nullptr, uint64_t phyAddr = 0)</code><a class="headerlink" href="#getinputsvoid&gt;_ptr&gt;_nullptr&gt;_uint64&gt;_t&gt;_phyaddr&gt;_0" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>Tensors GetInputs(void *ptr = nullptr, uint64_t phyAddr = 0)</code></li>
+<li><strong>Description</strong>: Retrieves the input tensors for the model. If <code>ptr</code> is null, it returns information about the input memory area within the engine. If <code>ptr</code> and <code>phyAddr</code> are provided, it returns tensor objects pointing to those addresses.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>ptr</code>: An optional pointer to a virtual address for the input data.</li>
+<li><code>phyAddr</code>: An optional pointer to a physical address for the input data.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: A <code>Tensors</code> (vector of <code>Tensor</code>) object.</li>
+<li><strong>Note</strong>: The legacy function <code>inputs(...)</code> is deprecated.</li>
+</ul>
+<h5 id="getinputsint&gt;_devid"><code>GetInputs(int devId)</code><a class="headerlink" href="#getinputsint&gt;_devid" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::vector&lt;Tensors&gt; GetInputs(int devId)</code></li>
+<li><strong>Description</strong>: Retrieves the input tensors for a specific device ID.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>devId</code>: The ID of the device.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: A vector of <code>Tensors</code> objects.</li>
+<li><strong>Note</strong>: The legacy function <code>inputs(int devId)</code> is deprecated.</li>
+</ul>
+<h5 id="getinputtensorcount"><code>GetInputTensorCount()</code><a class="headerlink" href="#getinputtensorcount" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>int GetInputTensorCount() const</code></li>
+<li><strong>Description</strong>: Returns the number of input tensors required by the model.</li>
+<li><strong>Returns</strong>: The count of input tensors.</li>
+</ul>
+<h5 id="getinputtensornames"><code>GetInputTensorNames()</code><a class="headerlink" href="#getinputtensornames" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::vector&lt;std::string&gt; GetInputTensorNames() const</code></li>
+<li><strong>Description</strong>: Returns the names of all input tensors in the order they should be provided.</li>
+<li><strong>Returns</strong>: A vector of input tensor names.</li>
+</ul>
+<h5 id="getinputtensorsizes"><code>GetInputTensorSizes()</code><a class="headerlink" href="#getinputtensorsizes" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::vector&lt;uint64_t&gt; GetInputTensorSizes()</code></li>
+<li><strong>Description</strong>: Gets the individual sizes (in bytes) of each input tensor for multi-input models.</li>
+<li><strong>Returns</strong>: A vector of input tensor sizes, in the order specified by <code>GetInputTensorNames()</code>.</li>
+</ul>
+<h5 id="getinputtensortotaskmapping"><code>GetInputTensorToTaskMapping()</code><a class="headerlink" href="#getinputtensortotaskmapping" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::map&lt;std::string, std::string&gt; GetInputTensorToTaskMapping() const</code></li>
+<li><strong>Description</strong>: Returns the mapping from input tensor names to their target tasks within the model graph.</li>
+<li><strong>Returns</strong>: A map where the key is the tensor name and the value is the task name.</li>
+</ul>
+<h5 id="getlatency"><code>GetLatency()</code><a class="headerlink" href="#getlatency" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>int GetLatency()</code></li>
+<li><strong>Description</strong>: Gets the latency of the most recent inference in microseconds.</li>
+<li><strong>Returns</strong>: The latency value.</li>
+<li><strong>Note</strong>: The legacy function <code>latency()</code> is deprecated.</li>
+</ul>
+<h5 id="getlatencycnt"><code>GetLatencyCnt()</code><a class="headerlink" href="#getlatencycnt" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>int GetLatencyCnt()</code></li>
+<li><strong>Description</strong>: Gets the total count of latency measurements recorded.</li>
+<li><strong>Returns</strong>: The number of latency measurements.</li>
+</ul>
+<h5 id="getlatencymean"><code>GetLatencyMean()</code><a class="headerlink" href="#getlatencymean" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>double GetLatencyMean()</code></li>
+<li><strong>Description</strong>: Gets the mean (average) of all collected latency values.</li>
+<li><strong>Returns</strong>: The mean latency in microseconds.</li>
+</ul>
+<h5 id="getlatencystddev"><code>GetLatencyStdDev()</code><a class="headerlink" href="#getlatencystddev" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>double GetLatencyStdDev()</code></li>
+<li><strong>Description</strong>: Gets the standard deviation of all collected latency values.</li>
+<li><strong>Returns</strong>: The standard deviation of latency.</li>
+</ul>
+<h5 id="getlatencyvector"><code>GetLatencyVector()</code><a class="headerlink" href="#getlatencyvector" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::vector&lt;int&gt; GetLatencyVector()</code></li>
+<li><strong>Description</strong>: Gets a vector of recent latency measurements.</li>
+<li><strong>Returns</strong>: A vector of latencies in microseconds.</li>
+</ul>
+<h5 id="getmodelname"><code>GetModelName()</code><a class="headerlink" href="#getmodelname" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::string GetModelName()</code></li>
+<li><strong>Description</strong>: Gets the name of the model.</li>
+<li><strong>Returns</strong>: The model name as a <code>std::string</code>.</li>
+<li><strong>Note</strong>: The legacy function <code>name()</code> is deprecated.</li>
+</ul>
+<h5 id="getmodelversion"><code>GetModelVersion()</code><a class="headerlink" href="#getmodelversion" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::string GetModelVersion()</code></li>
+<li><strong>Description</strong>: Returns the DXNN file format version of the loaded model.</li>
+<li><strong>Returns</strong>: The model version string.</li>
+</ul>
+<h5 id="getnpuinferencetime"><code>GetNpuInferenceTime()</code><a class="headerlink" href="#getnpuinferencetime" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>uint32_t GetNpuInferenceTime()</code></li>
+<li><strong>Description</strong>: Gets the pure NPU processing time for the most recent inference in microseconds.</li>
+<li><strong>Returns</strong>: The NPU inference time.</li>
+<li><strong>Note</strong>: The legacy function <code>inference_time()</code> is deprecated.</li>
+</ul>
+<h5 id="getnpuinferencetimecnt"><code>GetNpuInferenceTimeCnt()</code><a class="headerlink" href="#getnpuinferencetimecnt" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>int GetNpuInferenceTimeCnt()</code></li>
+<li><strong>Description</strong>: Gets the total count of NPU inference time measurements recorded.</li>
+<li><strong>Returns</strong>: The number of measurements.</li>
+</ul>
+<h5 id="getnpuinferencetimemean"><code>GetNpuInferenceTimeMean()</code><a class="headerlink" href="#getnpuinferencetimemean" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>double GetNpuInferenceTimeMean()</code></li>
+<li><strong>Description</strong>: Gets the mean (average) of all collected NPU inference times.</li>
+<li><strong>Returns</strong>: The mean NPU inference time in microseconds.</li>
+</ul>
+<h5 id="getnpuinferencetimestddev"><code>GetNpuInferenceTimeStdDev()</code><a class="headerlink" href="#getnpuinferencetimestddev" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>double GetNpuInferenceTimeStdDev()</code></li>
+<li><strong>Description</strong>: Gets the standard deviation of all collected NPU inference times.</li>
+<li><strong>Returns</strong>: The standard deviation of NPU inference time.</li>
+</ul>
+<h5 id="getnpuinferencetimevector"><code>GetNpuInferenceTimeVector()</code><a class="headerlink" href="#getnpuinferencetimevector" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::vector&lt;uint32_t&gt; GetNpuInferenceTimeVector()</code></li>
+<li><strong>Description</strong>: Gets a vector of recent NPU inference time measurements.</li>
+<li><strong>Returns</strong>: A vector of NPU inference times in microseconds.</li>
+</ul>
+<h5 id="getnumtailtasks"><code>GetNumTailTasks()</code><a class="headerlink" href="#getnumtailtasks" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>int GetNumTailTasks()</code></li>
+<li><strong>Description</strong>: Returns the number of "tail" tasks in the model, which are tasks that have no subsequent tasks.</li>
+<li><strong>Returns</strong>: The number of tail tasks.</li>
+<li><strong>Note</strong>: The legacy function <code>get_num_tails()</code> is deprecated.</li>
+</ul>
+<h5 id="getoutputsvoid&gt;_ptr&gt;_nullptr&gt;_uint64&gt;_t&gt;_phyaddr&gt;_0"><code>GetOutputs(void *ptr = nullptr, uint64_t phyAddr = 0)</code><a class="headerlink" href="#getoutputsvoid&gt;_ptr&gt;_nullptr&gt;_uint64&gt;_t&gt;_phyaddr&gt;_0" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>Tensors GetOutputs(void *ptr = nullptr, uint64_t phyAddr = 0)</code></li>
+<li><strong>Description</strong>: Retrieves the output tensors. If <code>ptr</code> is null, it returns information about the output memory area within the engine. If <code>ptr</code> and <code>phyAddr</code> are provided, it returns tensor objects pointing to those addresses.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>ptr</code>: An optional pointer to a virtual address for the output data.</li>
+<li><code>phyAddr</code>: An optional pointer to a physical address for the output data.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: A <code>Tensors</code> (vector of <code>Tensor</code>) object.</li>
+<li><strong>Note</strong>: The legacy function <code>outputs(...)</code> is deprecated.</li>
+</ul>
+<h5 id="getoutputsize"><code>GetOutputSize()</code><a class="headerlink" href="#getoutputsize" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>uint64_t GetOutputSize()</code></li>
+<li><strong>Description</strong>: Gets the total size of all output tensors combined in bytes.</li>
+<li><strong>Returns</strong>: The total output size as a <code>uint64_t</code>.</li>
+<li><strong>Note</strong>: The legacy function <code>output_size()</code> is deprecated.</li>
+</ul>
+<h5 id="getoutputtensornames"><code>GetOutputTensorNames()</code><a class="headerlink" href="#getoutputtensornames" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::vector&lt;std::string&gt; GetOutputTensorNames() const</code></li>
+<li><strong>Description</strong>: Returns the names of all output tensors in the order they are produced.</li>
+<li><strong>Returns</strong>: A vector of output tensor names.</li>
+</ul>
+<h5 id="getoutputtensoroffsetconst&gt;_stdstring&gt;_tensorname&gt;_const"><code>GetOutputTensorOffset(const std::string&amp; tensorName) const</code><a class="headerlink" href="#getoutputtensoroffsetconst&gt;_stdstring&gt;_tensorname&gt;_const" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>size_t GetOutputTensorOffset(const std::string&amp; tensorName) const</code></li>
+<li><strong>Description</strong>: Gets the byte offset for a specific output tensor within the final concatenated output buffer.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>tensorName</code>: The name of the output tensor.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: The offset in bytes.</li>
+</ul>
+<h5 id="getoutputtensorsizes"><code>GetOutputTensorSizes()</code><a class="headerlink" href="#getoutputtensorsizes" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::vector&lt;uint64_t&gt; GetOutputTensorSizes()</code></li>
+<li><strong>Description</strong>: Gets the individual sizes (in bytes) of each output tensor.</li>
+<li><strong>Returns</strong>: A vector of output tensor sizes, in the order specified by <code>GetOutputTensorNames()</code>.</li>
+</ul>
+<h5 id="gettaskorder"><code>GetTaskOrder()</code><a class="headerlink" href="#gettaskorder" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::vector&lt;std::string&gt; GetTaskOrder()</code></li>
+<li><strong>Description</strong>: Gets the model's task execution order.</li>
+<li><strong>Returns</strong>: A vector of strings representing the task order.</li>
+<li><strong>Note</strong>: The legacy function <code>task_order()</code> is deprecated.</li>
+</ul>
+<h5 id="ismultiinputmodel"><code>IsMultiInputModel()</code><a class="headerlink" href="#ismultiinputmodel" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>bool IsMultiInputModel() const</code></li>
+<li><strong>Description</strong>: Checks if the loaded model requires multiple input tensors.</li>
+<li><strong>Returns</strong>: <code>true</code> if the model has multiple inputs, <code>false</code> otherwise.</li>
+</ul>
+<h5 id="isortconfigured"><code>IsOrtConfigured()</code><a class="headerlink" href="#isortconfigured" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>bool IsOrtConfigured()</code></li>
+<li><strong>Description</strong>: Checks whether ONNX Runtime (ORT) is configured and available for use.</li>
+<li><strong>Returns</strong>: <code>true</code> if ORT is configured, <code>false</code> otherwise.</li>
+</ul>
+<h5 id="isppu"><code>IsPPU()</code><a class="headerlink" href="#isppu" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>bool IsPPU()</code></li>
+<li><strong>Description</strong>: Checks if the loaded model utilizes a Post-Processing Unit (PPU).</li>
+<li><strong>Returns</strong>: <code>true</code> if the model uses a PPU, <code>false</code> otherwise.</li>
+<li><strong>Note</strong>: The legacy function <code>is_PPU()</code> is deprecated.</li>
+</ul>
+<h5 id="registercallbackstdfunctioninttensorptrs&gt;_outputs&gt;_void&gt;_userarg&gt;_callbackfunc"><code>RegisterCallback(std::function&lt;int(TensorPtrs&amp; outputs, void* userArg)&gt; callbackFunc)</code><a class="headerlink" href="#registercallbackstdfunctioninttensorptrs&gt;_outputs&gt;_void&gt;_userarg&gt;_callbackfunc" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>void RegisterCallback(std::function&lt;int(TensorPtrs&amp; outputs, void* userArg)&gt; callbackFunc)</code></li>
+<li><strong>Description</strong>: Registers a user-defined callback function that will be executed upon completion of an asynchronous inference request.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>callbackFunc</code>: The function to be called. It receives the output tensors and the user-provided argument.</li>
+</ul>
+</li>
+<li><strong>Note</strong>: The legacy function <code>RegisterCallBack(...)</code> is deprecated.</li>
+</ul>
+<h5 id="runvoid&gt;_inputptr&gt;_void&gt;_userarg&gt;_nullptr&gt;_void&gt;_outputptr&gt;_nullptr"><code>Run(void *inputPtr, void *userArg = nullptr, void *outputPtr = nullptr)</code><a class="headerlink" href="#runvoid&gt;_inputptr&gt;_void&gt;_userarg&gt;_nullptr&gt;_void&gt;_outputptr&gt;_nullptr" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>TensorPtrs Run(void *inputPtr, void *userArg = nullptr, void *outputPtr = nullptr)</code></li>
+<li><strong>Description</strong>: Performs a synchronous inference for a single input, blocking until the operation is complete.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>inputPtr</code>: A pointer to the input data.</li>
+<li><code>userArg</code>: An optional user-defined argument.</li>
+<li><code>outputPtr</code>: An optional pointer to a pre-allocated output buffer.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: A <code>TensorPtrs</code> object containing the output data.</li>
+</ul>
+<h5 id="runconst&gt;_stdvectorvoid&gt;_inputbuffers&gt;_const&gt;_stdvectorvoid&gt;_outputbuffers&gt;_const&gt;_stdvectorvoid&gt;_userargs"><code>Run(const std::vector&lt;void*&gt;&amp; inputBuffers, const std::vector&lt;void*&gt;&amp; outputBuffers, const std::vector&lt;void*&gt;&amp; userArgs = {})</code><a class="headerlink" href="#runconst&gt;_stdvectorvoid&gt;_inputbuffers&gt;_const&gt;_stdvectorvoid&gt;_outputbuffers&gt;_const&gt;_stdvectorvoid&gt;_userargs" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::vector&lt;TensorPtrs&gt; Run(const std::vector&lt;void*&gt;&amp; inputBuffers, const std::vector&lt;void*&gt;&amp; outputBuffers, const std::vector&lt;void*&gt;&amp; userArgs = {})</code></li>
+<li><strong>Description</strong>: Performs a synchronous batch inference.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>inputBuffers</code>: A vector of pointers to input data for each sample in the batch.</li>
+<li><code>outputBuffers</code>: A vector of pointers to pre-allocated output buffers.</li>
+<li><code>userArgs</code>: An optional vector of user-defined arguments.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: A vector of <code>TensorPtrs</code>, where each element corresponds to the output of one sample.</li>
+</ul>
+<h5 id="runasyncvoid&gt;_inputptr&gt;_void&gt;_userargnullptr&gt;_void&gt;_outputptr&gt;_nullptr"><code>RunAsync(void *inputPtr, void *userArg=nullptr, void *outputPtr = nullptr)</code><a class="headerlink" href="#runasyncvoid&gt;_inputptr&gt;_void&gt;_userargnullptr&gt;_void&gt;_outputptr&gt;_nullptr" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>int RunAsync(void *inputPtr, void *userArg=nullptr, void *outputPtr = nullptr)</code></li>
+<li><strong>Description</strong>: Submits a non-blocking, asynchronous inference request for a single input.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>inputPtr</code>: A pointer to the input data.</li>
+<li><code>userArg</code>: An optional user-defined argument to be passed to the callback.</li>
+<li><code>outputPtr</code>: An optional pointer to a pre-allocated output buffer.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: An integer <code>jobId</code> for this asynchronous operation.</li>
+</ul>
+<h5 id="runasyncconst&gt;_stdvectorvoid&gt;_inputptrs&gt;_void&gt;_userargnullptr&gt;_void&gt;_outputptr&gt;_nullptr"><code>RunAsync(const std::vector&lt;void*&gt;&amp; inputPtrs, void *userArg=nullptr, void *outputPtr = nullptr)</code><a class="headerlink" href="#runasyncconst&gt;_stdvectorvoid&gt;_inputptrs&gt;_void&gt;_userargnullptr&gt;_void&gt;_outputptr&gt;_nullptr" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>int RunAsync(const std::vector&lt;void*&gt;&amp; inputPtrs, void *userArg=nullptr, void *outputPtr = nullptr)</code></li>
+<li><strong>Description</strong>: Submits an asynchronous inference request, automatically detecting if the input is for a multi-input model.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>inputPtrs</code>: A vector of pointers to input data.</li>
+<li><code>userArg</code>: An optional user-defined argument.</li>
+<li><code>outputPtr</code>: An optional pointer to a pre-allocated output buffer.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: An integer <code>jobId</code>.</li>
+</ul>
+<h5 id="runasyncmultiinputconst&gt;_stdmapstdstring&gt;_void&gt;_inputtensors&gt;_void&gt;_userargnullptr&gt;_void&gt;_outputptr&gt;_nullptr"><code>RunAsyncMultiInput(const std::map&lt;std::string, void*&gt;&amp; inputTensors, void *userArg=nullptr, void *outputPtr = nullptr)</code><a class="headerlink" href="#runasyncmultiinputconst&gt;_stdmapstdstring&gt;_void&gt;_inputtensors&gt;_void&gt;_userargnullptr&gt;_void&gt;_outputptr&gt;_nullptr" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>int RunAsyncMultiInput(const std::map&lt;std::string, void*&gt;&amp; inputTensors, void *userArg=nullptr, void *outputPtr = nullptr)</code></li>
+<li><strong>Description</strong>: Submits an asynchronous inference request for a multi-input model using a map of named tensors.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>inputTensors</code>: A map of tensor names to input data pointers.</li>
+<li><code>userArg</code>: An optional user-defined argument.</li>
+<li><code>outputPtr</code>: An optional pointer to a pre-allocated output buffer.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: An integer <code>jobId</code>.</li>
+</ul>
+<h5 id="runasyncmultiinputconst&gt;_stdvectorvoid&gt;_inputptrs&gt;_void&gt;_userargnullptr&gt;_void&gt;_outputptr&gt;_nullptr"><code>RunAsyncMultiInput(const std::vector&lt;void*&gt;&amp; inputPtrs, void *userArg=nullptr, void *outputPtr = nullptr)</code><a class="headerlink" href="#runasyncmultiinputconst&gt;_stdvectorvoid&gt;_inputptrs&gt;_void&gt;_userargnullptr&gt;_void&gt;_outputptr&gt;_nullptr" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>int RunAsyncMultiInput(const std::vector&lt;void*&gt;&amp; inputPtrs, void *userArg=nullptr, void *outputPtr = nullptr)</code></li>
+<li><strong>Description</strong>: Submits an asynchronous inference request for a multi-input model using a vector of input pointers.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>inputPtrs</code>: A vector of input pointers in the order specified by <code>GetInputTensorNames()</code>.</li>
+<li><code>userArg</code>: An optional user-defined argument.</li>
+<li><code>outputPtr</code>: An optional pointer to a pre-allocated output buffer.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: An integer <code>jobId</code>.</li>
+</ul>
+<h5 id="runbenchmarkint&gt;_num&gt;_void&gt;_inputptr&gt;_nullptr"><code>RunBenchmark(int num, void* inputPtr = nullptr)</code><a class="headerlink" href="#runbenchmarkint&gt;_num&gt;_void&gt;_inputptr&gt;_nullptr" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>float RunBenchmark(int num, void* inputPtr = nullptr)</code></li>
+<li><strong>Description</strong>: Runs a performance benchmark for a specified number of loops.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>num</code>: The number of inference iterations to run.</li>
+<li><code>inputPtr</code>: An optional pointer to the input data to use for the benchmark.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: The average frames per second (FPS) as a float.</li>
+<li><strong>Note</strong>: The legacy function <code>RunBenchMark(...)</code> is deprecated.</li>
+</ul>
+<h5 id="runmultiinputconst&gt;_stdmapstdstring&gt;_void&gt;_inputtensors&gt;_void&gt;_userargnullptr&gt;_void&gt;_outputptrnullptr"><code>RunMultiInput(const std::map&lt;std::string, void*&gt;&amp; inputTensors, void *userArg=nullptr, void *outputPtr=nullptr)</code><a class="headerlink" href="#runmultiinputconst&gt;_stdmapstdstring&gt;_void&gt;_inputtensors&gt;_void&gt;_userargnullptr&gt;_void&gt;_outputptrnullptr" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>TensorPtrs RunMultiInput(const std::map&lt;std::string, void*&gt;&amp; inputTensors, void *userArg=nullptr, void *outputPtr=nullptr)</code></li>
+<li><strong>Description</strong>: Runs synchronous inference for a multi-input model using a map of named tensors.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>inputTensors</code>: A map of tensor names to input data pointers.</li>
+<li><code>userArg</code>: An optional user-defined argument.</li>
+<li><code>outputPtr</code>: An optional pointer to a pre-allocated output buffer.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: A <code>TensorPtrs</code> object containing the output.</li>
+</ul>
+<h5 id="runmultiinputconst&gt;_stdvectorvoid&gt;_inputptrs&gt;_void&gt;_userargnullptr&gt;_void&gt;_outputptrnullptr"><code>RunMultiInput(const std::vector&lt;void*&gt;&amp; inputPtrs, void *userArg=nullptr, void *outputPtr=nullptr)</code><a class="headerlink" href="#runmultiinputconst&gt;_stdvectorvoid&gt;_inputptrs&gt;_void&gt;_userargnullptr&gt;_void&gt;_outputptrnullptr" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>TensorPtrs RunMultiInput(const std::vector&lt;void*&gt;&amp; inputPtrs, void *userArg=nullptr, void *outputPtr=nullptr)</code></li>
+<li><strong>Description</strong>: Runs synchronous inference for a multi-input model using a vector of input pointers.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>inputPtrs</code>: A vector of input pointers in the order specified by <code>GetInputTensorNames()</code>.</li>
+<li><code>userArg</code>: An optional user-defined argument.</li>
+<li><code>outputPtr</code>: An optional pointer to a pre-allocated output buffer.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: A <code>TensorPtrs</code> object containing the output.</li>
+</ul>
+<h5 id="waitint&gt;_jobid"><code>Wait(int jobId)</code><a class="headerlink" href="#waitint&gt;_jobid" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>TensorPtrs Wait(int jobId)</code></li>
+<li><strong>Description</strong>: Blocks execution and waits until the asynchronous request identified by <code>jobId</code> is complete.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>jobId</code>: The job ID returned from a <code>RunAsync</code> call.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: A <code>TensorPtrs</code> object containing the output from the completed job.</li>
+</ul>
+<hr />
+<h3 id="class&gt;_dxrtinferenceoption"><code>class dxrt::InferenceOption</code><a class="headerlink" href="#class&gt;_dxrtinferenceoption" title="Permanent link">&para;</a></h3>
+<p>This class specifies inference options applied to an <code>InferenceEngine</code>, allowing users to configure which devices and NPU cores are used.</p>
+<h4 id="nested&gt;_enums">Nested Enums<a class="headerlink" href="#nested&gt;_enums" title="Permanent link">&para;</a></h4>
+<h5 id="enum&gt;_bound&gt;_option"><code>enum BOUND_OPTION</code><a class="headerlink" href="#enum&gt;_bound&gt;_option" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Description</strong>: Defines how NPU cores are bound or utilized for inference.</li>
+<li><strong>Members</strong>: <code>NPU_ALL</code>, <code>NPU_0</code>, <code>NPU_1</code>, <code>NPU_2</code>, <code>NPU_01</code>, <code>NPU_12</code>, <code>NPU_02</code>.</li>
+</ul>
+<h4 id="public&gt;_members">Public Members<a class="headerlink" href="#public&gt;_members" title="Permanent link">&para;</a></h4>
+<ul>
+<li><strong><code>boundOption</code></strong>: <code>uint32_t</code>. Selects the NPU core(s) to use within a device, using a value from the <code>BOUND_OPTION</code> enum. Default is <code>NPU_ALL</code>.</li>
+<li><strong><code>devices</code></strong>: <code>std::vector&lt;int&gt;</code>. A list of device IDs to be used for inference. If the list is empty (default), all available devices are used.</li>
+<li><strong><code>useORT</code></strong>: <code>bool</code>. If <code>true</code>, both NPU and CPU (via ONNX Runtime) tasks will be executed. If <code>false</code>, only NPU tasks will run.</li>
+</ul>
+<hr />
+<h3 id="class&gt;_dxrtconfiguration"><code>class dxrt::Configuration</code><a class="headerlink" href="#class&gt;_dxrtconfiguration" title="Permanent link">&para;</a></h3>
+<p>A singleton class for managing global application configurations. Access is thread-safe and should be done via the <code>GetInstance()</code> method.</p>
+<h4 id="nested&gt;_enums_1">Nested Enums<a class="headerlink" href="#nested&gt;_enums_1" title="Permanent link">&para;</a></h4>
+<h5 id="enum&gt;_class&gt;_item"><code>enum class ITEM</code><a class="headerlink" href="#enum&gt;_class&gt;_item" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Description</strong>: Defines configuration categories.</li>
+<li><strong>Members</strong>: <code>DEBUG</code>, <code>PROFILER</code>, <code>SERVICE</code>, <code>DYNAMIC_CPU_THREAD</code>, <code>TASK_FLOW</code>, <code>SHOW_THROTTLING</code>, <code>SHOW_PROFILE</code>, <code>SHOW_MODEL_INFO</code>.</li>
+</ul>
+<h5 id="enum&gt;_class&gt;_attribute"><code>enum class ATTRIBUTE</code><a class="headerlink" href="#enum&gt;_class&gt;_attribute" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Description</strong>: Defines attributes for configuration items.</li>
+<li><strong>Members</strong>: <code>PROFILER_SHOW_DATA</code>, <code>PROFILER_SAVE_DATA</code>.</li>
+</ul>
+<h4 id="static&gt;_member&gt;_functions">Static Member Functions<a class="headerlink" href="#static&gt;_member&gt;_functions" title="Permanent link">&para;</a></h4>
+<h5 id="getinstance"><code>GetInstance()</code><a class="headerlink" href="#getinstance" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>static Configuration&amp; GetInstance()</code></li>
+<li><strong>Description</strong>: Returns the unique static instance of the <code>Configuration</code> class. This is the only way to access the configuration object.</li>
+<li><strong>Returns</strong>: A reference to the <code>Configuration</code> instance.</li>
+</ul>
+<h4 id="member&gt;_functions_1">Member Functions<a class="headerlink" href="#member&gt;_functions_1" title="Permanent link">&para;</a></h4>
+<h5 id="getattributeconst&gt;_item&gt;_item&gt;_const&gt;_attribute&gt;_attrib"><code>GetAttribute(const ITEM item, const ATTRIBUTE attrib)</code><a class="headerlink" href="#getattributeconst&gt;_item&gt;_item&gt;_const&gt;_attribute&gt;_attrib" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::string GetAttribute(const ITEM item, const ATTRIBUTE attrib)</code></li>
+<li><strong>Description</strong>: Retrieves the value of a specific attribute for a given configuration item.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>item</code>: The configuration item.</li>
+<li><code>attrib</code>: The attribute to retrieve.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: The attribute value as a <code>std::string</code>.</li>
+</ul>
+<h5 id="getdriverversion"><code>GetDriverVersion()</code><a class="headerlink" href="#getdriverversion" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::string GetDriverVersion() const</code></li>
+<li><strong>Description</strong>: Retrieves the version of the associated device driver.</li>
+<li><strong>Returns</strong>: The driver version string.</li>
+</ul>
+<h5 id="getenableconst&gt;_item&gt;_item"><code>GetEnable(const ITEM item)</code><a class="headerlink" href="#getenableconst&gt;_item&gt;_item" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>bool GetEnable(const ITEM item)</code></li>
+<li><strong>Description</strong>: Retrieves the enabled status of a specific configuration item.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>item</code>: The configuration item to check.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: <code>true</code> if the item is enabled, <code>false</code> otherwise.</li>
+</ul>
+<h5 id="getfirmwareversions"><code>GetFirmwareVersions()</code><a class="headerlink" href="#getfirmwareversions" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::vector&lt;std::pair&lt;int, std::string&gt;&gt; GetFirmwareVersions() const</code></li>
+<li><strong>Description</strong>: Retrieves the firmware versions of all detected devices.</li>
+<li><strong>Returns</strong>: A vector of pairs, where each pair contains a device ID and its firmware version string.</li>
+</ul>
+<h5 id="getonnxruntimeversion"><code>GetONNXRuntimeVersion()</code><a class="headerlink" href="#getonnxruntimeversion" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::string GetONNXRuntimeVersion() const</code></li>
+<li><strong>Description</strong>: Retrieves the version of the ONNX Runtime library being used.</li>
+<li><strong>Returns</strong>: The ONNX Runtime version string.</li>
+</ul>
+<h5 id="getpciedriverversion"><code>GetPCIeDriverVersion()</code><a class="headerlink" href="#getpciedriverversion" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::string GetPCIeDriverVersion() const</code></li>
+<li><strong>Description</strong>: Retrieves the version of the PCIe driver.</li>
+<li><strong>Returns</strong>: The PCIe driver version string.</li>
+</ul>
+<h5 id="getversion"><code>GetVersion()</code><a class="headerlink" href="#getversion" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::string GetVersion() const</code></li>
+<li><strong>Description</strong>: Retrieves the version of the DXRT library.</li>
+<li><strong>Returns</strong>: The library version string.</li>
+</ul>
+<h5 id="loadconfigfileconst&gt;_stdstring&gt;_filename"><code>LoadConfigFile(const std::string&amp; fileName)</code><a class="headerlink" href="#loadconfigfileconst&gt;_stdstring&gt;_filename" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>void LoadConfigFile(const std::string&amp; fileName)</code></li>
+<li><strong>Description</strong>: Loads configuration settings from the specified file.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>fileName</code>: The path and name of the configuration file.</li>
+</ul>
+</li>
+</ul>
+<h5 id="lockenableconst&gt;_item&gt;_item"><code>LockEnable(const ITEM item)</code><a class="headerlink" href="#lockenableconst&gt;_item&gt;_item" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>void LockEnable(const ITEM item)</code></li>
+<li><strong>Description</strong>: Locks a specific configuration item, making it read-only.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>item</code>: The configuration item to lock.</li>
+</ul>
+</li>
+</ul>
+<h5 id="setattributeconst&gt;_item&gt;_item&gt;_const&gt;_attribute&gt;_attrib&gt;_const&gt;_stdstring&gt;_value"><code>SetAttribute(const ITEM item, const ATTRIBUTE attrib, const std::string&amp; value)</code><a class="headerlink" href="#setattributeconst&gt;_item&gt;_item&gt;_const&gt;_attribute&gt;_attrib&gt;_const&gt;_stdstring&gt;_value" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>void SetAttribute(const ITEM item, const ATTRIBUTE attrib, const std::string&amp; value)</code></li>
+<li><strong>Description</strong>: Sets a specific attribute value for a given configuration item (e.g., setting <code>PROFILER_SAVE_DATA</code> to <code>"ON"</code>).</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>item</code>: The configuration item.</li>
+<li><code>attrib</code>: The attribute to set.</li>
+<li><code>value</code>: The attribute value as a string.</li>
+</ul>
+</li>
+</ul>
+<h5 id="setenableconst&gt;_item&gt;_item&gt;_bool&gt;_enabled"><code>SetEnable(const ITEM item, bool enabled)</code><a class="headerlink" href="#setenableconst&gt;_item&gt;_item&gt;_bool&gt;_enabled" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>void SetEnable(const ITEM item, bool enabled)</code></li>
+<li><strong>Description</strong>: Sets the enabled status for a specific configuration item (e.g., enables the profiler).</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>item</code>: The configuration item.</li>
+<li><code>enabled</code>: <code>true</code> to enable, <code>false</code> to disable.</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h3 id="class&gt;_dxrtdevicestatus"><code>class dxrt::DeviceStatus</code><a class="headerlink" href="#class&gt;_dxrtdevicestatus" title="Permanent link">&para;</a></h3>
+<p>Provides an abstraction for retrieving device information and real-time status.</p>
+<h4 id="static&gt;_member&gt;_functions_1">Static Member Functions<a class="headerlink" href="#static&gt;_member&gt;_functions_1" title="Permanent link">&para;</a></h4>
+<h5 id="getcurrentstatusint&gt;_id"><code>GetCurrentStatus(int id)</code><a class="headerlink" href="#getcurrentstatusint&gt;_id" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>static DeviceStatus GetCurrentStatus(int id)</code></li>
+<li><strong>Description</strong>: Retrieves the real-time status for the device with the specified ID.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>id</code>: The unique identifier of the device.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: A <code>DeviceStatus</code> object containing the device's current status.</li>
+</ul>
+<h5 id="getdevicecount"><code>GetDeviceCount()</code><a class="headerlink" href="#getdevicecount" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>static int GetDeviceCount()</code></li>
+<li><strong>Description</strong>: Retrieves the total number of hardware devices currently recognized by the system.</li>
+<li><strong>Returns</strong>: The total number of available devices.</li>
+</ul>
+<h4 id="member&gt;_functions_2">Member Functions<a class="headerlink" href="#member&gt;_functions_2" title="Permanent link">&para;</a></h4>
+<h5 id="allmemoryinfostr"><code>AllMemoryInfoStr()</code><a class="headerlink" href="#allmemoryinfostr" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::string AllMemoryInfoStr() const</code></li>
+<li><strong>Description</strong>: Retrieves a summary of the device's memory specifications (type, frequency, size) in a single line.</li>
+<li><strong>Returns</strong>: A formatted string.</li>
+</ul>
+<h5 id="boardtypestr"><code>BoardTypeStr()</code><a class="headerlink" href="#boardtypestr" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::string BoardTypeStr() const</code></li>
+<li><strong>Description</strong>: Returns the device board type.</li>
+<li><strong>Returns</strong>: A string such as "SOM" or "M.2".</li>
+</ul>
+<h5 id="ddrbiterrstr"><code>DdrBitErrStr()</code><a class="headerlink" href="#ddrbiterrstr" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::string DdrBitErrStr() const</code></li>
+<li><strong>Description</strong>: Retrieves the count of LPDDR Double-bit &amp; Single-bit Errors.</li>
+<li><strong>Returns</strong>: A formatted string.</li>
+</ul>
+<h5 id="ddrstatusstrint&gt;_ch"><code>DdrStatusStr(int ch)</code><a class="headerlink" href="#ddrstatusstrint&gt;_ch" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::string DdrStatusStr(int ch) const</code></li>
+<li><strong>Description</strong>: Retrieves the status of a specified LPDDR memory channel.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>ch</code>: The LPDDR memory channel index (0 to 3).</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: A formatted string containing the channel status.</li>
+</ul>
+<h5 id="devicetypestr"><code>DeviceTypeStr()</code><a class="headerlink" href="#devicetypestr" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::string DeviceTypeStr() const</code></li>
+<li><strong>Description</strong>: Retrieves the device type as a three-letter abbreviation.</li>
+<li><strong>Returns</strong>: A string ("ACC" for Accelerator or "STD" for Standalone).</li>
+</ul>
+<h5 id="devicetypeword"><code>DeviceTypeWord()</code><a class="headerlink" href="#devicetypeword" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::string DeviceTypeWord() const</code></li>
+<li><strong>Description</strong>: Retrieves the full name of the device type.</li>
+<li><strong>Returns</strong>: A string ("Accelerator" or "Standalone").</li>
+</ul>
+<h5 id="devicevariantstr"><code>DeviceVariantStr()</code><a class="headerlink" href="#devicevariantstr" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::string DeviceVariantStr() const</code></li>
+<li><strong>Description</strong>: Returns the device chip variant type.</li>
+<li><strong>Returns</strong>: A string such as "L1" or "M1".</li>
+</ul>
+<h5 id="dmachannel"><code>DmaChannel()</code><a class="headerlink" href="#dmachannel" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>uint64_t DmaChannel() const</code></li>
+<li><strong>Description</strong>: Retrieves the number of DMA (Direct Memory Access) channels available for the NPU.</li>
+<li><strong>Returns</strong>: The number of DMA channels.</li>
+</ul>
+<h5 id="dvfsstateinfostr"><code>DvfsStateInfoStr()</code><a class="headerlink" href="#dvfsstateinfostr" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::string DvfsStateInfoStr() const</code></li>
+<li><strong>Description</strong>: Retrieves the current Dynamic Voltage and Frequency Scaling (DVFS) state of the device.</li>
+<li><strong>Returns</strong>: A formatted string indicating the DVFS state.</li>
+</ul>
+<h5 id="firmwareversionstr"><code>FirmwareVersionStr()</code><a class="headerlink" href="#firmwareversionstr" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::string FirmwareVersionStr() const</code></li>
+<li>-<strong>Description</strong>: Retrieves the firmware version of the NPU.</li>
+<li><strong>Returns</strong>: The version string (e.g., "1.2.3").</li>
+</ul>
+<h5 id="getdevicetype"><code>GetDeviceType()</code><a class="headerlink" href="#getdevicetype" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>DeviceType GetDeviceType() const</code></li>
+<li><strong>Description</strong>: Retrieves the device type as a <code>DeviceType</code> enum.</li>
+<li><strong>Returns</strong>: A <code>DeviceType</code> enum value.</li>
+</ul>
+<h5 id="getid"><code>GetId()</code><a class="headerlink" href="#getid" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>int GetId() const</code></li>
+<li><strong>Description</strong>: Retrieves the unique identifier of the device.</li>
+<li><strong>Returns</strong>: The device ID as an integer.</li>
+</ul>
+<h5 id="getinfostring"><code>GetInfoString()</code><a class="headerlink" href="#getinfostring" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::string GetInfoString() const</code></li>
+<li><strong>Description</strong>: Retrieves detailed static information about the device, equivalent to <code>dxrt-cli -i</code>.</li>
+<li><strong>Returns</strong>: A formatted string with device specifications.</li>
+</ul>
+<h5 id="getnpuclockint&gt;_ch"><code>GetNpuClock(int ch)</code><a class="headerlink" href="#getnpuclockint&gt;_ch" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>uint32_t GetNpuClock(int ch) const</code></li>
+<li><strong>Description</strong>: Retrieves the current clock frequency of the specified NPU channel.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>ch</code>: The NPU channel index.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: The clock frequency in megahertz (MHz).</li>
+</ul>
+<h5 id="getnpuvoltageint&gt;_ch"><code>GetNpuVoltage(int ch)</code><a class="headerlink" href="#getnpuvoltageint&gt;_ch" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>uint32_t GetNpuVoltage(int ch) const</code></li>
+<li><strong>Description</strong>: Retrieves the voltage level of the specified NPU channel.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>ch</code>: The NPU channel index.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: The voltage level in millivolts (mV).</li>
+</ul>
+<h5 id="getstatusstring"><code>GetStatusString()</code><a class="headerlink" href="#getstatusstring" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::string GetStatusString() const</code></li>
+<li><strong>Description</strong>: Retrieves the real-time status of the device, equivalent to <code>dxrt-cli -s</code>.</li>
+<li><strong>Returns</strong>: A formatted string with real-time status.</li>
+</ul>
+<h5 id="gettemperatureint&gt;_ch"><code>GetTemperature(int ch)</code><a class="headerlink" href="#gettemperatureint&gt;_ch" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>int GetTemperature(int ch) const</code></li>
+<li><strong>Description</strong>: Retrieves the temperature of the specified NPU channel.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>ch</code>: The NPU channel index.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: The temperature in degrees Celsius.</li>
+</ul>
+<h5 id="memoryclock"><code>MemoryClock()</code><a class="headerlink" href="#memoryclock" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>uint64_t MemoryClock() const</code></li>
+<li><strong>Description</strong>: Retrieves the memory clock frequency of the NPU.</li>
+<li><strong>Returns</strong>: The frequency in megahertz (MHz).</li>
+</ul>
+<h5 id="memoryfrequency"><code>MemoryFrequency()</code><a class="headerlink" href="#memoryfrequency" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>int MemoryFrequency() const</code></li>
+<li><strong>Description</strong>: Retrieves the memory operating frequency of the device.</li>
+<li><strong>Returns</strong>: The frequency in megahertz (MHz).</li>
+</ul>
+<h5 id="memorysize"><code>MemorySize()</code><a class="headerlink" href="#memorysize" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>int64_t MemorySize() const</code></li>
+<li><strong>Description</strong>: Retrieves the total memory size available for the NPU.</li>
+<li><strong>Returns</strong>: The total memory size in bytes.</li>
+</ul>
+<h5 id="memorysizestrbinaryprefix"><code>MemorySizeStrBinaryPrefix()</code><a class="headerlink" href="#memorysizestrbinaryprefix" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::string MemorySizeStrBinaryPrefix() const</code></li>
+<li><strong>Description</strong>: Retrieves the total memory size as a string using binary units (e.g., "1.98 GiB").</li>
+<li><strong>Returns</strong>: A formatted string.</li>
+</ul>
+<h5 id="memorysizestrwithcomma"><code>MemorySizeStrWithComma()</code><a class="headerlink" href="#memorysizestrwithcomma" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::string MemorySizeStrWithComma() const</code></li>
+<li><strong>Description</strong>: Retrieves the total memory size as a string in bytes, formatted with commas.</li>
+<li><strong>Returns</strong>: A formatted string.</li>
+</ul>
+<h5 id="memorytypestr"><code>MemoryTypeStr()</code><a class="headerlink" href="#memorytypestr" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::string MemoryTypeStr() const</code></li>
+<li><strong>Description</strong>: Retrieves the type of memory used in the device.</li>
+<li><strong>Returns</strong>: A string (e.g., "LPDDR4").</li>
+</ul>
+<h5 id="npustatusstrint&gt;_ch"><code>NpuStatusStr(int ch)</code><a class="headerlink" href="#npustatusstrint&gt;_ch" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::string NpuStatusStr(int ch) const</code></li>
+<li><strong>Description</strong>: Retrieves the status of a specific NPU as a formatted string (voltage, clock, temperature).</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>ch</code>: The NPU index.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: A formatted string.</li>
+</ul>
+<h5 id="pcieinfostrint&gt;_spd&gt;_int&gt;_wd&gt;_int&gt;_bus&gt;_int&gt;_dev&gt;_int&gt;_func"><code>PcieInfoStr(int spd, int wd, int bus, int dev, int func)</code><a class="headerlink" href="#pcieinfostrint&gt;_spd&gt;_int&gt;_wd&gt;_int&gt;_bus&gt;_int&gt;_dev&gt;_int&gt;_func" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::string PcieInfoStr(int spd, int wd, int bus, int dev, int func) const</code></li>
+<li><strong>Description</strong>: Returns PCIe information (speed, generation, etc.) as a string.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>spd</code>, <code>wd</code>, <code>bus</code>, <code>dev</code>, <code>func</code>: PCIe configuration parameters.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: A formatted string with PCIe information.</li>
+</ul>
+<hr />
+<h3 id="class&gt;_dxrttensor"><code>class dxrt::Tensor</code><a class="headerlink" href="#class&gt;_dxrttensor" title="Permanent link">&para;</a></h3>
+<p>This class abstracts a DXRT tensor object, which defines a data array composed of uniform elements.</p>
+<h4 id="constructor_1">Constructor<a class="headerlink" href="#constructor_1" title="Permanent link">&para;</a></h4>
+<h5 id="tensorstdstring&gt;_name&gt;_stdvectorint64&gt;_t&gt;_shape&gt;_datatype&gt;_type&gt;_void&gt;_data&gt;_nullptr"><code>Tensor(std::string name_, std::vector&lt;int64_t&gt; shape_, DataType type_, void *data_=nullptr)</code><a class="headerlink" href="#tensorstdstring&gt;_name&gt;_stdvectorint64&gt;_t&gt;_shape&gt;_datatype&gt;_type&gt;_void&gt;_data&gt;_nullptr" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Description</strong>: Constructs a Tensor object.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>name_</code>: The name of the tensor.</li>
+<li><code>shape_</code>: A vector defining the tensor's shape (dimensions).</li>
+<li><code>type_</code>: The tensor's data type.</li>
+<li><code>data_</code>: An optional pointer to the tensor's data.</li>
+</ul>
+</li>
+</ul>
+<h4 id="member&gt;_functions_3">Member Functions<a class="headerlink" href="#member&gt;_functions_3" title="Permanent link">&para;</a></h4>
+<h5 id="data"><code>data()</code><a class="headerlink" href="#data" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>void* &amp;data()</code></li>
+<li><strong>Description</strong>: Accessor for the tensor's data pointer.</li>
+<li><strong>Returns</strong>: A reference to the void pointer holding the tensor's data.</li>
+</ul>
+<h5 id="dataint&gt;_height&gt;_int&gt;_width&gt;_int&gt;_channel"><code>data(int height, int width, int channel)</code><a class="headerlink" href="#dataint&gt;_height&gt;_int&gt;_width&gt;_int&gt;_channel" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>void* data(int height, int width, int channel)</code></li>
+<li><strong>Description</strong>: Gets a pointer to a specific element by its index, assuming NHWC data layout.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>height</code>: The height index.</li>
+<li><code>width</code>: The width index.</li>
+<li><code>channel</code>: The channel index.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: A void pointer to the specified element.</li>
+</ul>
+<h5 id="elem&gt;_size"><code>elem_size()</code><a class="headerlink" href="#elem&gt;_size" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>uint32_t &amp;elem_size()</code></li>
+<li><strong>Description</strong>: Accessor for the size of a single element in the tensor.</li>
+<li><strong>Returns</strong>: A reference to the element size in bytes.</li>
+</ul>
+<h5 id="name"><code>name()</code><a class="headerlink" href="#name" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>const std::string &amp;name() const</code></li>
+<li><strong>Description</strong>: Accessor for the tensor's name.</li>
+<li><strong>Returns</strong>: A constant reference to the tensor's name string.</li>
+</ul>
+<h5 id="phy&gt;_addr"><code>phy_addr()</code><a class="headerlink" href="#phy&gt;_addr" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>uint64_t &amp;phy_addr()</code></li>
+<li><strong>Description</strong>: Accessor for the physical address of the tensor's data.</li>
+<li><strong>Returns</strong>: A reference to the physical address.</li>
+</ul>
+<h5 id="shape"><code>shape()</code><a class="headerlink" href="#shape" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>std::vector&lt;int64_t&gt; &amp;shape()</code></li>
+<li><strong>Description</strong>: Accessor for the tensor's shape.</li>
+<li><strong>Returns</strong>: A reference to the vector defining the tensor's dimensions.</li>
+</ul>
+<h5 id="size&gt;_in&gt;_bytes"><code>size_in_bytes()</code><a class="headerlink" href="#size&gt;_in&gt;_bytes" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>uint64_t size_in_bytes() const</code></li>
+<li><strong>Description</strong>: Calculates and returns the total size of the tensor's data in bytes based on its shape and element size.</li>
+<li><strong>Returns</strong>: The total size in bytes.</li>
+</ul>
+<h5 id="type"><code>type()</code><a class="headerlink" href="#type" title="Permanent link">&para;</a></h5>
+<ul>
+<li><strong>Signature</strong>: <code>DataType &amp;type()</code></li>
+<li><strong>Description</strong>: Accessor for the tensor's data type.</li>
+<li><strong>Returns</strong>: A reference to the <code>DataType</code> enum.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      ⓒ Copyright 2025 <a href="http://deepx.ai">DEEPX</a>. All Rights Reserved.
+    </div>
+  
+  
+</div>
+      
+        <div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://www.linkedin.com/company/deepx-corporation/" target="_blank" rel="noopener" title="www.linkedin.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5m282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "..", "features": ["toc.integrate", "content.code.annotate", "navigation.tabs", "navigation.tabs.sticky", "content.tabs.link", "content.code.copy"], "search": "../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.13a4f30d.min.js"></script>
+      
+        <script src="../javascripts/mathjax.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

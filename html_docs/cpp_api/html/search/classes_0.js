@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['devicestatus_93',['DeviceStatus',['../classdxrt_1_1DeviceStatus.html',1,'dxrt']]]
+  ['configuration_144',['Configuration',['../classdxrt_1_1Configuration.html',1,'dxrt']]]
 ];

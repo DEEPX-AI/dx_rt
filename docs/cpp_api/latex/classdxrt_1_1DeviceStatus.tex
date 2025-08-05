@@ -53,9 +53,15 @@ std\+::string \mbox{\hyperlink{classdxrt_1_1DeviceStatus_a96d56a215860360c237fd0
 \begin{DoxyCompactList}\small\item\em Retrieves the real-\/time status of the device. \end{DoxyCompactList}\item 
 uint32\+\_\+t \mbox{\hyperlink{classdxrt_1_1DeviceStatus_aeeede2b02a7384915a161f522dbebaa0}{Voltage}} (int ch) const
 \begin{DoxyCompactList}\small\item\em Retrieves the voltage level of the specified N\+PU channel. \end{DoxyCompactList}\item 
+uint32\+\_\+t \mbox{\hyperlink{classdxrt_1_1DeviceStatus_a67f94ba6a6ad2fe0f26ddbd1d5ea7ce7}{Get\+Npu\+Voltage}} (int ch) const
+\begin{DoxyCompactList}\small\item\em Retrieves the voltage level of the specified N\+PU channel. \end{DoxyCompactList}\item 
 uint32\+\_\+t \mbox{\hyperlink{classdxrt_1_1DeviceStatus_a6b59c9c20e5316cb4fd6ff585a14052c}{Npu\+Clock}} (int ch) const
 \begin{DoxyCompactList}\small\item\em Retrieves the clock frequency of the specified N\+PU channel. \end{DoxyCompactList}\item 
+uint32\+\_\+t \mbox{\hyperlink{classdxrt_1_1DeviceStatus_ab87b9113bdb9e56d31066a121b3675dc}{Get\+Npu\+Clock}} (int ch) const
+\begin{DoxyCompactList}\small\item\em Retrieves the clock frequency of the specified N\+PU channel. \end{DoxyCompactList}\item 
 int \mbox{\hyperlink{classdxrt_1_1DeviceStatus_ab241b8ae83657a81f973023d61b28d36}{Temperature}} (int ch) const
+\begin{DoxyCompactList}\small\item\em Retrieves the temperature of the specified N\+PU channel. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{classdxrt_1_1DeviceStatus_ad9f4b3625c9a72aaaa8e5bc70f75eb41}{Get\+Temperature}} (int ch) const
 \begin{DoxyCompactList}\small\item\em Retrieves the temperature of the specified N\+PU channel. \end{DoxyCompactList}\item 
 uint64\+\_\+t \mbox{\hyperlink{classdxrt_1_1DeviceStatus_a69ff2ada536e5098dc7a226eb9be974e}{Dma\+Channel}} () const
 \begin{DoxyCompactList}\small\item\em Retrieves the number of D\+MA (Direct Memory Access) channels available for the N\+PU. \end{DoxyCompactList}\item 
@@ -380,6 +386,46 @@ This function is useful for obtaining static device properties and verifying har
 \begin{DoxyReturn}{Returns}
 A formatted string containing device specifications. 
 \end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1DeviceStatus_ab87b9113bdb9e56d31066a121b3675dc}\label{classdxrt_1_1DeviceStatus_ab87b9113bdb9e56d31066a121b3675dc}} 
+\index{dxrt::DeviceStatus@{dxrt::DeviceStatus}!GetNpuClock@{GetNpuClock}}
+\index{GetNpuClock@{GetNpuClock}!dxrt::DeviceStatus@{dxrt::DeviceStatus}}
+\doxysubsubsection{\texorpdfstring{GetNpuClock()}{GetNpuClock()}}
+{\footnotesize\ttfamily uint32\+\_\+t dxrt\+::\+Device\+Status\+::\+Get\+Npu\+Clock (\begin{DoxyParamCaption}\item[{int}]{ch }\end{DoxyParamCaption}) const\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Retrieves the clock frequency of the specified N\+PU channel. 
+
+This function returns the current clock speed of the Neural Processing Unit (N\+PU) for a given channel, measured in megahertz (M\+Hz). The clock frequency may change dynamically depending on performance scaling settings.
+
+
+\begin{DoxyParams}{Parameters}
+{\em ch} & The N\+PU channel index for which clock speed is to be retrieved. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+The clock frequency of the specified N\+PU channel in megahertz (M\+Hz). 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1DeviceStatus_a67f94ba6a6ad2fe0f26ddbd1d5ea7ce7}\label{classdxrt_1_1DeviceStatus_a67f94ba6a6ad2fe0f26ddbd1d5ea7ce7}} 
+\index{dxrt::DeviceStatus@{dxrt::DeviceStatus}!GetNpuVoltage@{GetNpuVoltage}}
+\index{GetNpuVoltage@{GetNpuVoltage}!dxrt::DeviceStatus@{dxrt::DeviceStatus}}
+\doxysubsubsection{\texorpdfstring{GetNpuVoltage()}{GetNpuVoltage()}}
+{\footnotesize\ttfamily uint32\+\_\+t dxrt\+::\+Device\+Status\+::\+Get\+Npu\+Voltage (\begin{DoxyParamCaption}\item[{int}]{ch }\end{DoxyParamCaption}) const\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Retrieves the voltage level of the specified N\+PU channel. 
+
+This function returns the operating voltage of the Neural Processing Unit (N\+PU) for a given channel, measured in millivolts (mV). The voltage level can vary depending on power management settings and workload.
+
+
+\begin{DoxyParams}{Parameters}
+{\em ch} & The N\+PU channel index for which voltage is to be retrieved. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+The voltage level of the specified N\+PU channel in millivolts (mV). 
+\end{DoxyReturn}
 \mbox{\Hypertarget{classdxrt_1_1DeviceStatus_a96d56a215860360c237fd0cabe5a59e3}\label{classdxrt_1_1DeviceStatus_a96d56a215860360c237fd0cabe5a59e3}} 
 \index{dxrt::DeviceStatus@{dxrt::DeviceStatus}!GetStatusString@{GetStatusString}}
 \index{GetStatusString@{GetStatusString}!dxrt::DeviceStatus@{dxrt::DeviceStatus}}
@@ -409,6 +455,26 @@ This function is useful for monitoring the device real-\/time operational status
 
 \begin{DoxyReturn}{Returns}
 A formatted string containing real-\/time device status information. 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classdxrt_1_1DeviceStatus_ad9f4b3625c9a72aaaa8e5bc70f75eb41}\label{classdxrt_1_1DeviceStatus_ad9f4b3625c9a72aaaa8e5bc70f75eb41}} 
+\index{dxrt::DeviceStatus@{dxrt::DeviceStatus}!GetTemperature@{GetTemperature}}
+\index{GetTemperature@{GetTemperature}!dxrt::DeviceStatus@{dxrt::DeviceStatus}}
+\doxysubsubsection{\texorpdfstring{GetTemperature()}{GetTemperature()}}
+{\footnotesize\ttfamily int dxrt\+::\+Device\+Status\+::\+Get\+Temperature (\begin{DoxyParamCaption}\item[{int}]{ch }\end{DoxyParamCaption}) const\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Retrieves the temperature of the specified N\+PU channel. 
+
+This function returns the operating temperature of the Neural Processing Unit (N\+PU) for a given channel, measured in degrees Celsius. Monitoring the temperature is crucial for ensuring the N\+PU operates within safe thermal limits.
+
+
+\begin{DoxyParams}{Parameters}
+{\em ch} & The N\+PU channel index for which temperature is to be retrieved. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+The temperature of the specified N\+PU channel in degrees Celsius. 
 \end{DoxyReturn}
 \mbox{\Hypertarget{classdxrt_1_1DeviceStatus_a3603b4c0e084ef9dcfea41fc98773d69}\label{classdxrt_1_1DeviceStatus_a3603b4c0e084ef9dcfea41fc98773d69}} 
 \index{dxrt::DeviceStatus@{dxrt::DeviceStatus}!MemoryClock@{MemoryClock}}
