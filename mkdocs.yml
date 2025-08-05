@@ -11,7 +11,7 @@ theme:
     #code: Noto Sans 
     code: Roboto Mono 
   logo: ./img/deepx.png
-  favicon: ./img/favicon.png
+  #favicon: ./img/favicon.png
   palette:
     # Palette toggle for light mode
     - scheme: default
@@ -39,12 +39,15 @@ nav:
   - Installation on Windows: docs/03_Installation_on_Windows.md
   - Model Inference: docs/04_Model_Inference.md
   - Command Line Interface: docs/05_Command_Line_Interface.md  
+  - Inference API Guide: docs/06_Inference_API.md
+  - Multi-input Inference Guide: docs/07_Multi_Input_Inference.md
+  - Configuration and DeviceStatus Guide: docs/08_Global_Instance.md
   - Tutorials:
-      - C++ Tutorials: docs/06_01_C++_Tutorials.md
-      - Python Tutorials: docs/06_02_Python_Tutorials.md
+      - C++ Tutorials: docs/09_01_C++_Tutorials.md
+      - Python Tutorials: docs/09_02_Python_Tutorials.md
   - API Reference:
-      - C++ API Reference: docs/07_01_C++_API_Reference.md
-      - Python API Reference: docs/07_02_Python_API_Reference.md
+      - C++ API Reference: docs/10_01_C++_API_Reference.md
+      - Python API Reference: docs/10_02_Python_API_Reference.md
   - Change Log: docs/Appendix_Change_Log.md
 
 plugins:
@@ -53,10 +56,10 @@ plugins:
       author: DEEPX.ai
       copyright: ⓒ Copyright 2025 DEEPX All Rights Reserved.
       cover_title: DXNN Runtime (DX-RT) User Manual
-      cover_subtitle: v2.9.5
+      cover_subtitle: v3.0.0
       cover_logo: img/deepx.png
       custom_template_path: docs/stylesheets
-      output_path: ../docs/DEEPX_DX-RT_UM_v2.9.5.pdf
+      output_path: ../docs/DEEPX_DX-RT_UM_v3.0.0.pdf
 extra:
   generator: false
   social:

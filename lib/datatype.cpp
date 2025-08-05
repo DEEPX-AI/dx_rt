@@ -3,12 +3,12 @@
 
 #include "dxrt/common.h"
 #include "dxrt/datatype.h"
-
-using namespace std;
+#include <string>
+#include <iostream>
 
 namespace dxrt {
 
-DXRT_API string DataTypeToString(DataType type)
+DXRT_API std::string DataTypeToString(DataType type)
 {
     switch (type) {
         case dxrt::DataType::NONE_TYPE: return "NONE_TYPE";

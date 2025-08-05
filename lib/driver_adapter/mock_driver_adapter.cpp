@@ -3,7 +3,7 @@
 
 #include "dxrt/driver_adapter/mock_driver_adapter.h"
 
-using namespace dxrt;
+namespace dxrt {
 
 // input & output control
 int32_t Mock_DriverAdapter::IOControl(dxrt_cmd_t request, void* data, uint32_t size, uint32_t sub_cmd)
@@ -37,7 +37,7 @@ int32_t Mock_DriverAdapter::Read(void* buffer, uint32_t size)
 // standalone only
 
 // Memory Map
-//note : int __prot = PROT_READ|PROT_WRITE,int __flags =  MAP_SHARED,
+// note : int __prot = PROT_READ|PROT_WRITE,int __flags =  MAP_SHARED,
 void* Mock_DriverAdapter::MemoryMap(void *__addr, size_t __len, off_t __offset)
 {
     (void)__addr;
@@ -48,9 +48,10 @@ void* Mock_DriverAdapter::MemoryMap(void *__addr, size_t __len, off_t __offset)
 }
 
 // Poll
-//note : nfds_t __nfds = 1, int __timeout = DEVICE_POLL_LIMIT_MS
+// note : nfds_t __nfds = 1, int __timeout = DEVICE_POLL_LIMIT_MS
 int32_t Mock_DriverAdapter::Poll()
 {
-
     return 0;
 }
+
+}  // namespace dxrt

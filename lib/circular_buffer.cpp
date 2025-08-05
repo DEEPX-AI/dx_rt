@@ -3,8 +3,8 @@
 
 #include "dxrt/circular_buffer.h"
 #include "dxrt/exception/exception.h"
-
-using namespace std;
+#include <mutex>
+#include <vector>
 
 namespace dxrt {
 template <typename T>
@@ -17,7 +17,7 @@ CircularBuffer<T>::CircularBuffer(int size)
 template <typename T>
 void CircularBuffer<T>::Push(const T& item)
 {
-    unique_lock<mutex> lk(_lock);
+    std::unique_lock<std::mutex> lk(_lock);
     _buf[_head] = item;
     _head = (_head + 1)%_size;
     if(_count==_size)
@@ -33,7 +33,7 @@ void CircularBuffer<T>::Push(const T& item)
 template <typename T>
 T CircularBuffer<T>::Pop()
 {
-    unique_lock<mutex> lk(_lock);
+    std::unique_lock<std::mutex> lk(_lock);
     //DXRT_ASSERT(_count>0, "circular buffer is empty.");
     if ( _count <= 0 ) throw InvalidOperationException(EXCEPTION_MESSAGE("circular buffer is empty"));
     T item = _buf[_tail];
@@ -45,7 +45,7 @@ T CircularBuffer<T>::Pop()
 template <typename T>
 T CircularBuffer<T>::Get()
 {
-    unique_lock<mutex> lk(_lock);
+    std::unique_lock<std::mutex> lk(_lock);
     //DXRT_ASSERT(_count>0, "circular buffer is empty.");
     if ( _count <= 0 ) throw InvalidOperationException(EXCEPTION_MESSAGE("circular buffer is empty"));
     T item = _buf[(_head - 1 + _size)%_size];
@@ -55,36 +55,36 @@ T CircularBuffer<T>::Get()
 template <typename T>
 bool CircularBuffer<T>::IsEmpty()
 {
-    unique_lock<mutex> lk(_lock);
+    std::unique_lock<std::mutex> lk(_lock);
     return _count==0;
 }
 
 template <typename T>
 bool CircularBuffer<T>::IsFull()
 {
-    unique_lock<mutex> lk(_lock);
+    std::unique_lock<std::mutex> lk(_lock);
     return _count==_size;
 }
 
 template <typename T>
 int CircularBuffer<T>::size()
 {
-    unique_lock<mutex> lk(_lock);
+    std::unique_lock<std::mutex> lk(_lock);
     return _size;
 }
 
 template <typename T>
 int CircularBuffer<T>::count()
 {
-    unique_lock<mutex> lk(_lock);
+    std::unique_lock<std::mutex> lk(_lock);
     return _count;
 }
 
 template <typename T>
-vector<T> CircularBuffer<T>::ToVector()
+std::vector<T> CircularBuffer<T>::ToVector()
 {
-    unique_lock<mutex> lk(_lock);
-    vector<T> ret;
+    std::unique_lock<std::mutex> lk(_lock);
+    std::vector<T> ret;
     ret.reserve(_count);
     int cur = _tail;
     for(int i=0; i<_count; i++)

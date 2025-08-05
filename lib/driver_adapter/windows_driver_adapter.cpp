@@ -34,7 +34,7 @@ int32_t WindowsDriverAdapter::IOControl(dxrt_cmd_t request, void* data, uint32_t
 {
     OVERLAPPED overlappedSend1 = {};
     overlappedSend1.hEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
-    int ret;
+    int ret = 0;
     dxrt_message_t msg;
     msg.cmd = static_cast<int32_t>(request);
     msg.sub_cmd = static_cast<int32_t>(sub_cmd),

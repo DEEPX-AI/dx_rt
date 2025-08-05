@@ -103,4 +103,9 @@ bool Worker::isStopped()
     return (_stopCount.load() > 0);
 }
 
+void Worker::UnHold()
+{
+    _hold = false;
+}
+
 }  // namespace dxrt
