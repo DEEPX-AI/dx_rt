@@ -12,12 +12,10 @@
 #include <atomic>
 #include <map>
 
-#include "dxrt/common.h"
 #include "dxrt/tensor.h"
 #include "dxrt/request.h"
 #include "dxrt/task.h"
 #include "dxrt/driver.h"
-#include "dxrt/inference_timer.h"
 
 namespace dxrt {
 class Task;

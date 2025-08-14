@@ -123,7 +123,7 @@ void SchedulerService::FinishJobs(int deviceId, const dxrt::dxrt_response_t& res
         }
             else
         {
-            std::cout << "SCHEDULER FAULT2 "<< proc_id << " " << req_id << endl;
+            LOG_DXRT_S_DBG << "SCHEDULER FAULT2 "<< proc_id << " " << req_id << endl;
         }
     }
 }

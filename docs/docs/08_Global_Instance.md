@@ -1,25 +1,24 @@
-# Global Instance
-## Configuration
-The `Configuration` class is a central component for managing global application settings for the DXRT library. It provides a consistent and thread-safe point of access for querying and modifying configuration parameters.
+This chapter introduces global utility classes provided by the **DX-RT** SDK for managing configuration settings and querying device status. These classes are implemented as singletons to ensure consistent state across C++ and Python, enabling centralized control over runtime behavior and hardware monitoring.
 
-This guide covers usage for both **C++** and **Python**. The class is designed as a **singleton**, meaning only one instance of the configuration manager exists. The Python class acts as a wrapper around the core C++ singleton, so all instances in C++ and Python share the same state.
+## Configuration Management
+
+The `Configuration` class serves as the centralized interface for managing global runtime settings in the **DX-RT** library. Designed as a thread-safe singleton, it ensures consistent configuration across both C++ and Python environments. In Python, this class wraps the underlying C++ singleton, maintaining a shared state between the two languages.  
 
 **Key Features:**
 
-  * **Singleton Pattern**: Guarantees a single, globally accessible configuration instance.
-  * **Dynamic Configuration**: Allows enabling/disabling features and setting attributes at runtime.
-  * **Version Reporting**: Provides methods to retrieve library and driver versions.
-  * **Language Support**: Available in both C++ and Python.
+  * **Singleton Design**: Guarantees a single, globally accessible configuration instance.
+  * **Runtime Configurability**:  Supports dynamic enabling/disabling of features and real-time attribute updates.
+  * **Version Access**:  Provides functions to retrieve library, driver, and device version information.
+  * **Cross-Language Support**: Fully accessible from both C++ and Python with identical behavior.
 
------
+---
 
-### Getting an Instance
+### Obtaining the Configuration Instance
 
-How you get the configuration object differs slightly between C++ and Python.
+The method of accessing the global Configuration object differs slightly between C++ and Python, but both ensure interaction with the same underlying singleton.  
 
-***C++***
-
-In C++, you must access the single instance through the static `GetInstance()` method. The constructor is private to enforce the singleton pattern.
+**C++**
+In C++, the configuration instance **must** be retrieved using the static method `GetInstance()`. The constructor is private to enforce the singleton pattern.  
 
 ```cpp
 #include "dxrt/common.h"
@@ -31,9 +30,8 @@ dxrt::Configuration& config = dxrt::Configuration::GetInstance();
 // dxrt::Configuration myConfig; // Error: constructor is private
 ```
 
-***Python***
-
-In Python, you create an instance using the standard constructor. Internally, this constructor retrieves the single, underlying C++ instance. All Python `Configuration` objects will therefore refer to the same settings.
+**Python**
+In Python, the Configuration class can be instantiated directly. Internally, this constructor accesses the shared C++ singleton, ensuring all instances reflect the same state.  
 
 ```python
 from dx_engine.configuration import Configuration
@@ -43,15 +41,16 @@ from dx_engine.configuration import Configuration
 config = Configuration()
 ```
 
------
+Regardless of language, all operations performed on the Configuration instance affect the global runtime state.  
 
-### Configuration Scopes: ITEM and ATTRIBUTE
+---
 
-Configuration is organized around two enumerations, `ITEM` and `ATTRIBUTE`, which are used in both C++ and Python.
+### Configuration Scopes: `ITEM` and `ATTRIBUTE`
 
-#### ITEM
+The Configuration interface organizes runtime settings using two scoped enumerations: `ITEM` and `ATTRIBUTE`. These are supported consistently in both C++ and Python.  
 
-An `ITEM` represents a major feature or module that can be enabled or disabled.
+***ITEM***  
+An `ITEM` represents a high-level feature or module within the **DX-RT** that can be enabled or disabled. Common examples include runtime profiling, logging, or device tracing.
 
 | Item | Description |
 | :--- | :--- |
@@ -64,27 +63,26 @@ An `ITEM` represents a major feature or module that can be enabled or disabled.
 | `SHOW_PROFILE` | Enables the display of profile results. |
 | `SHOW_MODEL_INFO` | Enables the display of detailed model information. |
 
-#### ATTRIBUTE
 
-An `ATTRIBUTE` represents a specific property of an `ITEM`, usually set with a string value like a file path.
+***ATTRIBUTE***  
+An `ATTRIBUTE` defines a property associated with a specific ITEM. It is typically used to set or retrieve string-based values such as file paths, flags, or operational modes.   
 
 | Attribute | Associated `ITEM` | Description |
 | :--- | :--- | :--- |
 | `PROFILER_SHOW_DATA` | `PROFILER` | Attribute for showing profiler data. |
 | `PROFILER_SAVE_DATA` | `PROFILER` | Attribute for saving profiler data to a file. |
 
------
+---
 
-### Key Operations and Usage
+### Core Operations and  Examples
 
-This section details the main operations with examples for both languages.
+This section outlines the primary operations supported by the Configuration class, with usage examples for both C++ and Python.
 
 #### Enabling and Disabling Features
 
-Use these methods to turn features on or off and check their current status.
+Enable or disable specific runtime modules using the `ITEM` enumeration. This allows dynamic control over major DXRT features at runtime.
 
-***C++***
-
+**C++**
 ```cpp
 // Enable the profiler
 config.SetEnable(dxrt::Configuration::ITEM::PROFILER, true);
@@ -95,8 +93,7 @@ if (config.GetEnable(dxrt::Configuration::ITEM::PROFILER)) {
 }
 ```
 
-***Python***
-
+**Python**
 ```python
 # Enable showing model information
 config.set_enable(Configuration.ITEM.SHOW_MODEL_INFO, True)
@@ -108,10 +105,9 @@ print(f"SHOW_MODEL_INFO is enabled: {is_enabled}")
 
 #### Working with Attributes
 
-For more fine-grained control, use attributes to set and get string-based values.
+Configure detailed runtime behavior by setting or retrieving string-based values using the ATTRIBUTE enumeration. `Attributes` are typically tied to a specific `ITEM`.  
 
-***C++***
-
+**C++**
 ```cpp
 // First, ensure the parent item is enabled
 config.SetEnable(dxrt::Configuration::ITEM::PROFILER, true);
@@ -127,8 +123,7 @@ std::string saved_path = config.GetAttribute(dxrt::Configuration::ITEM::PROFILER
                                               dxrt::Configuration::ATTRIBUTE::PROFILER_SAVE_DATA);
 ```
 
-***Python***
-
+**Python**
 ```python
 # First, ensure the parent item is enabled
 config.set_enable(Configuration.ITEM.PROFILER, True)
@@ -147,10 +142,9 @@ print(f"Profiler data will be saved to: {saved_path}")
 
 #### Retrieving Version Information
 
-These methods are critical for debugging, logging, and ensuring system compatibility.
+Query the current DXRT library and driver versions. These functions are essential for debugging, compatibility checks, and system diagnostics.  
 
-***C++***
-
+**C++**
 ```cpp
 #include <vector>
 #include <utility>
@@ -170,38 +164,34 @@ try {
 }
 ```
 
-***Python***
-
+**Python**
 ```python
 print(f"Library Version: {config.get_version()}")
 print(f"Driver Version: {config.get_driver_version()}")
 print(f"PCIe Driver Version: {config.get_pcie_driver_version()}")
 ```
 
------
+---
 
-## DeviceStatus
+## Device Status Monitoring
 
-The `DeviceStatus` class is designed to provide a **snapshot** of a device's state. When you obtain a `DeviceStatus` object, it captures the device's properties (like model and memory) and real-time metrics (like temperature and clock speed) at that specific moment.
+The `DeviceStatus` class provides a real-time snapshot of the NPU device's state, including static properties (e.g., model name, memory) and dynamic metrics (e.g., temperature, clock speed). Each instance represents the status of a specific device at the time it was queried.  
 
-The general workflow is:
+**Workflow Overview:**  
 
-  - Use a **static/class method** to find the number of available devices.
-  - Use another **static/class method** to get a status object for a specific device ID.
-  - Use **instance methods** on that object to retrieve the data you need.
-
------
+  - Retrieve the total number of available devices.
+  - Access a specific device's status using its device ID.
+  - Query hardware information and real-time metrics via instance methods.
 
 ### Getting Started: Accessing Devices
 
-The first step is always to find out how many devices are available and then create a status object for the one you want to inspect.
+The first step is always to find out how many devices are available and then create a status object for the one you want to inspect. To monitor a device's status, begin by checking how many NPU devices are available, then retrieve the status object for the desired device.  
 
 #### Step 1: Get the Device Count
 
-Use the static methods below to determine how many NPU devices are recognized by the system.
+Use the static method to determine how many devices are currently recognized by the system.  
 
-***C++***
-
+**C++**
 ```cpp
 #include "dxrt/dxrt_api.h" // Main C++ header
 
@@ -209,8 +199,7 @@ int deviceCount = dxrt::DeviceStatus::GetDeviceCount();
 std::cout << "Found " << deviceCount << " devices." << std::endl;
 ```
 
-***Python***
-
+**Python**
 ```python
 from dx_engine.dev_status import DeviceStatus # Main Python class
 
@@ -218,47 +207,44 @@ device_count = DeviceStatus.get_device_count()
 print(f"Found {device_count} devices.")
 ```
 
-#### Step 2: Get the Status Object
+#### Step 2: Retrieve the Device Status
 
-Once you have the count, you can get a status object for any valid device ID (from `0` to `device_count - 1`).
+Once the count is known, access the status object using a valid device ID (`0` to `device_count - 1`).  
 
-***C++***
-It's crucial to use a `try...catch` block, as requesting an invalid ID will throw an exception.
+**C++**  
+Use a `try...catch` block to handle invalid IDs safely:
 
 ```cpp
 try {
     // Get a status snapshot for device with ID 0
     dxrt::DeviceStatus status = dxrt::DeviceStatus::GetCurrentStatus(0);
     std::cout << "Successfully created status object for device " << status.GetId() << std::endl;
-} catch (const std::exception& e) {
+} catch (const dxrt::Exception& e) {
     std::cerr << "Error: " << e.what() << std::endl;
 }
 ```
 
-***Python***
-The factory method `get_current_status()` returns a `DeviceStatus` object.
+**Python**  
+Use the factory method `get_current_status()` to get a `DeviceStatus` object:  
 
 ```python
-if device_count > 0:
     # Get the status object for the first device (ID 0)
     status_obj = DeviceStatus.get_current_status(0)
     print(f"Successfully created status object for device ID: {status_obj.get_id()}")
 ```
 
------
+---
 
-### Querying Device Information
+### Querying Device Properties and Metrics
 
-With a `DeviceStatus` object, you can access a wealth of information.
+Once you obtain a `DeviceStatus` object, you can retrieve both static hardware properties and real-time operational metrics of the NPU device.  
 
 #### Formatted Summary Strings (C++ Only)
 
-For quick logging or command-line display, the C++ class offers powerful helper methods that return a pre-formatted, human-readable string summary. These are equivalent to the `dxrt-cli` tool's output.
+For quick diagnostic logging or CLI-style output, the C++ API provides helper methods that return structured, human-readable summaries:  
 
-  - **`GetInfoString()`**: Returns static hardware info (model, memory, board, firmware).
-  - **`GetStatusString()`**: Returns dynamic real-time status (NPU voltage, clock, temp, DVFS state).
-
-<!-- end list -->
+  - **`GetInfoString()`**: Returns static hardware info (model, memory, board, firmware).  
+  - **`GetStatusString()`**: Returns dynamic real-time status (NPU voltage, clock, temp, DVFS state).  
 
 ```cpp
 // Print static hardware information
@@ -270,7 +256,7 @@ std::cout << "--- Real-time Status ---\n" << status.GetStatusString() << std::en
 
 #### Accessing Specific Attributes (C++ and Python)
 
-For programmatic access, use the instance methods to get individual data points.
+For programmatic use, both C++ and Python interfaces offer methods to retrieve specific values from the status object:  
 
 | Metric | C++ Method | Python Method | Return Value |
 | :--- | :--- | :--- | :--- |
@@ -279,17 +265,17 @@ For programmatic access, use the instance methods to get individual data points.
 | **NPU Voltage** | `GetNpuVoltage(ch)` | `get_npu_voltage(ch)` | `uint32_t` / `int` (mV) |
 | **NPU Clock** | `GetNpuClock(ch)` | `get_npu_clock(ch)` | `uint32_t` / `int` (MHz) |
 
-*Note: The C++ API provides a richer set of methods for querying static hardware details like memory, board type, and device variants.*
+> **NOTE.**  
+> The C++ API provides a richer set of methods for querying static hardware details like memory, board type, and device variants.
 
------
+---
 
-### Complete Usage Examples 📋
+### Complete Usage Examples 
 
-Here is a complete example for each language, showing how to iterate through all devices and print their status.
+This section demonstrates how to iterate through all available NPU devices and retrieve their status information using both C++ and Python.  
 
-#### C++ Example
-
-This example uses the formatted string helpers for a concise report.
+**C++**  
+The following example uses `GetDeviceCount()` and `GetStatusString()` to print a summary for each device:  
 
 ```cpp
 #include <iostream>
@@ -345,9 +331,8 @@ int main() {
 }
 ```
 
-#### Python Example
-
-This example iterates through each device and NPU core to print specific metrics.
+**Python**  
+In Python, use `DeviceStatus.get_device_count()` and `DeviceStatus.get_current_status()` to inspect device metrics:  
 
 ```python
 from dx_engine.dev_status import DeviceStatus
@@ -380,3 +365,5 @@ def main():
 if __name__ == "__main__":
     main()
 ```
+
+---

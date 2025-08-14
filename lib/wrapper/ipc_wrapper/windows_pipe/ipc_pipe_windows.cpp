@@ -45,13 +45,13 @@ int32_t IPCPipeWindows::SendOL(LPCVOID message, int32_t messageLength, LPDWORD b
 				fSuccess = TRUE ;
 			}
 			else {
-				printf("WriteFile to pipe failed. GLE=%d\n, handle=%lld\n", GetLastError(), reinterpret_cast<uint64_t>(_hPipe)); // return -1;
+				LOG_DXRT_I_ERR("WriteFile to pipe failed. GLE=" << GetLastError() << ", handle=" << reinterpret_cast<uint64_t>(_hPipe)); // return -1;
 				if (GetLastError() == ERROR_NO_DATA)return -1;	// pipe is closing;
 				if (GetLastError() == ERROR_INVALID_HANDLE) return -1;  // pipe is closing
 
 				if (_hPipe == INVALID_HANDLE_VALUE)
 				{
-					printf("pipe is invalid value %d\n", GetLastError());
+					LOG_DXRT_I_ERR("pipe is invalid value " << GetLastError());
 					return -1; //closed pipe
 				}
 
@@ -95,7 +95,7 @@ int32_t IPCPipeWindows::ReceiveOL(LPVOID buffer, int32_t bytesToRead, LPDWORD by
 				fSuccess = true;
 			}
 			else {
-				printf("ReadFile from pipe failed. GLE=%d\n, handle %lld\n", GetLastError(), reinterpret_cast<uint64_t>(_hPipe));
+				LOG_DXRT_I_ERR("ReadFile from pipe failed. GLE=" << GetLastError() << ", handle " << reinterpret_cast<uint64_t>(_hPipe));
 				if (GetLastError() == ERROR_NO_DATA)return -1;	// pipe is closing;
 			}
 		}
@@ -104,7 +104,7 @@ int32_t IPCPipeWindows::ReceiveOL(LPVOID buffer, int32_t bytesToRead, LPDWORD by
 		// if (!fSuccess && GetLastError() != ERROR_MORE_DATA) break;
 #endif
 	} while (!fSuccess);  // repeat loop if ERROR_MORE_DATA
-	// if (!fSuccess) { printf("ReadFile from pipe failed. GLE=%d\n", GetLastError()); return -1; }
+	// if (!fSuccess) { LOG_DXRT_I_ERR("ReadFile from pipe failed. GLE=" << GetLastError()); return -1; }
 	return *byteRead;
 }
 
@@ -117,9 +117,9 @@ int32_t IPCPipeWindows::Send(LPCVOID message, int32_t messageLength, LPDWORD byt
 	BOOL fSuccess = WriteFile(_hPipe, message, messageLength, byteWritten, NULL);
 	// if (!fSuccess || messageLength != *byteWritten) {
 	if (!fSuccess) {
-		printf("WriteFile to pipe failed. GLE=%d\n", GetLastError()); return -1;
+		LOG_DXRT_I_ERR("WriteFile to pipe failed. GLE=" << GetLastError()); return -1;
 	}
-	printf("\nMessage sent to server(%d len), receiving reply as follows:\n", *byteWritten);
+	LOG_DXRT_I_DBG << "Message sent to server(" << *byteWritten << " len), receiving reply as follows:" << std::endl;
 	return *byteWritten;
 }
 int32_t IPCPipeWindows::Receive(LPVOID buffer, int32_t bytesToRead, LPDWORD byteRead)
@@ -160,7 +160,7 @@ void IPCPipeWindows::InitClient()
 {
 	if (IsAvailable())	return;
 	while (1) {
-		printf("Pipe Client : IPCPipeWindows::InitClient at RT, PipeName=%s\n", PIPE_NAME);
+		LOG_DXRT_I_DBG << "Pipe Client : IPCPipeWindows::InitClient at RT, PipeName=" << PIPE_NAME << std::endl;
 		_hPipe = CreateFile(
 			PIPE_NAME,   // pipe name
 			GENERIC_READ |  GENERIC_WRITE,
@@ -174,16 +174,16 @@ void IPCPipeWindows::InitClient()
 		if (_hPipe != INVALID_HANDLE_VALUE) break;
 		// Exit if an error other than ERROR_PIPE_BUSY occurs.
 		if (GetLastError() != ERROR_PIPE_BUSY) {
-			printf("Could not open pipe. GLE=%d\n", GetLastError());
+			LOG_DXRT_I_ERR("Could not open pipe. GLE=" << GetLastError());
 			return;
 		}
 		// All pipe instances are busy, so wait for 5 seconds.
 		if (!WaitNamedPipe(PIPE_NAME, 5000)) {
-			printf("Could not open pipe: 20 second wait timed out.");
+			LOG_DXRT_I_ERR("Could not open pipe: 20 second wait timed out.");
 			return;
 		}
 	}
-	printf("IPCPipeWindows::InitClient at RT : Success\n");
+	LOG_DXRT_I_DBG << "IPCPipeWindows::InitClient at RT : Success" << std::endl;
 	// The pipe connected; change to message-read mode.
 	DWORD dwMode = PIPE_READMODE_MESSAGE;
 	BOOL   fSuccess = SetNamedPipeHandleState(
@@ -192,12 +192,12 @@ void IPCPipeWindows::InitClient()
 		NULL,     // don't set maximum bytes
 		NULL);    // don't set maximum time
 	if (!fSuccess) {
-		printf("SetNamedPipeHandleState failed. GLE=%d\n", GetLastError());
+		LOG_DXRT_I_ERR("SetNamedPipeHandleState failed. GLE=" << GetLastError());
 	}
 }
 void IPCPipeWindows::InitServer()
 {
-	printf("\nPipe Server: before CreateNamedPipe on %s\n", PIPE_NAME);
+	LOG_DXRT_I_DBG << "Pipe Server: before CreateNamedPipe on " << PIPE_NAME << std::endl;
 	constexpr int szBuf = 4096;
 	_hPipe = CreateNamedPipe(
 		PIPE_NAME,             		// pipe name
@@ -213,14 +213,14 @@ void IPCPipeWindows::InitServer()
 		0,                        	// client time-out
 		NULL);                    	// default security attribute
 	if (_hPipe == INVALID_HANDLE_VALUE) {
-		printf("CreateNamedPipe failed, GLE=%d.\n", GetLastError()); return;
+		LOG_DXRT_I_ERR("CreateNamedPipe failed, GLE=" << GetLastError() << "."); return;
 	}
 	// Wait for the client to connect; if it succeeds, the function returns a nonzero value.
 	// If the function returns zero, GetLastError returns ERROR_PIPE_CONNECTED.
-	printf("\nPipe Server: waiting client connection on %s\n", PIPE_NAME);
+	LOG_DXRT_I_DBG << "Pipe Server: waiting client connection on " << PIPE_NAME << std::endl;
 	BOOL fConnected = ConnectNamedPipe(_hPipe, NULL) ? TRUE : (GetLastError() == ERROR_PIPE_CONNECTED);
 	if (!fConnected) { CloseHandle(_hPipe); _hPipe = INVALID_HANDLE_VALUE; return; }
-	printf("\nPipe Server: connected client connection on %s\n", PIPE_NAME);
+	LOG_DXRT_I_DBG << "Pipe Server: connected client connection on " << PIPE_NAME << std::endl;
 #if 0
 	while (true) {
 		BOOL fConnected = ConnectNamedPipe(_hPipe, NULL);

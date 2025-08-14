@@ -1,11 +1,11 @@
-#include <memory>
+//#include <memory>
 #include <set>
 #include <map>
 #include <iostream>
 #include "dxrt/common.h"
-#include "dxrt/ipc_wrapper/ipc_message.h"
-#include "dxrt/ipc_wrapper/ipc_server_wrapper.h"
-#include "dxrt/ipc_wrapper/ipc_server.h"
+//#include "dxrt/ipc_wrapper/ipc_message.h"
+//#include "dxrt/ipc_wrapper/ipc_server_wrapper.h"
+//#include "dxrt/ipc_wrapper/ipc_server.h"
 #include "dxrt/memory.h"
 #include "dxrt/device.h"
 #include "memory_service.hpp"

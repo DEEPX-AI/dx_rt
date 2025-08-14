@@ -335,9 +335,14 @@ void CpuHandle::RunWithSession(RequestPtr req, std::shared_ptr<Ort::Session> ses
     auto task = req->task();
 
     // Set output tensors with proper buffer
-    // req->getData()->outputs_ptr is now pointing to the first address of continuous memory
-    // task->outputs() applies the correct offset to set data pointer for each tensor
-    req->setOutputs(task->outputs(req->getData()->outputs_ptr));
+    // If outputs are already prepared (e.g., mapped to user output buffer with global offsets), keep them.
+    // Otherwise, build tensors from task-local offsets based on output_buffer_base.
+    if (req->outputs().empty())
+    {
+        // req->getData()->output_buffer_base is the base address of continuous memory for this request
+        // task->outputs() applies task-local offsets to set data pointer for each tensor
+        req->setOutputs(task->outputs(req->getData()->output_buffer_base));
+    }
 
     std::vector<Ort::Value> inputTensors, outputTensors;
     Ort::MemoryInfo memoryInfo =

@@ -913,6 +913,15 @@ PYBIND11_MODULE(_pydxrt, m) {
             [](InferenceOption &opt, const std::vector<int> &new_devices) { opt.devices = new_devices; } // Setter
         );
 
+    // Runtime support query for ORT (reflects compile-time flag USE_ORT)
+    m.def("is_ort_supported", []() -> bool {
+#ifdef USE_ORT
+        return true;
+#else
+        return false;
+#endif
+    }, "Returns True if this build supports ONNX Runtime (USE_ORT), otherwise False.");
+
     // InferenceEngine class binding (member functions are bound directly)
     py::class_<InferenceEngine>(m, "InferenceEngine")
         .def(py::init<const std::string&, InferenceOption&>(),

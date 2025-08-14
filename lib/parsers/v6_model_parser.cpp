@@ -11,6 +11,7 @@
 #include "../resource/log_messages.h"
 #include "dxrt/extern/rapidjson/writer.h"
 #include "dxrt/extern/rapidjson/stringbuffer.h"
+#include "dxrt/common.h"
 
 using std::vector;
 using std::string;
@@ -1062,7 +1063,7 @@ int V6ModelParser::LoadGraphInfo(deepx_graphinfo::GraphInfoDatabase& param, Mode
     document.Parse(graphInfoBuffer.c_str());
 
     if (document.HasParseError()) {
-        std::cerr << "No graphinfo (" << document.GetParseError() << ")" << std::endl;
+        LOG_DXRT_ERR("No graphinfo (" << document.GetParseError() << ")");
         return -1;
     }
 

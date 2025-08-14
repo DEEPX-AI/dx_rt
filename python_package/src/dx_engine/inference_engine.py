@@ -46,6 +46,19 @@ class InferenceEngine:
                 raise TypeError("inference_option must be an instance of dx_engine.InferenceOption or None.")
             current_option_instance = inference_option
         
+        # If this build does not support ORT, force-disable it to avoid runtime exceptions
+        try:
+            if hasattr(C, 'is_ort_supported') and not C.is_ort_supported():
+                if current_option_instance.use_ort:
+                    warnings.warn(
+                        "USE_ORT is disabled in this build. Forcing InferenceOption.use_ort to False.",
+                        RuntimeWarning,
+                    )
+                    current_option_instance.use_ort = False
+        except Exception:
+            # If capability check is unavailable, proceed; C++ side will still guard.
+            pass
+        
         try:
             self.engine = C.InferenceEngine(model_path, current_option_instance.instance)
         except Exception as e:

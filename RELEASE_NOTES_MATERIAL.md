@@ -1,3 +1,20 @@
+## PR 618 NOTHING NEW
+## PR 616
+### 1. Changed
+- Update user guide document
+### 2. Fixed
+### 3. Added
+## PR 613
+### 1. Changed
+### 2. Fixed
+- Force-disabled with a warning instead of throwing a runtime exception in builds that don't support USE_ORT.
+### 3. Added
+## PR 612 NOTHING NEW
+## PR 611
+### 1. Changed
+### 2. Fixed
+### 3. Added
+- Add time-base inference mode to run_model (-t, --time option)
 ## PR 603
 ### 1. Changed
 - Profiler now groups events by base name (before ) instead of showing individual job/request entries

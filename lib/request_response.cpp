@@ -37,7 +37,7 @@ int InferenceRequest(RequestPtr req)
 
         req->model_type() = req->taskData()->_npuModel.type;
 
-        if (req->getData()->outputs_ptr == nullptr)
+        if (req->getData()->output_buffer_base == nullptr)
         {
             // if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
             //    cout<<"[PROC         ][Job_"<<req->getData()->jobId<<"][Req_"<<req->id()<<"][Dev_"<<device->id()<<"] wait buffer..."<<endl;
@@ -51,7 +51,7 @@ int InferenceRequest(RequestPtr req)
                 std::string profile_name = "NPU Task[Job_" + to_string(req->job_id()) + "][" + req->task()->name() + "][Req_" + to_string(req->id()) + "]";
                 profiler.Start(profile_name);     
 #endif
-                req->getData()->outputs_ptr = buffers.output;
+                req->getData()->output_buffer_base = buffers.output;
                 req->getData()->encoded_inputs_ptr = buffers.encoded_input;
                 req->getData()->encoded_outputs_ptr = buffers.encoded_output;
                 // Store the BufferSet in the Request so it can be released automatically
@@ -88,7 +88,7 @@ int InferenceRequest(RequestPtr req)
     {
         LOG_DXRT_DBG << "[" << req->id() << "] " << "C) Req " << req->id() << ": "
             << req->requestor_name() << " -> " << req->task()->name() << std::endl;
-        if (req->getData()->outputs_ptr == nullptr)
+        if (req->getData()->output_buffer_base == nullptr)
         {
             // Allocate an atomic buffer to avoid deadlocks
             try {
@@ -97,7 +97,7 @@ int InferenceRequest(RequestPtr req)
                 req->CheckTimePoint(0);
 #endif
                 TASK_FLOW("["+to_string(req->job_id())+"]"+req->task()->name()+" buffers get");
-                req->getData()->outputs_ptr = buffers.output;
+                req->getData()->output_buffer_base = buffers.output;
                 // CPU tasks do not use encoded buffers, so can be nullptr
                 req->getData()->encoded_inputs_ptr = nullptr;
                 req->getData()->encoded_outputs_ptr = nullptr;

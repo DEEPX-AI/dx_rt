@@ -22,7 +22,14 @@ public:
     Tensors inputs;
     Tensors outputs;
 
-    void* outputs_ptr;
+    // Base pointer for output tensors
+    // - For internal buffers: task-local output base
+    // - For user buffer on tail tasks: model-global output base
+    void* output_buffer_base = nullptr;
+
+    // Whether this request writes directly into user-provided output buffer
+    // When true, tensor->data() already points into the user buffer with model-global offsets
+    bool outputs_is_user_buffer = false;
 
     void* encoded_inputs_ptr;
     void* encoded_outputs_ptr;

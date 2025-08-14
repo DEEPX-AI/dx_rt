@@ -41,7 +41,7 @@ void IPCPipeServerWindows::ThreadAtServerMainForListen()
 	// The main loop creates an instance of the named pipe and  then waits for a client to connect to it.
 	// When the client connects, a thread is created to handle communications with that client,
 	//   and this loop is free to wait for the next client connect request. It is an infinite loop.
-    std::cout << "@@@ Thread Start : ThreadAtServerMainForListen" << std::endl ;
+    LOG_DXRT_I_DBG << "@@@ Thread Start : ThreadAtServerMainForListen" << std::endl ;
 	for (;;) {
 		_pipe.InitServer();
 		if (!_pipe.IsAvailable())  continue;
@@ -49,12 +49,12 @@ void IPCPipeServerWindows::ThreadAtServerMainForListen()
 		std::thread th(&IPCPipeServerWindows::ThreadAtServerByClient, this, _pipe.Detatch());
 		th.detach();
 	}
-    std::cout << "@@@ Thread End : ThreadAtServerMainForListen" << std::endl ;
+    LOG_DXRT_I_DBG << "@@@ Thread End : ThreadAtServerMainForListen" << std::endl ;
 	LOG_DXRT_I_DBG << "ThreadAtServerMainForListen exiting.\n" ;
 }
 void IPCPipeServerWindows::ThreadAtServerByClient(HANDLE hPipe)
 {
-    std::cout << "@@@ Thread Start : ThreadAtServerByClient(enQue)" << std::endl ;
+    LOG_DXRT_I_DBG << "@@@ Thread Start : ThreadAtServerByClient(enQue)" << std::endl ;
 	IPCPipeWindows pipe(hPipe);
 	IPCClientMessage clientMessage;
 	DWORD cbReceived = 0;
@@ -74,14 +74,14 @@ void IPCPipeServerWindows::ThreadAtServerByClient(HANDLE hPipe)
 		// std::this_thread::sleep_for(std::chrono::microseconds(1)); // important:if use, 30ms delay
 	}
 	pipe.CloseServerSide();
-    std::cout << "@@@ Thread End : ThreadAtServerByClient(enQue)" << std::endl ;
+    LOG_DXRT_I_DBG << "@@@ Thread End : ThreadAtServerByClient(enQue)" << std::endl ;
 	LOG_DXRT_I_DBG << "ThreadAtServerByClient exiting.\n" ;
 }
 
 // listen
 int32_t IPCPipeServerWindows::Listen()
 {
-    std::cout << "IPCPipeServerWindows::Listen" << std::endl;
+    LOG_DXRT_I_DBG << "IPCPipeServerWindows::Listen" << std::endl;
     return 0;
 }
 
@@ -118,17 +118,17 @@ int32_t IPCPipeServerWindows::SendToClient(IPCServerMessage& serverMessage)
 			if (sizeof(serverMessage) != cbWritten)  resultWriteSize = -1;
 			else resultWriteSize = cbWritten;
 		}
-	}
-	catch (std::exception& e)
-	{
-		std::cerr << e.what() << std::endl;
-		resultWriteSize = -1;
-	}
-	catch (...)
-	{
-		std::cerr << "Error on socket write" << std::endl;
-		resultWriteSize = -1;
-	}
+    }
+    catch (std::exception& e)
+    {
+        LOG_DXRT_ERR(e.what());
+        resultWriteSize = -1;
+    }
+    catch (...)
+    {
+        LOG_DXRT_ERR("Error on socket write");
+        resultWriteSize = -1;
+    }
 	LOG_DXRT_I_DBG << "IPCPipeServerWindows::SendToClient end\n" ;
 	return resultWriteSize;
 }
@@ -141,7 +141,7 @@ int32_t IPCPipeServerWindows::RegisterReceiveCB(std::function<int32_t(IPCClientM
 
 int32_t IPCPipeServerWindows::Close()
 {
-    std::cout << "IPCPipeServerWindows::Close" << std::endl;
+    LOG_DXRT_I_DBG << "IPCPipeServerWindows::Close" << std::endl;
 	_pipe.Close();
     return 0;
 }

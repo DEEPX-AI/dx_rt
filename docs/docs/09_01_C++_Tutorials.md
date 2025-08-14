@@ -1,12 +1,12 @@
-## C++ Tutorials
+This section provides C++ tutorials covering core DXRT SDK features, including synchronous/asynchronous inference, batch processing, and runtime configuration. The examples help developers quickly integrate DXRT into real-time and embedded applications.
 
 ### Run (Synchronous)
 
-The synchronous Run method uses a single NPU core to perform inference in a blocking manner. It can be configured to utilize multiple NPU cores simultaneously by employing threads to run each core independently.
+The synchronous Run method uses a single NPU core to perform inference in a blocking manner. It can be configured to utilize multiple NPU cores simultaneously by employing threads to run each core independently.  
 
 <div class="center-text">
 <p align="center">
-<img src="./../resources/06_01_01_Sync_Inference_Operation.png" alt="Synchronous Inference Operation" width="250px">  
+<img src="./../resources/09_01_Sync_Inference_Operation.png" alt="Synchronous Inference Operation" width="250px">  
 <br>
 Figure. Synchronous Inference Operation  
 <br><br>
@@ -20,7 +20,7 @@ Inference Engine Run synchronous
 
 The following is the simplest example of synchronous inference.  
 
-`run_sync_model.cpp`
+***`run_sync_model.cpp`***
 ```
 // DX-RT includes
 #include "dxrt/dxrt_api.h"
@@ -65,15 +65,15 @@ int main()
 }
 ```
 
------
+---
 
 ### RunAsync (Asynchronous)
 
-The asynchronous Run mode is a method that performs inference asynchronously while utilizing multiple NPU cores simultaneously. It can be implemented to maximize NPU resources through a callback function or a thread wait mechanism.
+The asynchronous Run mode is a method that performs inference asynchronously while utilizing multiple NPU cores simultaneously. It can be implemented to maximize NPU resources through a callback function or a thread wait mechanism.  
 
 <div class="center-text">
 <p align="center">
-<img src="./../resources/06_01_02_Async_Inference_Operation.png" alt="Asynchronous Inference Operation" width="900px">  
+<img src="./../resources/09_01_Async_Inference_Operation.png" alt="Asynchronous Inference Operation" width="900px">  
 <br>
 Figure. Asynchronous Inference Operation  
 <br><br>
@@ -89,7 +89,7 @@ Inference Engine RunAsync, Callback, User Argument
 
 The following is an example of asynchronous inference using a callback function. A user argument can be used to synchronize the input with the output of the callback.  
 
-`run_async_model.cpp`
+***`run_async_model.cpp`***
 ```
 // DX-RT includes
 #include "dxrt/dxrt_api.h"
@@ -179,7 +179,7 @@ Inference Engine RunAsync, Callback, User Argument, Thread
 - inference asynchronously, use all npu cores  
 - if `device-load >= max-load-value`, this function will block  
 
-`run_async_model_thread.cpp`
+***`run_async_model_thread.cpp`***
 ```
 // DX-RT includes
 #include "dxrt/dxrt_api.h"
@@ -338,7 +338,7 @@ Inference Engine RunAsync, Wait
 - inference asynchronously, use all npu cores  
 - if `device-load >= max-load-value`, this function will block  
 
-`run_async_model_wait.cpp`
+***`run_async_model_wait.cpp`***
 ```
 // DX-RT includes
 #include "dxrt/dxrt_api.h"
@@ -445,7 +445,7 @@ int main()
 ### Run (Batch)
 The following is an example of batch inference with multiple inputs and multiple outputs.
 
-`run_batch_model.cpp`
+***`run_batch_model.cpp`***
 
 ```
 int main(int argc, char* argv[])
@@ -536,7 +536,7 @@ The method for converting a synchronous inference approach using one NPU core in
 
 <div class="center-text">
 <p align="center">
-<img src="./../resources/06_01_03_Converting_Run_Sync_to_RunAcync.png" alt="Converting Run(Sync) to RunAsync" width="1000px">  
+<img src="./../resources/09_01_Converting_Run_Sync_to_RunAcync.png" alt="Converting Run(Sync) to RunAsync" width="1000px">  
 <br>
 Figure. Converting Run(Sync) to RunAsync  
 <br><br>
@@ -565,7 +565,7 @@ Inference Engine Run, Inference Option
 - Use onnx runtime library (`ORT`)  
     : `useORT` on or off  
 
-`run_sync_model_bound.cpp`
+***`run_sync_model_bound.cpp`***
 ```
 // DX-RT includes
 #include "dxrt/dxrt_api.h"
@@ -630,12 +630,11 @@ int main()
 
 -----
 
-
 ### Configuration and Device Status
 
 This guide explains how to use the `Configuration` class to set up the inference engine and the `DeviceStatus` class to monitor hardware status in C++.
 
-#### Engine Configuration ⚙️
+#### Engine Configuration
 
 The `Configuration` class, implemented as a Singleton, allows you to set global parameters for the inference engine before it runs.
 
@@ -648,7 +647,7 @@ dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::SHOW_PRO
   - **`Configuration::GetInstance()`**: Accesses the single, global instance of the configuration manager.
   - **`.SetEnable(...)`**: Enables engine features. Here, it's configured to print detailed model information and performance profiling data when the `InferenceEngine` is initialized.
 
-#### Querying Device Status 🖥️
+#### Querying Device Status
 
 The `DeviceStatus` class is used to get real-time operational information from the NPU hardware. This is often done after a workload to check the device's state.
 
@@ -684,7 +683,7 @@ Configuration is managed through the `dxrt::Configuration` singleton instance.
 
 #### Enabling the Profiler
 
-Before you can use any profiler features, you must first **enable** it. This is the essential first step for any profiling activity.
+Before you can use any profiler features, you **must** first enable it. This is the essential first step for any profiling activity.
 
 ```cpp
 // Enable the profiler feature
@@ -699,7 +698,7 @@ dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::PROFILER
 
 Once enabled, you can set specific attributes for the profiler's behavior.
 
-##### Displaying Profiler Data in the Console
+***Displaying Profiler Data in the Console***
 
 To see the profiling results printed directly to your console after the inference runs, use the `PROFILER_SHOW_DATA` attribute.
 
@@ -713,7 +712,7 @@ dxrt::Configuration::GetInstance().SetAttribute(dxrt::Configuration::ITEM::PROFI
   - **`PROFILER_SHOW_DATA`**: The attribute to control console output.
   - **`"ON"`**: A string value to enable this attribute. Use `"OFF"` to disable it.
 
-##### Saving Profiler Data to a File
+***Saving Profiler Data to a File***
 
 To save the profiling report to a file for later analysis, use the `PROFILER_SAVE_DATA` attribute. The resulting report is generated in the same folder with the name **`profiler.json`**. 📄
 
@@ -738,9 +737,10 @@ try
 
     // Step 2: Set attributes to show data in console and save to a file
     dxrt::Configuration::GetInstance().SetAttribute(dxrt::Configuration::ITEM::PROFILER, 
-                                                     dxrt::Configuration::ATTRIBUTE::PROFILER_SHOW_DATA, "ON");
-    dxrt::Configuration::GetInstance().SetAttribute(dxrt::Configuration::ITEM::PROFILER, 
-                                                     dxrt::Configuration::ATTRIBUTE::PROFILER_SAVE_DATA, "ON");
+    dxrt::Configuration::ATTRIBUTE::PROFILER_SHOW_DATA, "ON");
+    
+    dxrt::Configuration::GetInstance().SetAttribute(dxrt::Configuration::ITEM::PROFILER,     
+    dxrt::Configuration::ATTRIBUTE::PROFILER_SAVE_DATA, "ON");
     
     // Step 3: Create the InferenceEngine instance and run inference
     // The profiler will automatically work on the models run by this engine.
@@ -762,16 +762,16 @@ The following is an example of a pattern that performs inference using two model
 
 <div class="center-text">
 <p align="center">
-<img src="./../resources/06_01_04_Multi-model_and_Multi-output.png" alt="Multi-model and Multi-output" width="800px">  
+<img src="./../resources/09_01_Multi-model_and_Multi-output.png" alt="Multi-model and Multi-output" width="800px">  
 <br>
 Figure. Multi-model and Multi-output  
 <br><br>
 </p>
 </div>
   
-Multi-model, Async, Wait Thread `(CPU_1 → {NPU_1 + NPU_2} → CPU_2`
+Multi-model, Async, Wait Thread `(CPU_1 → {NPU_1 + NPU_2} → CPU_2`  
 
-`display_async_wait.cpp`
+***`display_async_wait.cpp`***
 ```
 // DX-RT includes
 #include "dxrt/dxrt_api.h"
@@ -905,16 +905,16 @@ The following is an example of a pattern that sequentially performs operations u
 
 <div class="center-text">
 <p align="center">
-<img src="./../resources/06_01_05_CPU_and_NPU_Pipeline_Operation.png" alt="CPU and NPU Pipeline Operation" width="780px">  
+<img src="./../resources/09_01_CPU_and_NPU_Pipeline_Operation.png" alt="CPU and NPU Pipeline Operation" width="780px">  
 <br>
 Figure. CPU and NPU Pipeline Operation  
 <br><br>
 </p>
 </div>
 
-Multi-model, Async, Wait Thread `(CPU_1 → NPU_1 → CPU_2 → NPU_2 → CPU_3)`
+Multi-model, Async, Wait Thread `(CPU_1 → NPU_1 → CPU_2 → NPU_2 → CPU_3)`  
 
-`display_async_pipe.cpp`
+***`display_async_pipe.cpp`***
 ```
 // DX-RT includes
 #include "dxrt/dxrt_api.h"
@@ -1129,7 +1129,7 @@ enum ERROR_CODE {
 
 ### Multi-Input Inference
 
-This guide explains various methods for performing inference on multi-input models using the `dxrt::InferenceEngine`. The examples cover different input formats, synchronous and asynchronous execution, and batch processing.
+This guide explains various methods for performing inference on multi-input models using the `dxrt::InferenceEngine`. The examples cover different input formats, synchronous and asynchronous execution, and batch processing.  
 
 #### Model Information
 
@@ -1158,13 +1158,13 @@ void printModelInfo(dxrt::InferenceEngine& ie) {
 
 #### Synchronous Single Inference
 
-These examples demonstrate different ways to run a single inference request synchronously.
+These examples demonstrate different ways to run a single inference request synchronously.  
 
-##### Input Formats
+***Input Formats***
 
-###### A. Dictionary Format (`std::map<std::string, void*>`)
+**A.** Dictionary Format (`std::map<std::string, void*>`)
 
-This is the most robust method. You provide a map where keys are the tensor names and values are pointers to the input data. This format is not sensitive to the order of tensors.
+This is the most robust method. You provide a map where keys are the tensor names and values are pointers to the input data. This format is **not** sensitive to the order of tensors.
 
   - **API**: `ie.RunMultiInput(inputTensors)`
   - **Use Case**: Recommended for clarity and to avoid errors from tensor reordering.
@@ -1181,7 +1181,7 @@ inputTensors["input_2"] = inputData2.data();
 auto outputs = ie.RunMultiInput(inputTensors);
 ```
 
-###### B. Vector Format (`std::vector<void*>`)
+**B.** Vector Format (`std::vector<void*>`)
 
 You provide a vector of pointers to the input data. The order of pointers in the vector **must** match the order returned by `ie.GetInputTensorNames()`.
 
@@ -1200,7 +1200,7 @@ inputPtrs.push_back(inputData2.data()); // Corresponds to second name
 auto outputs = ie.RunMultiInput(inputPtrs);
 ```
 
-###### C. Auto-Split Concatenated Buffer
+**C.** Auto-Split Concatenated Buffer
 
 You provide a single, contiguous buffer containing all input data concatenated together. The engine automatically splits this buffer into the correct tensor inputs based on their sizes. The concatenation order **must** match the order from `ie.GetInputTensorNames()`.
 
@@ -1217,7 +1217,7 @@ auto concatenatedInput = createDummyInput(ie.GetInputSize());
 auto outputs = ie.Run(concatenatedInput.data());
 ```
 
-##### Output Buffer Management
+***Output Buffer Management***
 
 For each synchronous method, you can either let the engine allocate output memory automatically or provide a pre-allocated buffer for performance gains.
 
@@ -1238,9 +1238,9 @@ For each synchronous method, you can either let the engine allocate output memor
     auto outputs = ie.RunMultiInput(inputTensors, nullptr, outputBuffer.data());
     ```
 
-#### Synchronous Batch Inference
+****Synchronous Batch Inference****
 
-For processing multiple inputs at once to maximize throughput, you can use the batch inference API. This is more efficient than running single inferences in a loop.
+For processing multiple inputs at once to maximize throughput, you can use the batch inference API. This is more efficient than running single inferences in a loop.  
 
   - **API**: `ie.Run(batchInputPtrs, batchOutputPtrs, userArgs)`
   - **Input**: A vector of pointers, where each pointer is a concatenated buffer for one sample in the batch.
@@ -1268,7 +1268,7 @@ for (int i = 0; i < batchSize; ++i) {
 auto batchOutputs = ie.Run(batchInputPtrs, batchOutputPtrs);
 ```
 
-#### Asynchronous Inference
+***Asynchronous Inference***
 
 Asynchronous APIs allow you to submit inference requests without blocking the calling thread. The results are returned later via a callback function. This is ideal for applications that need to remain responsive, such as those with a user interface.
 

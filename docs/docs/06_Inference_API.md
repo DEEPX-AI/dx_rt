@@ -1,10 +1,16 @@
-# Inference API
+This chapter introduces the inference APIs provided by **DX-RT**, including both C++ and Python interfaces. It covers synchronous and asynchronous execution, support for single and multi-input models, and guidance on input/output formatting. Key topics include model execution, input parsing, special handling cases, and performance tuning to help developers integrate inference efficiently.  
 
-## C++ Inference Engine API
+## C++ Inference API
 
-### Synchronous Inference API
+This section describes the C++ interface for executing inference using the **DX-RT** SDK. It covers both synchronous and asynchronous execution modes, and provides guidance on initializing the engine, managing input/output buffers, and utilizing multiple NPU cores. These APIs are optimized for performance-critical environments and offer granular control over execution flow.  
 
-#### Run (Single Input/Output)
+### Running Synchronous Inference
+
+This section covers the blocking inference methods in the **DX-RT** C++ API. It includes single-input, batch, and multi-input execution using dictionary or vector formats. These APIs return results after completion and are suited for real-time or latency-sensitive applications.  
+
+***Run (Single Input/Output)***  
+
+The `Run()` function provides a synchronous inference interface for single-frame execution. It accepts a raw input pointer and returns a vector of output tensors. The behavior of this API varies depending on the model type and how the input buffer is formatted.  
 
 ```cpp
 TensorPtrs Run(void *inputPtr, void *userArg = nullptr, void *outputPtr = nullptr)
@@ -15,8 +21,7 @@ TensorPtrs Run(void *inputPtr, void *userArg = nullptr, void *outputPtr = nullpt
 | `void* inputPtr` | Single input pointer | Single-Input | `TensorPtrs` (Vector) | Traditional method |
 | `void* inputPtr` | Concatenated buffer pointer | Multi-Input | `TensorPtrs` (Vector) | Auto-split applied |
 
-**Example:**
-
+Example
 ```cpp
 // Single input model
 auto outputs = ie.Run(inputData);
@@ -24,8 +29,12 @@ auto outputs = ie.Run(inputData);
 // Multi-input model (auto-split)
 auto outputs = ie.Run(concatenatedInput);
 ```
+In both cases, the output is returned as a vector of TensorPtr, representing each output tensor.  
 
-#### Run (Batch)
+
+***Run (Batch)***  
+
+The `Run()` batch variant enables synchronous batched inference for both single-input and multi-input models. It accepts a flat list of input pointers, optional output buffers, and optional user arguments. The input vector is interpreted based on model type and size.
 
 ```cpp
 std::vector<TensorPtrs> Run(
@@ -42,8 +51,7 @@ std::vector<TensorPtrs> Run(
 | `vector<void*>` (size=M) | Multi-Input, M==input\_count | Single Inference | `vector<TensorPtrs>` (size=1) | Multi-input single |
 | `vector<void*>` (size=N*M) | Multi-Input, N*M==multiple | Batch Inference | `vector<TensorPtrs>` (size=N) | N samples, M inputs |
 
-**Example:**
-
+Example
 ```cpp
 // Single input batch
 std::vector<void*> batchInputs = {sample1, sample2, sample3};
@@ -58,7 +66,9 @@ std::vector<void*> multiBatch = {s1_i1, s1_i2, s2_i1, s2_i2}; // N=2, M=2
 auto batchOutputs = ie.Run(multiBatch, outputBuffers, userArgs);
 ```
 
-#### RunMultiInput (Dictionary)
+***RunMultiInput (Dictionary)***
+
+The `RunMultiInput()` function provides a synchronous interface for multi-input models using a dictionary-style input. Each input tensor is mapped by name, allowing for flexible and explicit data assignment.
 
 ```cpp
 TensorPtrs RunMultiInput(
@@ -72,8 +82,7 @@ TensorPtrs RunMultiInput(
 |---|---|---|---|
 | `map<string, void*>` | Must include all input tensor names | `TensorPtrs` | For multi-input models only |
 
-**Example:**
-
+Example
 ```cpp
 std::map<std::string, void*> inputs = {
     {"input1", data1},
@@ -82,7 +91,7 @@ std::map<std::string, void*> inputs = {
 auto outputs = ie.RunMultiInput(inputs);
 ```
 
-#### RunMultiInput (Vector)
+***RunMultiInput (Vector)***
 
 ```cpp
 TensorPtrs RunMultiInput(
@@ -96,9 +105,15 @@ TensorPtrs RunMultiInput(
 |---|---|---|---|
 | `vector<void*>` | size == input\_tensor\_count | `TensorPtrs` | Order matches GetInputTensorNames() |
 
-### Asynchronous Inference API
+---
 
-#### RunAsync (Single)
+### Running Asynchronous Inference  
+
+This section describes the non-blocking inference functions in the C++ API. Asynchronous methods support parallel execution across NPU cores and allow synchronization via callbacks or `Wait()`. They are optimized for high-throughput and multi-threaded workloads.
+
+***RunAsync (Single)***
+
+The `RunAsync()` function initiates a non-blocking inference job using a single input pointer. It supports both single-input and multi-input models. Upon submission, the function returns a job ID, which is later used with the `Wait()` function to retrieve the result.
 
 ```cpp
 int RunAsync(void *inputPtr, void *userArg = nullptr, void *outputPtr = nullptr)
@@ -109,7 +124,9 @@ int RunAsync(void *inputPtr, void *userArg = nullptr, void *outputPtr = nullptr)
 | `void* inputPtr` | Single-Input | `int` (jobId) | Result received via Wait(jobId) |
 | `void* inputPtr` | Multi-Input | `int` (jobId) | Auto-split applied |
 
-#### RunAsync (Vector)
+***RunAsync (Vector)***
+
+The `RunAsync()` vector-based variant provides non-blocking inference using an explicit list of input pointers. It is especially suitable for multi-input models, where each input tensor is provided as a separate pointer in the vector.
 
 ```cpp
 int RunAsync(const std::vector<void*>& inputPtrs, void *userArg = nullptr, void *outputPtr = nullptr)
@@ -120,7 +137,9 @@ int RunAsync(const std::vector<void*>& inputPtrs, void *userArg = nullptr, void 
 | `vector<void*>` (size==input\_count) | Multi-Input | Multi-input single | `int` (jobId) | Recommended method |
 | `vector<void*>` (size\!=input\_count) | Any | Uses only the first element | `int` (jobId) | Fallback |
 
-#### RunAsyncMultiInput (Dictionary)
+***RunAsyncMultiInput (Dictionary)***
+
+The `RunAsyncMultiInput()` function performs non-blocking asynchronous inference for multi-input models, where each input tensor is provided in a named dictionary. This is the most explicit and type-safe method for specifying inputs, ensuring each tensor is matched to the correct model input.
 
 ```cpp
 int RunAsyncMultiInput(
@@ -134,7 +153,11 @@ int RunAsyncMultiInput(
 |---|---|---|---|
 | `map<string, void*>` | For multi-input models only | `int` (jobId) | Most explicit method |
 
-#### RunAsyncMultiInput (Vector)
+This API is intended only for multi-input models. If used with single-input models, behavior is undefined.  
+
+***RunAsyncMultiInput (Vector)***
+
+The `RunAsyncMultiInput()` function performs asynchronous inference for multi-input models using a vector of input pointers. Each element in the vector corresponds to one input tensor, and the function returns a job ID to retrieve results later via `Wait()`.
 
 ```cpp
 int RunAsyncMultiInput(
@@ -148,9 +171,11 @@ int RunAsyncMultiInput(
 |---|---|---|---|
 | `vector<void*>` | size == input\_tensor\_count | `int` (jobId) | Converted to a dictionary internally |
 
------
+This method requires the input vector to be in the same order as the model's input tensor definitions. You can retrieve the correct order using `GetInputTensorNames()`.
 
-#### Wait
+***Wait***
+
+The `Wait()` function blocks the current thread until the specified asynchronous inference job, identified by jobId, is completed. Once the job finishes, the function returns the corresponding inference output.
 
 ```cpp
 TensorPtrs Wait(
@@ -158,11 +183,19 @@ TensorPtrs Wait(
 )
 ```
 
-## Python Inference Engine API
+---
 
-### Synchronous Inference API
+## Python Inference API
 
-#### run (Unified API)
+This section outlines the Python API for running inference with the **DX-RT** SDK. Designed for ease of use and rapid development, the Python interface supports both synchronous and asynchronous execution, and offers flexible input handling for single, batch, and multi-input models. It is ideal for prototyping and integration into Python-based AI workflows.
+
+### Running Synchronous Inference
+
+This section introduces the blocking inference methods in the Python API. These functions support single and multi-input models using a unified or dictionary-based interface. Results are returned after execution, making them suitable for sequential or real-time use.
+
+***run (Unified API)***
+
+The run() function is the primary Python API for synchronous inference. It supports both single-input and multi-input models, with automatic detection of batch size and input format. This unified interface simplifies inference for a variety of model types and use cases.
 
 ```python
 def run(
@@ -172,8 +205,7 @@ def run(
 ) -> Union[List[np.ndarray], List[List[np.ndarray]]]
 ```
 
-**Detailed Input/Output Matrix:**
-
+Detailed Input/Output Matrix
 | Input Type | Input Condition | Model Type | Interpretation | Output Type | Output Structure |
 |---|---|---|---|---|---|
 | `np.ndarray` | size == total\_input\_size | Multi-Input | Auto-split single | `List[np.ndarray]` | Single sample output |
@@ -184,15 +216,13 @@ def run(
 | `List[np.ndarray]` | len \> 1 | Single-Input | Batch Inference | `List[List[np.ndarray]]` | `len` sample outputs |
 | `List[List[np.ndarray]]`| Explicit batch | Any | Batch Inference | `List[List[np.ndarray]]` | Matches outer list size |
 
-**Auto-split Special Cases:**
-
+Auto-split Special Cases
 | Condition | Example Input | Interpretation | Output |
 |---|---|---|---|
 | Multi-input + first element is total\_size | `[concatenated_array]` | Auto-split single | `List[np.ndarray]` |
 | Multi-input + all elements are total\_size| `[concat1, concat2, concat3]`| Auto-split batch | `List[List[np.ndarray]]`|
 
-**Example:**
-
+Example
 ```python
 # 1. Single array auto-split (multi-input)
 concatenated = np.zeros(ie.get_input_size(), dtype=np.uint8)
@@ -215,7 +245,9 @@ single_batch = [sample1, sample2, sample3]
 outputs = ie.run(single_batch)  # List[List[np.ndarray]], len=3
 ```
 
-#### run\_multi\_input (Dictionary)
+***run_multi_input (Dictionary)***
+
+The `run_multi_input()` function performs synchronous inference using a dictionary format for input, where each key-value pair maps an input tensor name to a corresponding NumPy array. This method is ideal for multi-input models, offering clarity and input safety through name matching.
 
 ```python
 def run_multi_input(
@@ -229,9 +261,15 @@ def run_multi_input(
 |---|---|---|---|
 | `Dict[str, np.ndarray]` | Must include all input tensors | `List[np.ndarray]` | For multi-input models only |
 
-### Asynchronous Inference API
+---
 
-#### run\_async
+### Running Asynchronous Inference  
+
+This section covers the non-blocking inference methods in the Python API. These functions support parallel execution and multi-input handling. Use `wait()` to retrieve results when ready, ideal for high-throughput or multi-threaded workflows.
+
+***run_async***  
+
+The `run_async()` function submits a non-blocking inference request using either a single input tensor or a list of input tensors. It is suitable for single-sample asynchronous execution and returns a job ID used to retrieve the result via wait(`job_id`).
 
 ```python
 def run_async(
@@ -247,7 +285,9 @@ def run_async(
 | `List[np.ndarray]` | len == input\_count | Multi-input single | `int` (jobId) | Batch not supported |
 | `List[np.ndarray]` | len == 1 | Single-input single | `int` (jobId) | Batch not supported |
 
-#### run\_async\_multi\_input
+***run_async_multi_input***  
+
+The `run_async_multi_input()` function performs asynchronous single-sample inference using a dictionary to map input tensor names to their corresponding NumPy arrays. This method is intended for multi-input models and returns a job ID to be used with wait(`job_id`).  
 
 ```python
 def run_async_multi_input(
@@ -261,19 +301,21 @@ def run_async_multi_input(
 |---|---|---|---|
 | `Dict[str, np.ndarray]` | For multi-input models only | `int` (jobId) | Single inference only |
 
----
+***wait***  
 
-#### wait
+The `wait()` function blocks the execution until the specified asynchronous inference job is complete and returns the corresponding inference results.  
 
 ```python
 def wait(job_id: int) -> List[np.ndarray]
 ```
 
------
+---
 
-## Input Format Analysis Logic
+## Input Format Parsing
 
-### Python Input Analysis Flow
+This section explains how the SDK determines the appropriate inference mode based on the input data format. The engine automatically analyzes invputs such as np.ndarray, `List[np.ndarray]`, and nested lists to decide between single, batch, or auto-split inference
+
+### Python Input Parsing Flow
 
 ```python
 def _analyze_input_format(input_data):
@@ -294,7 +336,9 @@ def _analyze_input_format(input_data):
             return analyze_list_ndarray(input_data)
 ```
 
-### `List[np.ndarray]` Analysis Details
+---
+
+### `List[np.ndarray]` Parsing Rules
 
 ```python
 def analyze_list_ndarray(input_data):
@@ -319,7 +363,11 @@ def analyze_list_ndarray(input_data):
             return batch_inference(input_count)
 ```
 
-## Output Format Rules
+---
+
+## Output Format Specification
+
+This section describes the structure of inference outputs returned by the SDK, depending on the API (C++ or Python) and the inference mode (single, batch, or asynchronous). The output format varies to match the input pattern and execution method.  
 
 ### Single Inference Output
 
@@ -335,27 +383,29 @@ def analyze_list_ndarray(input_data):
 | C++ Run (batch) | `vector<TensorPtrs>` | `[sample1_outputs, sample2_outputs, ...]` |
 | Python run (batch)| `List[List[np.ndarray]]` | `[[s1_o1, s1_o2], [s2_o1, s2_o2], ...]` |
 
-### Asynchronous Output
+### Asynchronous Inference Output
 
 | API | Immediate Return | After `wait` |
 |---|---|---|
 | C++ RunAsync | `int` (jobId) | `TensorPtrs` |
 | Python run\_async| `int` (jobId) | `List[np.ndarray]` |
 
-## Special Cases
+---
 
-### Auto-Split Condition
+## Edge Cases and Special Handling
 
-**C++:**
+This section describes how the SDK handles non-standard input scenarios, such as auto-splitting, batch size calculation, invalid input conditions, and custom output buffers. These rules ensure robustness and flexibility across a wide range of inference use cases.  
 
+### Auto-Split Detection Logic
+
+**C++**
 ```cpp
 bool shouldAutoSplitInput() const {
     return _isMultiInput && _inputTasks.size() == 1;
 }
 ```
 
-**Python:**
-
+**Python**
 ```python
 def _should_auto_split_input(input_data: np.ndarray) -> bool:
     if not self.is_multi_input_model():
@@ -375,7 +425,7 @@ def _should_auto_split_input(input_data: np.ndarray) -> bool:
 | Multi-input + List[np.ndarray] | `len(input_data) // input_tensor_count` |
 | List[List[np.ndarray]] | `len(input_data)` |
 
-### Error Conditions
+### Common Error Conditions
 
 | Condition | Error Type | Message |
 |---|---|---|
@@ -384,9 +434,7 @@ def _should_auto_split_input(input_data: np.ndarray) -> bool:
 | Empty input | `ValueError` | "Input data cannot be empty" |
 | Type mismatch | `TypeError` | "Expected np.ndarray or List[np.ndarray]" |
 
-### Output Buffer Handling
-
-#### Python Output Buffer Matrix
+### Custom Output Buffer Handling (Python)
 
 | Input Format | Output Buffer Format | Handling |
 |---|---|---|
@@ -396,16 +444,20 @@ def _should_auto_split_input(input_data: np.ndarray) -> bool:
 | Batch Inference | `List[List[np.ndarray]]` | Explicit batch buffer |
 | Batch Inference | `List[np.ndarray]` | Flattened batch buffer |
 
-## Performance Considerations
+---
 
-### Memory Allocation
+## Performance Optimization Guidelines
+
+This section describes key performance-related trade-offs when using the inference API, including memory allocation strategies and the impact of different inference methods on latency and throughput.  
+
+### Memory Allocation Strategy
 
 | Method | Pros | Cons |
 |---|---|---|
 | Auto-allocation (No Buffer) | Ease of use | Memory allocated on every call |
 | User-provided (With Buffer) | Performance optimization | Complex memory management |
 
-### Inference Method
+### Choosing Inference Methods (Sync vs Async vs Batch)
 
 | Method | Use Case | Characteristics |
 |---|---|---|
@@ -413,4 +465,4 @@ def _should_auto_split_input(input_data: np.ndarray) -> bool:
 | Asynchronous | High throughput | Requires callback management |
 | Batch | Bulk processing | Increased memory usage |
 
------
+---

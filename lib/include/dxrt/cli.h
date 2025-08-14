@@ -23,6 +23,7 @@ class DXRT_API CLICommand
     dxrt::dxrt_ident_sub_cmd_t _subCmd = dxrt::dxrt_ident_sub_cmd_t::DX_IDENTIFY_NONE;
     dxrt::SkipMode _checkDeviceSkip = dxrt::SkipMode::COMMON_SKIP;
     virtual void doCommand(DevicePtr devicePtr) = 0;
+    virtual void finish() { }
 };
 
 class DXRT_API DeviceStatusCLICommand : public CLICommand
@@ -66,13 +67,13 @@ class DXRT_API FWUpdateCommand : public CLICommand
     explicit FWUpdateCommand(cxxopts::ParseResult &);
  private:
     void doCommand(DevicePtr devicePtr) override;
+    void finish() override;
+
     std::string getSubCmdString();
     uint32_t _fwUpdateSubCmd;
     std::string _fwUpdateFile;
     bool _showLogOnce;
     bool _showDonotTunrOff;
-    int _deviceTotalCount;
-    int _deviceCount;
     int _updateDeviceCount;
 };
 

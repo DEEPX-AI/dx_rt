@@ -109,24 +109,24 @@ int32_t IPCPipeClientWindows::ReceiveFromServer(IPCServerMessage& serverMessage)
 	LOG_DXRT_DBG << "IPCPipeClientWindows::ReceiveFromServer start\n" ;
     int32_t resultReadSize = -1;
     if (!_pipe.IsAvailable()) return resultReadSize;
-	try
-	{
+    try
+    {
         DWORD  cbRead=0;
         _pipe.Receive(&serverMessage, sizeof(serverMessage), &cbRead);
         // return -1: no data, 0: no connection
         if (cbRead == 0)    return -1;
         resultReadSize = cbRead;
-	}
-	catch(const std::exception& e)
-	{
-		std::cerr << e.what() << '\n';
-		resultReadSize = -1;
-	}
-	catch(...)
-	{
-		std::cerr << "Error on read from server" << std::endl;
-		resultReadSize = -1;
-	}
+    }
+    catch(const std::exception& e)
+    {
+        LOG_DXRT_ERR(e.what());
+        resultReadSize = -1;
+    }
+    catch(...)
+    {
+        LOG_DXRT_ERR("Error on read from server");
+        resultReadSize = -1;
+    }
 	LOG_DXRT_DBG << "IPCPipeClientWindows::ReceiveFromServer end\n" ;
     return resultReadSize;
 }

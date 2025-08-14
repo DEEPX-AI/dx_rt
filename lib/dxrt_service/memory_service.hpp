@@ -8,9 +8,9 @@
 #include <set>
 #include <vector>
 #include <cstdint>
-#include <memory>
+//#include <memory>
 #include <mutex>
-#include "dxrt/common.h"
+//#include "dxrt/common.h"
 #include "dxrt/memory.h"
 
 namespace dxrt {

@@ -347,7 +347,7 @@ int ObjectsPool::pickDeviceIndex(const std::vector<int> &device_ids, int isDspRe
 
     if (block_count >= device_id_size)
     {
-        throw DeviceIOException(LogMessages::AllDeviceBlocked());
+        throw DeviceIOException(EXCEPTION_MESSAGE(LogMessages::AllDeviceBlocked()));
     }
     // std::cout << "device-index=" << device_index << std::endl;
 

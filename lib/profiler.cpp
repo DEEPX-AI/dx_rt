@@ -21,7 +21,6 @@
 #define PROFILER_FORCE_SHOW_DURATIONS 1
 
 using std::cout;
-using std::cerr;
 using std::endl;
 using std::setw;
 using std::hex;
@@ -95,11 +94,11 @@ namespace dxrt
                 }
                 catch (std::exception& e)
                 {
-                    cerr << e.what() << endl;
+                    LOG_DXRT_ERR(e.what());
                 }
                 catch (...)
                 {
-                    cerr << "UNKNOWN error type" << endl;
+                    LOG_DXRT_ERR("UNKNOWN error type");
                 }
             }
         }
@@ -363,7 +362,7 @@ namespace dxrt
             outFile.close();
             cout << "Profiler data has been written to " << filename << endl;
         } else {
-            cerr << "Failed to open output file" << endl;
+            LOG_DXRT_ERR("Failed to open output file");
         }
     }
     uint8_t DEBUG_DATA = 0;

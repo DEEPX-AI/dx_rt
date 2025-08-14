@@ -465,7 +465,7 @@ int Device::InferenceRequest_ACC(RequestData* req, npu_bound_op boundOp)
             ObjectsPool::GetInstance().GetRequestById(requestId)->setOutputs(
                 task->outputs(reinterpret_cast<void*>(npu_inference_acc.output.data)));
         }
-        req->outputs = task->outputs(reinterpret_cast<void*>(req->outputs_ptr));
+        req->outputs = task->outputs(reinterpret_cast<void*>(req->output_buffer_base));
         {
             UniqueLock lk2(requestsLock);
             _ongoingRequestsAcc[req->requestId] = npu_inference_acc;
@@ -502,9 +502,9 @@ TensorPtrs Device::Validate(RequestPtr req, bool skipInference)
     auto task = req->task();
     if (skipInference == false)
     {
-        if (req->getData()->outputs_ptr == nullptr)
+        if (req->getData()->output_buffer_base == nullptr)
         {
-            req->getData()->outputs_ptr = req->task()->GetOutputBuffer();
+            req->getData()->output_buffer_base = req->task()->GetOutputBuffer();
         }
         req->getData()->encoded_inputs_ptr = req->getData()->inputs.front().data();
         req->getData()->encoded_outputs_ptr = req->task()->GetEncodedOutputBuffer();
@@ -562,7 +562,7 @@ TensorPtrs Device::Validate(RequestPtr req, bool skipInference)
             LOG_DXRT_DBG << "Validate output is empty." << endl;
             ret.clear();
         }
-        req->task()->ReleaseOutputBuffer(req->getData()->outputs_ptr);
+        req->task()->ReleaseOutputBuffer(req->getData()->output_buffer_base);
         req->task()->ReleaseEncodedOutputBuffer(req->getData()->encoded_outputs_ptr);
     }
     return ret;
@@ -2029,7 +2029,7 @@ int Device::DSP_ProcessRequest(RequestData* req, dxrt_dspcvmat_t *dspCvMatInPtr,
     Process(dxrt::dxrt_cmd_t::DXRT_CMD_CPU_CACHE_FLUSH, reinterpret_cast<void*>(&dspProcReq[pick].input));
 
     // 2. output setting
-    req->outputs_ptr = reinterpret_cast<void *>(_dspOutData.data);  // virtual address
+    req->output_buffer_base = reinterpret_cast<void *>(_dspOutData.data);  // virtual address
 
     // 3. make DSP command
     dxrt_dsp_request_t dsp_req_command;

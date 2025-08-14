@@ -46,13 +46,14 @@ namespace dxrt {
         static std::string InferenceEngine_BatchArgumentIsNull();
         static std::string InferenceEngine_BatchFailToAllocateOutputBuffer();
         static std::string InferenceEngine_TimeoutRunBenchmark();
+        static std::string InferenceEngine_InvalidJobId(int jobId);
 
         static std::string CLI_UpdatingFirmware(const std::string& boardType, const std::string& version);
         static std::string CLI_DonotTurnOffDuringUpdateFirmware();
         static std::string CLI_InvalidFirmwareFile(const std::string& filename);
         static std::string CLI_NoUpdateDeviceFound();
         static std::string CLI_UpdateFirmwareSkip();
-        static std::string InferenceEngine_InvalidJobId(int jobId);
+        static std::string CLI_UpdateCondition(const std::string& version);
     };
 
 }  // namespace dxrt

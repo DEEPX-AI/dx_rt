@@ -238,7 +238,7 @@ namespace dxrt
         double total_time = duration.count();
         double avg_latency = total_time / 1;
         if (avg_latency > 100)
-            std::cout << msg << avg_latency << " ms" << std::endl;
+            LOG_DXRT_I_DBG << msg << avg_latency << " ms" << std::endl;
         return end;
     }
 
