@@ -26,6 +26,41 @@ namespace dxrt
 
 bool debug_all_output = false;
 
+// Build user-buffer-mapped output tensors for a tail task
+static Tensors BuildUserOutputTensorsForTailTask(
+    const TaskPtr& taskPtr,
+    void* userOutputBase,
+    const std::vector<std::string>& outputsOrder,
+    InferenceEngine* inferenceEngine,
+    int jobId)
+{
+    std::ignore = jobId;
+    Tensors outputTensors;
+    if (userOutputBase == nullptr || inferenceEngine == nullptr) {
+        return outputTensors;
+    }
+
+    for (const auto& tensor : taskPtr->outputs())
+    {
+        auto it = std::find(outputsOrder.begin(), outputsOrder.end(), tensor.name());
+        if (it != outputsOrder.end())
+        {
+            // Calculate offset for each tensor in the full user output buffer
+            size_t tensorOffset = inferenceEngine->GetOutputTensorOffset(tensor.name());
+            uint8_t* tensorPtr = static_cast<uint8_t*>(userOutputBase) + tensorOffset;
+
+            Tensor outputTensor = tensor;  // copy metadata
+            outputTensor.data() = tensorPtr; // map to user buffer
+            outputTensors.push_back(outputTensor);
+
+            LOG_DBG("[Job_" + std::to_string(jobId) + "] Task '" + taskPtr->name() +
+                    "' tensor '" + tensor.name() + "' at offset: " + std::to_string(tensorOffset));
+        }
+    }
+
+    return outputTensors;
+}
+
 
 void InferenceJob::onRequestComplete(RequestPtr req)
 {
@@ -39,7 +74,7 @@ void InferenceJob::onRequestComplete(RequestPtr req)
     {
         std::unique_lock<std::mutex> lk(_lock);
 
-        // 1. _tensors update
+        // 1. _tensors update with thread-safe user buffer handling
         LOG_DBG("[Job_" + std::to_string(_jobId) + "] Adding " + std::to_string(req->outputs().size()) +
                 " output tensors from task '" + thisTask->name() + "'");
 
@@ -227,45 +262,26 @@ void InferenceJob::processReadyTask(TaskPtr taskPtr)
             if (_outputPtr != nullptr)
             {
                 // To avoid intermediate copies, use user-provided buffer only for pure tail tasks
-                if (taskPtr->is_tail())
+                if (taskPtr->is_tail() && taskPtr->processor() == Processor::CPU)
                 {
-                    // Process each output tensor since a task can have multiple outputs
-                    Tensors outputTensors;
-                    for (const auto& tensor : taskPtr->outputs())
-                    {
-                        auto it = std::find(_outputs.begin(), _outputs.end(), tensor.name());
-                        if (it != _outputs.end())
-                        {
-                            // Calculate offset for each tensor in the full buffer
-                            size_t tensorOffset = _inferenceEnginePtr->GetOutputTensorOffset(tensor.name());
-                            uint8_t* tensorPtr = static_cast<uint8_t*>(_outputPtr) + tensorOffset;
-
-                            // Copy tensor object and update only the data pointer
-                            Tensor outputTensor = tensor;
-                            outputTensor.data() = tensorPtr;
-                            outputTensors.push_back(outputTensor);
-
-                            LOG_DBG("[Job_" + std::to_string(_jobId) + "] Task '" + taskPtr->name() + 
-                                    "' tensor '" + tensor.name() + "' at offset: " + std::to_string(tensorOffset));
-                        }
-                    }
-
+                    Tensors outputTensors = BuildUserOutputTensorsForTailTask(taskPtr, _outputPtr, _outputs, _inferenceEnginePtr, _jobId);
                     nextReq->setOutputs(outputTensors);
                     // Set the first address of continuous memory to outputs_ptr
                     if (!outputTensors.empty()) {
-                        // Calculate first tensor's offset to get base address of continuous memory
                         size_t firstTensorOffset = _inferenceEnginePtr->GetOutputTensorOffset(outputTensors[0].name());
                         uint8_t* firstTensorPtr = static_cast<uint8_t*>(outputTensors[0].data());
                         uint8_t* basePtr = firstTensorPtr - firstTensorOffset;
-                        nextReq->getData()->outputs_ptr = basePtr;
+                        nextReq->getData()->output_buffer_base = basePtr;
+                        nextReq->getData()->outputs_is_user_buffer = true;
                     } else {
-                        nextReq->getData()->outputs_ptr = nullptr;
+                        nextReq->getData()->output_buffer_base = nullptr;
+                        nextReq->getData()->outputs_is_user_buffer = false;
                     }
-                    LOG_DBG("[Job_" + std::to_string(_jobId) + "] Task '" + taskPtr->name() + "' is tail task, using user output buffer directly");
+                    LOG_DBG("[Job_" + std::to_string(_jobId) + "] Task '" + taskPtr->name() + "' (CPU tail) using user output buffer directly");
                 }
                 else
                 {
-                    LOG_DBG("[Job_" + std::to_string(_jobId) + "] Task '" + taskPtr->name() + "' uses internal buffer (not a pure tail task)");
+                    LOG_DBG("[Job_" + std::to_string(_jobId) + "] Task '" + taskPtr->name() + "' uses internal buffer (not a pure CPU tail task)");
                 }
             }
             nextReq->SetStatus(Request::Status::REQ_BUSY);
@@ -431,6 +447,32 @@ void InferenceJob::SetInferenceJobMultiHead(std::vector<std::shared_ptr<Task>>& 
     LOG_DBG("[MULTI_HEAD] Set inference job with " + std::to_string(inputTasks_.size()) + " input tasks");
 }
 
+void InferenceJob::SetInferenceJobMultiHead(std::vector<std::shared_ptr<Task>>& tasks_,
+                                           const std::vector<std::shared_ptr<Task>>& inputTasks_,
+                                           std::vector<string> lastOutputOrder)
+{
+    Clear();
+    _isMultiHead = true;
+    _inputTasks = inputTasks_;
+    _doneCount.store(0);
+    _latency = 0;
+    _infTime = 0;
+
+    _tasks = tasks_;  // Store tasks for multi-input support
+    _outputs.clear();
+    _outputs = lastOutputOrder;
+
+    _taskStatusMap.clear();
+
+    _outputCount.store(tasks_.size());
+    for (std::shared_ptr<Task>& it :  tasks_)
+    {
+        _taskStatusMap.insert(make_pair(it->name(), Status::TASK_IDLE));
+    }
+
+    LOG_DBG("[MULTI_HEAD] Set inference job with " + std::to_string(inputTasks_.size()) + " input tasks");
+}
+
 int InferenceJob::startJob(void *inputPtr, void *userArg, void *outputPtr)
 {
     TaskPtr task = _headTask.lock();
@@ -453,48 +495,29 @@ int InferenceJob::startJob(void *inputPtr, void *userArg, void *outputPtr)
         // To avoid intermediate copies, use user-provided buffer only for pure tail tasks
         if (task->is_tail())
         {
-            // Process each output tensor since a task can have multiple outputs
-            Tensors outputTensors;
-            for (const auto& tensor : task->outputs())
-            {
-                auto it = std::find(_outputs.begin(), _outputs.end(), tensor.name());
-                if (it != _outputs.end())
-                {
-                    // Calculate offset for each tensor in the full buffer
-                    size_t tensorOffset = _inferenceEnginePtr->GetOutputTensorOffset(tensor.name());
-                    uint8_t* tensorPtr = static_cast<uint8_t*>(_outputPtr) + tensorOffset;
-
-                    // Copy tensor object and update only the data pointer
-                    Tensor outputTensor = tensor;
-                    outputTensor.data() = tensorPtr;
-                    outputTensors.push_back(outputTensor);
-
-                    LOG_DBG("[Job_" + std::to_string(_jobId) + "] Task '" + task->name() +
-                            "' tensor '" + tensor.name() + "' at offset: " + std::to_string(tensorOffset));
-                }
-            }
-
+            // Map all tail-task outputs to user buffer with model-global offsets
+            Tensors outputTensors = BuildUserOutputTensorsForTailTask(task, _outputPtr, _outputs, _inferenceEnginePtr, _jobId);
             req->setOutputs(outputTensors);
-            // Set the first address of continuous memory to outputs_ptr
             if (!outputTensors.empty()) {
-                // Calculate first tensor's offset to get base address of continuous memory
                 size_t firstTensorOffset = _inferenceEnginePtr->GetOutputTensorOffset(outputTensors[0].name());
                 uint8_t* firstTensorPtr = static_cast<uint8_t*>(outputTensors[0].data());
                 uint8_t* basePtr = firstTensorPtr - firstTensorOffset;
-                req->getData()->outputs_ptr = basePtr;
+                req->getData()->output_buffer_base = basePtr;
+                req->getData()->outputs_is_user_buffer = true;
             } else {
-                req->getData()->outputs_ptr = nullptr;
+            req->getData()->output_buffer_base = nullptr;
+                req->getData()->outputs_is_user_buffer = false;
             }
             LOG_DBG("[Job_" + std::to_string(_jobId) + "] Head task '" + task->name() + "' is tail task, using user output buffer directly");
         }
         else
         {
-            req->getData()->outputs_ptr = nullptr;
+            req->getData()->output_buffer_base = nullptr;
             LOG_DBG("[Job_" + std::to_string(_jobId) + "] Head task '" + task->name() + "' uses internal buffer (not a pure tail task)");
         }
     }
     else
-        req->getData()->outputs_ptr = nullptr;
+        req->getData()->output_buffer_base = nullptr;
     // if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
     //    cout<<"[PROC         ][Job_"<<_jobId<<"][Req_"<<req->id()<<"] Inference Request"<<endl;
 
@@ -653,6 +676,10 @@ void InferenceJob::setReturnOutputs()
             if (src_ptr != nullptr && dest_ptr != src_ptr)
             {
                 std::memcpy(dest_ptr, src_ptr, tensor_size);
+                
+                LOG_DBG("[Job_" + std::to_string(_jobId) + "] Thread-safe copy: " + name + 
+                        " to offset " + std::to_string(tensorOffset) + 
+                        " (size: " + std::to_string(tensor_size) + " bytes)");
             }
 
             // Create a new Tensor object for the return list that correctly points to the user's buffer.
@@ -781,26 +808,25 @@ void InferenceJob::ReleaseAllOutputBuffer()
                 LOG_DXRT_DBG << "Request " << req->id() << " no BufferSet - using individual buffer release" << std::endl;
 
                 // Check if this task uses user output buffer
-                bool usesUserOutputBuffer = false;
-                if (_outputPtr != nullptr && req->outputs_ptr() != nullptr)
+                bool usesUserOutputBuffer = req->getData()->outputs_is_user_buffer;
+                if (!usesUserOutputBuffer && _outputPtr != nullptr && req->output_buffer_base() != nullptr)
                 {
-                    // Check if the output pointer is within the user output buffer range
+                    // Fallback range check (legacy)
                     uint8_t* userBufferStart = static_cast<uint8_t*>(_outputPtr);
                     uint8_t* userBufferEnd = userBufferStart + _inferenceEnginePtr->GetOutputSize();
-                    uint8_t* outputPtr = static_cast<uint8_t*>(req->outputs_ptr());
-
+                    uint8_t* outputPtr = static_cast<uint8_t*>(req->output_buffer_base());
                     if (outputPtr >= userBufferStart && outputPtr < userBufferEnd)
                     {
                         usesUserOutputBuffer = true;
                         LOG_DBG("[Job_" + std::to_string(_jobId) + "] Task '" + req->task()->name() +
-                                "' uses user output buffer - skipping ReleaseOutputBuffer");
+                                "' uses user output buffer - skipping ReleaseOutputBuffer (range-detected)");
                     }
                 }
 
                 // Only call ReleaseOutputBuffer if not using user output buffer
                 if (!usesUserOutputBuffer && ((_outputPtr == nullptr) || (req->task()->is_tail() == false)))
                 {
-                    req->task()->ReleaseOutputBuffer(req->outputs_ptr());
+                    req->task()->ReleaseOutputBuffer(req->output_buffer_base());
                     // if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
                     //    cout<<"[        OUT_W][Job_"<<_jobId<<"][Req_"<<req->id()<<"]{xxx_"<<req->getData()->_processedDevId<<"}{xxxxxx} Buffer Released"<<endl;
                 }
@@ -868,7 +894,7 @@ void InferenceJob::Wait()
 
 void InferenceJob::DSP_OnRequestComplete(RequestPtr req)
 {
-    _dspOutputPtr = req->getData()->outputs_ptr;
+    _dspOutputPtr = req->getData()->output_buffer_base;
 
     LOG_DXRT_DBG << "outputAddrDsp " << std::hex << (uint64_t)_dspOutputPtr << endl;
 
@@ -910,4 +936,7 @@ int InferenceJob::DSP_StartJob(dxrt_dspcvmat_t *dspCvMatInPtr, dxrt_dspcvmat_t *
 }
 
 // ~DSP code //////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
 }  // namespace dxrt

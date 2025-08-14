@@ -66,7 +66,8 @@ public:
     Tensors inputs();
     Tensors outputs();
     void* inputs_ptr();
-    void* outputs_ptr();    
+    // Base pointer accessor for output tensors
+    void* output_buffer_base();
     void* encoded_inputs_ptr();
     void* encoded_outputs_ptr();
     void* user_arg() const;

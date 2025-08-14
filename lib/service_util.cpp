@@ -67,7 +67,7 @@ bool DXRT_API isDxrtServiceRunning() {
     // Get process snapshots
     HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (hSnapshot == INVALID_HANDLE_VALUE) {
-        std::cerr << "Failed to create process snapshot.\n";
+        LOG_DXRT_ERR("Failed to create process snapshot.");
         return false;
     }
 
@@ -76,7 +76,7 @@ bool DXRT_API isDxrtServiceRunning() {
 
     // Get first process
     if (!Process32First(hSnapshot, &processEntry)) {
-        std::cerr << "Failed to retrieve first process.\n";
+        LOG_DXRT_ERR("Failed to retrieve first process.");
         CloseHandle(hSnapshot);
         return false;
     }

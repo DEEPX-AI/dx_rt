@@ -79,7 +79,6 @@ int main(int argc, char *argv[])
 #endif
 
     LOG_VALUE(modelPath);
-    DXRT_ASSERT(!modelPath.empty(), "no model path");
 
     try {
         auto devices = dxrt::CheckDevices();
@@ -100,10 +99,24 @@ int main(int argc, char *argv[])
             cout << " * FW version           : v" << dxrt::GetFwVersionWithDot(devInfo.fw_ver) << endl;
             cout << "=======================================================" << endl;
         }
-    } catch (const dxrt::Exception& e) {
-        // Silently ignore if no devices are found or info cannot be retrieved.
-    }
 
-    ret = dxrt::ParseModel(modelPath);
+        ret = dxrt::ParseModel(modelPath);
+    }
+    catch (const dxrt::Exception& e)
+    {
+        std::cerr << e.what() << " error-code=" << e.code() << std::endl;
+        return -1;
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << e.what() << std::endl;
+        return -1;
+    }
+    catch(...)
+    {
+        std::cerr << "Exception" << std::endl;
+        return -1;
+    }
+    
     return ret;
 }

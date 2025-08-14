@@ -137,7 +137,7 @@ std::string float_to_string_fixed(float value, int precision) {
 }
 
 void PrintInfResult(const std::string& inputFile, const std::string& outputFile, const std::string& modelFile,
-                    float latencyMs, float infTimeMs, float fps_val, int loops, RunModelMode current_mode, bool verbose) {
+                    float latencyMs, float infTimeMs, float fps_val, int64_t loops, RunModelMode current_mode, bool verbose) {
     std::vector<std::string> lines;
     (void)modelFile;
 
@@ -231,6 +231,175 @@ void SetRunModelMode(bool single, int targetFps)
     cout << "Run model target mode : " << mode << endl;
 }
 
+static float runBenchmarkByTime(int64_t& outLoops, dxrt::InferenceEngine& ie, void* inputBuffer, int64_t targetDurationSec)
+{
+    float fps = 0;
+    
+    int64_t target_duration_ms = targetDurationSec * 1000;
+    int64_t run_count = 0; // run async count
+    int64_t cb_count = 0; // callback count
+    bool run_complete = false;
+    std::mutex cb_mutex;
+    std::condition_variable cb_cv;
+
+    ie.RegisterCallback([&run_count, &cb_count, &run_complete, &cb_mutex, &cb_cv]
+        (dxrt::TensorPtrs &outputs, void *userArg) {
+
+        std::ignore = outputs;
+        std::ignore = userArg;
+
+        // check competion of run & callback
+        std::unique_lock<std::mutex> lock(cb_mutex);
+        cb_count++;
+        if ( run_complete && cb_count == run_count)
+            cb_cv.notify_one();
+
+        return 0;
+    });
+    
+    auto start = std::chrono::steady_clock::now();
+    for(;;) // no limit
+    {
+        ie.RunAsync(inputBuffer);
+
+        {
+            std::unique_lock<std::mutex> lock(cb_mutex);
+            run_count++;
+        }
+        
+        auto current = std::chrono::steady_clock::now();
+        std::chrono::duration<double, std::milli> duration = current - start;
+
+        if ( duration.count() > target_duration_ms )
+        {
+            break;
+        }
+
+    } // for i
+
+    // wait...
+    std::unique_lock<std::mutex> lock(cb_mutex);
+    run_complete = true;
+    cb_cv.wait(lock, [&cb_count, &run_count](){return cb_count == run_count; } );
+
+    auto current = std::chrono::steady_clock::now();
+    uint64_t infTime = std::chrono::duration_cast<std::chrono::microseconds>(current - start).count();
+    fps = static_cast<float>(1000000.0 * run_count/infTime);
+    
+    ie.RegisterCallback(nullptr);
+
+    outLoops = run_count;
+    std::cout << "Inference by time: total-inference-time=" << infTime / 1000000.0 << "(s)" << " total-loops=" << outLoops << std::endl;
+
+    return fps;
+}
+
+static float runAsyncTargetFPS(int64_t& outLoops, dxrt::InferenceEngine& ie, int targetFps, void* inputBuffer, int64_t targetDurationSec)
+{
+
+    #ifdef TARGET_FPS_DEBUG
+    vector<string> results;  // Company and time storage
+#endif
+    //static auto startTime = std::chrono::steady_clock::now();  // Start time
+    auto& profiler = dxrt::Profiler::GetInstance();
+    uint64_t infTime = 0;
+    int64_t target_duration_ms = targetDurationSec * 1000;
+    int64_t run_count = 0; // run async count
+    int64_t cb_count = 0; // callback count
+    float fps = 0;
+
+    std::mutex cv_mutex;
+    std::condition_variable cv;
+
+    std::function<int(vector<shared_ptr<dxrt::Tensor>>, void*)> postProcCallBack = \
+        [&cv_mutex, &cv, &cb_count, &run_count, outLoops](vector<shared_ptr<dxrt::Tensor>> outputs, void *arg)
+        {
+            (void)arg;
+            std::ignore = outputs;
+
+            std::lock_guard<std::mutex> lock(cv_mutex);
+            cb_count++;
+            if (cb_count == run_count) {
+                cv.notify_one();
+            }
+            return 0;
+        };
+
+    ie.RegisterCallback(postProcCallBack);
+
+
+    auto start_clock = std::chrono::steady_clock::now();
+    profiler.Start("TargetFps");
+    for(int64_t i = 0; ; ++i)
+    {
+#ifdef TARGET_FPS_DEBUG
+        auto loopStartTime = std::chrono::steady_clock::now();  // Start time for this loop
+#endif
+        
+        (void)ie.RunAsync(inputBuffer, 0);
+        run_count ++;
+
+#ifdef TARGET_FPS_DEBUG
+        auto elapsed = std::chrono::steady_clock::now() - loopStartTime;
+        auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+        results.push_back("Iteration " + to_string(i + 1) + ": " + inputFile + " -> " + outputFile +
+                        ", Time: " + to_string(elapsedMs) + " ms");
+#endif
+        // Calculate the expected time per frame
+        if (targetFps > 0)
+        {
+            auto targetTime = 1000 / targetFps;  // in milliseconds
+            auto totalElapsed = std::chrono::steady_clock::now() - start_clock;
+            auto totalElapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(totalElapsed).count();
+
+            if (totalElapsedMs < (i + 1) * targetTime)
+            {
+                auto sleepDuration = (i + 1) * targetTime - totalElapsedMs;
+                std::this_thread::sleep_for(std::chrono::milliseconds(sleepDuration));
+            }
+        }
+
+        // inference by time
+        if ( targetDurationSec > 0 )
+        {
+            auto current = std::chrono::steady_clock::now();
+            std::chrono::duration<double, std::milli> duration = current - start_clock;
+
+            if ( duration.count() > target_duration_ms )
+            {
+                break;
+            }
+        } //
+        else if ( i == (outLoops - 1) ) // inference by loops 
+        {
+            break;
+        }
+    }
+    profiler.End("TargetFps");
+    auto end_clock = std::chrono::steady_clock::now();
+    std::unique_lock<std::mutex> lock(cv_mutex);
+    cv.wait(lock, [&cb_count, &run_count]{
+        return cb_count == run_count;
+    });
+    
+    infTime = std::chrono::duration_cast<std::chrono::microseconds>(end_clock - start_clock).count();
+    if ( targetDurationSec > 0 ) 
+    {
+        outLoops = run_count;
+        std::cout << "Inference by time: total-inference-time=" << infTime / 1000000.0 << "(s)" << " total-loops=" << outLoops << std::endl;
+    }
+    fps = 1000000.0 * outLoops/infTime;
+
+#ifdef TARGET_FPS_DEBUG
+    for (const auto& result : results) {
+        cout << result << endl;
+    }
+#endif
+
+    return fps;
+
+}
+
 int main(int argc, char *argv[])
 {
     // always showing the model information
@@ -257,12 +426,13 @@ int main(int argc, char *argv[])
     string modelFile, inputFile, outputFile;
     bool benchmark = false;
     bool single = false;
-    int loops = 1;
+    int64_t loops = 1;
     string devices_spec;
     int targetFps = 0;
     bool skip_inference_io = false;
     bool use_ort = false;
     bool verbose = false;
+    int64_t duration = 0;
     cxxopts::Options options("run_model", APP_NAME);
     options.add_options()
         ("m, model", "Model file (.dxnn)" , cxxopts::value<string>(modelFile))
@@ -275,7 +445,8 @@ int main(int argc, char *argv[])
             "NPU bounding (default:0)\n"
             "  0: NPU_ALL\n  1: NPU_0\n  2: NPU_1\n  3: NPU_2\n"
             "  4: NPU_0/1\n  5: NPU_1/2\n  6: NPU_0/2", cxxopts::value<int>(bounding) )
-        ("l, loops", "Number of inference loops to perform", cxxopts::value<int>(loops)->default_value("30") )
+        ("l, loops", "Number of inference loops to perform", cxxopts::value<int64_t>(loops)->default_value("30") )
+        ("t, time", "Duration of inference in seconds (benchmark and target-fps mode, overrides --loops)", cxxopts::value<int64_t>(duration)->default_value("0") )
         ("d, devices",
             "Specify target NPU devices.\nExamples:\n"
             "  'all' (default): Use all available/bound NPUs\n"
@@ -422,6 +593,19 @@ int main(int argc, char *argv[])
     op.useORT = use_ort;
 
     try{
+
+        SetRunModelMode(single, targetFps);
+
+        // duration 
+        if ( duration > 0 && mode != SINGLE_MODE)
+        {
+            std::cout << "Inference by time: duration=" << duration << "(s)" << std::endl;
+        }
+        else 
+        {
+            std::cout << "Inference by loops: count=" << loops << std::endl;
+        }
+
         dxrt::InferenceEngine ie(modelFile, op);
         vector<uint8_t> inputBuf(ie.GetInputSize(), 0);
         if (!inputFile.empty())
@@ -430,8 +614,7 @@ int main(int argc, char *argv[])
             dxrt::DataFromFile(inputFile, inputBuf.data());
         }
 
-        SetRunModelMode(single, targetFps);
-
+        
         if (skip_inference_io)
         {
             if (benchmark == false)
@@ -466,86 +649,31 @@ int main(int argc, char *argv[])
                 break;
             }
             case TARGET_FPS_MODE: {
-#ifdef TARGET_FPS_DEBUG
-                vector<string> results;  // Company and time storage
-#endif
-                std::atomic<int> callback_cnt;
-                static auto startTime = std::chrono::high_resolution_clock::now();  // Start time
-                auto& profiler = dxrt::Profiler::GetInstance();
-                uint64_t infTime = 0;
-                float fps = 0.0;
 
-                std::mutex cv_mutex;
-                std::condition_variable cv;
+                // enable profiler and save profiler data
+                dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::PROFILER, true);
+                dxrt::Configuration::GetInstance().SetAttribute(dxrt::Configuration::ITEM::PROFILER, 
+                    dxrt::Configuration::ATTRIBUTE::PROFILER_SAVE_DATA, "ON");
 
-                std::function<int(vector<shared_ptr<dxrt::Tensor>>, void*)> postProcCallBack = \
-                    [&cv_mutex, &cv, &callback_cnt, loops](vector<shared_ptr<dxrt::Tensor>> outputs, void *arg)
-                    {
-                        (void)arg;
-                        std::ignore = outputs;
-                        callback_cnt++;
-                        if (callback_cnt == loops) {
-                            std::lock_guard<std::mutex> lock(cv_mutex);
-                            cv.notify_one();
-                        }
-                        return 0;
-                    };
-                callback_cnt = 0;
-                ie.RegisterCallback(postProcCallBack);
-
-
-                auto start_clock = std::chrono::steady_clock::now();
-                profiler.Start("TargetFps");
-                for (int i = 0; i < loops; i++)
-                {
-#ifdef TARGET_FPS_DEBUG
-                    auto loopStartTime = std::chrono::high_resolution_clock::now();  // Start time for this loop
-#endif
-                    (void)ie.RunAsync(inputBuf.data(), 0);
-#ifdef TARGET_FPS_DEBUG
-                    auto elapsed = std::chrono::high_resolution_clock::now() - loopStartTime;
-                    auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
-                    results.push_back("Iteration " + to_string(i + 1) + ": " + inputFile + " -> " + outputFile +
-                                    ", Time: " + to_string(elapsedMs) + " ms");
-#endif
-                    // Calculate the expected time per frame
-                    if (targetFps > 0)
-                    {
-                        auto targetTime = 1000 / targetFps;  // in milliseconds
-                        auto totalElapsed = std::chrono::high_resolution_clock::now() - startTime;
-                        auto totalElapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(totalElapsed).count();
-
-                        if (totalElapsedMs < (i + 1) * targetTime)
-                        {
-                            auto sleepDuration = (i + 1) * targetTime - totalElapsedMs;
-                            std::this_thread::sleep_for(std::chrono::milliseconds(sleepDuration));
-                        }
-                    }
-                }
-                profiler.End("TargetFps");
-                auto end_clock = std::chrono::steady_clock::now();
-                std::unique_lock<std::mutex> lock(cv_mutex);
-                cv.wait(lock, [loops, &callback_cnt]{
-                    return callback_cnt.load() >= loops;
-                });
-                infTime = std::chrono::duration_cast<std::chrono::microseconds>(end_clock - start_clock).count();
-                fps = 1000000.0 * loops/infTime;
-                PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatencyMean()/1000., ie.GetNpuInferenceTimeMean()/1000., fps, loops, mode, verbose);
-
-#ifdef TARGET_FPS_DEBUG
-                for (const auto& result : results) {
-                    cout << result << endl;
-                }
-#endif
+                float fps = runAsyncTargetFPS(loops, ie, targetFps, inputBuf.data(), duration);
+                PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatencyMean()/1000.0, ie.GetNpuInferenceTimeMean()/1000.0, fps, loops, mode, verbose);
                 break;
             }
             case BENCHMARK_MODE: {
                 // PrintInfResult(inputFile, outputFile, modelFile, 0.0, 0.0, fps);
-                float fps = ie.RunBenchmark(loops, inputBuf.data());
-                if (!inputFile.empty())
+                float fps = 0;
+                if ( duration > 0 )
                 {
-                    auto outputs = ie.Run(inputBuf.data());
-                    dxrt::DataDumpBin(outputFile, outputs);  /* TODO: sparse tensor */
+                    fps = runBenchmarkByTime(loops, ie, inputBuf.data(), duration);
+                }
+                else 
+                {
+                    fps = ie.RunBenchmark(loops, inputBuf.data());
+                    if (!inputFile.empty())
+                    {
+                        auto outputs = ie.Run(inputBuf.data());
+                        dxrt::DataDumpBin(outputFile, outputs);  /* TODO: sparse tensor */
+                    }
                 }
                 PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatencyMean()/1000., ie.GetNpuInferenceTimeMean()/1000., fps, loops, mode, verbose);
 
@@ -570,6 +698,7 @@ int main(int argc, char *argv[])
     {
         std::cerr << "Exception" << std::endl;
         return -1;
-}
+    }
+    
     return 0;
 }

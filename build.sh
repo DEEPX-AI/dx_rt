@@ -66,21 +66,18 @@ parse_cmake_options() {
         else
             CMAKE_USE_ORT=false
         fi
-        echo CMAKE_USE_ORT=$CMAKE_USE_ORT
     elif [ "$var_name" == 'USE_SERVICE' ]; then
         if [ "$default_val" == 'ON' ]; then
             CMAKE_USE_SERVICE=true
         else
             CMAKE_USE_SERVICE=false
         fi
-        echo CMAKE_USE_SERVICE=$CMAKE_USE_SERVICE
     elif [ "$var_name" == 'USE_PYTHON' ]; then
         if [ "$default_val" == 'ON' ]; then
             CMAKE_USE_PYTHON=true
         else
             CMAKE_USE_PYTHON=false
         fi
-        echo CMAKE_USE_PYTHON=$CMAKE_USE_PYTHON
     fi
   done < "$file"
 }
@@ -146,6 +143,11 @@ while (( $# )); do
     esac
 done
 
+# display cmake options
+echo CMAKE_USE_ORT=$CMAKE_USE_ORT
+echo CMAKE_USE_SERVICE=$CMAKE_USE_SERVICE
+echo CMAKE_USE_PYTHON=$CMAKE_USE_PYTHON
+
 # install onnx runtime
 if [ $install_ort == "true" ]; then
     ./install.sh --onnxruntime --arch $target_arch
@@ -210,6 +212,12 @@ cmd+=(-DPython_EXECUTABLE=$(which ${python_exec}))
 echo cmake args : ${cmd[@]}
 [ $clean_build == "true" ] && sudo rm -rf $build_dir
 
+# Remove stale Python extension modules when cleaning to avoid ABI/loader conflicts
+if [ $clean_build == "true" ]; then
+  echo "[CLEAN] Removing stale Python extension modules (_pydxrt*.so)"
+  rm -f "${SCRIPT_DIR}/python_package/src/dx_engine/capi/_pydxrt"*.so || true
+fi
+
 if [ $uninstall == "true" ]; then
     cd $build_dir
     sudo ninja uninstall
@@ -220,6 +228,10 @@ else
     mkdir -p $build_dir
     mkdir -p $out_dir
     sudo rm -rf $build_dir/bin
+    
+    # Proactively remove stale Python extension modules before (re)build
+    echo "[PREP] Removing stale Python extension modules (_pydxrt*.so)"
+    rm -f "${SCRIPT_DIR}/python_package/src/dx_engine/capi/_pydxrt"*.so || true
     
     # Clean coverage data from previous runs if coverage is enabled
     if [ $enable_coverage == "true" ]; then

@@ -4,6 +4,7 @@
 #include <functional>
 #include <stdexcept>
 #include <iostream>
+#include "dxrt/common.h"
 #include <cstring>
 #include <cstdint>
 #include <cstddef>
@@ -14,7 +15,7 @@ namespace npu_format_handler {
 // Helper function: Integer division rounding up
 int cdiv(int a, int b) {
     if (b == 0) {
-        std::cerr << "[cdiv] Error: Division by zero." << std::endl;
+        LOG_DXRT_ERR("[cdiv] Error: Division by zero.");
         return 0; // Or handle error appropriately
     }
     return (a + (b - 1)) / b;
@@ -23,16 +24,16 @@ int cdiv(int a, int b) {
 // --- Existing encode function (modified error handling) ---
 int NpuFormatHandler::encode(Bytes& input, Bytes& output, int col, int unit) {
     if (col <= 0 || unit <= 0) {
-         std::cerr << "[encode] Error: Column size (" << col << ") and unit size (" << unit << ") must be positive." << std::endl;
+         LOG_DXRT_ERR("[encode] Error: Column size (" << col << ") and unit size (" << unit << ") must be positive.");
          return -1;
     }
     if (input.size % col != 0) {
-        std::cerr << "[encode] Error: Input size (" << input.size << ") is not a multiple of column size (" << col << ")" << std::endl;
+        LOG_DXRT_ERR("[encode] Error: Input size (" << input.size << ") is not a multiple of column size (" << col << ")");
         // perror("Reason"); // perror is for system errors, not logical errors
         return -1;
     }
     if (input.data == nullptr) {
-         std::cerr << "[encode] Error: Input data buffer is null." << std::endl;
+         LOG_DXRT_ERR("[encode] Error: Input data buffer is null.");
          return -1;
     }
 
@@ -42,16 +43,16 @@ int NpuFormatHandler::encode(Bytes& input, Bytes& output, int col, int unit) {
     uint32_t expected_size = (uint32_t)row * aligned_col;
 
     if (output.data == nullptr) {
-        std::cerr << "[encode] Error: Output data buffer is null." << std::endl;
+        LOG_DXRT_ERR("[encode] Error: Output data buffer is null.");
         // perror("[encode] Error allocating memory"); // Misleading - memory should be pre-allocated
         return -1;
     }
      // It's generally better if the caller provides a sufficiently sized buffer.
      // Warn if provided size is different, then set the correct expected size.
     if (expected_size != output.size) {
-        std::cerr << "[encode] Warning: Output size is different than expected. "
+        LOG_DXRT_ERR("[encode] Warning: Output size is different than expected. "
                   << "Expected size: " << expected_size << ", Provided size: " << output.size
-                  << ". Output size will be set to expected." << std::endl;
+                  << ". Output size will be set to expected.");
     }
     output.size = expected_size; // Set the correct size for the output
 
@@ -82,11 +83,11 @@ int NpuFormatHandler::encode(Bytes& input, Bytes& output, int col, int unit) {
             delete[] temp_buffer;
         }
         catch (const std::bad_alloc& e) {
-            std::cerr << "[encode] Error: Failed to allocate temporary buffer for in-place operation: " << e.what() << std::endl;
+            LOG_DXRT_ERR("[encode] Error: Failed to allocate temporary buffer for in-place operation: " << e.what());
             return -1;
         }
          catch (const std::exception& e) {
-             std::cerr << "[encode] Error during in-place operation: " << e.what() << std::endl;
+             LOG_DXRT_ERR("[encode] Error during in-place operation: " << e.what());
              return -1;
          }
     } else { // Out-of-place operation
@@ -112,7 +113,7 @@ int NpuFormatHandler::encode_preformatter(Bytes& input, Bytes& output) {
     // If input.size is 0 but data is not null, it might be ambiguous.
     // If col becomes 0, encode will return error. Check here.
      if (col <= 0) {
-         std::cerr << "[encode_preformatter] Error: Input size must be positive." << std::endl;
+         LOG_DXRT_ERR("[encode_preformatter] Error: Input size must be positive.");
          return -1;
      }
     return encode(input, output, col, unit);
@@ -122,7 +123,7 @@ int NpuFormatHandler::encode_preformatter(Bytes& input, Bytes& output) {
 int NpuFormatHandler::encode_preim2col(Bytes& input, Bytes& output, int width, int channel) {
     const int unit = 64;
      if (width <= 0 || channel <= 0) {
-         std::cerr << "[encode_preim2col] Error: Width (" << width << ") and channel (" << channel << ") must be positive." << std::endl;
+         LOG_DXRT_ERR("[encode_preim2col] Error: Width (" << width << ") and channel (" << channel << ") must be positive.");
          return -1;
      }
     int col = width * channel;
@@ -135,11 +136,11 @@ int NpuFormatHandler::encode_formatted(Bytes& input, Bytes& output, int channel)
     int col = channel; // In this context, col is the channel count
 
     if (col <= 0 || unit <= 0) {
-         std::cerr << "[encode_formatted] Error: Channel size (" << col << ") and unit size (" << unit << ") must be positive." << std::endl;
+         LOG_DXRT_ERR("[encode_formatted] Error: Channel size (" << col << ") and unit size (" << unit << ") must be positive.");
          return -1;
     }
      if (input.data == nullptr) {
-         std::cerr << "[encode_formatted] Error: Input data buffer is null." << std::endl;
+         LOG_DXRT_ERR("[encode_formatted] Error: Input data buffer is null.");
          return -1;
      }
     if (input.size == 0) { // Handle empty input
@@ -147,7 +148,7 @@ int NpuFormatHandler::encode_formatted(Bytes& input, Bytes& output, int channel)
          return 0;
     }
     if (input.size % col != 0) {
-        std::cerr << "[encode_formatted] Error: Input size (" << input.size << ") is not a multiple of channel size (" << col << ")" << std::endl;
+        LOG_DXRT_ERR("[encode_formatted] Error: Input size (" << input.size << ") is not a multiple of channel size (" << col << ")");
         return -1;
     }
 
@@ -157,13 +158,13 @@ int NpuFormatHandler::encode_formatted(Bytes& input, Bytes& output, int channel)
     uint32_t expected_size = (uint32_t)row * aligned_col; // Expected output size in bytes
 
     if (output.data == nullptr) {
-        std::cerr << "[encode_formatted] Error: Output data buffer is null." << std::endl;
+        LOG_DXRT_ERR("[encode_formatted] Error: Output data buffer is null.");
         return -1;
     }
      if (expected_size != output.size) {
-         std::cerr << "[encode_formatted] Warning: Output size is different than expected. "
+         LOG_DXRT_ERR("[encode_formatted] Warning: Output size is different than expected. "
                    << "Expected size: " << expected_size << ", Provided size: " << output.size
-                   << ". Output size will be set to expected." << std::endl;
+                   << ". Output size will be set to expected.");
      }
      output.size = expected_size;
 
@@ -190,8 +191,8 @@ int NpuFormatHandler::encode_formatted(Bytes& input, Bytes& output, int channel)
                      // Ensure copy_size is not negative if col < g*unit (shouldn't happen with cdiv)
                      if (copy_size > 0) {
                          // Check bounds before memcpy
-                         if (src_addr + copy_size > input.size || dst_addr + copy_size > output.size) {
-                              std::cerr << "[encode_formatted] Internal Error: Memory access out of bounds during in-place copy." << std::endl;
+                          if (src_addr + copy_size > input.size || dst_addr + copy_size > output.size) {
+                               LOG_DXRT_ERR("[encode_formatted] Internal Error: Memory access out of bounds during in-place copy.");
                               delete[] temp_buffer; // Clean up memory
                               return -1;
                          }
@@ -201,10 +202,10 @@ int NpuFormatHandler::encode_formatted(Bytes& input, Bytes& output, int channel)
              }
              delete[] temp_buffer;
         } catch (const std::bad_alloc& e) {
-             std::cerr << "[encode_formatted] Error: Failed to allocate temporary buffer for in-place operation: " << e.what() << std::endl;
+             LOG_DXRT_ERR("[encode_formatted] Error: Failed to allocate temporary buffer for in-place operation: " << e.what());
              return -1;
         } catch (const std::exception& e) {
-             std::cerr << "[encode_formatted] Error during in-place operation: " << e.what() << std::endl;
+             LOG_DXRT_ERR("[encode_formatted] Error during in-place operation: " << e.what());
              return -1;
          }
 
@@ -219,7 +220,7 @@ int NpuFormatHandler::encode_formatted(Bytes& input, Bytes& output, int channel)
                 if (copy_size > 0) {
                      // Check bounds before memcpy
                      if (src_addr + copy_size > input.size || dst_addr + copy_size > output.size) {
-                          std::cerr << "[encode_formatted] Internal Error: Memory access out of bounds during out-of-place copy." << std::endl;
+                          LOG_DXRT_ERR("[encode_formatted] Internal Error: Memory access out of bounds during out-of-place copy.");
                           return -1;
                      }
                     memcpy(data + dst_addr, input.data + src_addr, copy_size);
@@ -235,24 +236,24 @@ int NpuFormatHandler::encode_formatted(Bytes& input, Bytes& output, int channel)
 // --- Existing decode function (modified error handling) ---
 int NpuFormatHandler::decode(Bytes& input, Bytes& output, int col, int unit) {
      if (col <= 0 || unit <= 0) {
-         std::cerr << "[decode] Error: Column size (" << col << ") and unit size (" << unit << ") must be positive." << std::endl;
+         LOG_DXRT_ERR("[decode] Error: Column size (" << col << ") and unit size (" << unit << ") must be positive.");
          return -1;
     }
     int aligned_col = cdiv(col, unit) * unit;
      if (aligned_col == 0) {
-         std::cerr << "[decode] Error: Calculated aligned column size is zero." << std::endl;
+         LOG_DXRT_ERR("[decode] Error: Calculated aligned column size is zero.");
          return -1;
      }
      if (input.data == nullptr) {
-         std::cerr << "[decode] Error: Input data buffer is null." << std::endl;
+         LOG_DXRT_ERR("[decode] Error: Input data buffer is null.");
          return -1;
      }
     if (input.size == 0) { // Handle empty input
          output.size = 0;
          return 0;
     }
-    if (input.size % aligned_col != 0) {
-         std::cerr << "[decode] Error: Input size (" << input.size << ") is not a multiple of aligned column size (" << aligned_col << ")" << std::endl;
+     if (input.size % aligned_col != 0) {
+         LOG_DXRT_ERR("[decode] Error: Input size (" << input.size << ") is not a multiple of aligned column size (" << aligned_col << ")");
          return -1;
     }
 
@@ -260,13 +261,13 @@ int NpuFormatHandler::decode(Bytes& input, Bytes& output, int col, int unit) {
     uint32_t expected_size = (uint32_t)row * col;
 
     if (output.data == nullptr) {
-        std::cerr << "[decode] Error: Output data buffer is null." << std::endl;
+        LOG_DXRT_ERR("[decode] Error: Output data buffer is null.");
         return -1;
     }
     if (expected_size != output.size) {
-         std::cerr << "[decode] Warning: Output size is different than expected. "
+         LOG_DXRT_ERR("[decode] Warning: Output size is different than expected. "
                    << "Expected size: " << expected_size << ", Provided size: " << output.size
-                   << ". Output size will be set to expected." << std::endl;
+                   << ". Output size will be set to expected.");
     }
     output.size = expected_size; // Set the correct size for the output
 
@@ -287,8 +288,8 @@ int NpuFormatHandler::decode(Bytes& input, Bytes& output, int col, int unit) {
              // Copy back only the valid data portions
              for (int i = 0; i < row; ++i) {
                   // Check bounds before memcpy
-                  if ((size_t)i * col + col > output.size || (size_t)i * aligned_col + col > input.size) {
-                        std::cerr << "[decode] Internal Error: Memory access out of bounds during in-place copy." << std::endl;
+                   if ((size_t)i * col + col > output.size || (size_t)i * aligned_col + col > input.size) {
+                        LOG_DXRT_ERR("[decode] Internal Error: Memory access out of bounds during in-place copy.");
                         delete[] temp_buffer;
                         return -1;
                   }
@@ -296,17 +297,17 @@ int NpuFormatHandler::decode(Bytes& input, Bytes& output, int col, int unit) {
              }
              delete[] temp_buffer;
          } catch (const std::bad_alloc& e) {
-             std::cerr << "[decode] Error: Failed to allocate temporary buffer for in-place operation: " << e.what() << std::endl;
+             LOG_DXRT_ERR("[decode] Error: Failed to allocate temporary buffer for in-place operation: " << e.what());
              return -1;
          } catch (const std::exception& e) {
-             std::cerr << "[decode] Error during in-place operation: " << e.what() << std::endl;
+             LOG_DXRT_ERR("[decode] Error during in-place operation: " << e.what());
              return -1;
          }
     } else { // Out-of-place
         for (int i = 0; i < row; ++i) {
              // Check bounds before memcpy
              if ((size_t)i * col + col > output.size || (size_t)i * aligned_col + col > input.size) {
-                   std::cerr << "[decode] Internal Error: Memory access out of bounds during out-of-place copy." << std::endl;
+                   LOG_DXRT_ERR("[decode] Internal Error: Memory access out of bounds during out-of-place copy.");
                    return -1;
              }
             memcpy(data + (size_t)i * col, input.data + (size_t)i * aligned_col, col);
@@ -339,12 +340,12 @@ int NpuFormatHandler::decode_aligned(Bytes& input, Bytes& output, int channel, d
 // --- Existing bidirectional_transpose (modified error handling) ---
 void NpuFormatHandler::bidirectional_transpose(void* src, void* dst, int row, int col, size_t element_size) {
     if (src == nullptr || dst == nullptr) {
-        std::cerr << "[bidirectional_transpose] Error: Source or destination pointer is null." << std::endl;
+        LOG_DXRT_ERR("[bidirectional_transpose] Error: Source or destination pointer is null.");
         return; // Keep void return for consistency? Or change API? For now, return.
     }
      if (row <= 0 || col <= 0 || element_size == 0) {
-         std::cerr << "[bidirectional_transpose] Error: Invalid input parameters (row=" << row
-                   << ", col=" << col << ", element_size=" << element_size << ")." << std::endl;
+         LOG_DXRT_ERR("[bidirectional_transpose] Error: Invalid input parameters (row=" << row
+                   << ", col=" << col << ", element_size=" << element_size << ").");
          return;
      }
 
@@ -367,7 +368,7 @@ void NpuFormatHandler::bidirectional_transpose(void* src, void* dst, int row, in
                 // size_t src_total_size = (size_t)row * col * element_size;
                 // size_t dst_total_size = (size_t)col * row * element_size;
                 // if (src_offset + element_size > src_total_size || dst_offset + element_size > dst_total_size) {
-                //     std::cerr << "[bidirectional_transpose] Warning: Potential out-of-bounds access during transpose." << std::endl;
+                //     LOG_DXRT_ERR("[bidirectional_transpose] Warning: Potential out-of-bounds access during transpose.");
                 //     // Continue carefully or return error
                 // }
                 memcpy(dst_ptr_base + dst_offset, src_ptr_base + src_offset, element_size);
@@ -376,19 +377,19 @@ void NpuFormatHandler::bidirectional_transpose(void* src, void* dst, int row, in
     }
     catch (const std::exception& e) {
         // Catch potential exceptions from memory operations if any (though memcpy usually doesn't throw std::exception)
-        std::cerr << "[bidirectional_transpose] Error: " << e.what() << std::endl;
+        LOG_DXRT_ERR("[bidirectional_transpose] Error: " << e.what());
         // Cannot return error code easily from void function.
     }
 }
 
 void NpuFormatHandler::bidirectional_transpose_inplace(void* src, int row, int col, size_t element_size) {
     if (src == nullptr) {
-        std::cerr << "[bidirectional_transpose_inplace] Error: Source pointer is null." << std::endl;
+        LOG_DXRT_ERR("[bidirectional_transpose_inplace] Error: Source pointer is null.");
         return;
     }
     if (row <= 0 || col <= 0 || element_size == 0) {
-        std::cerr << "[bidirectional_transpose_inplace] Error: Invalid input parameters (row=" << row
-                  << ", col=" << col << ", element_size=" << element_size << ")." << std::endl;
+        LOG_DXRT_ERR("[bidirectional_transpose_inplace] Error: Invalid input parameters (row=" << row
+                  << ", col=" << col << ", element_size=" << element_size << ").");
         return;
     }
 
@@ -397,7 +398,7 @@ void NpuFormatHandler::bidirectional_transpose_inplace(void* src, int row, int c
     size_t total_size_bytes = total_elements * element_size;
     // Basic overflow check (if element_size > 0 and total_elements > 0, result should match)
     if (element_size > 0 && total_elements > 0 && total_size_bytes / element_size != total_elements) {
-         std::cerr << "[bidirectional_transpose_inplace] Error: Size calculation overflow detected." << std::endl;
+         LOG_DXRT_ERR("[bidirectional_transpose_inplace] Error: Size calculation overflow detected.");
          return;
     }
 
@@ -440,9 +441,9 @@ void NpuFormatHandler::bidirectional_transpose_inplace(void* src, int row, int c
             }
             delete[] temp; // Free allocated memory
         } catch (const std::bad_alloc& e) {
-            std::cerr << "[bidirectional_transpose_inplace] Error: Failed to allocate temporary buffer: " << e.what() << std::endl;
+            LOG_DXRT_ERR("[bidirectional_transpose_inplace] Error: Failed to allocate temporary buffer: " << e.what());
         } catch (const std::exception& e) {
-            std::cerr << "[bidirectional_transpose_inplace] Error during square transpose: " << e.what() << std::endl;
+            LOG_DXRT_ERR("[bidirectional_transpose_inplace] Error during square transpose: " << e.what());
         }
     } else {
         // --- Rectangular matrix: Use temporary buffer ---
@@ -480,12 +481,12 @@ void NpuFormatHandler::bidirectional_transpose_inplace(void* src, int row, int c
             temp_buffer = nullptr; // Reset pointer (optional)
 
         } catch (const std::bad_alloc& e) {
-            std::cerr << "[bidirectional_transpose_inplace] Error: Failed to allocate temporary buffer for non-square transpose: " << e.what() << std::endl;
+            LOG_DXRT_ERR("[bidirectional_transpose_inplace] Error: Failed to allocate temporary buffer for non-square transpose: " << e.what());
             // temp_buffer is already null or delete[] will handle null
             // delete[] temp_buffer; // DO NOT delete here - potential double-free
             return; // Return on error
         } catch (const std::exception& e) {
-            std::cerr << "[bidirectional_transpose_inplace] Error during non-square transpose: " << e.what() << std::endl;
+            LOG_DXRT_ERR("[bidirectional_transpose_inplace] Error during non-square transpose: " << e.what());
             delete[] temp_buffer; // Attempt to free in case it was allocated before exception
             return; // Return on error
         }
@@ -498,21 +499,21 @@ int NpuFormatHandler::encode_formatted_transposed(
 {
      // --- Input Validation ---
      if (input.data == nullptr || output.data == nullptr) {
-         std::cerr << "[encode_formatted_transposed] Error: Input or output data buffer is null." << std::endl;
+         LOG_DXRT_ERR("[encode_formatted_transposed] Error: Input or output data buffer is null.");
          return -1;
      }
      if (row <= 0 || col <= 0 || element_size == 0 || unit <= 0) {
-         std::cerr << "[encode_formatted_transposed] Error: Invalid input parameters (row=" << row
-                   << ", col=" << col << ", element_size=" << element_size << ", unit=" << unit << ")." << std::endl;
+         LOG_DXRT_ERR("[encode_formatted_transposed] Error: Invalid input parameters (row=" << row
+                   << ", col=" << col << ", element_size=" << element_size << ", unit=" << unit << ").");
          return -1;
      }
       if (input.size != (uint32_t)row * col * element_size) {
-         std::cerr << "[encode_formatted_transposed] Error: Input size (" << input.size
-                   << ") does not match row * col * element_size (" << (uint32_t)row * col * element_size << ")." << std::endl;
+         LOG_DXRT_ERR("[encode_formatted_transposed] Error: Input size (" << input.size
+                   << ") does not match row * col * element_size (" << (uint32_t)row * col * element_size << ").");
          return -1;
      }
      if (input.data == output.data) {
-         std::cerr << "[encode_formatted_transposed] Error: In-place operation (input == output) is not supported for this function." << std::endl;
+         LOG_DXRT_ERR("[encode_formatted_transposed] Error: In-place operation (input == output) is not supported for this function.");
          return -1;
      }
 
@@ -528,10 +529,10 @@ int NpuFormatHandler::encode_formatted_transposed(
      uint32_t expected_output_size = (uint32_t)enc_row * aligned_enc_col * element_size;
 
      // Check and set output buffer size
-     if (expected_output_size != output.size) {
-         std::cerr << "[encode_formatted_transposed] Warning: Output size is different than expected. "
+      if (expected_output_size != output.size) {
+         LOG_DXRT_ERR("[encode_formatted_transposed] Warning: Output size is different than expected. "
                    << "Expected size: " << expected_output_size << ", Provided size: " << output.size
-                   << ". Output size will be set to expected." << std::endl;
+                   << ". Output size will be set to expected.");
      }
      output.size = expected_output_size; // Update output size
 
@@ -571,8 +572,8 @@ int NpuFormatHandler::encode_formatted_transposed(
 
                      // Bounds check (essential for safety)
                      if (src_offset_bytes + element_size > input.size || dst_offset_bytes + element_size > output.size) {
-                         std::cerr << "[encode_formatted_transposed] Internal Error: Memory access out of bounds." << std::endl;
-                         return -1;
+                          LOG_DXRT_ERR("[encode_formatted_transposed] Internal Error: Memory access out of bounds.");
+                          return -1;
                      }
 
                      // Copy the element
@@ -584,7 +585,7 @@ int NpuFormatHandler::encode_formatted_transposed(
          }
      } catch (const std::exception& e) {
          // Catch potential memory-related exceptions, although unlikely with memcpy
-         std::cerr << "[encode_formatted_transposed] Error during copy: " << e.what() << std::endl;
+         LOG_DXRT_ERR("[encode_formatted_transposed] Error during copy: " << e.what());
          return -1;
      }
 
@@ -601,31 +602,31 @@ int NpuFormatHandler::decode_aligned_transposed(
 {
     // --- 1. Input Validation ---
     if (input.data == nullptr) {
-        std::cerr << "[decode_aligned_transposed] Error: Input data buffer is null." << std::endl;
+        LOG_DXRT_ERR("[decode_aligned_transposed] Error: Input data buffer is null.");
         return -1;
     }
      if (output.data == nullptr && input.size > 0) {
          // Only check output null if output is needed (if input size is 0, output can be 0)
          // It might be safer to forbid null output.data even if output.size is 0.
-         std::cerr << "[decode_aligned_transposed] Error: Output data buffer is null." << std::endl;
+         LOG_DXRT_ERR("[decode_aligned_transposed] Error: Output data buffer is null.");
          return -1;
      }
     if (channel_for_decode <= 0) {
-        std::cerr << "[decode_aligned_transposed] Error: channel_for_decode (" << channel_for_decode << ") must be positive." << std::endl;
+        LOG_DXRT_ERR("[decode_aligned_transposed] Error: channel_for_decode (" << channel_for_decode << ") must be positive.");
         return -1;
     }
-    if (shape_encoded.empty()) {
-         std::cerr << "[decode_aligned_transposed] Error: shape_encoded is empty." << std::endl;
+     if (shape_encoded.empty()) {
+         LOG_DXRT_ERR("[decode_aligned_transposed] Error: shape_encoded is empty.");
          return -1;
-    }
+     }
     // Only handle supported transpose types
     if (transpose_type != deepx_rmapinfo::Transpose::CHANNEL_FIRST_TO_LAST &&
         transpose_type != deepx_rmapinfo::Transpose::CHANNEL_LAST_TO_FIRST) {
-         std::cerr << "[decode_aligned_transposed] Error: Unsupported transpose_type provided (" << static_cast<int>(transpose_type) << ")." << std::endl;
+         LOG_DXRT_ERR("[decode_aligned_transposed] Error: Unsupported transpose_type provided (" << static_cast<int>(transpose_type) << ").");
          return -1;
     }
     if (input.data == output.data && input.size > 0) { // Allow if size is 0
-        std::cerr << "[decode_aligned_transposed] Error: In-place operation (input == output) is not supported." << std::endl;
+        LOG_DXRT_ERR("[decode_aligned_transposed] Error: In-place operation (input == output) is not supported.");
         return -1;
     }
 
@@ -648,16 +649,16 @@ int NpuFormatHandler::decode_aligned_transposed(
     int decode_byte_unit = decode_unit_elements * element_size;
 
     if (decode_byte_unit <= 0) {
-         std::cerr << "[decode_aligned_transposed] Error: Calculated byte unit is not positive." << std::endl;
+         LOG_DXRT_ERR("[decode_aligned_transposed] Error: Calculated byte unit is not positive.");
          return -1;
-    }
+     }
 
     int decode_byte_aligned_col = 0;
      try {
          // Calculate the aligned column width in bytes
          decode_byte_aligned_col = cdiv(decode_byte_col, decode_byte_unit) * decode_byte_unit;
      } catch (const std::runtime_error& e) {
-         std::cerr << "[decode_aligned_transposed] Error during cdiv calculation: " << e.what() << std::endl;
+         LOG_DXRT_ERR("[decode_aligned_transposed] Error during cdiv calculation: " << e.what());
          return -1;
      }
 
@@ -668,7 +669,7 @@ int NpuFormatHandler::decode_aligned_transposed(
              output.size = 0;
              return 0;
         }
-        std::cerr << "[decode_aligned_transposed] Error: Calculated aligned column size is not positive ("<< decode_byte_aligned_col <<")." << std::endl;
+        LOG_DXRT_ERR("[decode_aligned_transposed] Error: Calculated aligned column size is not positive ("<< decode_byte_aligned_col <<").");
         return -1;
     }
 
@@ -678,8 +679,8 @@ int NpuFormatHandler::decode_aligned_transposed(
         return 0; // Handle empty input processed
     }
     if (input.size % decode_byte_aligned_col != 0) {
-        std::cerr << "[decode_aligned_transposed] Error: Input size (" << input.size
-                  << ") is not a multiple of aligned byte column size (" << decode_byte_aligned_col << ")" << std::endl;
+        LOG_DXRT_ERR("[decode_aligned_transposed] Error: Input size (" << input.size
+                  << ") is not a multiple of aligned byte column size (" << decode_byte_aligned_col << ")");
         return -1;
     }
 
@@ -737,13 +738,13 @@ int NpuFormatHandler::decode_aligned_transposed(
               // Allow if both are zero (0-size tensor)
               if (transpose_row != 0 || transpose_col != 0) {
                    // If only one is zero, it might indicate an error in shape definition
-                   std::cerr << "[decode_aligned_transposed] Warning: Calculated transpose dimension is zero ("
-                             << transpose_row << "x" << transpose_col << "). Check shape_encoded." << std::endl;
+                   LOG_DXRT_ERR("[decode_aligned_transposed] Warning: Calculated transpose dimension is zero ("
+                             << transpose_row << "x" << transpose_col << "). Check shape_encoded.");
                    // Can proceed treating as 0-size tensor or return error
               }
          }
     } catch (const std::exception& e) {
-        std::cerr << "[decode_aligned_transposed] Error calculating transpose dimensions: " << e.what() << std::endl;
+        LOG_DXRT_ERR("[decode_aligned_transposed] Error calculating transpose dimensions: " << e.what());
         return -1;
     }
 
@@ -753,10 +754,10 @@ int NpuFormatHandler::decode_aligned_transposed(
     uint64_t total_elements_transposed = transpose_row * transpose_col;
 
     if (total_elements_decoded != total_elements_transposed) {
-        std::cerr << "[decode_aligned_transposed] Error: Mismatch in total elements. Decoded: "
+        LOG_DXRT_ERR("[decode_aligned_transposed] Error: Mismatch in total elements. Decoded: "
                   << total_elements_decoded << " (" << decoded_rows << "*" << channel_for_decode
                   << "), Transposed: " << total_elements_transposed << " ("
-                  << transpose_row << "*" << transpose_col << "). Check parameters." << std::endl;
+                  << transpose_row << "*" << transpose_col << "). Check parameters.");
         return -1;
     }
 
@@ -764,21 +765,21 @@ int NpuFormatHandler::decode_aligned_transposed(
     uint64_t expected_output_size_64 = total_elements_transposed * element_size;
     // Check for overflow since output.size is uint32_t
     if (expected_output_size_64 > UINT32_MAX) {
-        std::cerr << "[decode_aligned_transposed] Error: Calculated output size exceeds UINT32_MAX." << std::endl;
+        LOG_DXRT_ERR("[decode_aligned_transposed] Error: Calculated output size exceeds UINT32_MAX.");
         return -1;
     }
     uint32_t expected_output_size = static_cast<uint32_t>(expected_output_size_64);
 
     // Handle output buffer null check and size mismatch
      if (output.data == nullptr && expected_output_size > 0) {
-          std::cerr << "[decode_aligned_transposed] Error: Output data buffer is null for non-zero expected size." << std::endl;
+          LOG_DXRT_ERR("[decode_aligned_transposed] Error: Output data buffer is null for non-zero expected size.");
           return -1;
      }
     if (output.size != expected_output_size) {
          // Warn about size mismatch but proceed, assuming caller allocated enough space. Set the correct size.
-         std::cerr << "[decode_aligned_transposed] Warning: Output buffer size mismatch. Provided: "
+         LOG_DXRT_ERR("[decode_aligned_transposed] Warning: Output buffer size mismatch. Provided: "
                    << output.size << ", Expected: " << expected_output_size
-                   << ". Using expected size for operation, ensure buffer is large enough." << std::endl;
+                   << ". Using expected size for operation, ensure buffer is large enough.");
          output.size = expected_output_size;
     }
     // If size is 0, no work needed.
@@ -820,13 +821,13 @@ int NpuFormatHandler::decode_aligned_transposed(
 
                 // 4. Boundary Checks (Crucial for safety)
                 if (src_offset_bytes + element_size > input.size) {
-                     std::cerr << "[decode_aligned_transposed] Internal Error: Source read out of bounds. "
-                               << "Offset: " << src_offset_bytes << ", ElementSize: " << element_size << ", InputSize: " << input.size << std::endl;
+                     LOG_DXRT_ERR("[decode_aligned_transposed] Internal Error: Source read out of bounds. "
+                               << "Offset: " << src_offset_bytes << ", ElementSize: " << element_size << ", InputSize: " << input.size);
                      return -1;
                 }
                 if (dst_offset_bytes + element_size > output.size) {
-                     std::cerr << "[decode_aligned_transposed] Internal Error: Destination write out of bounds. "
-                               << "Offset: " << dst_offset_bytes << ", ElementSize: " << element_size << ", OutputSize: " << output.size << std::endl;
+                     LOG_DXRT_ERR("[decode_aligned_transposed] Internal Error: Destination write out of bounds. "
+                               << "Offset: " << dst_offset_bytes << ", ElementSize: " << element_size << ", OutputSize: " << output.size);
                      return -1;
                 }
 
@@ -836,7 +837,7 @@ int NpuFormatHandler::decode_aligned_transposed(
         }
     } catch (const std::exception& e) {
         // Catch potential exceptions during the copy loop (e.g., memory access errors)
-        std::cerr << "[decode_aligned_transposed] Error during copy loop: " << e.what() << std::endl;
+        LOG_DXRT_ERR("[decode_aligned_transposed] Error during copy loop: " << e.what());
         return -1;
     }
 

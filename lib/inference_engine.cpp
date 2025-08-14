@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <fcntl.h>
-#include <errno.h>
+// #include <errno.h>
 
 #include <stdexcept>
 #include <cstring>
@@ -18,7 +18,7 @@
 #include <chrono>
 #include <thread>
 #endif
-#include <regex>
+// #include <regex>
 #include <set>
 
 #include "resource/log_messages.h"
@@ -27,7 +27,7 @@
 #include "dxrt/datatype.h"
 #include "dxrt/task.h"
 #include "dxrt/device.h"
-#include "dxrt/util.h"
+// #include "dxrt/util.h"
 #include "dxrt/request.h"
 #include "dxrt/cpu_handle.h"
 #include "dxrt/filesys_support.h"
@@ -39,7 +39,6 @@
 #define PRINT_ALL_INFERENCE_ENGINE
 
 using std::cout;
-using std::cerr;
 using std::endl;
 
 namespace dxrt
@@ -67,7 +66,6 @@ InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &opti
         }
     }
 #endif
-
     std::lock_guard<std::mutex> lock(_sInferenceEngineMutex);
 
     _modelDir = getParentPath(getAbsolutePath(_modelFile));
@@ -79,7 +77,7 @@ InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &opti
     initializeEnvironmentVariables();
     initializeModel();
     buildTasksAndSubgraphMap();
- 
+
     // Parse multi-input information from model data
     #ifdef USE_ORT
     if (_option.useORT == true)
@@ -103,7 +101,6 @@ InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &opti
             }
         }
     }
-
     _isMultiInput = (_modelInputOrder.size() > 1);
     LOG_DBG("Multi-input model: " + std::to_string(_isMultiInput));
     LOG_DBG("Input tensor count: " + std::to_string(_modelInputOrder.size()));
@@ -116,7 +113,6 @@ InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &opti
     }
 
     buildTaskGraph();
-
 #ifdef USE_ORT
     if (_option.useORT == true)
     {
@@ -254,7 +250,6 @@ InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &opti
         LOG_DBG("Task '" + task->name() + "' tailOffset set to: " + std::to_string(taskOffset));
     }
 
-    //
     DXRT_ASSERT(_lastOutputOrder.size() > 0, "last output order is empty");
 
     /*
@@ -796,7 +791,7 @@ float InferenceEngine::RunBenchmark(int num, void *inputPtr)
     if (!completed) {
         LOG_DXRT_ERR("RunBenchmark timeout: completed " << done_count.load() << "/" << num << " requests");
         RegisterCallback(nullptr);
-        throw std::runtime_error(LogMessages::InferenceEngine_TimeoutRunBenchmark());
+        throw InvalidOperationException(EXCEPTION_MESSAGE(LogMessages::InferenceEngine_TimeoutRunBenchmark()));
     }
 
     infTime = std::chrono::duration_cast<std::chrono::microseconds>(end_clock - start_clock).count();
@@ -1708,18 +1703,18 @@ void InferenceEngine::initializeEnvironmentVariables()
         try {
             DEBUG_DATA = std::stoi(dxrt_debug_data_env);
         } catch (const std::invalid_argument&) {
-            cerr << "Environment variable DXRT_DEBUG_DATA is not a valid integer.\n";
+            LOG_DXRT_ERR("Environment variable DXRT_DEBUG_DATA is not a valid integer.");
         } catch (const std::out_of_range&) {
-            cerr << "Environment variable DXRT_DEBUG_DATA is out of range.\n";
+            LOG_DXRT_ERR("Environment variable DXRT_DEBUG_DATA is out of range.");
         }
     }
     if (dxrt_show_profile_env != nullptr) {
         try {
             SHOW_PROFILE = std::stoi(dxrt_show_profile_env);
         } catch (const std::invalid_argument&) {
-            cerr << "Environment variable DXRT_SHOW_PROFILE is not a valid integer.\n";
+            LOG_DXRT_ERR("Environment variable DXRT_SHOW_PROFILE is not a valid integer.");
         } catch (const std::out_of_range&) {
-            cerr << "Environment variable DXRT_SHOW_PROFILE is out of range.\n";
+            LOG_DXRT_ERR("Environment variable DXRT_SHOW_PROFILE is out of range.");
         }
     }
 #ifdef USE_ORT
@@ -1730,7 +1725,9 @@ void InferenceEngine::initializeEnvironmentVariables()
 #else
     if (_option.useORT == true)
     {
-        throw dxrt::InvalidArgumentException("USE_ORT NOT SUPPORTED");
+        // Gracefully degrade when built without USE_ORT: disable CPU fallback instead of throwing.
+        LOG_DXRT_ERR("[dxrt] Warning: USE_ORT is disabled in this build. Forcing useORT=false.");
+        _option.useORT = false;
     }
 #endif
 }
@@ -2157,6 +2154,14 @@ void InferenceEngine::calculateTensorOffsets()
 {
     LOG_DBG("Calculating tensor offsets for final output buffer");
 
+    std::lock_guard<std::mutex> lock(_outputBufferMutex);
+    
+    if (_outputOffsetsCalculated.load()) {
+        LOG_DBG("Output offsets already calculated, skipping");
+        return;
+    }
+
+    _cachedOutputOffsets.clear();
     uint64_t currentOffset = 0;
 
     // Calculate offsets based on _finalOutputOrder
@@ -2166,6 +2171,7 @@ void InferenceEngine::calculateTensorOffsets()
         if (it != _tensorRegistry.end())
         {
             it->second.outputBufferOffset = currentOffset;
+            _cachedOutputOffsets[tensorName] = currentOffset;
             currentOffset += it->second.sizeInBytes;
 
             LOG_DBG("Tensor '" + tensorName + "' offset: " + std::to_string(it->second.outputBufferOffset) +
@@ -2177,18 +2183,25 @@ void InferenceEngine::calculateTensorOffsets()
         }
     }
 
+    _outputOffsetsCalculated.store(true);
     LOG_DBG("Total output buffer size needed: " + std::to_string(currentOffset) + " bytes");
 }
 
-uint64_t InferenceEngine::getTensorOffset(const std::string& tensorName) const
+size_t InferenceEngine::GetOutputTensorOffset(const std::string& tensorName) const
 {
-    auto it = _tensorRegistry.find(tensorName);
-    if (it != _tensorRegistry.end())
-    {
-        return it->second.outputBufferOffset;
+    // Ensure offsets are calculated first
+    if (!_outputOffsetsCalculated.load()) {
+        const_cast<InferenceEngine*>(this)->calculateTensorOffsets();
     }
 
-    LOG_DXRT_ERR("Tensor '" + tensorName + "' not found in registry");
+    std::lock_guard<std::mutex> lock(_outputBufferMutex);
+    auto it = _cachedOutputOffsets.find(tensorName);
+    if (it != _cachedOutputOffsets.end())
+    {
+        return static_cast<size_t>(it->second);
+    }
+
+    LOG_DXRT_ERR("Tensor '" + tensorName + "' not found in cached offsets");
     return 0;
 }
 
@@ -2208,50 +2221,6 @@ bool InferenceEngine::supportsTensorCentricOffsets() const
 {
     // Return true if tensor registry is built and has output tensors
     return !_tensorRegistry.empty() && !_finalOutputOrder.empty();
-}
-
-size_t InferenceEngine::GetOutputTensorOffset(const std::string& tensorName) const
-{
-    // Use the same tensor order logic as GetOutputTensorNames() for consistency
-    std::vector<std::string> outputTensorOrder;
-    if (!_finalOutputOrder.empty())
-    {
-        outputTensorOrder = _finalOutputOrder;
-    }
-    else
-    {
-        outputTensorOrder = _lastOutputOrder;
-    }
-
-    // Find the position of this tensor in the output order
-    auto it = std::find(outputTensorOrder.begin(), outputTensorOrder.end(), tensorName);
-    if (it == outputTensorOrder.end())
-    {
-        throw InvalidArgumentException("Tensor '" + tensorName + "' is not in the model's output list");
-    }
-
-    // Calculate cumulative offset
-    size_t offset = 0;
-    for (auto iter = outputTensorOrder.begin(); iter != it; ++iter)
-    {
-        // Find the task that produces this output tensor
-        for (const auto& task : _tasks)
-        {
-            for (auto& output : task->outputs())
-            {
-                if (output.name() == *iter)
-                {
-                    // Calculate size of this tensor
-                    size_t tensorSize = output.size_in_bytes();
-                    offset += tensorSize;
-                    goto next_tensor;  // Found the tensor, move to next
-                }
-            }
-        }
-        next_tensor:;  // goto destination
-    }
-
-    return offset;
 }
 
 int InferenceEngine::DSP_GetDeviceBufferPtr(uint64_t *inputPtr, uint64_t *outputPtr)

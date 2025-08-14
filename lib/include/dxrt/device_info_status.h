@@ -52,7 +52,7 @@ class DXRT_API DeviceStatus
      *     DeviceStatus status = DeviceManager::GetCurrentStatus(0);
      *     std::cout << "Device 0 Status: " << status.ToString() << std::endl;
      * } catch (const InvalidArgumentException& e) {
-     *     std::cerr << "Error: " << e.what() << std::endl;
+     *     LOG_DXRT_ERR("Error: " << e.what());
      * }
      * @endcode
      * 

@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <fcntl.h>
-#include <errno.h>
+//#include <errno.h>
 #ifdef __linux__
 #include <cxxabi.h>
 #endif
@@ -16,16 +16,17 @@
 #include <vector>
 #include <map>
 #include <set>
-#include <algorithm>
+//#include <algorithm>
 
 #include "dxrt/common.h"
-#include "dxrt/datatype.h"
+//#include "dxrt/datatype.h"
 #include "dxrt/model.h"
-#include "dxrt/inference_engine.h"
+//#include "dxrt/inference_engine.h"
 #include "dxrt/task_data.h"
 #include "dxrt/cpu_handle.h"
 #include "dxrt/filesys_support.h"
-#include "dxrt/dxrt_api.h"
+#include "dxrt/exception/exception.h"
+//#include "dxrt/dxrt_api.h"
 
 
 using std::cout;
@@ -66,8 +67,8 @@ int ParseModel(string file)
 
     if (dxrt::fileExists(file) == false)
     {
-        DXRT_ASSERT(false, "Can't find " + file);
-        return -1;
+        //DXRT_ASSERT(false, "Can't find " + file);
+        throw FileNotFoundException(EXCEPTION_MESSAGE(file));
     }
 
     std::map<std::string, deepx_graphinfo::SubGraph> graphMap;

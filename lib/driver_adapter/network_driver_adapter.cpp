@@ -50,7 +50,7 @@ NetworkDriverAdapter::NetworkDriverAdapter()
         }
         sockMap.emplace(tcpType, std::make_pair(sock, SERVER_PORT_MSG + type));
 
-        std::cout << "Connected to server " << SERVER_IP << ":" << sockMap[tcpType].second << std::endl;
+        LOG_DXRT_INFO("Connected to server " << SERVER_IP << ":" << sockMap[tcpType].second);
     }
 
 }
@@ -99,7 +99,7 @@ int32_t NetworkDriverAdapter::NetControl(dxrt_cmd_t request, void* data, uint32_
                 ret = Read(data, size);
                 break;
             default:
-                std::cerr << "Undefined request (" << request << ")" << std::endl;
+                LOG_DXRT_ERR("Undefined request (" << request << ")");
                 exit(-1);
                 break;
         }
@@ -137,9 +137,9 @@ int32_t NetworkDriverAdapter::Read(void* buffer, uint32_t size)
         bytesReceived = recv(sockMap[TCP_MESSAGE].first, writePointer, bytesToReceive, 0);
         if (bytesReceived <= 0) {
             if (bytesReceived == 0) {
-                std::cout << "Connection closed by peer." << std::endl;
+                LOG_DXRT_INFO("Connection closed by peer.");
             } else {
-                std::cerr << "Error while receiving data: " << strerror(errno) << std::endl;
+                LOG_DXRT_ERR("Error while receiving data: " << strerror(errno));
             }
             ret = -1;
             break;

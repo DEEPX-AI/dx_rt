@@ -15,6 +15,7 @@
 #endif
 
 #include "dxrt/datatype.h"
+#include "dxrt/common.h"
 
 #define MIN_COMPILER_VERSION "1.18.1"
 #define MIN_SINGLEFILE_VERSION 6
@@ -361,7 +362,7 @@ inline int getElementSize(int dataTypeEncoded) {
     if (dataTypeEncoded == static_cast<int>(DataType::UINT16) || dataTypeEncoded == static_cast<int>(DataType::INT16)) return 2;
     if (dataTypeEncoded == static_cast<int>(DataType::UINT32) || dataTypeEncoded == static_cast<int>(DataType::INT32) || dataTypeEncoded == static_cast<int>(DataType::FLOAT)) return 4;
     if (dataTypeEncoded == static_cast<int>(DataType::UINT64) || dataTypeEncoded == static_cast<int>(DataType::INT64)) return 8;
-    std::cerr << "Invalid type : " << dataTypeEncoded << std::endl;
+    LOG_DXRT_ERR("Invalid type : " << dataTypeEncoded);
     return 1;
 }
 struct DXRT_API ModelDataBase {
