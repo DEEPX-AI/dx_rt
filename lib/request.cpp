@@ -67,7 +67,7 @@ RequestPtr Request::Create(Task *task_, Tensors inputs_, Tensors outputs_, void 
     req->inference_time() = 0;
     req->_requestorName = "";
     req->_data.jobId = jobId;
-    req->_data.outputs_ptr = nullptr;
+    req->_data.output_buffer_base = nullptr;
     req->_modelType = task_->getData()->_npuModel.type;
     req->_data.encoded_inputs_ptr = nullptr;
     req->_data.encoded_outputs_ptr = nullptr;
@@ -94,7 +94,7 @@ RequestPtr Request::Create(Task *task_, void *input, void *output, void *userArg
     req->inference_time() = 0;
     req->_requestorName = "";
     req->_data.jobId = jobId;
-    req->_data.outputs_ptr = nullptr;
+    req->_data.output_buffer_base = nullptr;
     req->_modelType = task_->getData()->_npuModel.type;
     req->_data.encoded_inputs_ptr = nullptr;
     req->_data.encoded_outputs_ptr = nullptr;
@@ -115,7 +115,7 @@ void Request::ShowAll()
     for (int i = 0; i < ObjectsPool::REQUEST_MAX_COUNT; i++)
     {
         RequestPtr request = GetById(i);
-        std::cout << std::dec << "(" << request.use_count() << ") " << *request << endl;
+        LOG_DXRT << std::dec << "(" << request.use_count() << ") " << *request << endl;
     }
 }
 
@@ -200,12 +200,18 @@ void * Request::inputs_ptr()
         return nullptr;
     return _data.inputs.front().data();
 }
-void * Request::outputs_ptr()
+void * Request::output_buffer_base()
 {
     std::unique_lock<std::mutex> lk(_reqLock);
-    if (_data.outputs.empty())
-        return nullptr;
-    return _data.outputs.front().data();
+    return _data.output_buffer_base;
+}
+void * Request::encoded_inputs_ptr()
+{
+    return _data.encoded_inputs_ptr;
+}
+void * Request::encoded_outputs_ptr()
+{
+    return _data.encoded_outputs_ptr;
 }
 void * Request::encoded_inputs_ptr()
 {
@@ -293,7 +299,7 @@ void Request::Reset()
     _data.encoded_input_ptrs.clear();
     _data.encoded_output_ptrs.clear();
 
-    _data.outputs_ptr = nullptr;
+    _data.output_buffer_base = nullptr;
 
     _data.encoded_inputs_ptr = nullptr;
     _data.encoded_outputs_ptr = nullptr;

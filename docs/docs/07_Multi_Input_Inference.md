@@ -1,11 +1,8 @@
-# Multi-Input Inference API
-
-DXRT supports various inference methods for multi-input models, which have multiple input tensors. This section explains how to use the inference APIs for these models.
+This section describes how to use **DX-RT**’s inference APIs with models that require multiple input tensors. It covers methods for executing multi-input inference in both synchronous and asynchronous modes, with or without user-managed output buffers. Support for batch processing formats is also explained to help optimize throughput and integration flexibility.  
 
 ## Identifying a Multi-Input Model
 
-***C++***
-
+**C++**
 ```cpp
 dxrt::InferenceEngine ie(modelPath);
 
@@ -22,8 +19,7 @@ std::vector<std::string> inputNames = ie.GetInputTensorNames();
 std::map<std::string, std::string> mapping = ie.GetInputTensorToTaskMapping();
 ```
 
-***Python***
-
+**Python**
 ```python
 from dx_engine import InferenceEngine
 
@@ -42,18 +38,21 @@ input_names = ie.get_input_tensor_names()
 mapping = ie.get_input_tensor_to_task_mapping()
 ```
 
-## Multi-Input Inference Methods
+---
 
-### Inference without Output Buffers (Auto-Allocation)
+## Multi-Input Inference
 
-In this approach, you do not provide output buffers; the inference engine allocates the necessary memory automatically.
+This section describes how to perform inference on multi-input models using either auto-allocated or user-provided output buffers for single-sample execution.
+
+### Without Output Buffers (Auto-Allocation)
+
+In this method, the inference engine automatically allocates memory for outputs, allowing you to omit output buffer management. Supported input formats include dictionary-based, vector-based, and auto-split inputs.
 
 #### Dictionary Format (Recommended)
 
 This method involves providing input tensors mapped by their names. It is the most explicit and least error-prone method.
 
-***C++***
-
+**C++**
 ```cpp
 // Using Dictionary format (auto-allocation)
 std::map<std::string, void*> inputTensors;
@@ -64,8 +63,7 @@ inputTensors["input2"] = input2_data;
 auto outputs = ie.RunMultiInput(inputTensors);
 ```
 
-***Python***
-
+**Python**
 ```python
 # Using Dictionary format (auto-allocation)
 input_tensors = {
@@ -79,10 +77,9 @@ outputs = ie.run_multi_input(input_tensors)
 
 #### Vector Format
 
-This method involves providing input tensors in a vector/list. The order must match the order returned by `GetInputTensorNames()`.
+This method involves providing input tensors in a vector/list. The order **must** match the order returned by `GetInputTensorNames()`.
 
-***C++***
-
+**C++**
 ```cpp
 // Using Vector format (must match the order of GetInputTensorNames())
 std::vector<void*> inputPtrs = {input1_data, input2_data};
@@ -91,8 +88,7 @@ std::vector<void*> inputPtrs = {input1_data, input2_data};
 auto outputs = ie.RunMultiInput(inputPtrs);
 ```
 
-***Python***
-
+**Python**
 ```python
 # Using Vector format (must match the order of get_input_tensor_names())
 input_list = [input1_array, input2_array]
@@ -105,8 +101,7 @@ outputs = ie.run(input_list)
 
 This method automatically splits a single concatenated buffer into multiple inputs. It is applied automatically when the total size of the provided buffer matches the model's total input size.
 
-***C++***
-
+**C++**
 ```cpp
 // A single buffer with all inputs concatenated
 std::vector<uint8_t> concatenatedInput(ie.GetInputSize());
@@ -116,8 +111,7 @@ std::vector<uint8_t> concatenatedInput(ie.GetInputSize());
 auto outputs = ie.Run(concatenatedInput.data());
 ```
 
-***Python***
-
+**Python**
 ```python
 # A single array with all inputs concatenated
 concatenated_input = np.zeros(ie.get_input_size(), dtype=np.uint8)
@@ -127,14 +121,15 @@ concatenated_input = np.zeros(ie.get_input_size(), dtype=np.uint8)
 outputs = ie.run(concatenated_input)
 ```
 
-### Inference with User-Provided Output Buffers
+---
 
-In this approach, the user pre-allocates and provides the output buffers. This is advantageous for memory management and performance optimization.
+### With User-Provided Output Buffers
+
+In this method, the user supplies pre-allocated output buffers, offering greater control over memory usage and improved performance. Supported input formats include dictionary, vector, and auto-split.  
 
 #### Dictionary Format
 
-***C++***
-
+**C++**
 ```cpp
 // Using Dictionary format
 std::map<std::string, void*> inputTensors;
@@ -148,8 +143,7 @@ std::vector<uint8_t> outputBuffer(ie.GetOutputSize());
 auto outputs = ie.RunMultiInput(inputTensors, userArg, outputBuffer.data());
 ```
 
-***Python***
-
+**Python**
 ```python
 # Using Dictionary format
 input_tensors = {
@@ -166,8 +160,7 @@ outputs = ie.run_multi_input(input_tensors, output_buffers=output_buffers)
 
 #### Vector Format
 
-***C++***
-
+**C++**
 ```cpp
 // Using Vector format (must match the order of GetInputTensorNames())
 std::vector<void*> inputPtrs = {input1_data, input2_data};
@@ -179,8 +172,7 @@ std::vector<uint8_t> outputBuffer(ie.GetOutputSize());
 auto outputs = ie.RunMultiInput(inputPtrs, userArg, outputBuffer.data());
 ```
 
-***Python***
-
+**Python**
 ```python
 # Using Vector format (must match the order of get_input_tensor_names())
 input_list = [input1_array, input2_array]
@@ -194,8 +186,7 @@ outputs = ie.run(input_list, output_buffers=output_buffers)
 
 #### Auto-Split Format
 
-***C++***
-
+**C++**
 ```cpp
 // A single buffer with all inputs concatenated
 std::vector<uint8_t> concatenatedInput(ie.GetInputSize());
@@ -208,8 +199,7 @@ std::vector<uint8_t> outputBuffer(ie.GetOutputSize());
 auto outputs = ie.Run(concatenatedInput.data(), userArg, outputBuffer.data());
 ```
 
-***Python***
-
+**Python**
 ```python
 # A single array with all inputs concatenated
 concatenated_input = np.zeros(ie.get_input_size(), dtype=np.uint8)
@@ -222,14 +212,17 @@ output_buffers = [np.zeros(size, dtype=np.uint8) for size in ie.get_output_tenso
 outputs = ie.run(concatenated_input, output_buffers=output_buffers)
 ```
 
+---
+
 ## Multi-Input Batch Inference
+
+This section explains how to perform batch inference on multi-input models. The SDK supports two input formatting styles: explicit batch format, where each sample’s inputs are grouped clearly, and flattened batch format, where all inputs are provided as a flat list.  
 
 ### Explicit Batch Format
 
-This method involves explicitly providing input tensors for each item in the batch.
+This method requires grouping input tensors per sample, allowing the inference engine to clearly distinguish each item in the batch. 
 
-***C++***
-
+**C++**
 ```cpp
 // Batch input buffers (concatenated format)
 std::vector<void*> batchInputs = {sample1_ptr, sample2_ptr, sample3_ptr};
@@ -240,8 +233,7 @@ std::vector<void*> userArgs = {userArg1, userArg2, userArg3};
 auto results = ie.Run(batchInputs, batchOutputs, userArgs);
 ```
 
-***Python***
-
+**Python**
 ```python
 # Format: List[List[np.ndarray]]
 batch_inputs = [
@@ -260,11 +252,13 @@ batch_outputs = [
 results = ie.run(batch_inputs, output_buffers=batch_outputs)
 ```
 
+---
+
 ### Flattened Batch Format
 
-This method involves providing all inputs in a flattened format.
+This method provides all input tensors as a single flattened list, with inputs from all batch samples arranged sequentially.
 
-***Python***
+**Python**
 
 ```python
 # Flattened format: [sample1_input1, sample1_input2, sample2_input1, sample2_input2, ...]
@@ -278,12 +272,17 @@ flattened_inputs = [
 results = ie.run(flattened_inputs, output_buffers=batch_outputs)
 ```
 
-## Asynchronous Inference
+---
 
-### Callback-Based Asynchronous Inference
+## Multi-Input Asynchronous Inference
 
-***C++***
+ This section describes how to perform asynchronous inference on multi-input models using the **DX-RT** API. Two methods are supported: callback-based execution for event-driven workflows and simplified execution using job IDs and polling via `wait()`.
 
+### Callback-Based Asynchronous Execution
+
+This method registers a user-defined callback to handle inference results asynchronously, allowing the engine to automatically invoke the callback when each job completes.  
+
+**C++**
 ```cpp
 // Register callback function
 ie.RegisterCallback([](dxrt::TensorPtrs& outputs, void* userArg) -> int {
@@ -298,8 +297,7 @@ int jobId = ie.RunAsyncMultiInput(inputTensors, userArg);
 int jobId = ie.RunAsyncMultiInput(inputPtrs, userArg);
 ```
 
-***Python***
-
+**Python**
 ```python
 # Define callback function
 def callback_handler(outputs, user_arg):
@@ -316,10 +314,13 @@ job_id = ie.run_async_multi_input(input_tensors, user_arg=user_arg)
 job_id = ie.run_async(input_list, user_arg=user_arg)
 ```
 
-### Simple Asynchronous Inference
+---
 
-***C++***
+### Simplified  Asynchronous Execution
 
+This method performs asynchronous inference using job IDs and retrieves results manually via `wait()`, providing a simple and non-callback-based alternative.
+
+**C++**
 ```cpp
 // Single buffer asynchronous inference
 int jobId = ie.RunAsync(inputPtr, userArg);
@@ -328,8 +329,7 @@ int jobId = ie.RunAsync(inputPtr, userArg);
 auto outputs = ie.Wait(jobId);
 ```
 
-***Python***
-
+**Python**
 ```python
 # Single buffer asynchronous inference
 job_id = ie.run_async(input_buffer, user_arg=user_arg)
@@ -337,3 +337,5 @@ job_id = ie.run_async(input_buffer, user_arg=user_arg)
 # Wait for the result
 outputs = ie.wait(job_id)
 ```
+
+---

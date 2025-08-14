@@ -1,13 +1,24 @@
 ## v3.0.0 (August 2025)
+- Update user guide document
+- Force-disabled with a warning instead of throwing a runtime exception in builds that don't support USE_ORT.
+- Add time-base inference mode to run_model (-t, --time option)
+- Profiler now groups events by base name (before) instead of showing individual job/request entries
+- Limited duration details to 30 values per group for cleaner output
+- Fix run_model error when -f option and -l loop count exceeds 1024
+- Fix bounding option issue on service
+- Add error handling for invalid firmware files and update conditions.
+- Add a function to check Python version compatibility in build.sh.
+- Add new documentation files for Inference API, Multi-Input Inference, and Global Instance.
+- Add examples for asynchronous model inference with profiling capabilities in both C++ and Python.
 - Update minimum versions 
   ```
   - Driver : 1.5.0 -> 1.7.1
   - PCIe Driver : 1.4.0 -> 1.4.1
   - Firmware : 2.0.5 -> 2.1.0
   ```
-- fix kernel panic issue caused by wrong NPU channel number
+- Fix kernel panic issue caused by wrong NPU channel number
 - Update DeviceOutputWorker to use 4 threads for 4 DMA channels (3 channels to 4 channels)
-- feat: Improve error message readability in install, build scripts (TFT-101)[https://deepx.atlassian.net/browse/TFT-101]
+- Improve error message readability in install, build scripts
   ```
   - Apply color to error messages
   - Reorder message output to display errors before help messages
@@ -17,8 +28,8 @@
 - Modify build.sh (print python package install info)
 - removed some unnecessary items from header files
 - use Pyproject.toml instead setup.py (now setup.py is not recommended)
-- fix some rapidjson issue from clients.
-- remove bad using namespace std from model.h (some programs need change)
+- Fix some rapidjson issue from clients.
+- Remove bad using namespace std from model.h (some programs need change)
 - Add usb inference module (tcp/ip)
 (MACRO : DXRT_USB_NETWORK_DRIVER)
 - Add options to SanityCheck.sh
@@ -44,7 +55,7 @@
 - Add ENABLE_SHOW_MODEL_INFO build option and configuration item
 - Update code for compatibility with v3 environment 
 - Enhance UI for better clarity, enabled dynamic data rendering, and added visual graphs for NPU Memory usage.
-- Fix: fix dx-rt build error caused by pybind11 incompatibility with Python 3.6.9 on Ubuntu 18.04 [TFT-82](https://deepx.atlassian.net/browse/TFT-82)
+- Fix: fix dx-rt build error caused by pybind11 incompatibility with Python 3.6.9 on Ubuntu 18.04
   ```
   - Support automatic installation of minimum required Python version (>= 3.8.2)  
   - Install Python 3.8.2 if the system Python version is not supported
@@ -56,6 +67,7 @@
 - The default build option for DX-RT has been changed from USE_ORT=OFF to USE_ORT=ON. If the inference engine option is not specified separately, use_ort will be enabled by default, activating the CPU task for .dxnn models.
 - Add dxtop tool, a terminal-based monitoring tool for Linux environments. It provides real-time insights into NPU core utilization and DRAM usage per NPU device.
  
+---
 
 ## v2.9.5 (May 2025)
 - Added full support for Python run_model.  
@@ -98,6 +110,8 @@
     - PCIe Driver Version >= v1.4.0  
     - Firmware Version >= v2.0.5  
     ```
+
+---
 
 ## v2.8.2 (April 2025)
 

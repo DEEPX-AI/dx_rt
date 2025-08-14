@@ -35,7 +35,7 @@ struct TaskStatsInstances
         for (const auto& pair : _map)
         {
             const auto& stats = pair.second;
-            std::cout << "Task" << stats.id << " , " << stats.name << " : latency " << stats.latency_us
+            LOG_DXRT << "Task" << stats.id << " , " << stats.name << " : latency " << stats.latency_us
                 << " us, inference time " << stats.inference_time_us << " us" << endl;
         }
     }

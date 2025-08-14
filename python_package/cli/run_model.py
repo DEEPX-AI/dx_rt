@@ -172,8 +172,18 @@ def main():
         print(f"Output data file: {args.output}")
     print(f"Loops: {args.loops}")
 
-    io = InferenceOption() 
-    io.use_ort = args.use_ort
+    io = InferenceOption()
+    # Respect build capability for ORT: if runtime does not support ORT, force-disable
+    try:
+        import dx_engine.capi._pydxrt as C
+        if hasattr(C, 'is_ort_supported') and not C.is_ort_supported() and args.use_ort:
+            print("[WARN] USE_ORT is disabled in this build. Ignoring --use-ort flag.", file=sys.stderr)
+            io.use_ort = False
+        else:
+            io.use_ort = args.use_ort
+    except Exception:
+        # Fallback: set as requested; C++ layer will guard if needed
+        io.use_ort = args.use_ort
 
     devices_list_for_op: List[int] = []
     devices_spec_str = args.devices.strip().lower()

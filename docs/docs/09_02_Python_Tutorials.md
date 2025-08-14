@@ -1,11 +1,12 @@
+This section offers Python tutorials demonstrating inference, configuration, and multi-input handling using the DXRT SDK. These examples are ideal for quick prototyping and integration into Python-based AI workflows.
 
-### Run (Synchronous)
+### run (Synchronous)
 
-The synchronous Run method uses a single NPU core to perform inference in a blocking manner. It can be configured to utilize multiple NPU cores simultaneously by employing threads to run each core independently. (Refer to **Figure** in **Section 5.2. Inference Workflow**)  
+The synchronous Run method uses a single NPU core to perform inference in a blocking manner. It can be configured to utilize multiple NPU cores simultaneously by employing threads to run each core independently. (Refer to **Figure** in **Section. Inference Workflow**)  
 
 **Inference Engine Run (Python)**  
 
-`run_sync_model.py`
+***`run_sync_model.py`***
 
 ```
 # DX-RT importes
@@ -26,7 +27,7 @@ if __name__ == "__main__":
 
         # inference synchronously 
         # use only one npu core 
-        outputs = ie.Run(input)
+        outputs = ie.run(input)
 
         # post processing 
         postProcessing(outputs)
@@ -36,7 +37,7 @@ if __name__ == "__main__":
 
 -----
 
-### RunAsync (Asynchronous)
+### run_async (Asynchronous)
 
 The asynchronous Run mode is a method that performs inference asynchronously while utilizing multiple NPU cores simultaneously. It can be implemented to maximize NPU resources through a callback function or a thread wait mechanism. 
 
@@ -51,7 +52,7 @@ The following is an example of asynchronous inference using a callback function.
 
 **Inference Engine RunAsync, Callback, User Argument (Python)**
 
-`run_async_model.py`
+***`run_async_model.py`***
 
 ```
 from dx_engine import InferenceEngine
@@ -110,7 +111,7 @@ if __name__ == "__main__":
 
         # inference asynchronously, use all npu cores
         # if device-load >= max-load-value, this function will block  
-        ie.RunAsync(input, user_arg=[i, loop_count])
+        ie.run_async(input, user_arg=[i, loop_count])
 
         print("Inference start (async)", i)
 
@@ -126,9 +127,10 @@ Inference Engine RunAsync, Callback, User Argument, Thread
 - inference asynchronously, use all npu cores  
 - if `device-load >= max-load-value`, this function will block  
 
-**Inference Engine RunAsync, Callback, User Argument, Thread (Python)**
+**Inference Engine run_async, Callback, User Argument, Thread (Python)**
 
-`run_async_model_thread.py`
+***`run_async_model_thread.py`***
+
 ```
 from dx_engine import InferenceEngine
 ...
@@ -150,7 +152,7 @@ def inferenceThreadFunc(ie, threadIndex, loopCount):
 
         # inference asynchronously, use all npu cores
         # if device-load >= max-load-value, this function will block  
-        ie.RunAsync(input,user_arg = [i, loopCount, threadIndex])
+        ie.run_async(input,user_arg = [i, loopCount, threadIndex])
     
     return 0
 
@@ -213,14 +215,15 @@ if __name__ == "__main__":
 
 The following is an example of performing asynchronous inference by creating an inference wait thread. The main thread starts input and inference, and the inference wait thread retrieves the output data corresponding to the input.
 
-Inference Engine RunAsync, Wait  
+Inference Engine run_async, wait  
 
 - inference asynchronously, use all npu cores  
 - if `device-load >= max-load-value`, this function will block  
 
-**Inference Engine RunAsync, Wait (Python)**
+**Inference Engine run_async, wait (Python)**
 
-`run_async_model_wait.py`
+***`run_async_model_wait.py`***
+
 ```
 # DX-RT imports
 from dx_engine import InferenceEngine
@@ -240,7 +243,7 @@ def inferenceThreadFunc(ie, loopCount):
 
         # waiting for the inference to complete by jobId
         # ownership of the outputs is transferred to the user 
-        outputs = ie.Wait(jobId)
+        outputs = ie.wait(jobId)
 
         # post processing
         # postProcessing(outputs);
@@ -286,10 +289,10 @@ if __name__ == "__main__":
 
 -----
 
-### Run (Batch)
+### run (Batch)
 The following is an example of batch inference with multiple inputs and multiple outputs.
 
-`run_batch_model.py`
+***`run_batch_model.py`***
 
 ```
    
@@ -319,7 +322,7 @@ if __name__ == "__main__":
             # batch inference
             # It operates asynchronously internally 
             # for the specified number of batches and returns the results
-            results = ie.run_batch(input_buffers, output_buffers)
+            results = ie.run(input_buffers, output_buffers)
 
             # post processing 
 
@@ -345,7 +348,7 @@ Inference Engine Run, Inference Option
   : `InferenceOption.BOUND_OPTION.NPU_2` 
   : `InferenceOption.BOUND_OPTION.NPU_01`  
   : `InferenceOption.BOUND_OPTION.NPU_12`  
-  : `InferenceOption.BOUND_OPTION.NPU_02`  
+  : `InferenceOption.BOUND_OPTION.NPU_02`    
 - use onnx runtime library (`ORT`)  
   : `set_use_ort / get_use_ort`  
 
@@ -398,7 +401,7 @@ if __name__ == "__main__":
 
 This guide explains how to use the `Configuration` class to set up the inference engine and the `DeviceStatus` class to monitor hardware status.
 
-#### Engine Configuration ⚙️
+#### Engine Configuration
 
 The `Configuration` class allows you to set engine parameters and retrieve version information before running inference.
 
@@ -419,7 +422,7 @@ logger.info('Device driver version: ' + config.get_driver_version())
   - **`config.set_enable(...)`**: Turns specific engine features on or off. In this case, it enables printing model information and performance profiles upon loading.
   - **`config.get_version()`**: Fetches read-only information, such as software and driver versions.
 
-#### Querying Device Status 🖥️
+#### Querying Device Status
 
 The `DeviceStatus` class is used to get the real-time operational status of the NPU hardware, such as temperature and clock speed. This is typically done after inference is complete to check the hardware's state.
 
@@ -451,13 +454,13 @@ for i in range(device_count):
 
 ### Profiler Configuration
 
-This guide provides a simple, code-focused manual on how to configure the profiler using the DXRT Python wrapper. The profiler is a powerful tool for analyzing the performance of each layer within your model.
+This guide provides a simple, code-focused manual on how to configure the profiler using the DXRT Python wrapper. The profiler is a powerful tool for analyzing the performance of each layer within your model.  
 
-Configuration is managed through an instance of the `Configuration` class.
+Configuration is managed through an instance of the `Configuration` class.  
 
 #### Enabling the Profiler
 
-Before you can use any profiler features, you must first create a `Configuration` object and **enable** the profiler. This is the essential first step.
+Before you can use any profiler features, you **must** first create a `Configuration` object and enable the profiler. This is the essential first step.
 
 ```python
 # Create a Configuration instance
@@ -476,7 +479,7 @@ config.set_enable(Configuration.ITEM.PROFILER, True)
 
 Once enabled, you can set specific attributes for the profiler's behavior using the same `config` object.
 
-##### Displaying Profiler Data in the Console
+***Displaying Profiler Data in the Console***
 
 To see the profiling results printed directly to your console after the inference runs, use the `PROFILER_SHOW_DATA` attribute.
 
@@ -490,7 +493,7 @@ config.set_attribute(Configuration.ITEM.PROFILER,
   - **`PROFILER_SHOW_DATA`**: The attribute to control console output.
   - **`"ON"`**: A string value to enable this attribute. Use `"OFF"` to disable it.
 
-##### Saving Profiler Data to a File
+***Saving Profiler Data to a File***
 
 To save the profiling report to a file for later analysis, use the `PROFILER_SAVE_DATA` attribute. The resulting report is generated in the same folder with the name **`profiler.json`**. 📄
 
@@ -560,11 +563,11 @@ def print_model_info(ie: InferenceEngine) -> None:
 
 These examples demonstrate different ways to run a single inference request synchronously.
 
-##### Input Formats
+***Input Formats***
 
-###### A. Dictionary Format (`Dict[str, np.ndarray]`)
+**A.** Dictionary Format (`Dict[str, np.ndarray]`)
 
-This is the most robust method. You provide a dictionary where keys are the tensor names and values are the `numpy` arrays. This format is not sensitive to the order of tensors.
+This is the most robust method. You provide a dictionary where keys are the tensor names and values are the `numpy` arrays. This format is **not** sensitive to the order of tensors.
 
   - **API**: `ie.run_multi_input(input_tensors)`
   - **Use Case**: Recommended for clarity and to avoid errors from tensor reordering.
@@ -581,7 +584,7 @@ input_tensors = {name: create_dummy_input(size) for name, size in zip(input_name
 outputs = ie.run_multi_input(input_tensors)
 ```
 
-###### B. List Format (`List[np.ndarray]`)
+**B.** List Format (`List[np.ndarray]`)
 
 You provide a list of `numpy` arrays. The order of arrays in the list **must** match the order returned by `ie.get_input_tensor_names()`.
 
@@ -599,7 +602,7 @@ input_list = [create_dummy_input(size) for size in input_sizes]
 outputs = ie.run(input_list)
 ```
 
-###### C. Auto-Split Concatenated Buffer
+**C.** Auto-Split Concatenated Buffer
 
 You provide a single, contiguous `numpy` array containing all input data concatenated together. The engine automatically splits this buffer into the correct tensor inputs based on their sizes. The concatenation order **must** match the order from `ie.get_input_tensor_names()`.
 
@@ -617,7 +620,7 @@ concatenated_input = create_dummy_input(total_input_size)
 outputs = ie.run(concatenated_input)
 ```
 
-##### Output Buffer Management
+***Output Buffer Management***
 
 For each synchronous method, you can either let the engine allocate output memory automatically or provide pre-allocated buffers for performance gains.
 
@@ -641,9 +644,9 @@ For each synchronous method, you can either let the engine allocate output memor
 
 #### Synchronous Batch Inference
 
-For processing multiple inputs at once to maximize throughput, you can use the batch inference capabilities of the `run` method. This is more efficient than running single inferences in a loop.
+For processing multiple inputs at once to maximize throughput, you can use the batch inference capabilities of the `run` method. This is more efficient than running single inferences in a loop.  
 
-###### A. Explicit Batch Format (`List[List[np.ndarray]]`)
+**A.** Explicit Batch Format (`List[List[np.ndarray]]`)  
 
 This is the clearest way to represent a batch. The input is a list of lists, where the outer list represents the batch and each inner list contains all input tensors for a single sample.
 
@@ -668,9 +671,9 @@ for i in range(batch_size):
 results = ie.run(batch_inputs, output_buffers=batch_outputs)
 ```
 
-###### B. Flattened Batch Format (`List[np.ndarray]`)
+**B.** Flattened Batch Format (`List[np.ndarray]`)    
 
-As a convenience, the API can also accept a single "flattened" list of `numpy` arrays. The total number of arrays must be a multiple of the model's input tensor count. The engine will automatically group them into batches.
+As a convenience, the API can also accept a single "flattened" list of `numpy` arrays. The total number of arrays **must** be a multiple of the model's input tensor count. The engine will automatically group them into batches.
 
   - **API**: `ie.run(flattened_inputs, output_buffers=...)`
   - **Input**: A `List[np.ndarray]` containing `batch_size * num_input_tensors` arrays.
@@ -694,14 +697,14 @@ results = ie.run(flattened_inputs, output_buffers=flattened_output_buffers)
 
 #### Asynchronous Inference
 
-Asynchronous APIs allow you to submit inference requests without blocking the calling thread. The results are returned later via a callback function. This is ideal for applications that need to remain responsive.
+Asynchronous APIs allow you to submit inference requests without blocking the calling thread. The results are returned later via a callback function. This is ideal for applications that need to remain responsive.  
 
   - **APIs**:
       - `ie.run_async_multi_input(input_tensors, user_arg=...)`
       - `ie.run_async(input_data, user_arg=...)`
   - **Callback Registration**: `ie.register_callback(callback_function)`
 
-The `AsyncInferenceHandler` class in the example demonstrates how to manage state across multiple asynchronous calls.
+The `AsyncInferenceHandler` class in the example demonstrates how to manage state across multiple asynchronous calls.  
 
   - **Register a Callback**: Provide a function that the engine will call upon completion of each async request. The callback receives the output arrays and a `user_arg` for context.
   - **Submit Requests**: Call an `run_async` variant. This call returns immediately with a job ID.

@@ -7,7 +7,7 @@
 
 #include <string>
 #include <iostream>
-#include <fstream>
+// #include <fstream>
 #include <cassert>
 #include <map>
 #include <memory>
@@ -20,7 +20,7 @@
 // #include "dxrt/inference_option.h"
 #include "dxrt/tensor.h"
 #include "dxrt/inference_option.h"
-#include "dxrt/testdata.h"
+// #include "dxrt/testdata.h"
 #include "dxrt/inference_job.h"
 #include "dxrt/inference_timer.h"
 
@@ -583,12 +583,6 @@ class DXRT_API InferenceEngine
      */
     bool supportsTensorCentricOffsets() const;
 
-    /** @brief Get the offset of a tensor in the final output buffer
-     * @param[in] tensorName Name of the tensor
-     * @return Offset in bytes, or 0 if tensor not found
-     */
-    uint64_t getTensorOffset(const std::string& tensorName) const;
-
     /**
      * @brief Gets the offset for a specific output tensor in the final output buffer
      * @param tensorName Name of the output tensor
@@ -689,6 +683,11 @@ class DXRT_API InferenceEngine
 
     // inference job pool for IE
     std::shared_ptr<CircularDataPool<InferenceJob>> _inferenceJobPool;
+
+    // Thread-safe output buffer management for multi-CPU task scenarios
+    mutable std::mutex _outputBufferMutex;
+    std::map<std::string, uint64_t> _cachedOutputOffsets;
+    std::atomic<bool> _outputOffsetsCalculated{false};
 
  private:
     static std::mutex _sInferenceEngineMutex;
