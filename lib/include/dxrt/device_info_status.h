@@ -52,7 +52,7 @@ class DXRT_API DeviceStatus
      *     DeviceStatus status = DeviceManager::GetCurrentStatus(0);
      *     std::cout << "Device 0 Status: " << status.ToString() << std::endl;
      * } catch (const InvalidArgumentException& e) {
-     *     std::cerr << "Error: " << e.what() << std::endl;
+     *     LOG_DXRT_ERR("Error: " << e.what());
      * }
      * @endcode
      * 
@@ -371,6 +371,21 @@ class DXRT_API DeviceStatus
     uint32_t Voltage(int ch) const;
 
     /**
+     * @brief Retrieves the voltage level of the specified NPU channel.
+     * 
+     * This function returns the operating voltage of the Neural Processing Unit (NPU) 
+     * for a given channel, measured in millivolts (mV). 
+     * The voltage level can vary depending on power management settings and workload.
+     * 
+     * @param ch The NPU channel index for which voltage is to be retrieved.
+     * @return The voltage level of the specified NPU channel in millivolts (mV).
+     */
+    uint32_t GetNpuVoltage(int ch) const
+    {
+      return Voltage(ch);
+    }
+
+    /**
      * @brief Retrieves the clock frequency of the specified NPU channel.
      * 
      * This function returns the current clock speed of the Neural Processing Unit (NPU) 
@@ -381,6 +396,22 @@ class DXRT_API DeviceStatus
      * @return The clock frequency of the specified NPU channel in megahertz (MHz).
      */
     uint32_t NpuClock(int ch) const;
+
+
+    /**
+     * @brief Retrieves the clock frequency of the specified NPU channel.
+     * 
+     * This function returns the current clock speed of the Neural Processing Unit (NPU) 
+     * for a given channel, measured in megahertz (MHz). 
+     * The clock frequency may change dynamically depending on performance scaling settings.
+     * 
+     * @param ch The NPU channel index for which clock speed is to be retrieved.
+     * @return The clock frequency of the specified NPU channel in megahertz (MHz).
+     */
+    uint32_t GetNpuClock(int ch) const
+    {
+         return NpuClock(ch);
+    }
 
     /**
      * @brief Retrieves the temperature of the specified NPU channel.
@@ -393,6 +424,22 @@ class DXRT_API DeviceStatus
      * @return The temperature of the specified NPU channel in degrees Celsius.
      */
     int Temperature(int ch) const;
+
+   /**
+     * @brief Retrieves the temperature of the specified NPU channel.
+     * 
+     * This function returns the operating temperature of the Neural Processing Unit (NPU) 
+     * for a given channel, measured in degrees Celsius. Monitoring the temperature is crucial 
+     * for ensuring the NPU operates within safe thermal limits.
+     * 
+     * @param ch The NPU channel index for which temperature is to be retrieved.
+     * @return The temperature of the specified NPU channel in degrees Celsius.
+     */
+    int GetTemperature(int ch) const
+    {
+      return Temperature(ch);
+    }
+
     /**
      * @brief Retrieves the number of DMA (Direct Memory Access) channels available for the NPU.
      * 

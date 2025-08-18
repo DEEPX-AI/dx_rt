@@ -8,7 +8,7 @@
 #include "dxrt/device.h"
 
 
-
+using std::endl;
 
 namespace dxrt {
 

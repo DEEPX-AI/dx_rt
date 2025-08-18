@@ -46,7 +46,7 @@ namespace dxrt {
        
     FileNotFoundException::FileNotFoundException(const std::string& msg)
     {
-        setMessage("File not found execption {" + msg + "}");
+        setMessage("File not found exception {" + msg + "}");
         setCode(ERROR_CODE::FILE_NOT_FOUND);
     }
 
@@ -58,7 +58,7 @@ namespace dxrt {
 
     NullPointerException::NullPointerException(const std::string& msg)
     {
-        setMessage("Null pointer execption {" + msg + "}");
+        setMessage("Null pointer exception {" + msg + "}");
         setCode(ERROR_CODE::NULL_POINTER);
     }
 

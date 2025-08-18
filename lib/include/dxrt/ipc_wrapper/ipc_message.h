@@ -49,10 +49,15 @@ namespace dxrt
         DEVICE_INIT = 4,
         DEVICE_RESET = 5,
         DEVICE_DEINIT = 6,
+        TASK_INIT = 7,
+        TASK_DEINIT = 8,
+        DEALLOCATE_TASK_MEMORY = 9,
+        PROCESS_DEINIT = 10,        //process cleanup
         VIEW_FREE_MEMORY = 11, 
         VIEW_USED_MEMORY = 12,
         VIEW_AVAILABLE_DEVICE = 15,
-
+        GET_USAGE = 17, 
+    
         MEMORY_ALLOCATION_AND_TRANSFER_MODEL = 100,
         COMPLETE_TRANSFER_MODEL = 101,
         MEMORY_ALLOCATION_INPUT_AND_OUTPUT = 102,
@@ -64,10 +69,12 @@ namespace dxrt
         CLOSE = 1001
     };
     std::ostream& operator<< (std::ostream& os, REQUEST_CODE code);
+
     enum class RESPONSE_CODE : uint32_t {
         VIEW_FREE_MEMORY_RESULT = 13,
         VIEW_USED_MEMORY_RESULT = 14,
         VIEW_AVAILABLE_DEVICE_RESULT = 16,
+        GET_USAGE_RESULT = 18,
         CONFIRM_MEMORY_ALLOCATION_AND_TRANSFER_MODEL = 200,
         CONFIRM_MEMORY_ALLOCATION = 201,
         CONFIRM_TRANSFER_INPUT_AND_RUN = 202,
@@ -80,6 +87,7 @@ namespace dxrt
         INVALID_REQUEST_CODE = 1234,
     };
     std::ostream& operator<< (std::ostream& os, RESPONSE_CODE code);
+    std::string to_string(dxrt::REQUEST_CODE code);
 #pragma pack(push, 1)
 
     struct IPCClientMessage
@@ -91,8 +99,12 @@ namespace dxrt
         long msgType; // for message queue
         int seqId;
         dxrt::dxrt_request_acc_t npu_acc;
+        
+        int taskId;
+        uint64_t modelMemorySize;
+        
         IPCClientMessage()
-        : code(REQUEST_CODE::REGISTESR_PROCESS), deviceId(0), data(0), pid(0), msgType(0), seqId(0)
+        : code(REQUEST_CODE::REGISTESR_PROCESS), deviceId(0), data(0), pid(0), msgType(0), seqId(0), taskId(-1), modelMemorySize(0)
         {
             npu_acc = dxrt::dxrt_request_acc_t{};
         }
@@ -169,8 +181,18 @@ namespace dxrt
             m[dxrt::REQUEST_CODE::GET_MEMORY_FOR_MODEL] = "GET_MEMORY_FOR_MODEL";
             m[dxrt::REQUEST_CODE::DEVICE_INIT] = "DEVICE_INIT";
             m[dxrt::REQUEST_CODE::DEVICE_RESET] = "DEVICE_RESET";
+            m[dxrt::REQUEST_CODE::DEVICE_DEINIT] = "DEVICE_DEINIT";
+            
+            m[dxrt::REQUEST_CODE::TASK_INIT] = "TASK_INIT";
+            m[dxrt::REQUEST_CODE::TASK_DEINIT] = "TASK_DEINIT";
+            m[dxrt::REQUEST_CODE::DEALLOCATE_TASK_MEMORY] = "DEALLOCATE_TASK_MEMORY";
+            m[dxrt::REQUEST_CODE::PROCESS_DEINIT] = "PROCESS_DEINIT";
+            
             m[dxrt::REQUEST_CODE::VIEW_FREE_MEMORY] = "VIEW_FREE_MEMORY";
-             m[dxrt::REQUEST_CODE::VIEW_USED_MEMORY] = "VIEW_USED_MEMORY";
+            m[dxrt::REQUEST_CODE::VIEW_USED_MEMORY] = "VIEW_USED_MEMORY";
+            m[dxrt::REQUEST_CODE::VIEW_AVAILABLE_DEVICE] = "VIEW_AVAILABLE_DEVICE"; 
+            m[dxrt::REQUEST_CODE::GET_USAGE] = "GET_USAGE";  
+            
             m[dxrt::REQUEST_CODE::MEMORY_ALLOCATION_AND_TRANSFER_MODEL] = "MEMORY_ALLOCATION_AND_TRANSFER_MODEL";
             m[dxrt::REQUEST_CODE::COMPLETE_TRANSFER_MODEL] = "COMPLETE_TRANSFER_MODEL";
             m[dxrt::REQUEST_CODE::MEMORY_ALLOCATION_INPUT_AND_OUTPUT] = "MEMORY_ALLOCATION_INPUT_AND_OUTPUT";
@@ -216,7 +238,7 @@ namespace dxrt
         double total_time = duration.count();
         double avg_latency = total_time / 1;
         if (avg_latency > 100)
-            std::cout << msg << avg_latency << " ms" << std::endl;
+            LOG_DXRT_I_DBG << msg << avg_latency << " ms" << std::endl;
         return end;
     }
 

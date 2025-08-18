@@ -1,3 +1,6 @@
+
+This chapter explains how to run AI model inference using the **DX-RT SDK**. It covers the model file format, step-by-step inference workflow, support for multi-device execution, tensor data handling, and profiling tools. You can also find guidance on building complete applications and optimizing CPU task throughput when using **DX-RT** in performance-critical environments.
+
 ## Model File Format
 
 The original ONNX model is converted by **DX-COM** into the following structure.
@@ -10,7 +13,7 @@ Model dir.
 - `graph.dxnn`  
   : A unified DEEPX artifact that contains  NPU command data, model metadata, model parameters.  
 
-This file is used directly for inference on DEEPX hardware or simulator.  
+This file is used directly for inference on DEEPX hardware.  
 
 ---
 
@@ -27,35 +30,41 @@ Figure. Inference Workflow
 </p>
 </div>
 
-- **1**. Compiled Model and optional InferenceOption are provided to initialize the InferenceEngine.  
-- **2**. Pre-processed Input Tensors are passed to the InferenceEngine for inference.  
-- **3**. The InferenceEngine produces Output Tensors as a result of the inference.  
-- **4**. These outputs are then passed to the Post-Processing stage for interpretation or further action.  
-
+- Compiled Model and optional InferenceOption are provided to initialize the InferenceEngine.  
+- Pre-processed Input Tensors are passed to the InferenceEngine for inference.  
+- The InferenceEngine produces Output Tensors as a result of the inference.  
+- These outputs are then passed to the Post-Processing stage for interpretation or further action.  
 
 ### Prepare the Model  
 
 Choose one of the following options.  
 
 - Use a pre-built model from **DX ModelZoo**  
-- Compile an ONNX model into the **DX-RT** format using **DX-COM** (Refer to the **DX-COM User Guide** for details.)  
+- Compile an ONNX model into the **DX-RT** format using **DX-COM** (Refer to the **DEEPX DX-COM User Manual** for details.)  
+
+---
 
 ### Configure Inference Options  
 
 Create a `dxrt::InferenceOption` object to configure runtime settings for the inference engine.  
 
-**Note.** This option is temporarily unsupported in the current version, and will be available in the next release.
+> **NOTE.**  
+> This option is temporarily unsupported in the current version, and will be available in the next release.
+
+---
 
 ### Load the Model into the Inference Engine  
 
 Create a `dxrt::InferenceEngine` instance using the path to the compiled model directory. Hardware resources are automatically initialized during this step.  
 
-If `dxrt::InferenceEngine` is **not** provided, a default option is applied.  
+If `dxrt::InferenceOption` is **not** provided, a default option is applied.  
 
 ```
 auto ie = dxrt::InferenceEngine("yolov5s.dxnn");
 auto ie = dxrt::InferenceEngine("yolov5s.dxnn", &option);
 ```
+
+---
 
 ### Connect Input Tensors  
 
@@ -69,11 +78,13 @@ std::vector<uint8_t> inputBuf(ie.GetInputSize(), 0);
 
 Refer to **DX-APP User Guide** for practical examples on connecting inference engines to image sources such as cameras or video, along with the preprocessing routines. 
 
+---
+
 ### Inference
 
 **DX-RT** provides both synchronous and asynchronous execution modes for flexible inference handling.  
 
-**1. Run - Synchronous Execution**  
+#### Run - Synchronous Execution  
 Use the `dxrt::InferenceEngine::Run()` method for blocking, single-core inference.  
 
 ```
@@ -84,9 +95,9 @@ auto outputs = ie.Run(inputBuf.data());
 - This method is suitable for simple and sequential workloads.  
 
 
-**2. Run - Asynchronous Execution**  
+#### Run - Asynchronous Execution  
 
-**a.** With `Wait()`  
+**With `Wait()`** 
 
 Use `RunAsync()` to perform the inference in non-blocking mode, and retrieve results later with `Wait()`.  
 
@@ -98,7 +109,7 @@ auto outputs = ie.Wait(jobId);
 - This method is ideal for parallel workloads where inference can run in the background.  
 - This method is continuously executed while waiting for the result.  
 
-**b.** With Callback  
+**With `Callback function`**  
 
 Use a callback function to handle output as soon as inference completes. 
 
@@ -116,7 +127,10 @@ ie.RegisterCallback(postProcCallBack)
 - The callback is triggered by a background thread after inference.  
 - You can pass a custom argument to track input/output pairs.
 
-**Note.** Output data is **only** valid within the callback scope.  
+> **NOTE.**  
+> Output data is **only** valid within the callback scope.  
+
+---
 
 ### Process Output Tensors  
 
@@ -133,11 +147,12 @@ If the inference option is explicitly set, the inference engine may **only** use
 ---
 
 ## Data Format of Device Tensor  
+
 Compiled models use the **NHWC** format by default.  
 
 However, the input tensor formats on the device side may vary depending on the hardware’s processing type.  
 
-**Input Tensor Formats** 
+**Input Tensor Formats**  
 
 | **Type**      | **Compiled Model Format**    | **Device Format**  | **Data Size** |
 |---------------|--------------------|-----------|--------------------|
@@ -145,23 +160,22 @@ However, the input tensor formats on the device side may vary depending on the h
 | `IM2COL`      | `[N, H, W, C]`  | `[N, H, align64(W*C)]`  | 8-bit  |
 
 - Formatter Type Example: `[1, 3, 224, 224] (NCHW) -> [1, 224, 224, 3] (NHWC)`  
-- IM2COL Type Example: `[1, 3, 224, 224] (NCHW) -> [1, 224, 224*3+32] (NH, aligned width x channel)`  
+- IM2COL Type Example: `[1, 3, 224, 224] (NCHW) -> [1, 224, 224*3+32] (NH, aligned width x channel)`    
 
 
-**Output Tensor Formats** 
+**Output Tensor Formats**  
 
-The output tensor format is also aligned with the NHWC format, but with padding applied for alignment.
+The output tensor format is also aligned with the NHWC format, but with padding applied for alignment.  
 
  **Type**         | **Compiled Model Format**    | **Device Format**  | 
 |---------------|--------------------|----------------------|
 | `Aligned NHWC`      | `[N, H, W, C]`  | `[N, H, W, align64(C)]`  |
 
-
 - Output Example: `[1, 40, 52, 36] (NCHW) -> [1, 52, 36, 40+24]`
    (Channel size is aligned for optimal memory access.)  
 
 Post-processing can be performed directly without converting formats.  
-API to convert from device format to **NCHW/NHWC** format will be supported in the next release.  
+The API to convert from device format to **NCHW/NHWC** format will be supported in the next release.  
 
 ---
 
@@ -169,11 +183,24 @@ API to convert from device format to **NCHW/NHWC** format will be supported in t
 
 ### Gather Timing Data per Event
 
-You can profile events within your application using the Profiler APIs. Please refer to **Section 8. API reference**.  
+You can profile events within your application using the Profiler APIs. Please refer to **Section. API reference**.  
 
 Here is a basic usage example. 
 
 ```
+// Built-in core profiling event
+
+// Enable the profiler
+dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::PROFILER, true);
+
+// Set attributes to show data in console and save to a file
+dxrt::Configuration::GetInstance().SetAttribute(dxrt::Configuration::ITEM::PROFILER, 
+dxrt::Configuration::ATTRIBUTE::PROFILER_SHOW_DATA, "ON");
+
+dxrt::Configuration::GetInstance().SetAttribute(dxrt::Configuration::ITEM::PROFILER, 
+dxrt::Configuration::ATTRIBUTE::PROFILER_SAVE_DATA, "ON");
+
+// User's profiling event
 auto& profiler = dxrt::Profiler::GetInstance();
 profiler.Start("1sec");
 sleep(1);
@@ -181,6 +208,8 @@ profiler.End("1sec");
 ```
 
 After the application is finished, `profiler.json` is created in the working directory.
+
+---
 
 ### Visualize Profiler Data  
 
@@ -190,7 +219,7 @@ You can visualize the profiling results using the following Python script.
 python3 tool/profiler/plot.py --input profiler.json
 ```
 
-This generates an image file named `profiler.png`, providing a detailed view of runtime event timing for performance analysis. 
+This generates an image file named `profiler.png`, providing a detailed view of runtime event timing for performance analysis.  
 
 <div class="center-text">
 <p align="center">
@@ -231,13 +260,14 @@ usage: plot.py [-h] [-i INPUT] [-o OUTPUT] [-s START] [-e END] [-g]
   
 This guide provides step-by-step instructions for creating a new CMake project using the **DX-RT** library.
 
-**1. Build the DX-RT Library**   
+**Step 1.** Build the **DX-RT** Library   
 Before starting, make sure the **DX-RT** library is already built.  
 
-Refer to **Chapter 2. Installation on Linus** and **Chapter 3. Installation on Windows** for detailed build instructions. 
+Refer to **Section. Installation on Linux** and **Section. Installation on Windows** for detailed build instructions. 
 
-**2. Create a New CMake Project**   
+**Step 2.** Create a New CMake Project   
 Create a project directory and an initial `CMakeLists.txt` file.  
+
 ```
 
 mkdir MyProject
@@ -245,7 +275,7 @@ cd MyProject
 touch CMakeLists.txt
 ```
 
-**3. “Hello World” with DX-RT API**  
+**Step 3.** “Hello World” with DX-RT API  
 Create a simple source file (`main.cpp`) that uses a **DX-RT** API.  
 
 ```
@@ -260,7 +290,7 @@ int main(int argc, char *argv[])
 }
 ```
 
-**4. Modify CMakeLists.txt**  
+**Step 4.** Modify `CMakeLists.txt`  
 Edit the `CMakeLists.txt` file as follows.  
 
 ```
@@ -284,9 +314,9 @@ target_link_libraries(HelloWorld PRIVATE ${DXRT_LIBRARY} protobuf)
 
 Replace `/usr/local/lib` with the actual path where the **DX-RT** library is installed.
 
-
-**5. Build the Project**  
+**Step 5.** Build the Project  
 Compile your project using the following commands.  
+
 ```
 mkdir build
 cd build
@@ -294,7 +324,7 @@ cmake ..
 make
 ```
 
-**6. Run the Executable**  
+**Step 6.** Run the Executable  
 After a successful build, run the generated executable.   
 
 ```
@@ -304,13 +334,34 @@ After a successful build, run the generated executable.
 You now successfully create and build a CMake project using the **DX-RT** library. 
 
 ---
-## (Optional) Improving CPU Task Throughput with DXRT_DYNAMIC_CPU_THREAD
 
-The USE_ORT option allows for enabling ONNX Runtime to handle operations that are not supported by the NPU. 
-When this option is active, the model's CPU tasks are executed via ONNX Runtime. 
+## (Optional) Improving CPU Task Throughput
 
-To mitigate potential bottlenecks in these CPU tasks, especially under varying Host CPU conditions, an optional dynamic multi-threading feature is provided. This feature monitors the input queue load to identify CPU task congestion. If a high load is detected, it dynamically increases the number of threads allocated to CPU tasks, thereby improving their throughput. This dynamic CPU threading can be enabled by setting the DXRT_DYNAMIC_CPU_THREAD=ON environment variable (e.g., export DXRT_DYNAMIC_CPU_THREAD=ON). 
+The `USE_ORT` enables the use of ONNX Runtime to handle operations that are **not** supported by the NPU. When this option is active, CPU-based execution is applied for the unsupported subgraphs of the model via ONNX Runtime.  
 
-Additionally, if the system observes that CPU tasks are experiencing significant load, it will display a message: "To improve FPS, set: 'export DXRT_DYNAMIC_CPU_THREAD=ON'", recommending the activation of this feature for better performance.
+### Improving CPU Capacity with Dynamic Threading 
+When executing CPU task via ONNX Runtime, performance bottlenecks may arise depending on the Host CPU performance and symbol load. To address this, **DX-RT** provides an optional dynamic multi-threading feature that can improve throughput  in high-load scenarios.  
 
-Warning: Enabling the DXRT_DYNAMIC_CPU_THREAD=ON option does not always guarantee an FPS increase; its effectiveness can vary depending on the specific workload and system conditions.
+**Feature Overview**  
+- Dynamically increases the number of threads allocated to ONNX Runtime tasks  
+- Monitors the input queue load to determine CPU congestion  
+- Designed to boost FPS when CPU-bound tasks become a bottleneck  
+
+**Enabling Dynamic CPU Threading**  
+To enable this feature, set the following environment variable:  
+```bash
+export DXRT_DYNAMIC_CPU_THREAD=ON
+```
+
+This activates internal logic to automatically adjust the ONNX Runtime thread pool size based on queue pressure.  
+
+> **NOTE.**  
+> When high CPU task load is detected at runtime, the system may print the following message:  
+> ```bash
+> To improve FPS, set: 'export DXRT_DYNAMIC_CPU_THREAD=O'
+> ```
+> This serves as a recommendation to enable the feature for improved inference performance.  
+
+
+> **WARNING.**  
+> Enabling the `DXRT_DYNAMIC_CPU_THREAD=ON` option does **not** guarantee an FPS improvement in all cases. The effectiveness of this feature depends on the specific workload, input size, and CPU capacity of the system.  

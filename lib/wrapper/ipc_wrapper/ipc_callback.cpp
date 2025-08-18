@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <cstdint>
 #include <future>
+#include <iostream>
 #include "dxrt/common.h"
 #include "dxrt/driver.h"
 #include "dxrt/device_struct.h"
@@ -13,6 +14,10 @@
 #include "dxrt/task.h"
 #include "dxrt/request.h"
 #include "service_error.h"
+
+
+using std::cout;
+using std::endl;
 
 namespace dxrt {
 
@@ -71,52 +76,10 @@ std::ostream& operator<< (std::ostream& os, RESPONSE_CODE code)
 
 std::ostream& operator<< (std::ostream& os, REQUEST_CODE code)
 {
-    switch (code)
-    {
-        case REQUEST_CODE::REGISTESR_PROCESS:
-            os << "REGISTESR_PROCESS";
-            break;
-        case REQUEST_CODE::GET_MEMORY:
-            os << "GET_MEMORY";
-            break;
-        case REQUEST_CODE::FREE_MEMORY:
-            os << "FREE_MEMORY";
-            break;
-        case REQUEST_CODE::GET_MEMORY_FOR_MODEL:
-            os << "GET_MEMORY_FOR_MODEL";
-            break;
-        case REQUEST_CODE::MEMORY_ALLOCATION_AND_TRANSFER_MODEL:
-            os << "MEMORY_ALLOCATION_AND_TRANSFER_MODEL";
-            break;
-        case REQUEST_CODE::COMPLETE_TRANSFER_MODEL:
-            os << "COMPLETE_TRANSFER_MODEL";
-            break;
-        case REQUEST_CODE::MEMORY_ALLOCATION_INPUT_AND_OUTPUT:
-            os << "MEMORY_ALLOCATION_INPUT_AND_OUTPUT";
-            break;
-        case REQUEST_CODE::TRANSFER_INPUT_AND_RUN :
-            os << "TRANSFER_INPUT_AND_RUN";
-            break;
-        case REQUEST_CODE::COMPLETE_TRANSFER_AND_RUN:
-            os << "COMPLETE_TRANSFER_AND_RUN";
-            break;
-        case REQUEST_CODE::COMPLETE_TRNASFER_OUTPUT:
-            os << "COMPLETE_TRNASFER_OUTPUT";
-            break;
-        case REQUEST_CODE::REQUEST_SCHEDULE_INFERENCE:
-            os << "REQUEST_SCHEDULE_INFERENCE";
-            break;
-        case REQUEST_CODE::INFERENCE_COMPLETED:
-            os << "INFERENCE_COMPLETED";
-            break;
-        case REQUEST_CODE::CLOSE:
-            os << "CLOSE";
-            break;
-        default:
-            break;
-    }
+    os << dxrt::to_string(code);
     return os;
 }
+
 
 
 
@@ -182,3 +145,42 @@ int ipc_callBack(const IPCServerMessage& outResponseServerMessage, void* usrData
 }
 
 }  // namespace dxrt
+
+
+#define REQUEST_CODE_MACRO(x) case dxrt::REQUEST_CODE::x: return #x;
+
+std::string dxrt::to_string(dxrt::REQUEST_CODE code)
+{
+switch (code)
+    {
+        REQUEST_CODE_MACRO(REGISTESR_PROCESS)
+        REQUEST_CODE_MACRO(GET_MEMORY)
+        REQUEST_CODE_MACRO(FREE_MEMORY)
+        REQUEST_CODE_MACRO(GET_MEMORY_FOR_MODEL)
+        REQUEST_CODE_MACRO(DEVICE_INIT)
+        REQUEST_CODE_MACRO(DEVICE_RESET)
+        REQUEST_CODE_MACRO(DEVICE_DEINIT)
+        REQUEST_CODE_MACRO(TASK_INIT)
+        REQUEST_CODE_MACRO(TASK_DEINIT)
+        REQUEST_CODE_MACRO(DEALLOCATE_TASK_MEMORY)
+        REQUEST_CODE_MACRO(PROCESS_DEINIT)
+        REQUEST_CODE_MACRO(VIEW_FREE_MEMORY)
+        REQUEST_CODE_MACRO(VIEW_USED_MEMORY)
+        REQUEST_CODE_MACRO(VIEW_AVAILABLE_DEVICE)
+        REQUEST_CODE_MACRO(GET_USAGE)
+
+        REQUEST_CODE_MACRO(MEMORY_ALLOCATION_AND_TRANSFER_MODEL)
+        REQUEST_CODE_MACRO(COMPLETE_TRANSFER_MODEL)
+        REQUEST_CODE_MACRO(MEMORY_ALLOCATION_INPUT_AND_OUTPUT)
+        REQUEST_CODE_MACRO(TRANSFER_INPUT_AND_RUN)
+        REQUEST_CODE_MACRO(COMPLETE_TRANSFER_AND_RUN)
+        REQUEST_CODE_MACRO(COMPLETE_TRNASFER_OUTPUT)
+        REQUEST_CODE_MACRO(REQUEST_SCHEDULE_INFERENCE)
+        REQUEST_CODE_MACRO(INFERENCE_COMPLETED)
+        REQUEST_CODE_MACRO(CLOSE)
+
+        default:
+            return "--ERROR(" + std::to_string(static_cast<int>(code)) + ")--";
+    }
+    return "";
+}

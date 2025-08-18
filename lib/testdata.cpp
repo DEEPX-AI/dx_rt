@@ -6,7 +6,13 @@
 #include "dxrt/util.h"
 #include "dxrt/filesys_support.h"
 
-using namespace std;
+#include <iostream>
+#include <string>
+#include <vector>
+using std::string;
+using std::cout;
+using std::endl;
+using std::vector;
 
 namespace dxrt {
 
@@ -15,17 +21,17 @@ TestData::TestData(int id_, string inputFile_, vector<string> refOutputFile_, st
 {
     input = vector<uint8_t>(inputSize, 0);
     DataFromFile(inputFile, input.data());
-    for(auto &rf:refOutputFile)
+    for (auto &rf : refOutputFile)
     {
         size = getFileSize(rf);
         refOutput.emplace_back(vector<uint8_t>(size, 0));
-        if(static_cast<uint32_t>(size) > outputSize)
+        if (static_cast<uint32_t>(size) > outputSize)
             type = 0;
         else
             type = 1;
         DataFromFile(rf, refOutput.back().data());
     }
-    if(outputFile.empty())
+    if (outputFile.empty())
     {
         outputFile = inputFile + ".failoutputdata";
     }
@@ -36,11 +42,11 @@ void TestData::Show()
 {
     cout << "  [" << id << "] " << type << ", "
         << inputFile << "(" << input.size() << " bytes) ->";
-    for(auto &rf:refOutputFile)
+    for (const auto &rf : refOutputFile)
     {
         cout << rf << "(" << size << " bytes) ";
     }
     cout << endl;
 }
 
-} // namespace dxrt
+}  // namespace dxrt

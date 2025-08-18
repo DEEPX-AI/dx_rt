@@ -19,8 +19,7 @@
 #include "ipc_mq_client_linux.h"
 #include "../../../include/dxrt/common.h"
 
-using namespace dxrt;
-
+namespace dxrt {
 
 IPCMessageQueueClientLinux::IPCMessageQueueClientLinux(long msgType)
 : _usrData(nullptr), _msgType(msgType), _receiveCB(nullptr)
@@ -30,10 +29,13 @@ IPCMessageQueueClientLinux::IPCMessageQueueClientLinux(long msgType)
 
 IPCMessageQueueClientLinux::~IPCMessageQueueClientLinux()
 {
-    //LOG_DXRT_DBG << "IPCMessageQueueClientLinux::Destructor" << std::endl;
     LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux::Destructor" << std::endl;
-    
-    Close();
+
+    // Ensure thread is stopped before destruction
+    if (_threadRunning.load()) {
+        LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux: Thread still running in destructor, stopping..." << std::endl;
+        Close();
+    }
 }
 
 
@@ -41,9 +43,9 @@ IPCMessageQueueClientLinux::~IPCMessageQueueClientLinux()
 int32_t IPCMessageQueueClientLinux::Initialize()
 {
     // review
-    //std::lock_guard<std::mutex> lock(_funcLock);
+    // std::lock_guard<std::mutex> lock(_funcLock);
 
-    //LOG_DXRT_DBG << "IPCMessageQueueClientLinux::Initialize" << std::endl;
+    // LOG_DXRT_DBG << "IPCMessageQueueClientLinux::Initialize" << std::endl;
     LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux::Initialize" << std::endl;
     int ret = _messageQueueToClient.Initialize(_msgType, IPCMessageQueueDirection::TO_CLIENT);
     if (ret != 0)
@@ -53,22 +55,21 @@ int32_t IPCMessageQueueClientLinux::Initialize()
     return _messageQueueToServer.Initialize(_msgType, IPCMessageQueueDirection::TO_SERVER);
 
 }
-//std::mutex IPCMessageQueueClientLinux::_lock;
+// std::mutex IPCMessageQueueClientLinux::_lock;
 
-//static std::atomic<int> seq_increment = {1};
+// static std::atomic<int> seq_increment = {1};
 int32_t IPCMessageQueueClientLinux::SendToServer(IPCServerMessage& outServerMessage, IPCClientMessage& clientMessage)
 {
-    //std::lock_guard<std::mutex> lock(_funcLock);
+    // std::lock_guard<std::mutex> lock(_funcLock);
 
     if ( _receiveCB == nullptr )
     {
-        clientMessage.seqId = 0; //seq_increment++; // review 
+        clientMessage.seqId = 0;  // seq_increment++; // review
         SendToServer(clientMessage);
         ReceiveFromServer(outServerMessage);
     }
-    else 
+    else
     {
-
         /*std::unique_lock<std::mutex> lk(_futureLock);
         int seq_id = seq_increment++;
         _waitingCall[seq_id] = std::make_shared<std::promise<IPCServerMessage> >();
@@ -84,9 +85,7 @@ int32_t IPCMessageQueueClientLinux::SendToServer(IPCServerMessage& outServerMess
         */
        // if there is a callback, this function does not work
        return -1;
-
     }
-
     return 0;
 }
 
@@ -110,7 +109,7 @@ int32_t IPCMessageQueueClientLinux::SendToServer(IPCClientMessage& clientMessage
 int32_t IPCMessageQueueClientLinux::ReceiveFromServer(IPCServerMessage& serverMessage)
 {
     IPCMessageQueueLinux::Message mq_message;
-    
+
     if ( _messageQueueToClient.Receive(mq_message, sizeof(serverMessage), _msgType) == 0 )
     {
         memcpy(&serverMessage, mq_message.data, sizeof(serverMessage));
@@ -119,100 +118,140 @@ int32_t IPCMessageQueueClientLinux::ReceiveFromServer(IPCServerMessage& serverMe
     {
         return -1;
     }
-    
     return 0;
 }
 
 // register receive message callback function
-int32_t IPCMessageQueueClientLinux::RegisterReceiveCB(std::function<int32_t(IPCServerMessage&,void*)> receiveCB, void* usrData)
+int32_t IPCMessageQueueClientLinux::RegisterReceiveCB(
+        std::function<int32_t(IPCServerMessage&, void*)> receiveCB,
+        void* usrData)
 {
-    // review
-    //std::lock_guard<std::mutex> lock(_funcLock);
-        
-    if ( _threadRunning.load() )
-    {
+    // 1) nullptr means callback release, thread remains
+    if (receiveCB == nullptr) {
+        _receiveCB = nullptr;
+        _usrData   = nullptr;
+        LOG_DXRT_I_DBG << "RegisterReceiveCB: callback cleared (thread alive)" << std::endl;
+        return 0;
+    }
 
+    // 2) If the thread is running, terminate (dump CLOSE)
+    if (_threadRunning.load()) {
         _threadRunning.store(false);
+        _dummyClosePending.store(true);
 
-        IPCServerMessage serverMessage;
-        serverMessage.code = dxrt::RESPONSE_CODE::CLOSE;
-        serverMessage.msgType = _msgType;
-        IPCMessageQueueLinux::Message mq_message;
-        mq_message.msgType = serverMessage.msgType;
-        memcpy(mq_message.data, &serverMessage, sizeof(serverMessage));
-        _messageQueueToClient.Send(mq_message, sizeof(serverMessage));
-        
-        if ( _thread.joinable() )
-        {
+        IPCServerMessage dummy;
+        dummy.code    = dxrt::RESPONSE_CODE::CLOSE;
+        dummy.msgType = _msgType;
+
+        IPCMessageQueueLinux::Message msg;
+        msg.msgType = dummy.msgType;
+        memcpy(msg.data, &dummy, sizeof(dummy));
+        _messageQueueToClient.Send(msg, sizeof(dummy));
+
+        if (_thread.joinable()) {
             _thread.join();
         }
-        //_thread.detach();
 
         _receiveCB = nullptr;
         LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux: Detached Callback Thread" << std::endl;
     }
 
-    if ( _messageQueueToClient.IsAvailable() ) 
-    {
+    // 3) Register new callback and start thread
+    if (_messageQueueToClient.IsAvailable()) {
         _receiveCB = receiveCB;
-        _usrData = usrData;
+        _usrData   = usrData;
 
-        if ( _receiveCB != nullptr ) 
-        {
-            _threadRunning.store(true);
-            _thread = std::thread(IPCMessageQueueClientLinux::ThreadFunc, this);
-            LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux: Created Callback Thread" << std::endl;
-        }
-    } // socketFd
-    
+        _threadRunning.store(true);
+        _dummyClosePending.store(false);
+        _thread = std::thread(IPCMessageQueueClientLinux::ThreadFunc, this);
+        LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux: Created Callback Thread" << std::endl;
+    }
+
     return 0;
 }
 
 // close the connection
 int32_t IPCMessageQueueClientLinux::Close()
 {
-    // review
-    //std::lock_guard<std::mutex> lock(_funcLock);
+    // Stop thread first if running
+    if (_threadRunning.load()) {
+        _threadRunning.store(false);
+        _dummyClosePending.store(true);
 
-    if ( _threadRunning.load() )
-    {
-        RegisterReceiveCB(nullptr, nullptr);
+        // Send dummy CLOSE message to wake up thread
+        IPCServerMessage dummy;
+        dummy.code    = dxrt::RESPONSE_CODE::CLOSE;
+        dummy.msgType = _msgType;
+
+        IPCMessageQueueLinux::Message msg;
+        msg.msgType = dummy.msgType;
+        memcpy(msg.data, &dummy, sizeof(dummy));
+        _messageQueueToClient.Send(msg, sizeof(dummy));
+
+        // Wait for thread to finish
+        if (_thread.joinable()) {
+            _thread.join();
+        }
+
+        _receiveCB = nullptr;
+        LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux: Thread stopped in Close()" << std::endl;
     }
-
+    
     LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux::Close" << std::endl;
-
     return 0;
 }
 
 
 void IPCMessageQueueClientLinux::ThreadFunc(IPCMessageQueueClientLinux* mqClient)
 {
-
-    while ( mqClient->_threadRunning.load() )
-    {
+    bool closeReceived = false;
+    while (mqClient->_threadRunning.load() || !closeReceived) {
         IPCServerMessage serverMessage;
         serverMessage.msgType = getpid();
+        LOG_DXRT_I_DBG << "Waiting for message with msgType: " << serverMessage.msgType << std::endl;
+        
         if (mqClient->ReceiveFromServer(serverMessage) != -1) {
-            LOG_DXRT_I_DBG << "Thread Running by " << serverMessage.code << std::endl;
-            if ( mqClient->_receiveCB == nullptr )
+            LOG_DXRT_I_DBG << "Received message - code: " << static_cast<int>(serverMessage.code) 
+                           << ", msgType: " << serverMessage.msgType 
+                           << ", deviceId: " << serverMessage.deviceId << std::endl;
+            
+            if (mqClient->_receiveCB == nullptr)
             {
+                LOG_DXRT_I_ERR("Receive callback is null, skipping message");
                 continue;
             }
 
+            bool isDummyClose = mqClient->_dummyClosePending.load() &&
+                                (serverMessage.code == dxrt::RESPONSE_CODE::CLOSE);
+            if (isDummyClose) {
+                LOG_DXRT_I_DBG << "Dummy CLOSE message detected, skipping callback" << std::endl;
+                mqClient->_dummyClosePending.store(false);
+                closeReceived = true;
+                continue;
+            }
+
+            LOG_DXRT_I_DBG << "Calling receive callback" << std::endl;
             mqClient->_receiveCB(serverMessage, mqClient->_usrData);
 
             if (serverMessage.code == dxrt::RESPONSE_CODE::CLOSE)
             {
-                break;
+                LOG_DXRT_I_DBG << "Received CLOSE message, will break after queue is empty" << std::endl;
+                closeReceived = true;
             }
 
         } else {
+            // Check if thread should stop
+            if (!mqClient->_threadRunning.load()) {
+                LOG_DXRT_I_DBG << "Thread stopped by _threadRunning flag" << std::endl;
+                break;
+            }
             LOG_DXRT_I_ERR("ReceiveFromServer fail, errno = "+ std::to_string(errno));
             break;
         }
-
     }
-
     LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux::Thread Finished" << std::endl;
 }
-#endif // __linux__
+
+}  // namespace dxrt
+#endif  // __linux__
+

@@ -3,35 +3,12 @@
 
 #pragma once
 
-#include <signal.h>
-#include <mutex>
-#include <atomic>
-#include <thread>
-#include <condition_variable>
 #include "dxrt/common.h"
-#include "dxrt/request.h"
-#include "dxrt/driver.h"
-#include "dxrt/device_struct.h"
-#include "dxrt/worker.h"
-#include "dxrt/driver_adapter/driver_adapter.h"
-#include "dxrt/util.h"
-#include "dxrt/common.h"
-#include "dxrt/device.h"
-#include "dxrt/memory.h"
-#include "dxrt/task.h"
-#include "dxrt/worker.h"
-#include "dxrt/buffer.h"
-#include "dxrt/profiler.h"
-#include "dxrt/util.h"
-#include "dxrt/filesys_support.h"
-#include "dxrt/device_version.h"
-#include "service_error.h"
-#include "dxrt/fw.h"
-#include "dxrt/multiprocess_memory.h"
-#include "dxrt/driver_adapter/linux_driver_adapter.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <signal.h>
 #ifdef __linux__
     #include <unistd.h>
 #endif
@@ -50,9 +27,30 @@
 #include <unordered_map>
 #include <string>
 #include <memory>
+#include <mutex>
+#include <atomic>
+#include <thread>
+#include <vector>
+#include <condition_variable>
 
-
-
+#include "dxrt/request.h"
+#include "dxrt/driver.h"
+#include "dxrt/device_struct.h"
+#include "dxrt/worker.h"
+#include "dxrt/driver_adapter/driver_adapter.h"
+#include "dxrt/util.h"
+#include "dxrt/device.h"
+#include "dxrt/memory.h"
+#include "dxrt/task.h"
+#include "dxrt/buffer.h"
+#include "dxrt/profiler.h"
+#include "dxrt/filesys_support.h"
+#include "dxrt/device_version.h"
+#include "service_error.h"
+#include "dxrt/fw.h"
+#include "dxrt/multiprocess_memory.h"
+#include "dxrt/driver_adapter/linux_driver_adapter.h"
+#include "usage_timer.h"
 
 #ifdef __linux__
     #include <poll.h>
@@ -78,7 +76,6 @@ class DXRT_API ServiceDevice
     virtual ~ServiceDevice(void);
     std::string name() const { return _name; }
     int id() const { return _id; }
-    int load();
 
     dxrt_device_info_t info() const{ return _info;}
     dxrt_device_status_t status();
@@ -86,13 +83,18 @@ class DXRT_API ServiceDevice
 
 
     virtual int InferenceRequest(dxrt_request_acc_t* req);
-    int Write(dxrt_meminfo_t &);
-    int Read(dxrt_meminfo_t &);
-    int Wait();
-    void Identify(int id_, SkipMode skip = NONE, uint32_t subCmd = 0);
+ 
+    void Identify(int id_, uint32_t subCmd = 0);
     void SetSubMode(uint32_t cmd) { _subCmd = cmd; }
     void Terminate();
-    int BoundOption(dxrt_sche_sub_cmd_t subCmd, npu_bound_op boundOp);
+
+    int AddBound(npu_bound_op boundOp);
+    int DeleteBound(npu_bound_op boundOp);
+    int GetBoundCount(npu_bound_op boundOp);
+    int GetBoundTypeCount();
+    bool CanAcceptBound(npu_bound_op boundOp);
+
+    
 
     void CallBack();
 
@@ -100,14 +102,20 @@ class DXRT_API ServiceDevice
     void Identify(int id_, dxrt::SkipMode skip);
     void SetCallback(std::function<void(const dxrt_response_t&)> f);
     void SetErrorCallback(std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)> f);
-    static vector<shared_ptr<ServiceDevice>> CheckServiceDevices(SkipMode skip = SkipMode::NONE, uint32_t subCmd = 0);
+    static std::vector<shared_ptr<ServiceDevice>> CheckServiceDevices(uint32_t subCmd = 0);
     bool isBlocked(){return _isBlocked;}
+
+    double getUsage(int core_id);
+
+    void usageTimerTick();
+    void DoCustomCommand(void *data, uint32_t subCmd, uint32_t size);
 
  protected:
     int _id = 0;
     DeviceType _type = DeviceType::ACC_TYPE; /* 0: ACC type, 1: STD type */
 
-    npu_bound_op _boundOp;
+    int _bound_count[static_cast<int>(npu_bound_op::N_BOUND_INF_MAX)];
+
     uint32_t _variant;
     int _devFd = -1;
 #ifdef __linux__
@@ -127,8 +135,9 @@ class DXRT_API ServiceDevice
 
     std::thread _thread[3];
 
-    
     std::mutex _lock;
+
+    SharedMutex _boundLock;
     std::atomic<bool> _stop {false};
 
 
@@ -138,8 +147,11 @@ class DXRT_API ServiceDevice
 
     std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)> _errCallBack;
     bool _isBlocked = false;
+    UsageTimer _timer[3];
+
+    int BoundOption(dxrt_sche_sub_cmd_t subCmd, npu_bound_op boundOp);
+    int GetBoundTypeCountInternal();
 };
 
+}  // namespace dxrt
 
-
-}
