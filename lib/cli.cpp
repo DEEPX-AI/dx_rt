@@ -183,9 +183,6 @@ FWUpdateCommand::FWUpdateCommand(cxxopts::ParseResult &cmd)
 : CLICommand(cmd), _fwUpdateSubCmd(0), _showLogOnce(false), _showDonotTunrOff(false)
 , _updateDeviceCount(0)
 {
-    // device total count
-    _deviceTotalCount = CheckDevices().size();
-
     _withDevice = true;
     string path;
     for (const auto& cmd : _cmd["fwupdate"].as<vector<string>>())
@@ -289,7 +286,6 @@ void FWUpdateCommand::finish()
     {
         std::cout << LogMessages::CLI_NoUpdateDeviceFound() << std::endl;
     }
-   
 }
 
 FWUploadCommand::FWUploadCommand(cxxopts::ParseResult &cmd)
