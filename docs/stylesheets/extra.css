@@ -30,3 +30,12 @@
   .center-text {
   text-align: center;
 }
+
+@media print {
+  /* for PDF */
+  table {
+    table-layout: fixed;
+    width: 100% !important;
+    word-break: break-all;
+  }
+}

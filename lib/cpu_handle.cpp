@@ -1,3 +1,7 @@
+// Copyright (c) 2022 DEEPX Corporation. All rights reserved.
+// Licensed under the MIT License.
+
+#include "dxrt/cpu_handle.h"
 #include <chrono>
 #include <cmath>
 #include <exception>
@@ -9,7 +13,8 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include <cmath>
+#include <memory>
+#include <map>
 #ifdef __linux__
     #include <sys/time.h>
 #elif _WIN32
@@ -21,7 +26,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <future>
-#include "dxrt/cpu_handle.h"
+
 #include "dxrt/buffer.h"
 #include "dxrt/task.h"
 #include "dxrt/profiler.h"
@@ -31,14 +36,15 @@
 #include "dxrt/request.h"
 #include "dxrt/exception/exception.h"
 #include "dxrt/configuration.h"
+#include "./resource/log_messages.h"
 
 #ifdef USE_ORT
 #include <onnxruntime_cxx_api.h>
 #endif
 
+using std::endl;
 
 #define MINIMUM_ORT_VERSION "1.20.0"
-using namespace std;
 
 namespace dxrt
 {
@@ -82,7 +88,7 @@ DataType convertDataType(ONNXTensorElementDataType dataType)
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX128:
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_BFLOAT16:
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_UNDEFINED:
-        default: 
+        default:
             return DataType::NONE_TYPE;
     }
 }
@@ -97,7 +103,7 @@ ONNXTensorElementDataType convertONNXTensorElementDataType(DataType dataType) {
         case DataType::INT32: return ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32;
         case DataType::INT64: return ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64;
         case DataType::UINT64: return ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT64;
-        default: 
+        default:
             return ONNX_TENSOR_ELEMENT_DATA_TYPE_UNDEFINED;
     }
 }
@@ -122,7 +128,7 @@ size_t convertElementSize(ONNXTensorElementDataType dataType)
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX128:
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_BFLOAT16:
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_UNDEFINED:
-        default: 
+        default:
             return 0;
     }
 }
@@ -144,13 +150,19 @@ bool version_check()
 }
 
 
-CpuHandle::CpuHandle(void* data_, int64_t size_, string name_)
-: _name(name_)
+CpuHandle::CpuHandle(void* data_, int64_t size_, string name_, size_t device_num_)
+: _name(name_), _device_num(device_num_)
 {
     if (version_check() == false)
     {
         throw InvalidOperationException("NOT SUPPORTED ORT VERSION "+ Ort::GetVersionString());
     }
+    
+    // Store model data for worker session creation (DYNAMIC THREAD mode)
+    _modelSize = size_;
+    _modelData.resize(size_);
+    std::memcpy(_modelData.data(), data_, size_);
+    
     // _env = Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_VERBOSE, "dxrt cpu handle");
     // _env = Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_INFO, "dxrt cpu handle");
     _env = Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_INFO);
@@ -159,12 +171,33 @@ CpuHandle::CpuHandle(void* data_, int64_t size_, string name_)
     ORT_ENABLE_BASIC = 1,
     ORT_ENABLE_EXTENDED = 2,
     ORT_ENABLE_ALL = 99 */
-    _sessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_DISABLE_ALL);
-    // _sessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
-    // _sessionOptions.SetExecutionMode(ORT_SEQUENTIAL);
-    // _sessionOptions.SetExecutionMode(ORT_PARALLEL);
+    _sessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_EXTENDED);
+    
+    // Set execution mode explicitly
+    /*
+    _sessionOptions.SetExecutionMode(ORT_PARALLEL);
+
+    // For dynamic thread mode, configure thread settings to avoid contention
+    if (_dynamicCpuThread) {
+        int systemCores = std::thread::hardware_concurrency();
+        int OpThreads = std::max(1, systemCores / 5);
+        OpThreads = std::min(OpThreads, 1);
+        
+        //_sessionOptions.SetIntraOpNumThreads(OpThreads); // Auto-tuning is better than manual setting
+        _sessionOptions.SetInterOpNumThreads(OpThreads);
+        LOG_DXRT_DBG << "Main session configured for dynamic mode: OpThreads=" << OpThreads << std::endl;
+    }
+    else {
+        int systemCores = std::thread::hardware_concurrency();
+        int OpThreads = std::max(1, systemCores / 5);
+        OpThreads = std::min(systemCores, 1);
+        //_sessionOptions.SetIntraOpNumThreads(OpThreads);
+        _sessionOptions.SetInterOpNumThreads(OpThreads);
+        LOG_DXRT_DBG << "Main session configured for dynamic mode: OpNumThreads = " << OpThreads << std::endl;
+    }
+    */
     // DataDumpBin("tmp.onnx", data_, size_);
-    _session = make_shared<Ort::Session>(_env, data_, size_, _sessionOptions);
+    _session = std::make_shared<Ort::Session>(_env, data_, size_, _sessionOptions);
     Ort::AllocatorWithDefaultOptions allocator;
     // Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault);
     _numInputs = _session->GetInputCount();
@@ -173,8 +206,8 @@ CpuHandle::CpuHandle(void* data_, int64_t size_, string name_)
     _outputNames.clear();
     _inputNamesChar.clear();
     _outputNamesChar.clear();
-    _inputShape.clear();
-    _outputShape.clear();
+    _inputShapes.clear();
+    _outputShapes.clear();
     _inputOffsets.clear();
     _outputOffsets.clear();
     _inputSizes.clear();
@@ -186,50 +219,50 @@ CpuHandle::CpuHandle(void* data_, int64_t size_, string name_)
 
     _inputNames.reserve(_numInputs);
     _inputNamesChar.reserve(_numInputs);
-    for(int i=0; i<_numInputs; i++)
+    for (int i = 0; i < _numInputs; i++)
     {
-        _inputNames.push_back( move(string(_session->GetInputNameAllocated(i, allocator).get())) );
-        _inputNamesChar.push_back( _inputNames[i].c_str());
+        _inputNames.push_back(move(string(_session->GetInputNameAllocated(i, allocator).get())) );
+        _inputNamesChar.push_back(_inputNames[i].c_str());
     }
     _outputNames.reserve(_numOutputs);
     _outputNamesChar.reserve(_numOutputs);
-    for(int i=0; i<_numOutputs; i++)
+    for (int i = 0; i < _numOutputs; i++)
     {
-        _outputNames.push_back( move(string(_session->GetOutputNameAllocated(i, allocator).get())) );
-        _outputNamesChar.push_back( _outputNames[i].c_str());
+        _outputNames.push_back(move(string(_session->GetOutputNameAllocated(i, allocator).get())) );
+        _outputNamesChar.push_back(_outputNames[i].c_str());
     }
-    for(int i=0; i<_numInputs; i++)
+    for (int i = 0; i < _numInputs; i++)
     {
         Ort::TypeInfo typeInfo = _session->GetInputTypeInfo(i);
         auto tensorInfo = typeInfo.GetTensorTypeAndShapeInfo();
         auto dataType = tensorInfo.GetElementType();
-        _inputDataTypes.push_back(convertDataType(dataType)); 
-        _inputShape.push_back(tensorInfo.GetShape());
-        auto size = dxrt::vectorProduct(_inputShape.back()) * convertElementSize(dataType);
+        _inputDataTypes.push_back(convertDataType(dataType));
+        _inputShapes.push_back(tensorInfo.GetShape());
+        auto size = dxrt::vectorProduct(_inputShapes.back()) * convertElementSize(dataType);
         _inputSize += size;
         _inputSizes.push_back(size);
-        if(i<_numInputs-1)
+        if (i < _numInputs-1)
         {
             _inputOffsets.push_back(_inputSize);
         }
-    }    
-    for(int i=0; i<_numOutputs; i++)
+    }
+    for (int i = 0; i < _numOutputs; i++)
     {
         Ort::TypeInfo typeInfo = _session->GetOutputTypeInfo(i);
         auto tensorInfo = typeInfo.GetTensorTypeAndShapeInfo();
         auto dataType = tensorInfo.GetElementType();
-        _outputDataTypes.push_back(convertDataType(dataType)); 
-        _outputShape.push_back(tensorInfo.GetShape());
-        auto size = dxrt::vectorProduct(_outputShape.back()) * convertElementSize(dataType);
+        _outputDataTypes.push_back(convertDataType(dataType));
+        _outputShapes.push_back(tensorInfo.GetShape());
+        auto size = dxrt::vectorProduct(_outputShapes.back()) * convertElementSize(dataType);
         _outputSize += size;
         _outputSizes.push_back(size);
 
-        if(i<_numOutputs-1)
+        if (i < _numOutputs-1)
         {
             _outputOffsets.push_back(_outputSize);
         }
     }
-    //To be replaced by a modeling method in the future
+    // To be replaced by a modeling method in the future
     if (_dynamicCpuThread) {
         if (size_ <= 64 * 1024) {
             _initDynamicThreads = 0;
@@ -240,7 +273,8 @@ CpuHandle::CpuHandle(void* data_, int64_t size_, string name_)
         }
     }
     _totalNumThreads.fetch_add(_numThreads + _initDynamicThreads);
-    LOG_DXRT_DBG<<"Task "<<name_<<" is set to "<<to_string(_numThreads + _initDynamicThreads)<<" threads (total : "<<to_string(_totalNumThreads.load())<<")"<<endl;
+    LOG_DXRT_DBG << "Task " << name_ << " is set to " << std::to_string(_numThreads + _initDynamicThreads)
+      << " threads (total : " << std::to_string(_totalNumThreads.load()) << ")" << endl;
 }
 
 CpuHandle::~CpuHandle()
@@ -251,7 +285,7 @@ CpuHandle::~CpuHandle()
         _worker->Stop();
         _worker = nullptr;
     }
-   
+
     LOG_DXRT_DBG <<" Done"<< endl;
 }
 
@@ -267,15 +301,14 @@ void CpuHandle::SetDynamicCpuThread() {
     _dynamicCpuThread = Configuration::GetInstance().GetEnable(Configuration::ITEM::DYNAMIC_CPU_THREAD);
     Configuration::GetInstance().LockEnable(Configuration::ITEM::DYNAMIC_CPU_THREAD);
 
-    if(dynamic_cpu_thread_env||_dynamicCpuThread)
-        _dynamicCpuThread=true;
-    
+    if (dynamic_cpu_thread_env || _dynamicCpuThread)
+        _dynamicCpuThread = true;
+
     if (_dynamicCpuThread) {
         LOG_DXRT_DBG << "Dynamic Multi Threading : MULTI MODE" << endl;
     } else {
         LOG_DXRT_DBG << "Dynamic Multi Threading : SINGLE MODE" << endl;
     }
-
 }
 
 int CpuHandle::InferenceRequest(RequestPtr req)
@@ -285,113 +318,155 @@ int CpuHandle::InferenceRequest(RequestPtr req)
 
 void CpuHandle::Run(RequestPtr req)
 {
+    RunWithSession(req, _session);
+}
+
+void CpuHandle::RunWithSession(RequestPtr req, std::shared_ptr<Ort::Session> session)
+{
 #ifdef USE_PROFILER
     auto& profiler = dxrt::Profiler::GetInstance();
     string processedPU = req->processed_pu();
     int processedId = req->processed_id();
-    string profileInstanceName = processedPU + "_t" + to_string(processedId);
+    string profileInstanceName = processedPU + "[Job_" + std::to_string(req->job_id()) + "][" + req->task()->name() + "][Req_" + std::to_string(req->id()) + "]_t" + std::to_string(processedId);
     profiler.Start(profileInstanceName);
 #endif
+
     LOG_DXRT_DBG << "CpuHandleRun:" << req->id() << std::endl;
     auto task = req->task();
-    
-    if(!task->is_head())
-    {
-        //req->inputs() = task->inputs( _buffer->Get(task->input_size()) );
-        task->inputs(req->inputs().front().data());
-    }
-    //req->outputs() = task->outputs( _buffer->Get(task->GetOutputSize()) );
-    req->setOutputs(task->outputs(req->getData()->output_ptr));
 
-    vector<Ort::Value> inputTensors, outputTensors;
-    Ort::MemoryInfo memoryInfo = 
+    // Set output tensors with proper buffer
+    // If outputs are already prepared (e.g., mapped to user output buffer with global offsets), keep them.
+    // Otherwise, build tensors from task-local offsets based on output_buffer_base.
+    if (req->outputs().empty())
+    {
+        // req->getData()->output_buffer_base is the base address of continuous memory for this request
+        // task->outputs() applies task-local offsets to set data pointer for each tensor
+        req->setOutputs(task->outputs(req->getData()->output_buffer_base));
+    }
+
+    std::vector<Ort::Value> inputTensors, outputTensors;
+    Ort::MemoryInfo memoryInfo =
         Ort::MemoryInfo::CreateCpu(
-            OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault
-        );
+            OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault);
 
-    LOG_DXRT_DBG << task->id() << " - _numInputs : " << to_string(_numInputs) << std::endl;
-    if (!task->is_head()) 
+    LOG_DXRT_DBG << task->id() << " - _numInputs : " << std::to_string(_numInputs) << std::endl;
+
+    // Create input tensors for ONNX Runtime
+    // Use the input tensors directly from the request - they already have correct pointers
+    auto reqInputs = req->inputs();
+    if (!reqInputs.empty() && reqInputs.size() >= static_cast<size_t>(_numInputs))
     {
-        int prevTaskId = task->prevs().front()->id();
-        LOG_DXRT_DBG << std::to_string(prevTaskId) << std::endl;
-        for (int i = 0; i < _numInputs; i++) 
+        for (int i = 0; i < _numInputs; i++)
         {
-            LOG_DXRT_DBG << "CpuHandle : " << req->inputs()[i].name() << " / i : " << to_string(i) << std::endl;
-            LOG_DXRT_DBG << "_inputShape" << std::endl;
-            for (int64_t &element : _inputShape[i]) {
-                LOG_DXRT_DBG << element << " ";
-            }
-            LOG_DXRT_DBG << "_inputSizes : " << to_string(_inputSizes[i]) << std::endl;
-        }
-        for (int i = 0; i < _numInputs; i++) 
-        {
-            LOG_DXRT_DBG<<req->inputs()[i]<<std::endl;
+            auto& inputTensor = reqInputs[i];
+
+            LOG_DXRT_DBG << "CpuHandle Input[" << i << "]: " << _inputNames[i]
+                        << ", data_ptr: " << inputTensor.data()
+                        << ", size: " << _inputSizes[i] << std::endl;
+            LOG_DXRT_DBG << "_inputShape[" << i << "]: " << _inputShapes[i] << std::endl;
+
             inputTensors.emplace_back(
                 Ort::Value::CreateTensor(
                     memoryInfo,
-                    req->inputs()[i].data(),
-                    _inputSizes[i],
-                    _inputShape[i].data(),
-                    _inputShape[i].size(),
+                    inputTensor.data(),          // Use tensor's data pointer directly
+                    _inputSizes[i],              // Use ONNX Runtime's tensor size
+                    _inputShapes[i].data(),
+                    _inputShapes[i].size(),
                     convertONNXTensorElementDataType(_inputDataTypes[i])
                 )
             );
         }
     }
-    else 
+    else
     {
-        LOG_DXRT_DBG << " task is head, _numInputs :" << _numInputs << std::endl;
-        for (int i = 0; i < _numInputs; i++) 
-        {
-            LOG_DXRT_DBG << "CpuHandle : " << req->inputs()[i].name() << " / i : " << to_string(i) << std::endl;
-            LOG_DXRT_DBG << "_inputShape" << std::endl;
-            for (int64_t &element : _inputShape[i]) {
-                LOG_DXRT_DBG << element << " ";
-            }
-            LOG_DXRT_DBG << "_inputSizes : " << to_string(_inputSizes[i]) << std::endl;
-        }
-        for (int i = 0; i < _numInputs; i++) {
-            LOG_DXRT_DBG<<req->inputs()[i]<<std::endl;
-            inputTensors.emplace_back(
-                Ort::Value::CreateTensor(
-                    memoryInfo,
-                    req->inputs()[i].data(),
-                    _inputSizes[i],
-                    _inputShape[i].data(),
-                    _inputShape[i].size(),
-                    convertONNXTensorElementDataType(_inputDataTypes[i])
-                )
-            );
-        }
+        std::string err_msg = LogMessages::CPUHandle_NoInputTensorsAvailable(task->name(), reqInputs.size(), _numInputs);
+        throw InvalidOperationException(EXCEPTION_MESSAGE(err_msg));
     }
 
-    for (int i = 0; i < _numOutputs; i++) {
-        LOG_DXRT_DBG << "CpuHandle : " << req->outputs()[i].name() << " output Tensor processing dtype : " << _outputDataTypes[i] << " / i : " << std::to_string(i) << std::endl;
-        LOG_DXRT_DBG << "_outputShape" << std::endl;
-        for (int64_t &element : _outputShape[i]) {
-            LOG_DXRT_DBG << element << " ";
+    // Create output tensors for ONNX Runtime
+    // Use the output tensors directly from the request - they already have correct pointers
+    auto reqOutputs = req->outputs();
+    if (!reqOutputs.empty() && reqOutputs.size() >= static_cast<size_t>(_numOutputs))
+    {
+        // Create ONNX output name -> index mapping for proper tensor ordering
+        std::map<std::string, int> onnxOutputIndexMap;
+        for (int i = 0; i < _numOutputs; ++i)
+        {
+            onnxOutputIndexMap[_outputNames[i]] = i;
         }
-        LOG_DXRT_DBG << "_outputSizes : " << to_string(_outputSizes[i]) << std::endl;
-        outputTensors.emplace_back(
-            Ort::Value::CreateTensor(
+
+        // Pre-allocate output tensors vector with nullptr values
+        outputTensors.clear();
+        outputTensors.reserve(_numOutputs);
+        for (int i = 0; i < _numOutputs; ++i)
+        {
+            outputTensors.emplace_back(nullptr);
+        }
+
+        // Map request outputs to ONNX outputs in correct order
+        for (int i = 0; i < _numOutputs; i++)
+        {
+            auto& outputTensor = reqOutputs[i];
+            std::string tensorName = outputTensor.name();
+
+            // Find the corresponding ONNX output index
+            auto it = onnxOutputIndexMap.find(tensorName);
+            if (it == onnxOutputIndexMap.end())
+            {
+                //LOG_DXRT_ERR("Tensor '" + tensorName + "' not found in ONNX outputs for task: " + task->name());
+                //throw std::runtime_error("Tensor '" + tensorName + "' not found in ONNX outputs");
+
+                std::string err_msg = LogMessages::CPUHandle_NotFoundInONNXOutputs(tensorName, task->name());
+                throw InvalidOperationException(EXCEPTION_MESSAGE(err_msg));
+            }
+
+            int onnxIndex = it->second;
+
+            LOG_DXRT_DBG << "CpuHandle Output[" << i << "]: " << tensorName
+                        << " -> ONNX[" << onnxIndex << "]: " << _outputNames[onnxIndex]
+                        << ", dtype: " << _outputDataTypes[onnxIndex]
+                        << ", data_ptr: " << outputTensor.data()
+                        << ", size: " << _outputSizes[onnxIndex] << std::endl;
+            LOG_DXRT_DBG << "_outputShape[" << onnxIndex << "]: " << _outputShapes[onnxIndex] << std::endl;
+
+            // Create ONNX tensor at the correct index
+            outputTensors[onnxIndex] = Ort::Value::CreateTensor(
                 memoryInfo,
-                req->outputs()[i].data(),
-                _outputSizes[i],
-                _outputShape[i].data(),
-                _outputShape[i].size(),
-                convertONNXTensorElementDataType(_outputDataTypes[i])
-            )
-        );
+                outputTensor.data(),         // Use tensor's data pointer directly
+                _outputSizes[onnxIndex],     // Use ONNX Runtime's tensor size
+                _outputShapes[onnxIndex].data(),
+                _outputShapes[onnxIndex].size(),
+                convertONNXTensorElementDataType(_outputDataTypes[onnxIndex])
+            );
+        }
     }
+    else
+    {
+        std::string err_msg = LogMessages::CPUHandle_NoOutputTensorsAvailable(task->name(), reqOutputs.size(), _numOutputs);
+        throw InvalidOperationException(EXCEPTION_MESSAGE(err_msg));
+    }
+
+    // Validate tensor counts match ONNX model expectations
+    if (static_cast<int>(inputTensors.size()) != _numInputs)
+    {
+        std::string err_msg = LogMessages::CPUHandle_InputTensorCountMismatch(inputTensors.size(), _numInputs);
+        throw InvalidOperationException(EXCEPTION_MESSAGE(err_msg));
+    }
+
+    if (static_cast<int>(outputTensors.size()) != _numOutputs)
+    {
+        std::string err_msg = LogMessages::CPUHandle_OutputTensorCountMismatch(outputTensors.size(), _numOutputs);
+        throw InvalidOperationException(EXCEPTION_MESSAGE(err_msg));
+    }
+
     LOG_DXRT_DBG << "session run start : " << req->id() << std::endl;
-    _session->Run(Ort::RunOptions{nullptr},
+    session->Run(Ort::RunOptions{nullptr},
                   _inputNamesChar.data(), inputTensors.data(), inputTensors.size(),
                   _outputNamesChar.data(), outputTensors.data(), outputTensors.size());
     LOG_DXRT_DBG << "session run end : " << req->id() << std::endl;
 #ifdef USE_PROFILER
     profiler.End(profileInstanceName);
 #endif
-    //ProcessResponse(req, nullptr);
 }
 void CpuHandle::Terminate()
 {
@@ -399,20 +474,56 @@ void CpuHandle::Terminate()
 }
 void CpuHandle::Start()
 {
-    LOG_DXRT_DBG<<"CpuHandleWorer Start : "<<_numThreads<<endl;
-    _worker = CpuHandleWorker::Create(_name, _numThreads, _initDynamicThreads, this);
+    LOG_DXRT_DBG << "CpuHandleWorer Start : " << _numThreads << endl;
+    _worker = CpuHandleWorker::Create(_name, _numThreads, _initDynamicThreads, this, _device_num);
 }
 
+#ifdef USE_ORT
+std::shared_ptr<Ort::Session> CpuHandle::CreateWorkerSession()
+{
+    // Currently not in use but may be needed in the future
+    
+    // Create session options specifically for worker threads
+    Ort::SessionOptions workerSessionOptions;
+    
+    // Use the same graph optimization level as main session
+    workerSessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_EXTENDED);
+    /*
+    // Set execution mode for parallel execution
+    workerSessionOptions.SetExecutionMode(ORT_PARALLEL);
+    
+    // Dynamic thread allocation based on system resources
+    int systemCores = std::thread::hardware_concurrency();
+    int totalActiveCpuTasks = _totalNumThreads.load();
+    
+    // Calculate optimal intra_op threads per session
+    int intraOpThreads = 1; // Conservative default
+    if (totalActiveCpuTasks > 0) {
+        intraOpThreads = std::max(1, systemCores / totalActiveCpuTasks);
+        intraOpThreads = std::min(intraOpThreads, 4); // Cap at 4 to avoid over-subscription
+    }
+    
+    workerSessionOptions.SetIntraOpNumThreads(intraOpThreads);
+    workerSessionOptions.SetInterOpNumThreads(1); // Keep simple for predictability
+    
+    LOG_DXRT_DBG << "Creating worker session: intra_op=" << intraOpThreads 
+                 << ", total_cpu_tasks=" << totalActiveCpuTasks 
+                 << ", system_cores=" << systemCores << std::endl;
+    */
+    return std::make_shared<Ort::Session>(_env, _modelData.data(), _modelSize, workerSessionOptions);
+}
+#endif
 
 #else
-CpuHandle::CpuHandle(void* data_, int64_t size_, string name_) : _name(name_){
-	std::ignore = size_;
-	std::ignore = data_;
+CpuHandle::CpuHandle(void* data_, int64_t size_, string name_, size_t device_num_) : _name(name_), _device_num(device_num_){
+    std::ignore = size_;
+    std::ignore = data_;
+    std::ignore = device_num_;
 }
 CpuHandle::~CpuHandle() {}
 int CpuHandle::InferenceRequest(RequestPtr req) {
-	std::ignore = req;
-	return -1;
+    std::ignore = req;
+    return -1;
 }
 void CpuHandle::Run(RequestPtr req) {std::ignore = req;}
 void CpuHandle::Terminate() {}
@@ -420,15 +531,18 @@ void CpuHandle::Start() {}
 
 #endif
 
-ostream& operator<<(ostream& os, const CpuHandle& c)
+std::ostream& operator<<(std::ostream& os, const CpuHandle& c)
 {
-    for(int i=0;i<c._numInputs;i++)
+    using std::dec;
+    for (int i = 0; i < c._numInputs; i++)
     {
-        os << "            input [" << dec << i << "] " << c._inputNames[i] << ", " << c._inputDataTypes[i] << ", " << c._inputShape[i] << endl;
+        os << "            input [" << dec << i << "] " << c._inputNames[i] << ", "
+          << c._inputDataTypes[i] << ", " << c._inputShapes[i] << endl;
     }
-    for(int i=0;i<c._numOutputs;i++)
+    for (int i = 0; i < c._numOutputs; i++)
     {
-        os << "            output [" << dec << i << "] " << c._outputNames[i] << ", " << c._outputDataTypes[i] << ", " << c._outputShape[i] << endl;
+        os << "            output [" << dec << i << "] " << c._outputNames[i] << ", "
+          << c._outputDataTypes[i] << ", " << c._outputShapes[i] << endl;
     }
     return os;
 }

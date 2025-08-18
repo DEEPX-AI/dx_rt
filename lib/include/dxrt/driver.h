@@ -10,10 +10,19 @@
     #include <windows.h>
 #endif
 
+#ifndef DEVICE_FILE
+#define DEVICE_FILE "dxrt"
+#endif
+#ifndef DEVICE_FILE_DSP
+#define DEVICE_FILE_DSP "dxrt_dsp"
+#endif
+
 namespace dxrt {
 
 /**********************/
 /* RT/driver sync     */
+
+#define MAX_CHECKPOINT_COUNT 3
 
 typedef enum {
     DXRT_EVENT_NONE,
@@ -182,7 +191,7 @@ typedef struct _dx_pcie_dev_event {
 
 typedef struct device_info {
     uint32_t type = 0; /* 0: ACC type, 1: STD type */
-    uint32_t variant = 0; /* 100: L1, 101: L2, 102: L3, 103: L4,
+    uint32_t variant = 0; /* 100: L1, 101: L2, 102: L3, 103: L4, 104: V3,
                         200: M1, 201: M1A */
     uint64_t mem_addr = 0;
     uint64_t mem_size = 0;
@@ -240,11 +249,9 @@ typedef struct _dxrt_request_acc_t {
     uint32_t  model_cmds = 0;
     uint32_t  cmd_offset = 0;
     uint32_t  weight_offset = 0;
-    uint32_t  model_cmds2 = 0; // for m1 8k
-    uint32_t  cmd_offset2 = 0; // for m1 8k
-    uint32_t  weight_offset2 = 0; // for m1 8k
+    uint32_t  datas[MAX_CHECKPOINT_COUNT];
     int32_t   dma_ch = 0;
-    uint32_t  arg0 = 0; // additional parameter dependent to hw (for m1 8k)
+    uint32_t  op_mode = 0;   /* operation mode - 1:large model */
     uint32_t  status = 0;
     uint32_t  proc_id = 0;
     uint32_t  prior;        /* scheduler option - priority(npu_priority_op) */
@@ -266,6 +273,9 @@ typedef struct _dxrt_response_t {
     int32_t   dma_ch            = 0;
     uint32_t  ddr_wr_bw         = 0; /* unit : KB/s */
     uint32_t  ddr_rd_bw         = 0; /* unit : KB/s */
+    uint64_t  wait_timestamp    = 0; /* duration in microseconds for Process(DXRT_CMD_NPU_RUN_RESP) call (measured by profiler) */
+    uint64_t  wait_start_time   = 0; /* start time in nanoseconds when Process(DXRT_CMD_NPU_RUN_RESP) was called */
+    uint64_t  wait_end_time     = 0; /* end time in nanoseconds when Process(DXRT_CMD_NPU_RUN_RESP) returned */
 } dxrt_response_t;
 
 typedef struct _dxrt_message
@@ -311,7 +321,8 @@ typedef enum {
     DXRT_CMD_CUSTOM             , /* Sub-command */
     DXRT_CMD_START              ,
     DXRT_CMD_TERMINATE          ,
-    DXRT_CMD_MAX,
+    DXRT_CMD_PCIE               , /* Sub-command */
+    DXRT_CMD_MAX                ,
 } dxrt_cmd_t;
 
 /* CMD : DXRT_CMD_IDENTIFY_DEVICE*/
@@ -338,6 +349,7 @@ typedef enum {
     DX_ADD_WEIGHT_INFO      = 5,
     DX_DEL_WEIGHT_INFO      = 6,
     DX_UPLOAD_MODEL         = 100,
+    DX_INTERNAL_TESTCASE    = 200,
 } dxrt_custom_sub_cmt_t;
 
 typedef enum device_type
@@ -351,6 +363,11 @@ typedef enum device_interface
     DEVICE_INTERFACE_ASIC = 0,
     DEVICE_INTERFACE_FPGA = 1,
 } dxrt_device_interface_t;
+
+typedef enum {
+    DX_GET_PCIE_INFO = 0,
+    DX_CLEAR_ERR_STAT = 1,
+} dxrt_pcie_sub_cmd_t;
 
 /* CMD : DXRT_CMD_UPDATE_FIRMWARE */
 typedef enum {
@@ -385,19 +402,78 @@ typedef enum {
 
 /**********************/
 
+
+
 typedef struct _dxrt_model
 {
     int16_t npu_id;
-    int8_t  type; // 0: normal, 1: argmax, 2: ppu
-    int8_t  format;
+    int8_t  type = 0; // 0: normal, 1: argmax, 2: ppu
+    int8_t  format = 0; // 0: none, 1: formatted, 2: aligned, 3: pre_formatter, 4: pre_im2col
     int32_t cmds;
-    dxrt_meminfo_t cmd;
+    dxrt_meminfo_t rmap;
     dxrt_meminfo_t weight;
+    uint32_t input_all_offset;
+    uint32_t input_all_size;
     uint32_t output_all_offset;
     uint32_t output_all_size;
     uint32_t last_output_offset;
     uint32_t last_output_size;
+    uint32_t  checkpoints[MAX_CHECKPOINT_COUNT] = {0, 0, 0};
+    uint32_t  op_mode = 0;   /* operation mode - 1:large model */
 } dxrt_model_t;
+
+typedef struct _dxrt_dsp_message_header
+{
+	unsigned short func_id;
+	unsigned short message_size;
+	unsigned char cpu_written_flag;
+	unsigned char dsp_read_flag;
+	unsigned short reserved;
+} dxrt_dsp_message_header_t;
+
+typedef struct _dxrt_dsp_message_type000
+{
+	unsigned int src_addr_offset;
+	unsigned int dst_addr_offset;	
+	unsigned short src_w;
+	unsigned short src_h;
+	unsigned short dst_w;
+	unsigned short dst_h;
+	unsigned short src_stride;
+	unsigned short dst_stride;
+	unsigned int reserved;
+} dxrt_dsp_message_type000_t;
+
+typedef struct _dxrt_dsp_message_type200
+{
+	unsigned int npu_out_addr_offset;//Input
+	unsigned int display_addr_offset;//Output
+	int num_objects;
+	unsigned short thresh_score;
+	unsigned short thresh_iou;
+	int reserved0;//TODO
+} dxrt_dsp_message_type200_t;
+
+typedef struct _dxrt_dsp_request_t {
+    uint32_t  req_id;                    //4B
+    dxrt_dsp_message_header_t msg_header;//8B    
+    uint32_t  msg_data[8];               //32B
+    uint32_t  reserved;                  //4B
+} dxrt_dsp_request_t;//48B
+
+#define DSPCV_MAX_DIM 8
+typedef struct _dxrt_dspcvmat
+{
+    int flags;          // Type information (depth, channels, etc.)
+    int dims;           // Number of dimensions (2 for 2D matrix)
+    int rows;           // Number of rows
+    int cols;           // Number of columns
+    uint8_t* datastart; // Pointer to the beginning of data
+    uint8_t* datalimit; // Pointer to the end of allocated buffer
+    uint8_t* data;      // Pointer to the actual data    
+    uint8_t* dataend;   // Pointer to the end of actual data    
+    int step[DSPCV_MAX_DIM]; // Steps per dimension (row stride, etc.)
+} dxrt_dspcvmat_t;
 
 extern DXRT_API std::vector<std::pair<int, std::string>> ioctlTable;
 extern DXRT_API std::string ErrTable(dxrt_error_t error);

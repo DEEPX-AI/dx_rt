@@ -17,7 +17,22 @@ class DriverAdapter {
 public:
 
     // input & output control
-    virtual int32_t IOControl(dxrt_cmd_t request, void* data, uint32_t size = 0, uint32_t sub_cmd = 0) = 0;
+    virtual int32_t IOControl(dxrt_cmd_t request, void* data, uint32_t size = 0, uint32_t sub_cmd = 0) {
+        std::ignore = request;
+        std::ignore = data;
+        std::ignore = size;
+        std::ignore = sub_cmd;
+        return -1;
+    }
+    virtual int32_t NetControl(dxrt_cmd_t request, void* data, uint32_t size = 0, uint32_t sub_cmd = 0, uint64_t address = 0, bool ctrlCmd = true) {
+        std::ignore = request;
+        std::ignore = data;
+        std::ignore = size;
+        std::ignore = sub_cmd;
+        std::ignore = address;
+        std::ignore = ctrlCmd;
+        return -1;
+    }
 
     // Write Data via DMA
     virtual int32_t Write(const void* buffer, uint32_t size) = 0;

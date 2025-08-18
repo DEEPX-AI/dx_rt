@@ -1,4 +1,55 @@
 # RELEASE_NOTES
+## v3.0.0 / 2025-07-31
+### 1. Changed
+- Update minimum versions 
+   - Driver : 1.5.0 -> 1.7.1
+   - PCIe Driver : 1.4.0 -> 1.4.1
+   - Firmware : 2.0.5 -> 2.1.0
+- Update DeviceOutputWorker to use 4 threads for 4 DMA channels (3 channels to 4 channels)
+- Update Python Package version (v1.1.1 -> v1.1.2)
+- Modify run_async_model and run_async_model_output examples
+- Modify build.sh (print python package install info)
+- removed some unnecessary items from header files
+- use Pyproject.toml instead setup.py (now setup.py is not recommended)
+- Add options to SanityCheck.sh
+   - Usage: sudo SanityCheck.sh [all(default) | dx_rt | dx_driver | help]
+- Change build compiler has been updated to version 14 for both USE_ORT=ON and USE_ORT=OFF configurations.
+- Modify run_model logging to include host info (Linux only).
+- Enhance UI for better clarity, enabled dynamic data rendering, and added visual graphs for NPU Memory usage.
+- The default build option for DX-RT has been changed from USE_ORT=OFF to USE_ORT=ON. If the inference engine option is not specified separately, use_ort will be enabled by default, activating the CPU task for .dxnn models.
+### 2. Fixed
+- fix kernel panic issue caused by wrong NPU channel number
+- feat: Improve error message readability in install, build scripts
+  - Apply color to error messages
+  - Reorder message output to display errors before help messages
+- fix some rapidjson issue from clients.
+- remove bad using namespace std from model.h (some programs need change)
+- Fix an issue where temporary files from the ONNX Runtime installation would accumulate.
+- Fix a cross-compilation error related to the ncurses library for the dxtop utility.
+- Update code for compatibility with v3 environment
+- fix: fix dx-rt build error caused by pybind11 incompatibility with Python 3.6.9 on Ubuntu 18.04
+  - Support automatic installation of minimum required Python version (>= 3.8.2)  
+  - Install Python 3.8.2 if the system Python version is not supported
+  - On Ubuntu 18.04, install via source build; on Ubuntu 20.04+, use apt install
+  - Added support in install.sh to optionally accept --python_version and --venv_path for installation
+  - Added support in build.sh to accept and use --python_exec
+  - Added support in build.sh to optionally accept --venv_path and activate the specified virtual environment
+### 3. Added
+- Add usb inference module (tcp/ip)
+(MACRO : DXRT_USB_NETWORK_DRIVER)
+- Add Sanity Check Features
+   - Dependency version check.
+   - Executable file check.
+- Add APIs to the Configuration class for retrieving version information.
+- PCIE details displayed on some device errors
+- dxrt-cli --errorstat option added (this shows pcie detailed information)
+- Add Python examples for configuration and device status.
+- Add Python API for configuration and device status. (dx-engine-1.1.1)
+- Add functionality to query the framework & driver versions in the Configuration class.
+- Add weight checksum info for service
+- Add ENABLE_SHOW_MODEL_INFO build option and configuration item
+- Add dxtop tool, a terminal-based monitoring tool for Linux environments. It provides real-time insights into NPU core utilization and DRAM usage per NPU device.
+
 ## v2.9.5 / 2025-06-09
 ### 1. Changed
 - Modified Python tensor info dictionary results. Removed 'size_in_bytes' and added 'elem_size' to the dictionaries returned by get_input_tensors_info() and get_output_tensors_info().

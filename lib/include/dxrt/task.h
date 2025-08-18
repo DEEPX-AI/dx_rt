@@ -4,6 +4,16 @@
 #pragma once
 
 #include "dxrt/common.h"
+
+#include <atomic>
+#include <unordered_map>
+#include <map>
+#include <cstdarg>
+#include <mutex>
+#include <memory>
+#include <string>
+#include <vector>
+
 #include "dxrt/tensor.h"
 #include "dxrt/request_data.h"
 #include "dxrt/driver.h"
@@ -12,11 +22,6 @@
 #include "dxrt/task_data.h"
 #include "dxrt/inference_timer.h"
 #include "dxrt/fixed_size_buffer.h"
-#include <atomic>
-#include <unordered_map>
-#include <map>
-#include <cstdarg>
-#include <mutex>
 
 namespace dxrt {
 using rmapinfo = deepx_rmapinfo::RegisterInfoDatabase;
@@ -35,42 +40,46 @@ struct DXRT_API TaskStats
 };
 class CpuHandle;
 
+// Struct for atomically allocating and freeing buffers
+struct BufferSet {
+    void* encoded_input;
+    void* output;
+    void* encoded_output;
+    
+    BufferSet() : encoded_input(nullptr), output(nullptr), encoded_output(nullptr) {}
+};
 
 class Request;
 using RequestPtr = std::shared_ptr<Request>;
 class DXRT_API Task
 {    
 public:
-    Task(std::string name_, std::vector<rmapinfo>, std::vector<std::vector<uint8_t>>&&, npu_bound_op boundOp = N_BOUND_NORMAL);
-    Task(std::string name_, std::vector<rmapinfo>, std::vector<std::vector<uint8_t>>&&, npu_bound_op boundOp, std::vector<std::shared_ptr<Device>>& devices_);
+    Task(std::string name_, rmapinfo, std::vector<std::vector<uint8_t>>&&, npu_bound_op boundOp = N_BOUND_NORMAL);
+    Task(std::string name_, rmapinfo, std::vector<std::vector<uint8_t>>&&, npu_bound_op boundOp, std::vector<std::shared_ptr<Device>>& devices_);
 
     Task();
     ~Task(void);
-    int Setup(void);
-    int Check(void);
     // Tensors Run(Tensors inputs);
     // void Run(Tensors &inputs, Tensors &outputs);
     // RequestPtr InferenceRequest(Tensors inputs, Tensors outputs);
 
     void RegisterCallBack(std::function<int(TensorPtrs&, void*)>);
-    int Release(void);
     int id();
     std::string name();
-    //void *input_buf(int deviceId, int bufId);
-    Tensors inputs(void *ptr = nullptr, uint64_t phyAddr=0);
-    Tensors outputs(void *ptr = nullptr, uint64_t phyAddr=0);
+    // void *input_buf(int deviceId, int bufId);
+    Tensors inputs(void *ptr = nullptr, uint64_t phyAddr = 0);
+    Tensors outputs(void *ptr = nullptr, uint64_t phyAddr = 0);
     Processor processor();
     uint32_t input_size();
     uint32_t output_size();
     uint32_t output_mem_size();
     std::map<int, std::vector<int>> &input_index();
     std::map<int, std::vector<int>> &output_index();
-    void input_name_order(const std::vector<string>& order);
-    const std::vector<string>& input_name_order() const;
+    void input_name_order(const std::vector<std::string>& order);
+    const std::vector<std::string>& input_name_order() const;
     std::atomic<int> &inference_count();
-    std::vector< rmapinfo > npu_param();
-    std::vector< dxrt_model_t > npu_model();
-    std::vector< dxrt_request_t > npu_inference(int device);// to be moved to device
+    rmapinfo npu_param();
+    dxrt_model_t npu_model();
     
     TaskPtr &next();
     TaskPtrs &prevs();
@@ -91,10 +100,20 @@ public:
     int &GetCompleteCnt();
     void IncrementCompleteCount();
     void SetInferenceEngineTimer(InferenceTimer* ie);
+    void SetEncodedInputBuffer(int size);
+    void* GetEncodedInputBuffer();
+    void ReleaseEncodedInputBuffer(void* ptr);
+    void ClearEncodedInputBuffer();
     void SetOutputBuffer(int size);
     void* GetOutputBuffer();
+    void* GetEncodedOutputBuffer();
     void ReleaseOutputBuffer(void* ptr);
+    void ReleaseEncodedOutputBuffer(void* ptr);
     void ClearOutputBuffer();
+
+    // Deadlock 방지를 위한 원자적 buffer 관리 메서드들
+    BufferSet AcquireAllBuffers();
+    void ReleaseAllBuffers(const BufferSet& buffers);
 
     const std::vector<int>& getDeviceIds();
     CpuHandle* getCpuHandle();
@@ -107,9 +126,12 @@ public:
     void setTailOffset(int64_t n);
     int64_t getTailOffset();
 
-    friend DXRT_API std::ostream& operator<<(std::ostream&, const Task&);
-private:
+    // Unified Task-based service integration
+    void InitializeTaskWithService(int device_id);
+    void CleanupTaskFromService(int device_id);
 
+    friend DXRT_API std::ostream& operator<<(std::ostream&, const Task&);
+ private:
     TaskData _taskData;
 
     std::string _onnxFile = "";
@@ -122,12 +144,14 @@ private:
     TaskPtrs _nextTasks;
     std::map<int, std::vector<int>> _inputTensorIdx;
     std::map<int, std::vector<int>> _outputTensorIdx;
-    std::vector<string> _inputNameOrder;
+    std::vector<std::string> _inputNameOrder;
 
     std::mutex _reqLock;
     std::mutex _completeCntLock;
-    std::mutex _outputBufferLock;
-
+    std::mutex _lastOutputLock;
+ 
+    std::mutex _bufferMutex;
+    
     bool _isHead = false;
     bool _isTail = false;
 
@@ -139,7 +163,9 @@ private:
     InferenceTimer* _inferenceEngineTimer;
     std::shared_ptr<FixedSizeBuffer> _taskOutputBuffer;
     Tensors _lastOutput;
-    std::mutex _lastOutputLock;
+
+    std::shared_ptr<FixedSizeBuffer> _taskEncodedInputBuffer;
+    std::shared_ptr<FixedSizeBuffer> _taskEncodedOutputBuffer;
 
     int _completeCnt = 1;
     int _boundOp = 0;
@@ -148,4 +174,5 @@ private:
     static std::mutex _nextIdLock;
     static int getNextId();
 };
-} // namespace dxrt
+
+}  // namespace dxrt
