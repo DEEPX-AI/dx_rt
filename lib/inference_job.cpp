@@ -447,32 +447,6 @@ void InferenceJob::SetInferenceJobMultiHead(std::vector<std::shared_ptr<Task>>& 
     LOG_DBG("[MULTI_HEAD] Set inference job with " + std::to_string(inputTasks_.size()) + " input tasks");
 }
 
-void InferenceJob::SetInferenceJobMultiHead(std::vector<std::shared_ptr<Task>>& tasks_,
-                                           const std::vector<std::shared_ptr<Task>>& inputTasks_,
-                                           std::vector<string> lastOutputOrder)
-{
-    Clear();
-    _isMultiHead = true;
-    _inputTasks = inputTasks_;
-    _doneCount.store(0);
-    _latency = 0;
-    _infTime = 0;
-
-    _tasks = tasks_;  // Store tasks for multi-input support
-    _outputs.clear();
-    _outputs = lastOutputOrder;
-
-    _taskStatusMap.clear();
-
-    _outputCount.store(tasks_.size());
-    for (std::shared_ptr<Task>& it :  tasks_)
-    {
-        _taskStatusMap.insert(make_pair(it->name(), Status::TASK_IDLE));
-    }
-
-    LOG_DBG("[MULTI_HEAD] Set inference job with " + std::to_string(inputTasks_.size()) + " input tasks");
-}
-
 int InferenceJob::startJob(void *inputPtr, void *userArg, void *outputPtr)
 {
     TaskPtr task = _headTask.lock();

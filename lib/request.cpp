@@ -213,14 +213,6 @@ void * Request::encoded_outputs_ptr()
 {
     return _data.encoded_outputs_ptr;
 }
-void * Request::encoded_inputs_ptr()
-{
-    return _data.encoded_inputs_ptr;
-}
-void * Request::encoded_outputs_ptr()
-{
-    return _data.encoded_outputs_ptr;
-}
 void * Request::user_arg() const
 {
     return _userArg;
