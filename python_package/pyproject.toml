@@ -18,3 +18,37 @@ line_length = 120
 
 [tool.pytest.ini_options]
 addopts = ["-vv", "-s"]
+
+
+[build-system]
+requires = ["scikit-build-core[pyproject]>=0.9.0","setuptools>=42", "wheel", "pybind11"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name="dx-engine"
+version = "1.1.2"
+description="Python wrapper class for dx_rt"
+readme = "README.md"
+license = {text="MIT"}
+authors = [{name="DEEPX-RT", email="rt@deepx.ai"}]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+requires-python = ">= 3.8"
+keywords = ["deepx", "dxrt"]
+
+
+
+dependencies = [
+  "numpy"
+]
+
+[project.urls]
+Homepage = "https://deepx.ai"
+
+
+[tool.scikit-build]
+cmake.source-dir = "src/dx_engine/capi" 
+wheel.packages = ["src/dx_engine"]
+

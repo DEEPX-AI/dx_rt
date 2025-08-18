@@ -3,17 +3,24 @@
 #include <string>
 #include <vector>
 #include <sstream>
-#include <algorithm> 
+#include <algorithm>
+#include <iostream>
+#include <memory>
 
 #include "dxrt/dxrt_api.h"
-#include "cxxopts.hpp"
+#include "dxrt/extern/cxxopts.hpp"
 #include "dxrt/filesys_support.h"
 #include "dxrt/profiler.h"
 
-using namespace std;
 
 #define APP_NAME "DXRT " DXRT_VERSION " run_model"
 // #define TARGET_FPS_DEBUG
+
+using std::cout;
+using std::endl;
+using std::vector;
+using std::shared_ptr;
+using std::string;
 
 enum RunModelMode {
     BENCHMARK_MODE  = 0,
@@ -22,6 +29,96 @@ enum RunModelMode {
 };
 static RunModelMode mode;
 static int bounding = 0;
+
+// linux host info
+#ifdef __linux__
+#include <sys/utsname.h>
+#include <sys/sysinfo.h>
+void printCpuInfo() {
+    std::cout << "--- CPU Information ---" << std::endl;
+    std::ifstream cpuinfo("/proc/cpuinfo");
+    std::string line;
+    bool modelNameFound = false;
+    bool cpuCoresFound = false;
+    bool vendorIdFound = false;
+
+    if (cpuinfo.is_open()) {
+        while (getline(cpuinfo, line)) {
+            // model name
+            if (!modelNameFound && line.find("model name") != std::string::npos) {
+                std::cout << "  Model Name: " << line.substr(line.find(":") + 2) << std::endl;
+                modelNameFound = true;
+            }
+            // number of CPU cores
+            if (!cpuCoresFound && line.find("cpu cores") != std::string::npos) {
+                std::cout << "  CPU Cores: " << line.substr(line.find(":") + 2) << std::endl;
+                cpuCoresFound = true;
+            }
+            // vendor ID
+            if (!vendorIdFound && line.find("vendor_id") != std::string::npos) {
+                std::cout << "  Vendor ID: " << line.substr(line.find(":") + 2) << std::endl;
+                vendorIdFound = true;
+            }
+
+            if (modelNameFound && cpuCoresFound && vendorIdFound) {
+                break;
+            }
+        }
+        cpuinfo.close();
+    } else {
+        // std::cerr << "Error: Could not open /proc/cpuinfo" << std::endl;
+        std::cerr << "... No CPU Info." << std::endl;
+    }
+}
+
+// cpu architecture info
+void printArchitectureInfo() {
+    std::cout << "\n--- Architecture Information ---" << std::endl;
+    struct utsname buffer;
+
+    if (uname(&buffer) == 0) {
+        std::cout << "  System Name: " << buffer.sysname << std::endl;
+        std::cout << "  Node Name:   " << buffer.nodename << std::endl;
+        std::cout << "  Release:     " << buffer.release << std::endl;
+        std::cout << "  Version:     " << buffer.version << std::endl;
+        std::cout << "  Machine:     " << buffer.machine << std::endl;  // architecture information
+        // perror("uname"); // error message if it fail
+        // std::cerr << "Error: Could not get system architecture info." << std::endl;
+        std::cerr << "No System Architecture Info." << std::endl;
+    }
+}
+
+void printMemoryInfo() {
+    std::cout << "\n--- Memory Information ---" << std::endl;
+    struct sysinfo memInfo;
+
+    if (sysinfo(&memInfo) == 0) {
+        // total physical memory (bytes)
+        long long totalPhysMem = static_cast<long long>(memInfo.totalram) * memInfo.mem_unit;
+        // availabe physical memory (bytes)
+        long long availPhysMem = static_cast<long long>(memInfo.freeram) * memInfo.mem_unit;
+        // total swap space (bytes)
+        long long totalSwap = static_cast<long long>(memInfo.totalswap) * memInfo.mem_unit;
+        // available swap space (bytes)
+        long long freeSwap = static_cast<long long>(memInfo.freeswap) * memInfo.mem_unit;
+
+        // byte --> GB
+        std::cout << std::fixed << std::setprecision(2);
+
+        std::cout << "  Total Physical Memory: " << static_cast<double>(totalPhysMem) / (1024 * 1024 * 1024) << " GB" << std::endl;
+        std::cout << "  Available Physical Memory: " << static_cast<double>(availPhysMem) / (1024 * 1024 * 1024) << " GB" << std::endl;
+        std::cout << "  Total Swap Space: " << static_cast<double>(totalSwap) / (1024 * 1024 * 1024) << " GB" << std::endl;
+        std::cout << "  Free Swap Space: " << static_cast<double>(freeSwap) / (1024 * 1024 * 1024) << " GB" << std::endl;
+        std::cout << std::endl;
+
+    } else {
+        //perror("sysinfo"); // 오류 발생 시 오류 메시지 출력
+        //std::cerr << "Error: Could not get system memory info." << std::endl;
+        std::cerr << "No System Memory Info." << std::endl;
+    }
+}
+
+#endif  //  __linux__
 
 std::ostream& operator<<(std::ostream& os, RunModelMode mode) {
     switch (mode) {
@@ -40,12 +137,12 @@ std::string float_to_string_fixed(float value, int precision) {
 }
 
 void PrintInfResult(const std::string& inputFile, const std::string& outputFile, const std::string& modelFile,
-                    float latencyMs, float infTimeMs, float fps_val, int loops, RunModelMode current_mode, bool verbose) {
+                    float latencyMs, float infTimeMs, float fps_val, int64_t loops, RunModelMode current_mode, bool verbose) {
     std::vector<std::string> lines;
-    (void)modelFile; 
-    
+    (void)modelFile;
+
     if (dxrt::SHOW_PROFILE)
-        verbose=true;
+        verbose = true;
 
     const std::string desc_npu_time = "Actual NPU core computation time for a single request";
     const std::string desc_latency = "End-to-end time measured individually for each specific request within the engine, including data transfer and system overheads";
@@ -68,30 +165,32 @@ void PrintInfResult(const std::string& inputFile, const std::string& outputFile,
         if (spaces_to_add <= 0) {
             spaces_to_add = 1;
         }
-        
-        line += std::string(spaces_to_add, ' '); 
-        if (verbose) 
+
+        line += std::string(spaces_to_add, ' ');
+        if (verbose)
             line += "(" + description + ")";
         return line;
     };
 
     std::string infTimeStr = float_to_string_fixed(infTimeMs, 3);
-    std::string latencyStr = float_to_string_fixed(latencyMs, 3); 
-    std::string fpsStr     = float_to_string_fixed(fps_val, 2); 
+    std::string latencyStr = float_to_string_fixed(latencyMs, 3);
+    std::string fpsStr     = float_to_string_fixed(fps_val, 2);
 
     if (!inputFile.empty()) {
         lines.push_back("* Processing File : " + inputFile);
         lines.push_back("* Output Saved As : " + outputFile);
     }
 
-    if (current_mode == SINGLE_MODE) { 
+    if (current_mode == SINGLE_MODE)
+    {
         lines.push_back("* Benchmark Result (single input)");
         if (verbose) {
             lines.push_back(build_formatted_line("  - NPU Processing Time  : ", infTimeStr, "ms", desc_npu_time));
             lines.push_back(build_formatted_line("  - Latency              : ", latencyStr, "ms", desc_latency));
             lines.push_back(build_formatted_line("  - FPS                  : ", fpsStr, "", desc_fps));
         }
-        else {
+        else
+        {
             lines.push_back(build_formatted_line("  - FPS : ", fpsStr, "", desc_fps));
         }
     } else {
@@ -101,7 +200,8 @@ void PrintInfResult(const std::string& inputFile, const std::string& outputFile,
             lines.push_back(build_formatted_line("  - Latency Average             : ", latencyStr, "ms", desc_latency));
             lines.push_back(build_formatted_line("  - FPS                         : ", fpsStr, "", desc_fps));
         }
-        else {
+        else
+        {
             lines.push_back(build_formatted_line("  - FPS : ", fpsStr, "", desc_fps));
         }
     }
@@ -131,17 +231,208 @@ void SetRunModelMode(bool single, int targetFps)
     cout << "Run model target mode : " << mode << endl;
 }
 
+static float runBenchmarkByTime(int64_t& outLoops, dxrt::InferenceEngine& ie, void* inputBuffer, int64_t targetDurationSec)
+{
+    float fps = 0;
+    
+    int64_t target_duration_ms = targetDurationSec * 1000;
+    int64_t run_count = 0; // run async count
+    int64_t cb_count = 0; // callback count
+    bool run_complete = false;
+    std::mutex cb_mutex;
+    std::condition_variable cb_cv;
+
+    ie.RegisterCallback([&run_count, &cb_count, &run_complete, &cb_mutex, &cb_cv]
+        (dxrt::TensorPtrs &outputs, void *userArg) {
+
+        std::ignore = outputs;
+        std::ignore = userArg;
+
+        // check competion of run & callback
+        std::unique_lock<std::mutex> lock(cb_mutex);
+        cb_count++;
+        if ( run_complete && cb_count == run_count)
+            cb_cv.notify_one();
+
+        return 0;
+    });
+    
+    auto start = std::chrono::steady_clock::now();
+    for(;;) // no limit
+    {
+        ie.RunAsync(inputBuffer);
+
+        {
+            std::unique_lock<std::mutex> lock(cb_mutex);
+            run_count++;
+        }
+        
+        auto current = std::chrono::steady_clock::now();
+        std::chrono::duration<double, std::milli> duration = current - start;
+
+        if ( duration.count() > target_duration_ms )
+        {
+            break;
+        }
+
+    } // for i
+
+    // wait...
+    std::unique_lock<std::mutex> lock(cb_mutex);
+    run_complete = true;
+    cb_cv.wait(lock, [&cb_count, &run_count](){return cb_count == run_count; } );
+
+    auto current = std::chrono::steady_clock::now();
+    uint64_t infTime = std::chrono::duration_cast<std::chrono::microseconds>(current - start).count();
+    fps = static_cast<float>(1000000.0 * run_count/infTime);
+    
+    ie.RegisterCallback(nullptr);
+
+    outLoops = run_count;
+    std::cout << "Inference by time: total-inference-time=" << infTime / 1000000.0 << "(s)" << " total-loops=" << outLoops << std::endl;
+
+    return fps;
+}
+
+static float runAsyncTargetFPS(int64_t& outLoops, dxrt::InferenceEngine& ie, int targetFps, void* inputBuffer, int64_t targetDurationSec)
+{
+
+    #ifdef TARGET_FPS_DEBUG
+    vector<string> results;  // Company and time storage
+#endif
+    //static auto startTime = std::chrono::steady_clock::now();  // Start time
+    auto& profiler = dxrt::Profiler::GetInstance();
+    uint64_t infTime = 0;
+    int64_t target_duration_ms = targetDurationSec * 1000;
+    int64_t run_count = 0; // run async count
+    int64_t cb_count = 0; // callback count
+    float fps = 0;
+
+    std::mutex cv_mutex;
+    std::condition_variable cv;
+
+    std::function<int(vector<shared_ptr<dxrt::Tensor>>, void*)> postProcCallBack = \
+        [&cv_mutex, &cv, &cb_count, &run_count, outLoops](vector<shared_ptr<dxrt::Tensor>> outputs, void *arg)
+        {
+            (void)arg;
+            std::ignore = outputs;
+
+            std::lock_guard<std::mutex> lock(cv_mutex);
+            cb_count++;
+            if (cb_count == run_count) {
+                cv.notify_one();
+            }
+            return 0;
+        };
+
+    ie.RegisterCallback(postProcCallBack);
+
+
+    auto start_clock = std::chrono::steady_clock::now();
+    profiler.Start("TargetFps");
+    for(int64_t i = 0; ; ++i)
+    {
+#ifdef TARGET_FPS_DEBUG
+        auto loopStartTime = std::chrono::steady_clock::now();  // Start time for this loop
+#endif
+        
+        (void)ie.RunAsync(inputBuffer, 0);
+        run_count ++;
+
+#ifdef TARGET_FPS_DEBUG
+        auto elapsed = std::chrono::steady_clock::now() - loopStartTime;
+        auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+        results.push_back("Iteration " + to_string(i + 1) + ": " + inputFile + " -> " + outputFile +
+                        ", Time: " + to_string(elapsedMs) + " ms");
+#endif
+        // Calculate the expected time per frame
+        if (targetFps > 0)
+        {
+            auto targetTime = 1000 / targetFps;  // in milliseconds
+            auto totalElapsed = std::chrono::steady_clock::now() - start_clock;
+            auto totalElapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(totalElapsed).count();
+
+            if (totalElapsedMs < (i + 1) * targetTime)
+            {
+                auto sleepDuration = (i + 1) * targetTime - totalElapsedMs;
+                std::this_thread::sleep_for(std::chrono::milliseconds(sleepDuration));
+            }
+        }
+
+        // inference by time
+        if ( targetDurationSec > 0 )
+        {
+            auto current = std::chrono::steady_clock::now();
+            std::chrono::duration<double, std::milli> duration = current - start_clock;
+
+            if ( duration.count() > target_duration_ms )
+            {
+                break;
+            }
+        } //
+        else if ( i == (outLoops - 1) ) // inference by loops 
+        {
+            break;
+        }
+    }
+    profiler.End("TargetFps");
+    auto end_clock = std::chrono::steady_clock::now();
+    std::unique_lock<std::mutex> lock(cv_mutex);
+    cv.wait(lock, [&cb_count, &run_count]{
+        return cb_count == run_count;
+    });
+    
+    infTime = std::chrono::duration_cast<std::chrono::microseconds>(end_clock - start_clock).count();
+    if ( targetDurationSec > 0 ) 
+    {
+        outLoops = run_count;
+        std::cout << "Inference by time: total-inference-time=" << infTime / 1000000.0 << "(s)" << " total-loops=" << outLoops << std::endl;
+    }
+    fps = 1000000.0 * outLoops/infTime;
+
+#ifdef TARGET_FPS_DEBUG
+    for (const auto& result : results) {
+        cout << result << endl;
+    }
+#endif
+
+    return fps;
+
+}
+
 int main(int argc, char *argv[])
 {
+    // always showing the model information
+    dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::SHOW_MODEL_INFO, true);
+
+    try
+    {
+        // print version
+        std::cout << "Runtime Framework Version: v" << dxrt::Configuration::GetInstance().GetVersion() << std::endl; 
+
+        // print device driver version
+        std::cout << "Device Driver Version: v" << dxrt::Configuration::GetInstance().GetDriverVersion() << std::endl; 
+
+        // print pcie driver version
+        std::cout << "PCIe Driver Version: v" << dxrt::Configuration::GetInstance().GetPCIeDriverVersion() << std::endl; 
+
+        std::cout << std::endl;
+    } 
+    catch (const dxrt::Exception &e)
+    {
+        std::cout << e.what() << std::endl;
+    }
+
     string modelFile, inputFile, outputFile;
     bool benchmark = false;
     bool single = false;
-    int loops = 1;
+    int64_t loops = 1;
     string devices_spec;
-    int targetFps = 0; 
+    int targetFps = 0;
     bool skip_inference_io = false;
     bool use_ort = false;
     bool verbose = false;
+    int64_t duration = 0;
     cxxopts::Options options("run_model", APP_NAME);
     options.add_options()
         ("m, model", "Model file (.dxnn)" , cxxopts::value<string>(modelFile))
@@ -150,11 +441,12 @@ int main(int argc, char *argv[])
         ("b, benchmark", "Perform a benchmark test (Maximum throughput)\n(This is the default mode,\n if --single or --fps > 0 are not specified)", cxxopts::value<bool>(benchmark)->default_value("false"))
         ("s, single", "Perform a single run test\n(Sequential single-input inference on a single-core)", cxxopts::value<bool>(single)->default_value("false"))
         ("v, verbose", "Shows NPU Processing Time and Latency", cxxopts::value<bool>(verbose)->default_value("false"))
-        ("n, npu", 
+        ("n, npu",
             "NPU bounding (default:0)\n"
             "  0: NPU_ALL\n  1: NPU_0\n  2: NPU_1\n  3: NPU_2\n"
-            "  4: NPU_0/1\n  5: NPU_1/2\n  6: NPU_0/2", cxxopts::value<int>(bounding) ) 
-        ("l, loops", "Number of inference loops to perform", cxxopts::value<int>(loops)->default_value("30") )
+            "  4: NPU_0/1\n  5: NPU_1/2\n  6: NPU_0/2", cxxopts::value<int>(bounding) )
+        ("l, loops", "Number of inference loops to perform", cxxopts::value<int64_t>(loops)->default_value("30") )
+        ("t, time", "Duration of inference in seconds (benchmark and target-fps mode, overrides --loops)", cxxopts::value<int64_t>(duration)->default_value("0") )
         ("d, devices",
             "Specify target NPU devices.\nExamples:\n"
             "  'all' (default): Use all available/bound NPUs\n"
@@ -167,8 +459,7 @@ int main(int argc, char *argv[])
 #ifdef USE_ORT
         ("use-ort", "Enable ONNX Runtime for CPU tasks in the model graph\nIf disabled, only NPU tasks operate", cxxopts::value<bool>(use_ort)->default_value("false"))
 #endif
-        ("h, help", "Print usage" )
-    ;
+        ("h, help", "Print usage" );
 
     try
     {
@@ -192,6 +483,20 @@ int main(int argc, char *argv[])
         exit(0);
     }
 
+    // print host info
+    if ( verbose )
+    {
+#ifdef __linux__
+        // print cpu info
+        printCpuInfo();
+
+        // print architecture info
+        printArchitectureInfo();
+
+        // print memory info
+        printMemoryInfo();
+#endif  //  __linux__
+    }
 
     LOG_VALUE(modelFile);
     LOG_VALUE(inputFile);
@@ -200,55 +505,55 @@ int main(int argc, char *argv[])
     LOG_VALUE(loops);
     dxrt::InferenceOption op;
 
-    if (devices_spec.empty() || devices_spec == "all") 
+    if (devices_spec.empty() || devices_spec == "all")
     {
         cout << "Device specification: 'all' (default)" << endl;
-    } 
-    else if (devices_spec.rfind("count:", 0) == 0) 
-    { 
-        try 
+    }
+    else if (devices_spec.rfind("count:", 0) == 0)
+    {
+        try
         {
             string count_str = devices_spec.substr(6);
             int count = std::stoi(count_str);
-            if (count > 0) 
+            if (count > 0)
             {
-                for (int i = 0; i < count; ++i) 
+                for (int i = 0; i < count; ++i)
                 {
                     op.devices.push_back(i);
                 }
                 cout << "Device specification: First " << count << " NPU(s) {";
-                for(size_t i = 0; i < op.devices.size(); ++i) 
+                for (size_t i = 0; i < op.devices.size(); ++i)
                 {
                     cout << op.devices[i] << (i == op.devices.size() - 1 ? "" : ", ");
                 }
                 cout << "}" << endl;
-            } 
-            else 
+            }
+            else
             {
                 std::cerr << "[ERR] Device count in '" << devices_spec << "' must be positive." << std::endl;
                 return -1;
             }
-        } 
-        catch (const std::invalid_argument& ia) 
+        }
+        catch (const std::invalid_argument& ia)
         {
             std::cerr << "[ERR] Invalid number in '" << devices_spec << "' for 'count:N' format." << std::endl;
             return -1;
-        } 
-        catch (const std::out_of_range& oor) 
+        }
+        catch (const std::out_of_range& oor)
         {
             std::cerr << "[ERR] Number out of range in '" << devices_spec << "' for 'count:N' format." << std::endl;
             return -1;
         }
     }
-    else 
+    else
     {
         std::stringstream ss(devices_spec);
         std::string segment;
         bool first_device = true;
         cout << "Device specification: Specific NPU(s) {";
-        while(std::getline(ss, segment, ',')) 
+        while (std::getline(ss, segment, ','))
         {
-            try 
+            try
             {
                 segment.erase(std::remove_if(segment.begin(), segment.end(), ::isspace), segment.end());
                 if (segment.empty()) continue;
@@ -257,30 +562,30 @@ int main(int argc, char *argv[])
                 if (!first_device) cout << ", ";
                 cout << device_id;
                 first_device = false;
-            } 
-            catch (const std::invalid_argument& ia) 
+            }
+            catch (const std::invalid_argument& ia)
             {
                 std::cerr << "[ERR] Invalid device ID '" << segment << "' in --devices list." << std::endl;
                 return -1;
-            } 
-            catch (const std::out_of_range& oor) 
+            }
+            catch (const std::out_of_range& oor)
             {
                 std::cerr << "[ERR] Device ID '" << segment << "' out of range in --devices list." << std::endl;
                 return -1;
             }
         }
         cout << "}" << endl;
-        if (op.devices.empty() && !devices_spec.empty() && devices_spec != "all") 
+        if (op.devices.empty() && !devices_spec.empty() && devices_spec != "all")
         {
             std::cerr << "[WARN] No valid device IDs parsed from --devices string: '" << devices_spec << "'. Defaulting to 'all'." << std::endl;
         }
     }
 
-    if (bounding >= 0 && bounding < dxrt::N_BOUND_INF_MAX) 
-    { 
+    if (bounding >= 0 && bounding < dxrt::N_BOUND_INF_MAX)
+    {
         op.boundOption = bounding;
-    } 
-    else 
+    }
+    else
     {
         cout << "[ERR] Please check bounding option value. Must be between 0 and " << (dxrt::N_BOUND_INF_MAX -1) << endl;
         return -1;
@@ -288,6 +593,19 @@ int main(int argc, char *argv[])
     op.useORT = use_ort;
 
     try{
+
+        SetRunModelMode(single, targetFps);
+
+        // duration 
+        if ( duration > 0 && mode != SINGLE_MODE)
+        {
+            std::cout << "Inference by time: duration=" << duration << "(s)" << std::endl;
+        }
+        else 
+        {
+            std::cout << "Inference by loops: count=" << loops << std::endl;
+        }
+
         dxrt::InferenceEngine ie(modelFile, op);
         vector<uint8_t> inputBuf(ie.GetInputSize(), 0);
         if (!inputFile.empty())
@@ -296,8 +614,7 @@ int main(int argc, char *argv[])
             dxrt::DataFromFile(inputFile, inputBuf.data());
         }
 
-        SetRunModelMode(single, targetFps);
-
+        
         if (skip_inference_io)
         {
             if (benchmark == false)
@@ -323,7 +640,7 @@ int main(int argc, char *argv[])
                     auto start_clock = std::chrono::steady_clock::now();
                     auto outputs = ie.Run(inputBuf.data());
                     auto end_clock = std::chrono::steady_clock::now();
-                    infTime = std::chrono::duration_cast<chrono::microseconds>(end_clock - start_clock).count();
+                    infTime = std::chrono::duration_cast<std::chrono::microseconds>(end_clock - start_clock).count();
                     fps = 1000000.0/infTime;
                     if (!inputFile.empty())
                         dxrt::DataDumpBin(outputFile, outputs);
@@ -332,75 +649,31 @@ int main(int argc, char *argv[])
                 break;
             }
             case TARGET_FPS_MODE: {
-#ifdef TARGET_FPS_DEBUG
-                vector<string> results;  // Company and time storage
-#endif
-                atomic<int> callback_cnt;
-                static auto startTime = chrono::high_resolution_clock::now();  // Start time
-                auto& profiler = dxrt::Profiler::GetInstance();
-                uint64_t infTime = 0;
-                float fps = 0.0;
 
-                function<int(vector<shared_ptr<dxrt::Tensor>>, void*)> postProcCallBack = \
-                    [&](vector<shared_ptr<dxrt::Tensor>> outputs, void *arg)
-                    {
-                        (void)arg;
-                        ignore = outputs;
-                        callback_cnt++;
-                        return 0;
-                    };
-                callback_cnt = 0;
-                ie.RegisterCallback(postProcCallBack);
+                // enable profiler and save profiler data
+                dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::PROFILER, true);
+                dxrt::Configuration::GetInstance().SetAttribute(dxrt::Configuration::ITEM::PROFILER, 
+                    dxrt::Configuration::ATTRIBUTE::PROFILER_SAVE_DATA, "ON");
 
-                auto start_clock = std::chrono::steady_clock::now();
-                profiler.Start("TargetFps");
-                for (int i = 0; i < loops; i++)
-                {
-#ifdef TARGET_FPS_DEBUG
-                    auto loopStartTime = chrono::high_resolution_clock::now();  // Start time for this loop
-#endif
-                    (void)ie.RunAsync(inputBuf.data(), 0);
-#ifdef TARGET_FPS_DEBUG
-                    auto elapsed = chrono::high_resolution_clock::now() - loopStartTime;
-                    auto elapsedMs = chrono::duration_cast<chrono::milliseconds>(elapsed).count();
-                    results.push_back("Iteration " + to_string(i + 1) + ": " + inputFile + " -> " + outputFile +
-                                    ", Time: " + to_string(elapsedMs) + " ms");
-#endif
-                    // Calculate the expected time per frame
-                    if (targetFps > 0)
-                    {
-                        auto targetTime = 1000 / targetFps;  // in milliseconds
-                        auto totalElapsed = chrono::high_resolution_clock::now() - startTime;
-                        auto totalElapsedMs = chrono::duration_cast<chrono::milliseconds>(totalElapsed).count();
-
-                        if (totalElapsedMs < (i + 1) * targetTime)
-                        {
-                            auto sleepDuration = (i + 1) * targetTime - totalElapsedMs;
-                            this_thread::sleep_for(chrono::milliseconds(sleepDuration));
-                        }
-                    }
-                }
-                profiler.End("TargetFps");
-                auto end_clock = std::chrono::steady_clock::now();
-                ie.Wait(loops);
-                infTime = std::chrono::duration_cast<chrono::microseconds>(end_clock - start_clock).count();
-                fps = 1000000.0 * loops/infTime;
-                PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatencyMean()/1000., ie.GetNpuInferenceTimeMean()/1000., fps, loops, mode, verbose);
-
-#ifdef TARGET_FPS_DEBUG
-                for (const auto& result : results) {
-                    cout << result << endl;
-                }
-#endif
+                float fps = runAsyncTargetFPS(loops, ie, targetFps, inputBuf.data(), duration);
+                PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatencyMean()/1000.0, ie.GetNpuInferenceTimeMean()/1000.0, fps, loops, mode, verbose);
                 break;
             }
             case BENCHMARK_MODE: {
                 // PrintInfResult(inputFile, outputFile, modelFile, 0.0, 0.0, fps);
-                float fps = ie.RunBenchmark(loops, inputBuf.data());
-                if (!inputFile.empty())
+                float fps = 0;
+                if ( duration > 0 )
                 {
-                    auto outputs = ie.Run(inputBuf.data());
-                    dxrt::DataDumpBin(outputFile, outputs);  /* TODO: sparse tensor */
+                    fps = runBenchmarkByTime(loops, ie, inputBuf.data(), duration);
+                }
+                else 
+                {
+                    fps = ie.RunBenchmark(loops, inputBuf.data());
+                    if (!inputFile.empty())
+                    {
+                        auto outputs = ie.Run(inputBuf.data());
+                        dxrt::DataDumpBin(outputFile, outputs);  /* TODO: sparse tensor */
+                    }
                 }
                 PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatencyMean()/1000., ie.GetNpuInferenceTimeMean()/1000., fps, loops, mode, verbose);
 
@@ -425,6 +698,7 @@ int main(int argc, char *argv[])
     {
         std::cerr << "Exception" << std::endl;
         return -1;
-}
+    }
+    
     return 0;
 }

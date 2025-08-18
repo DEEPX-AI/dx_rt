@@ -70,7 +70,16 @@ target_include_directories(
     ${CMAKE_SOURCE_DIR}/lib/dxrt_service
     ${CMAKE_CURRENT_SOURCE_DIR}/include 
 )
-
+if (MSVC AND USE_ORT)
+file(GLOB ORT_DLL_DLLS "${onnxruntime_LIB_DIRS}/*.dll")
+foreach(ORT_DLL_DLL IN LISTS ORT_DLL_DLLS)
+    add_custom_command(
+                TARGET ${target} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${ORT_DLL_DLL}
+                ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+endforeach()
+endif()
 
 if (USE_ORT)
     target_include_directories(${target} PUBLIC 
@@ -128,9 +137,9 @@ else()
     )
 endif()
 
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/dxrt DESTINATION include)
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/extern/include/rapidjson DESTINATION include)
-install(FILES ${CMAKE_SOURCE_DIR}/extern/include/cxxopts.hpp DESTINATION include)
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/dxrt/ DESTINATION include/dxrt)
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/extern/include/dxrt/extern/rapidjson DESTINATION include/dxrt/extern)
+install(FILES ${CMAKE_SOURCE_DIR}/extern/include/dxrt/extern/cxxopts.hpp DESTINATION include/dxrt/extern)
 install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/dxrtConfig.cmake
     ${CMAKE_CURRENT_BINARY_DIR}/dxrtConfigVersion.cmake

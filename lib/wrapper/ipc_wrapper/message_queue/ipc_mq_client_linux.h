@@ -8,6 +8,7 @@
 #include <future>
 #include <mutex>
 #include <map>
+#include <memory>
 
 #include "dxrt/common.h"
 #include "dxrt/driver.h"
@@ -18,45 +19,45 @@
 namespace dxrt 
 {
 
-    class IPCMessageQueueClientLinux : public IPCClient
-    {
-    private:
-        IPCMessageQueueLinux _messageQueueToServer;
-        IPCMessageQueueLinux _messageQueueToClient;
-        void* _usrData;
-        long _msgType;
-        std::thread _thread;
-        std::atomic<bool> _threadRunning{false};
-        std::atomic<bool> _stop{false};
-        std::function<int32_t(IPCServerMessage&,void*)> _receiveCB;
-        std::map<int, std::shared_ptr<std::promise<IPCServerMessage> > >_waitingCall;
-        std::mutex _futureLock;
-        std::mutex _funcLock;
+class IPCMessageQueueClientLinux : public IPCClient
+{
+ private:
+    IPCMessageQueueLinux _messageQueueToServer;
+    IPCMessageQueueLinux _messageQueueToClient;
+    void* _usrData;
+    long _msgType;
+    std::thread _thread;
+    std::atomic<bool> _threadRunning{false};
+    std::atomic<bool> _stop{false};
+    std::function<int32_t(IPCServerMessage&, void*)> _receiveCB;
+    std::map<int, std::shared_ptr<std::promise<IPCServerMessage> > >_waitingCall;
+    std::mutex _futureLock;
+    std::mutex _funcLock;
+    std::atomic<bool> _dummyClosePending{false};
 
-    public:
+ public:
+    explicit IPCMessageQueueClientLinux(long msgType);
+    virtual ~IPCMessageQueueClientLinux();
 
-        IPCMessageQueueClientLinux(long msgType);
-        virtual ~IPCMessageQueueClientLinux();
+    // Intitialize IPC
+    int32_t Initialize() override;
 
-        // Intitialize IPC
-        virtual int32_t Initialize();
+    // Send message to server
+    int32_t SendToServer(IPCClientMessage& clientMessage) override;
 
-        // Send message to server
-        virtual int32_t SendToServer(IPCClientMessage& clientMessage);
+    // Send message to server
+    int32_t SendToServer(IPCServerMessage& outResponseServerMessage, IPCClientMessage& inRequestClientMessage) override;
 
-        // Send message to server
-        virtual int32_t SendToServer(IPCServerMessage& outResponseServerMessage, IPCClientMessage& inRequestClientMessage);
+    // Receive message from server
+    int32_t ReceiveFromServer(IPCServerMessage& serverMessage) override;
 
-        // Receive message from server
-        virtual int32_t ReceiveFromServer(IPCServerMessage& serverMessage);
+    // register receive message callback function
+    int32_t RegisterReceiveCB(std::function<int32_t(IPCServerMessage&,void*)> receiveCB, void* usrData) override;
 
-        // register receive message callback function
-        virtual int32_t RegisterReceiveCB(std::function<int32_t(IPCServerMessage&,void*)> receiveCB, void* usrData);
+    // close the connection
+    int32_t Close() override;
 
-        // close the connection
-        virtual int32_t Close();
-
-        static void ThreadFunc(IPCMessageQueueClientLinux* socketClient);
-    };
+    static void ThreadFunc(IPCMessageQueueClientLinux* socketClient);
+};
 
 }  // namespace dxrt
