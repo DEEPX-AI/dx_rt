@@ -172,30 +172,32 @@ CpuHandle::CpuHandle(void* data_, int64_t size_, string name_, size_t device_num
     ORT_ENABLE_EXTENDED = 2,
     ORT_ENABLE_ALL = 99 */
     _sessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_EXTENDED);
-    
-    // Set execution mode explicitly
-    /*
-    _sessionOptions.SetExecutionMode(ORT_PARALLEL);
+ 
+    // Configure ONNX Runtime thread settings from configuration
+    auto& config = Configuration::GetInstance();
 
-    // For dynamic thread mode, configure thread settings to avoid contention
-    if (_dynamicCpuThread) {
-        int systemCores = std::thread::hardware_concurrency();
-        int OpThreads = std::max(1, systemCores / 5);
-        OpThreads = std::min(OpThreads, 1);
-        
-        //_sessionOptions.SetIntraOpNumThreads(OpThreads); // Auto-tuning is better than manual setting
-        _sessionOptions.SetInterOpNumThreads(OpThreads);
-        LOG_DXRT_DBG << "Main session configured for dynamic mode: OpThreads=" << OpThreads << std::endl;
+    // Get intra-op threads setting (default: 0, auto)
+    if (config.GetEnable(Configuration::ITEM::CUSTOM_INTRA_OP_THREADS)) {
+        int intraOpThreads = config.GetIntAttribute(Configuration::ITEM::CUSTOM_INTRA_OP_THREADS, Configuration::ATTRIBUTE::CUSTOM_INTRA_OP_THREADS_NUM);
+        if (intraOpThreads == 0) intraOpThreads = 1; // fallback to default if attribute returns 0
+        _sessionOptions.SetIntraOpNumThreads(intraOpThreads);
+        LOG_DXRT_DBG << "ONNX Runtime Session configured: IntraOpThreads=" << intraOpThreads << std::endl;
     }
-    else {
-        int systemCores = std::thread::hardware_concurrency();
-        int OpThreads = std::max(1, systemCores / 5);
-        OpThreads = std::min(systemCores, 1);
-        //_sessionOptions.SetIntraOpNumThreads(OpThreads);
-        _sessionOptions.SetInterOpNumThreads(OpThreads);
-        LOG_DXRT_DBG << "Main session configured for dynamic mode: OpNumThreads = " << OpThreads << std::endl;
+    
+    // Get inter-op threads setting (default: 1)  
+    if (config.GetEnable(Configuration::ITEM::CUSTOM_INTER_OP_THREADS)) {
+        int interOpThreads = config.GetIntAttribute(Configuration::ITEM::CUSTOM_INTER_OP_THREADS, Configuration::ATTRIBUTE::CUSTOM_INTER_OP_THREADS_NUM);
+        if (interOpThreads == 0) interOpThreads = 1; // fallback to default if attribute returns 0
+        if (interOpThreads > 1) {
+            _sessionOptions.SetExecutionMode(ORT_PARALLEL);
+        }
+        else {
+            _sessionOptions.SetExecutionMode(ORT_SEQUENTIAL);
+        }
+        _sessionOptions.SetInterOpNumThreads(interOpThreads);
+        LOG_DXRT_DBG << "ONNX Runtime Session configured: InterOpThreads=" << interOpThreads << std::endl;
     }
-    */
+    
     // DataDumpBin("tmp.onnx", data_, size_);
     _session = std::make_shared<Ort::Session>(_env, data_, size_, _sessionOptions);
     Ort::AllocatorWithDefaultOptions allocator;

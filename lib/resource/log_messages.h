@@ -54,6 +54,8 @@ namespace dxrt {
         static std::string CLI_NoUpdateDeviceFound();
         static std::string CLI_UpdateFirmwareSkip();
         static std::string CLI_UpdateCondition(const std::string& version);
+
+        static std::string Profiler_MemoryUsage(uint64_t current_memory);
     };
 
 }  // namespace dxrt

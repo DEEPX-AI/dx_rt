@@ -17,6 +17,7 @@
 #include "dxrt/extern/rapidjson/pointer.h"
 #include "dxrt/extern/rapidjson/rapidjson.h"
 #include "dxrt/exception/exception.h"
+#include "resource/log_messages.h"
 
 #define PROFILER_FORCE_SHOW_DURATIONS 1
 
@@ -54,7 +55,7 @@ namespace dxrt
 
 
     Profiler::Profiler()
-    : _save_exit(SAVE_PROFILER_DATA), _show_exit(SHOW_PROFILER_DATA), _enabled(USE_PROFILER)
+    : _save_exit(ENABLE_SAVE_PROFILER_DATA), _show_exit(ENABLE_SHOW_PROFILER_DATA), _enabled(USE_PROFILER)
     {
         LOG_DXRT_DBG << endl;
     }
@@ -112,6 +113,17 @@ namespace dxrt
             LOG_DXRT_DBG << x << endl;
 
         std::unique_lock<std::mutex> lk(_lock);
+        
+        call_count++;
+        
+        uint64_t current_memory = call_count * MEMORY_PER_EVENT;
+        uint64_t current_multiplier = current_memory / THRESHOLD_BASE;
+        
+        if (current_multiplier > last_threshold_passed) {
+            LOG_DXRT_INFO(LogMessages::Profiler_MemoryUsage(current_memory));
+            last_threshold_passed = current_multiplier;
+        }
+        
         if (timePoints.find(x) == timePoints.end())
         {
             timePoints.insert(make_pair(x, vector<TimePoint>(numSamples + 1)));

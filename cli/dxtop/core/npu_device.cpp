@@ -3,6 +3,8 @@
 
 #include "npu_device.h"
 #include "ipc/dxtop_ipc_client.h"
+#include <sstream>
+#include <iomanip>
 namespace dxrt {
 
 NpuDevice::NpuDevice(uint8_t deviceNumber, dxrt::DevicePtr devicePtr, DXTopIPCClient& dxtopIPCClient)
@@ -17,6 +19,12 @@ NpuDevice::NpuDevice(uint8_t deviceNumber, dxrt::DevicePtr devicePtr, DXTopIPCCl
     //Init Core 
     _status = _devicePtr->status();
 
+    //Init DevInfo
+    _devInfo = _devicePtr->devInfo();
+
+    //Init PCIe Bus Number
+    InitPcieBusNumber();
+
     for(uint8_t i = 0; i < _coreCount; ++i)
     {
         // float utilization = (float)(rand() % 100);
@@ -30,10 +38,20 @@ NpuDevice::NpuDevice(uint8_t deviceNumber, dxrt::DevicePtr devicePtr, DXTopIPCCl
     }
 }
 
+void NpuDevice::InitPcieBusNumber()
+{
+    const auto& pcie = _devInfo.pcie;
+    std::ostringstream oss;
+    oss << std::setfill('0') << std::setw(2) << static_cast<int>(pcie.bus)
+        << ":" << std::setfill('0') << std::setw(2) << static_cast<int>(pcie.dev)
+        << ":" << std::setfill('0') << std::setw(2) << static_cast<int>(pcie.func);
+    _pcieBusNumber = oss.str();
+}
+
 void NpuDevice::UpdateDeviceInfoData()
 {
     _info = _devicePtr->info();
-    std::cout << "fw version = " << _info.fw_ver << std::endl;
+    // std::cout << "fw version = " << _info.fw_ver << std::endl;
 }
 
 void NpuDevice::UpdateCoreData(DXTopIPCClient& dxtopIPCClient)
@@ -78,6 +96,11 @@ dxrt_dev_info_t NpuDevice::GetDevInfo()
 uint8_t NpuDevice::GetDeviceNumber() const
 {
     return _deviceNumber;
+}
+
+std::string NpuDevice::GetPcieBusNumber() const
+{
+    return _pcieBusNumber;
 }
 
 uint32_t NpuDevice::GetDeviceType() const

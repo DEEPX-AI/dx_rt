@@ -822,13 +822,14 @@ std::vector<py::array> pyValidateDeviceMultiInputDict(InferenceEngine &ie, const
 
 
 // Configuration
-void pyConfiguration_SetEnable(Configuration &conf, int item, bool enabled);
-int pyConfiguration_GetEnable(Configuration &conf, int item);
-void pyConfiguration_SetAttribute(Configuration &conf, int item, int attrib, std::string value);
-std::string pyConfiguration_GetAttribute(Configuration &conf, int item, int attrib);
-std::string pyConfiguration_GetVersion(Configuration &conf);
-std::string pyConfiguration_GetDriverVersion(Configuration &conf);
-std::string pyConfiguration_GetPCIeDriverVersion(Configuration &conf);
+void pyConfiguration_SetEnable(dxrt::Configuration &conf, int item, bool enabled);
+int pyConfiguration_GetEnable(dxrt::Configuration &conf, int item);
+void pyConfiguration_SetAttribute(dxrt::Configuration &conf, int item, int attrib, std::string value);
+std::string pyConfiguration_GetAttribute(dxrt::Configuration &conf, int item, int attrib);
+std::string pyConfiguration_GetVersion(dxrt::Configuration &conf);
+std::string pyConfiguration_GetDriverVersion(dxrt::Configuration &conf);
+std::string pyConfiguration_GetPCIeDriverVersion(dxrt::Configuration &conf);
+void pyConfiguration_LoadConfigFile(dxrt::Configuration &conf, const std::string &fileName);
 
 // DeviceStatus
 int pyDeviceStatus_GetTemperature(DeviceStatus &deviceStatus, int ch);
@@ -846,9 +847,9 @@ PYBIND11_MODULE(_pydxrt, m) {
     });
     
     // Configuration class binding
-    py::class_<Configuration>(m, "Configuration")
+    py::class_<dxrt::Configuration>(m, "Configuration")
         // Binds the static GetInstance() method to a Python static method `get_instance()`.
-        .def_static("get_instance", &Configuration::GetInstance, py::return_value_policy::reference)
+        .def_static("get_instance", &dxrt::Configuration::GetInstance, py::return_value_policy::reference)
         ; // End of class binding
 
     m.def("configuration_set_enable", &pyConfiguration_SetEnable, 
@@ -878,6 +879,10 @@ PYBIND11_MODULE(_pydxrt, m) {
     m.def("configuration_get_pcie_driver_version", &pyConfiguration_GetPCIeDriverVersion, 
         py::arg("configuration"),
         "Retrieves the PCIe driver version.");
+
+    m.def("configuration_load_config_file", &pyConfiguration_LoadConfigFile,
+        py::arg("configuration"), py::arg("file_name"),
+        "Loads configuration settings from a file.");
 
     // DeviceStatus class binding
     py::class_<DeviceStatus>(m, "DeviceStatus")

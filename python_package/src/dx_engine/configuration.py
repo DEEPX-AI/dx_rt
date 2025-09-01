@@ -1,15 +1,13 @@
-import threading
-import os
-
 import dx_engine.capi._pydxrt as C
+from enum import IntEnum
 
 class Configuration:
 
     # Class variable to store the singleton instance
     _instance = None
 
-    # Enum-like class to define configuration items
-    class ITEM:
+    # IntEnum class to define configuration items with explicit synchronization to C++
+    class ITEM(IntEnum):
         DEBUG = 1
         PROFILER = 2
         SERVICE = 3
@@ -18,17 +16,23 @@ class Configuration:
         SHOW_THROTTLING = 6
         SHOW_PROFILE = 7
         SHOW_MODEL_INFO = 8
+        CUSTOM_INTRA_OP_THREADS = 9
+        CUSTOM_INTER_OP_THREADS = 10   
 
-    # Enum-like class to define attributes for configuration items
-    class ATTRIBUTE:
+    # IntEnum class to define attributes for configuration items with explicit synchronization to C++
+    class ATTRIBUTE(IntEnum):
         PROFILER_SHOW_DATA = 1001
         PROFILER_SAVE_DATA = 1002
+        CUSTOM_INTRA_OP_THREADS_NUM = 1003
+        CUSTOM_INTER_OP_THREADS_NUM = 1004
 
     def __init__(self):
         self._instance: C.Configuration = C.Configuration.get_instance()
 
     def load_config_file(self, file_name: str):
-        print('load_config_file')
+        if not isinstance(file_name, str) or not file_name:
+            raise ValueError("file_name must be a non-empty string")
+        return C.configuration_load_config_file(self._instance, file_name)
     
     def set_enable(self, item: ITEM, enabled: bool):
         C.configuration_set_enable(self._instance, item, enabled)

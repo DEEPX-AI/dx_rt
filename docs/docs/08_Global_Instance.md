@@ -62,6 +62,8 @@ An `ITEM` represents a high-level feature or module within the **DX-RT** that ca
 | `SHOW_THROTTLING` | Enables the display of throttling information. |
 | `SHOW_PROFILE` | Enables the display of profile results. |
 | `SHOW_MODEL_INFO` | Enables the display of detailed model information. |
+| `CUSTOM_INTRA_OP_THREADS` | Enables custom ONNX Runtime intra-operator thread count configuration. |
+| `CUSTOM_INTER_OP_THREADS` | Enables custom ONNX Runtime inter-operator thread count configuration. |
 
 
 ***ATTRIBUTE***  
@@ -71,6 +73,8 @@ An `ATTRIBUTE` defines a property associated with a specific ITEM. It is typical
 | :--- | :--- | :--- |
 | `PROFILER_SHOW_DATA` | `PROFILER` | Attribute for showing profiler data. |
 | `PROFILER_SAVE_DATA` | `PROFILER` | Attribute for saving profiler data to a file. |
+| `CUSTOM_INTRA_OP_THREADS_NUM` | `CUSTOM_INTRA_OP_THREADS` | Number of threads for ONNX Runtime intra-operator parallelism (integer string, 1-hardware_concurrency). |
+| `CUSTOM_INTER_OP_THREADS_NUM` | `CUSTOM_INTER_OP_THREADS` | Number of threads for ONNX Runtime inter-operator parallelism (integer string, 1-hardware_concurrency). |
 
 ---
 
@@ -173,15 +177,96 @@ print(f"PCIe Driver Version: {config.get_pcie_driver_version()}")
 
 ---
 
+### Loading Configuration from File
+
+The Configuration class supports loading settings from external configuration files using the `LoadConfigFile()` method. This allows you to manage runtime settings through configuration files rather than hardcoding them in your application.
+
+#### Configuration File Format
+
+Configuration files use a simple key-value format with `KEY=VALUE` pairs. Here's an example configuration file (`common.cfg`):
+
+```properties
+# General debug and profiling settings
+ENABLE_DEBUG=0
+USE_PROFILER=1
+ENABLE_SHOW_PROFILER_DATA=1
+ENABLE_SAVE_PROFILER_DATA=1
+
+# ONNX Runtime thread settings (Opt-in Example)
+# Note: Default common.cfg sets these to 0 (disabled)
+USE_CUSTOM_INTRA_OP_THREADS=1
+USE_CUSTOM_INTER_OP_THREADS=1
+CUSTOM_INTRA_OP_THREADS_COUNT=4
+CUSTOM_INTER_OP_THREADS_COUNT=2
+```
+
+**Important**: The ONNX Runtime thread settings shown above are an **opt-in example**. The actual default `common.cfg` file sets `USE_CUSTOM_INTRA_OP_THREADS=0` and `USE_CUSTOM_INTER_OP_THREADS=0`, which means ONNX Runtime will use its automatic thread management by default.
+
+#### Configuration Parameters
+
+**General Settings:**
+
+* **`ENABLE_DEBUG`**: Enable/disable debug mode (0=disabled, 1=enabled)
+* **`USE_PROFILER`**: Enable/disable profiler functionality (0=disabled, 1=enabled)
+* **`ENABLE_SHOW_PROFILER_DATA`**: Enable/disable showing profiler data in console (0=disabled, 1=enabled)
+* **`ENABLE_SAVE_PROFILER_DATA`**: Enable/disable saving profiler data to file (0=disabled, 1=enabled)
+
+**Thread Configuration Parameters:**
+
+The following parameters control ONNX Runtime thread behavior:
+
+* **`USE_CUSTOM_INTRA_OP_THREADS`**: Enable/disable custom intra-operator thread count (0=disabled, 1=enabled)
+* **`USE_CUSTOM_INTER_OP_THREADS`**: Enable/disable custom inter-operator thread count (0=disabled, 1=enabled)  
+* **`CUSTOM_INTRA_OP_THREADS_COUNT`**: Number of threads for intra-operator parallelism (integer string, range: 1 to `hardware_concurrency()`)
+* **`CUSTOM_INTER_OP_THREADS_COUNT`**: Number of threads for inter-operator parallelism (integer string, range: 1 to `hardware_concurrency()`)
+
+**Thread Count Validation:**
+
+* Values are automatically clamped to the range [1, `std::thread::hardware_concurrency()`]
+* Invalid values (non-numeric strings) default to 1
+* Empty values default to 1
+* Out-of-range values are clamped with debug logging
+
+**ONNX Runtime Behavior:**
+
+* **Default behavior** (when `USE_CUSTOM_INTRA_OP_THREADS=0`): ONNX Runtime uses automatic thread count (typically equals hardware concurrency)
+* **Default behavior** (when `USE_CUSTOM_INTER_OP_THREADS=0`): Uses sequential execution mode with 1 thread
+* **Custom behavior** (when enabled=1): Uses the specified `CUSTOM_*_THREADS_COUNT` values with validation and clamping
+
+#### Loading Configuration Files
+
+**C++**
+```cpp
+#include "dxrt/common.h"
+
+// Load configuration from file
+dxrt::Configuration& config = dxrt::Configuration::GetInstance();
+config.LoadConfigFile("path/to/common.cfg");
+
+// Configuration settings are now applied globally
+```
+
+**Python**
+```python
+from dx_engine.configuration import Configuration
+
+# Load configuration from file  
+config = Configuration()
+config.load_config_file("path/to/common.cfg")
+
+# Configuration settings are now applied globally
+```
+---
+
 ## Device Status Monitoring
 
 The `DeviceStatus` class provides a real-time snapshot of the NPU device's state, including static properties (e.g., model name, memory) and dynamic metrics (e.g., temperature, clock speed). Each instance represents the status of a specific device at the time it was queried.  
 
 **Workflow Overview:**  
 
-  - Retrieve the total number of available devices.
-  - Access a specific device's status using its device ID.
-  - Query hardware information and real-time metrics via instance methods.
+  * Retrieve the total number of available devices.
+  * Access a specific device's status using its device ID.
+  * Query hardware information and real-time metrics via instance methods.
 
 ### Getting Started: Accessing Devices
 
@@ -243,8 +328,8 @@ Once you obtain a `DeviceStatus` object, you can retrieve both static hardware p
 
 For quick diagnostic logging or CLI-style output, the C++ API provides helper methods that return structured, human-readable summaries:  
 
-  - **`GetInfoString()`**: Returns static hardware info (model, memory, board, firmware).  
-  - **`GetStatusString()`**: Returns dynamic real-time status (NPU voltage, clock, temp, DVFS state).  
+  * **`GetInfoString()`**: Returns static hardware info (model, memory, board, firmware).  
+  * **`GetStatusString()`**: Returns dynamic real-time status (NPU voltage, clock, temp, DVFS state).  
 
 ```cpp
 // Print static hardware information

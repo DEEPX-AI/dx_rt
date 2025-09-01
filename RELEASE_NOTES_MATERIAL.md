@@ -1,3 +1,19 @@
+## PR 629 NOTHING NEW
+## PR 628 NOTHING NEW
+## PR 625 NOTHING NEW
+## PR 624
+### 1. Changed
+### 2. Fixed
+### 3. Added
+- Added PCIe bus number display for dxtop
+## PR 622 NOTHING NEW
+## PR 619 NOTHING NEW
+## PR 621
+### 1. Changed
+### 2. Fixed
+### 3. Added
+- Add profiling data memory usage tracking with high usage warnings.
+## PR 620 NOTHING NEW
 ## PR 618 NOTHING NEW
 ## PR 616
 ### 1. Changed

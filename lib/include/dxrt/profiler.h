@@ -12,7 +12,7 @@
 #include "dxrt/configuration.h"
 
 #ifdef USE_PROFILER
-#define PROFILER_DEFAULT_SAMPLES 100
+#define PROFILER_DEFAULT_SAMPLES 10 // Modified
 #else
 #define PROFILER_DEFAULT_SAMPLES 0
 #endif
@@ -125,12 +125,17 @@ namespace dxrt {
         bool _save_exit;
         bool _show_exit;
         bool _enabled;
+        
+        // Memory usage tracking variables (moved from static in Add function)
+        uint64_t call_count = 0;
+        uint64_t last_threshold_passed = 0;
+        static const uint64_t MEMORY_PER_EVENT = 350;      ///< Hardcoded value, depends on PROFILER_DEFAULT_SAMPLES  
+        static const uint64_t THRESHOLD_BASE = 100*1024*1024;  ///< Memory threshold base (100MB)
 
         void SetSettings(Configuration::ATTRIBUTE attrib, bool enabled);
         void SetEnabled(bool enabled) { _enabled = enabled;}
         
-        friend void Configuration::SetAttribute(const ITEM item, const ATTRIBUTE attrib, const std::string& value);
-        friend void Configuration::SetEnable(const ITEM item, bool enabled);
+        friend class Configuration;
     };
 
     extern uint8_t DEBUG_DATA;

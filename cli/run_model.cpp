@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <sstream>
+#include <set>
 #include <algorithm>
 #include <iostream>
 #include <memory>
@@ -300,8 +301,6 @@ static float runAsyncTargetFPS(int64_t& outLoops, dxrt::InferenceEngine& ie, int
     #ifdef TARGET_FPS_DEBUG
     vector<string> results;  // Company and time storage
 #endif
-    //static auto startTime = std::chrono::steady_clock::now();  // Start time
-    auto& profiler = dxrt::Profiler::GetInstance();
     uint64_t infTime = 0;
     int64_t target_duration_ms = targetDurationSec * 1000;
     int64_t run_count = 0; // run async count
@@ -329,7 +328,6 @@ static float runAsyncTargetFPS(int64_t& outLoops, dxrt::InferenceEngine& ie, int
 
 
     auto start_clock = std::chrono::steady_clock::now();
-    profiler.Start("TargetFps");
     for(int64_t i = 0; ; ++i)
     {
 #ifdef TARGET_FPS_DEBUG
@@ -375,7 +373,6 @@ static float runAsyncTargetFPS(int64_t& outLoops, dxrt::InferenceEngine& ie, int
             break;
         }
     }
-    profiler.End("TargetFps");
     auto end_clock = std::chrono::steady_clock::now();
     std::unique_lock<std::mutex> lock(cv_mutex);
     cv.wait(lock, [&cb_count, &run_count]{
@@ -433,6 +430,7 @@ int main(int argc, char *argv[])
     bool use_ort = false;
     bool verbose = false;
     int64_t duration = 0;
+    int num_devices = dxrt::DeviceStatus::GetDeviceCount();
     cxxopts::Options options("run_model", APP_NAME);
     options.add_options()
         ("m, model", "Model file (.dxnn)" , cxxopts::value<string>(modelFile))
@@ -515,6 +513,13 @@ int main(int argc, char *argv[])
         {
             string count_str = devices_spec.substr(6);
             int count = std::stoi(count_str);
+
+            if (count > num_devices)
+            {
+                std::cerr << "[ERR] Invalid device count: " << count << ". Available device(s): " << num_devices << std::endl;
+                return -1;
+            }
+
             if (count > 0)
             {
                 for (int i = 0; i < count; ++i)
@@ -550,7 +555,7 @@ int main(int argc, char *argv[])
         std::stringstream ss(devices_spec);
         std::string segment;
         bool first_device = true;
-        cout << "Device specification: Specific NPU(s) {";
+        std::set<int> dupID;
         while (std::getline(ss, segment, ','))
         {
             try
@@ -558,7 +563,22 @@ int main(int argc, char *argv[])
                 segment.erase(std::remove_if(segment.begin(), segment.end(), ::isspace), segment.end());
                 if (segment.empty()) continue;
                 int device_id = std::stoi(segment);
-                op.devices.push_back(device_id);
+
+                if (device_id+1 > num_devices)
+                {
+                    cout << endl;
+                    if (num_devices == 1) {
+                        std::cerr << "[ERR] Invalid device number " << device_id << ". Only device 0 is available" << std::endl;
+                    } else {
+                        std::cerr << "[ERR] Invalid device number " << device_id << ". Only devices 0-" << (num_devices-1) << " are available" << std::endl;
+                    }
+                    return -1;
+                }
+
+                if (!dupID.count(device_id)) op.devices.push_back(device_id);
+                dupID.insert(device_id);
+
+                cout << "Device specification: Specific NPU(s) {";
                 if (!first_device) cout << ", ";
                 cout << device_id;
                 first_device = false;
@@ -593,6 +613,8 @@ int main(int argc, char *argv[])
     op.useORT = use_ort;
 
     try{
+
+        dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::PROFILER, false);
 
         SetRunModelMode(single, targetFps);
 
@@ -649,11 +671,6 @@ int main(int argc, char *argv[])
                 break;
             }
             case TARGET_FPS_MODE: {
-
-                // enable profiler and save profiler data
-                dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::PROFILER, true);
-                dxrt::Configuration::GetInstance().SetAttribute(dxrt::Configuration::ITEM::PROFILER, 
-                    dxrt::Configuration::ATTRIBUTE::PROFILER_SAVE_DATA, "ON");
 
                 float fps = runAsyncTargetFPS(loops, ie, targetFps, inputBuf.data(), duration);
                 PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatencyMean()/1000.0, ie.GetNpuInferenceTimeMean()/1000.0, fps, loops, mode, verbose);

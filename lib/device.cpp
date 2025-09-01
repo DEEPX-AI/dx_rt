@@ -1535,7 +1535,23 @@ int Device::RegisterTask_ACC(TaskData* task)
     LOG_DXRT_DBG << "  Total per inference buffer: " << (block_size / (1024*1024)) << "MB" << endl;
     LOG_DXRT_DBG << "  Total with " << DEVICE_NUM_BUF << " buffers: " << ((block_size * DEVICE_NUM_BUF + model.rmap.size + model.weight.size) / (1024*1024)) << "MB" << endl;
 
-    _npuMemoryCacheManager.registerMemoryCache(task->id(), block_size, DXRT_TASK_MAX_LOAD);
+    int npu_cache_count = DXRT_TASK_MAX_LOAD;
+    while (npu_cache_count > 0)
+    {
+        if (_npuMemoryCacheManager.registerMemoryCache(task->id(), block_size, npu_cache_count) == false)
+        {
+            npu_cache_count--;
+        }
+        else
+        {
+            break;
+        }
+    }
+    if (npu_cache_count < 1)
+    {
+        LOG_DXRT_ERR("Failed to register memory cache for task " + std::to_string(task->id()));
+        ret = -1;
+    }
 
 #if DXRT_USB_NETWORK_DRIVER
     _inputWorker->UnHold();

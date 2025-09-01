@@ -33,6 +33,7 @@ theme:
      - navigation.tabs.sticky
      - content.tabs.link
      - content.code.copy
+  site_url: 'https://developer.deepx.ai/'
 nav:
   - DXNN Runtime Overview: docs/01_DXNN_Runtime_Overview.md
   - Installation on Linux: docs/02_Installation_on_Linux.md
@@ -61,6 +62,7 @@ plugins:
       custom_template_path: docs/stylesheets
       output_path: ../docs/DEEPX_DX-RT_UM_v3.0.0.pdf
 extra:
+  homepage: https://developer.deepx.ai
   generator: false
   social:
      - icon: fontawesome/brands/linkedin

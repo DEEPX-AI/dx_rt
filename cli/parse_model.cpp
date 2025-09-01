@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
     LOG_VALUE(modelPath);
 
     try {
-        auto devices = dxrt::CheckDevices();
+        /*auto& devices = dxrt::CheckDevices();
         if (!devices.empty()) {
             auto& device = devices[0];
             auto devStatus = dxrt::DeviceStatus::GetCurrentStatus(device);
@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
             cout << "-------------------------------------------------------" << endl;
             cout << " * FW version           : v" << dxrt::GetFwVersionWithDot(devInfo.fw_ver) << endl;
             cout << "=======================================================" << endl;
-        }
+        }*/
 
         ret = dxrt::ParseModel(modelPath);
     }

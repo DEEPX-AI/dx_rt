@@ -3,4 +3,4 @@
 
 #pragma once
 
-#define DX_TOP_VERSION "1.0.0"
+#define DX_TOP_VERSION "1.0.1"
