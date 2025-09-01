@@ -55,7 +55,7 @@ CMAKE_USE_SERVICE=true
 CMAKE_USE_PYTHON=true
 parse_cmake_options() {
   local file="$1"
-  while IFS= read -r line; do
+  while IFS= read -r line || [ -n "$line" ]; do
     parsed=$(echo "$line" | sed -E 's/option\(([^)]+)\)/\1/' )
     IFS= read -r -a parts <<< "$(echo "$parsed" | sed -E 's/[[:space:]]+/ /g')"
     var_name=$(echo "$parsed" | awk -F'"' '{print $1}' | xargs | cut -d' ' -f1)
@@ -241,7 +241,23 @@ else
     fi
     
     cd $build_dir
-    cmake .. ${cmd[@]}
+    # Prefer system CMake to avoid Python-venv cmake shim issues
+    if [ -x /usr/local/bin/cmake ]; then
+        CMAKE_BIN=/usr/local/bin/cmake
+    elif [ -x /usr/bin/cmake ]; then
+        CMAKE_BIN=/usr/bin/cmake
+    else
+        CMAKE_BIN=$(command -v cmake)
+    fi
+
+    echo "[BUILD] Using CMake: ${CMAKE_BIN}"
+    ${CMAKE_BIN} .. ${cmd[@]}
+    CMAKE_STATUS=$?
+    if [ $CMAKE_STATUS -ne 0 ]; then
+        echo -e "${TAG_ERROR} CMake configuration failed. If a Python virtualenv is active, it may be shadowing system cmake. Try deactivating the venv or ensure system CMake is used."
+        exit $CMAKE_STATUS
+    fi
+
     ninja
     sudo ninja install
 fi

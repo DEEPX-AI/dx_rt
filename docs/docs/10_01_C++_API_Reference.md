@@ -327,11 +327,11 @@ A singleton class for managing global application configurations. Access is thre
 
 ***`enum class ITEM`***
 -   **Description**: Defines configuration categories.
--   **Members**: `DEBUG`, `PROFILER`, `SERVICE`, `DYNAMIC_CPU_THREAD`, `TASK_FLOW`, `SHOW_THROTTLING`, `SHOW_PROFILE`, `SHOW_MODEL_INFO`.
+-   **Members**: `DEBUG`, `PROFILER`, `SERVICE`, `DYNAMIC_CPU_THREAD`, `TASK_FLOW`, `SHOW_THROTTLING`, `SHOW_PROFILE`, `SHOW_MODEL_INFO`, `CUSTOM_INTRA_OP_THREADS`, `CUSTOM_INTER_OP_THREADS`.
 
 ***`enum class ATTRIBUTE`***
 -   **Description**: Defines attributes for configuration items.
--   **Members**: `PROFILER_SHOW_DATA`, `PROFILER_SAVE_DATA`.
+-   **Members**: `PROFILER_SHOW_DATA`, `PROFILER_SAVE_DATA`, `CUSTOM_INTRA_OP_THREADS_NUM`, `CUSTOM_INTER_OP_THREADS_NUM`.
 
 #### Static Member Functions
 
@@ -349,6 +349,14 @@ A singleton class for managing global application configurations. Access is thre
     -   `item`: The configuration item.
     -   `attrib`: The attribute to retrieve.
 -   **Returns**: The attribute value as a `std::string`.
+
+***`GetIntAttribute(const ITEM item, const ATTRIBUTE attrib)`***
+-   **Signature**: `int GetIntAttribute(const ITEM item, const ATTRIBUTE attrib)`
+-   **Description**: Retrieves the value of a specific attribute as an integer for a given configuration item. Automatically converts string attributes to integers.
+-   **Parameters**:
+    -   `item`: The configuration item.
+    -   `attrib`: The attribute to retrieve.
+-   **Returns**: The attribute value as an `int`. Returns 0 if the attribute is not found or cannot be parsed as an integer.
 
 ***`GetDriverVersion()`***
 -   **Signature**: `std::string GetDriverVersion() const`

@@ -46,4 +46,9 @@ namespace dxrt
         return conf.GetPCIeDriverVersion();
     }
 
+    void pyConfiguration_LoadConfigFile(Configuration &conf, const std::string &fileName)
+    {
+        conf.LoadConfigFile(fileName);
+    }
+
 } // namespace dxrt

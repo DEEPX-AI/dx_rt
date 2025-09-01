@@ -16,3 +16,4 @@
 #include "dxrt/exception_handler.h"
 #include "dxrt/exception/exception.h"
 #include "dxrt/configuration.h"
+#include "dxrt/device_info_status.h"

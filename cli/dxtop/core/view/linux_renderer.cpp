@@ -23,10 +23,11 @@ void NcursesRenderer::Initialize()
         init_pair(2, COLOR_GREEN,   COLOR_BLACK); 
         init_pair(3, COLOR_YELLOW,  COLOR_BLACK);
         //Orange
-        init_pair(4, 214, COLOR_BLACK);
+        // init_pair(4, 214, COLOR_BLACK);
         init_pair(5, COLOR_RED,     COLOR_BLACK); 
         init_pair(6, COLOR_CYAN,    COLOR_BLACK);
-        init_pair(7, COLOR_MAGENTA, COLOR_BLACK);
+        init_pair(7, COLOR_MAGENTA, COLOR_BLACK); 
+        init_pair(8, COLOR_BLUE, COLOR_BLACK);
         
     }
     else
@@ -232,8 +233,11 @@ void NcursesRenderer::renderCoreRow(int row, int col, const std::vector<Field>& 
         x += static_cast<int>(field.label.size()) + 1;
 
         attron(COLOR_PAIR(field.colorPair) | attr);
+        // attron(COLOR_PAIR(1) | attr);
         mvprintw(row, x, "%s", TextFormatter::Format(field).c_str());
+        // attroff(COLOR_PAIR(1) | attr);
         attroff(COLOR_PAIR(field.colorPair) | attr);
+        
 
         x += static_cast<int>(field.width) + 2;
     }

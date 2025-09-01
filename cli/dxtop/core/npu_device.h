@@ -23,12 +23,15 @@ class NpuDevice
     explicit NpuDevice(uint8_t deviceNumber, dxrt::DevicePtr devicePtr, DXTopIPCClient& DXTopIPCClient);
     virtual ~NpuDevice() = default;
 
+    void InitPcieBusNumber();
+
     void UpdateDeviceInfoData();
     void UpdateCoreData(DXTopIPCClient& dxtopIPCClient);
     uint64_t UpdateDramUsageByIPC(DXTopIPCClient& dxtopIPCClient);
 
     dxrt_dev_info_t GetDevInfo();
     uint8_t GetDeviceNumber() const;
+    std::string GetPcieBusNumber() const;
 
     uint32_t  GetDeviceType() const;
     uint32_t GetDeviceVariant() const;
@@ -47,11 +50,15 @@ class NpuDevice
 
  private:
     uint8_t _deviceNumber;
+    std::string _pcieBusNumber;
+    
+    
     dxrt::DevicePtr _devicePtr;
     uint64_t _dramUsage;
 
     dxrt_device_status_t _status;
     dxrt_device_info_t _info;
+    dxrt_dev_info_t _devInfo;
 
     uint8_t _coreCount;
     std::vector<std::shared_ptr<dxrt::NpuCore>> _cores;

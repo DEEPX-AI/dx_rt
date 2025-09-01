@@ -76,22 +76,26 @@ namespace dxrt {
         * @brief Enumeration defining types of configuration items.
         */
         enum class ITEM {
-            DEBUG = 1,              ///< Configuration related to debug mode.
-            PROFILER,               ///< Configuration related to profiler functionality.
-            SERVICE,                ///< Configuration related to service operation.
-            DYNAMIC_CPU_THREAD,     ///< Configuration related to dynamic CPU thread management.
-            TASK_FLOW,              ///< Configuration related to task flow management.
-            SHOW_THROTTLING,        ///< Whether to display throttling information.
-            SHOW_PROFILE,           ///< Whether to display profile information.
-            SHOW_MODEL_INFO         ///< Whether to display model information.
+            DEBUG = 1,                      ///< Configuration related to debug mode.
+            PROFILER,                       ///< Configuration related to profiler functionality.
+            SERVICE,                        ///< Configuration related to service operation.
+            DYNAMIC_CPU_THREAD,             ///< Configuration related to dynamic CPU thread management.
+            TASK_FLOW,                      ///< Configuration related to task flow management.
+            SHOW_THROTTLING,                ///< Whether to display throttling information.
+            SHOW_PROFILE,                   ///< Whether to display profile information.
+            SHOW_MODEL_INFO,                ///< Whether to display model information.
+            CUSTOM_INTRA_OP_THREADS = 9,    ///< Use custom ONNX Runtime intra-op thread count.
+            CUSTOM_INTER_OP_THREADS = 10    ///< Use custom ONNX Runtime inter-op thread count.
         };
 
         /**
         * @brief Enumeration defining attributes for configuration items.
         */
         enum class ATTRIBUTE {
-            PROFILER_SHOW_DATA = 1001,  ///< Attribute for showing profiler data.
-            PROFILER_SAVE_DATA          ///< Attribute for saving profiler data.
+            PROFILER_SHOW_DATA = 1001,          ///< Attribute for showing profiler data.
+            PROFILER_SAVE_DATA = 1002,          ///< Attribute for saving profiler data.
+            CUSTOM_INTRA_OP_THREADS_NUM = 1003, ///< Attribute for custom ONNX Runtime intra-op thread count.
+            CUSTOM_INTER_OP_THREADS_NUM = 1004  ///< Attribute for custom ONNX Runtime inter-op thread count.
         };
  
         /**
@@ -131,6 +135,18 @@ namespace dxrt {
         * @note Uses an internal mutex to ensure thread safety.
         */
         std::string GetAttribute(const ITEM item, const ATTRIBUTE attrib);
+
+        /**
+         * @brief Retrieves an integer attribute value for a given configuration item and attribute.
+         * 
+         * @param item The configuration item.
+         * @param attrib The attribute of the configuration item.
+         * @return The integer value of the attribute.
+         *         Returns 0 if not found or cannot be parsed to integer.
+         *         Note: For attributes like thread counts, 0 indicates "not set/invalid" and should trigger a safe default.
+         * @note Uses an internal mutex to ensure thread safety.
+         */
+        int GetIntAttribute(const ITEM item, const ATTRIBUTE attrib);
 
         /**
         * @brief Locks a specific configuration item, making it read-only.
@@ -182,6 +198,13 @@ namespace dxrt {
         std::unordered_map<ITEM, std::unordered_map<ATTRIBUTE, std::string> > _attributes;
         std::unordered_map<ITEM, std::pair<bool, std::unordered_map<ATTRIBUTE, bool> > > _isReadonly;
         std::mutex _mutex;
+        
+        // Implementation methods without mutex locking (for internal use)
+        void setEnableWithoutLock(const ITEM item, bool enabled);
+        void setAttributeWithoutLock(const ITEM item, const ATTRIBUTE attribute, const std::string& value);
+        
+        // Utility method for parsing and clamping thread count values
+        int parseClampThreadCount(const std::string& value);
     };
 
 }  // namespace dxrt

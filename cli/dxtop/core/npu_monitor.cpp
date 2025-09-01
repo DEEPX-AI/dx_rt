@@ -258,9 +258,9 @@ DeviceViewModel NpuMonitor::createDeviceViewModel(const NpuDevice& device)
 
     // Device Number
     view_models.fields.emplace_back(Field{
-        "Device #",
+        "Device ",
         std::to_string(device.GetDeviceNumber()),
-        8,
+        5,
         Field::Align::LEFT,
         1,
         false
@@ -276,15 +276,24 @@ DeviceViewModel NpuMonitor::createDeviceViewModel(const NpuDevice& device)
         false
     });
 
-    // Device Type
+    // PCIE Bus Number
     view_models.fields.emplace_back(Field{
-        "Type",
-        NpuDeviceFormatter::FormatDeviceType(device.GetDeviceType()),
-        10,
+        "PCIe Bus Number",
+        device.GetPcieBusNumber(),
+        12,
         Field::Align::CENTER,
         1,
         false
     });
+    // Device Type
+    // view_models.fields.emplace_back(Field{
+    //     "Type",
+    //     NpuDeviceFormatter::FormatDeviceType(device.GetDeviceType()),
+    //     10,
+    //     Field::Align::CENTER,
+    //     1,
+    //     false
+    // });
 
     // Device Firmware
     view_models.fields.emplace_back(Field{
@@ -321,21 +330,21 @@ DeviceViewModel NpuMonitor::createDeviceViewModel(const NpuDevice& device)
     dram_field.makeGraph = true;
     dram_field.numericValue = usage_percent;
 
-    if (usage_percent < 40)
+    if (usage_percent < 20)
     {
-        dram_field.colorPair = 2;
+        dram_field.colorPair = 8;//Blue
     }
-    else if (usage_percent < 60)
+    else if (usage_percent < 40)
     {
-        dram_field.colorPair = 3;
+        dram_field.colorPair = 2;//Green
     }
     else if (usage_percent < 80)
     {
-        dram_field.colorPair = 4;
+        dram_field.colorPair = 3;//Yellow
     }
     else
     {
-        dram_field.colorPair = 5;
+        dram_field.colorPair = 5;//Red
     }
 
     view_models.fields.push_back(std::move(dram_field));
@@ -357,7 +366,7 @@ CoreViewModel NpuMonitor::createCoreViewModel(const NpuCore& core)
 
     // Core #
     view_models.fields.push_back(Field{
-        "Core #",
+        "Core ",
         std::to_string(core.GetCoreNumber()),
         2,
         Field::Align::LEFT,
@@ -399,18 +408,14 @@ CoreViewModel NpuMonitor::createCoreViewModel(const NpuCore& core)
         false
     };
 
-    if (temperature < 50)
-    {
-        temperature_field.colorPair = 1;
+    if (temperature < 50) {
+        temperature_field.colorPair = 2;//Green
     }
-    else if (temperature < 80) {
-        temperature_field.colorPair = 3;
-    }
-    else if (temperature < 100) {
-        temperature_field.colorPair = 4;
+    else if (temperature < 90) {
+        temperature_field.colorPair = 3;//Yellow
     }
     else {
-        temperature_field.colorPair = 5;
+        temperature_field.colorPair = 5;//Red
     }
 
     view_models.fields.push_back(std::move(temperature_field));

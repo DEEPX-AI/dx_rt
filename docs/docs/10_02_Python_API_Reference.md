@@ -359,11 +359,11 @@ Provides access to the global DXRT configuration singleton, allowing for system-
 
 ***`class ITEM`***
 -   **Description**: An enumeration-like class defining configuration categories.
--   **Members**: `DEBUG`, `PROFILER`, `SERVICE`, `DYNAMIC_CPU_THREAD`, `TASK_FLOW`, `SHOW_THROTTLING`, `SHOW_PROFILE`, `SHOW_MODEL_INFO`.
+-   **Members**: `DEBUG`, `PROFILER`, `SERVICE`, `DYNAMIC_CPU_THREAD`, `TASK_FLOW`, `SHOW_THROTTLING`, `SHOW_PROFILE`, `SHOW_MODEL_INFO`, `CUSTOM_INTRA_OP_THREADS`, `CUSTOM_INTER_OP_THREADS`.
 
 ***`class ATTRIBUTE`***
 -   **Description**: An enumeration-like class defining attributes for configuration items.
--   **Members**: `PROFILER_SHOW_DATA`, `PROFILER_SAVE_DATA`.
+-   **Members**: `PROFILER_SHOW_DATA`, `PROFILER_SAVE_DATA`, `CUSTOM_INTRA_OP_THREADS_NUM`, `CUSTOM_INTER_OP_THREADS_NUM`.
 
 ---
 

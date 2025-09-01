@@ -51,14 +51,25 @@ $ ./install.sh --all
 
 Here are the available `install.sh` options.  
 ```
-  ./install.sh [ options ]
-    --help            Shows help message
-    --arch [x86_64, aarch64]
-                      Sets target CPU architecture
-    --dep             Installs build dependencies : cmake, gcc, ninja, etc..
-    --onnxruntime     (Optional) Installs onnxruntime library
-    --all             Installs architecture + dependency + onnxruntime library
+Usage: ./install.sh [OPTIONS]
+Install necessary components and libraries for the project.
+
+Options:
+  --help                       Display this help message and exit.
+  --arch <ARCH>                Specify the target CPU architecture. Valid options: [x86_64, aarch64].
+  --dep                        Install core dependencies such as cmake, gcc, ninja, etc and python3.
+  --onnxruntime                (Optional) Install the ONNX Runtime library.
+  --all                        Install all dependencies and the ONNX Runtime library.
+
+  --python_version <VERSION>   Specify the Python version to install (e.g., 3.10.4).
+                                 * Minimum supported version: .
+                                 * If not specified:
+                                     - For Ubuntu 20.04+, the OS default Python 3 will be used.
+                                     - For Ubuntu 18.04, Python  will be source-built.
+  --venv_path <PATH>          Specify the path for the virtual environment.
+                                 * If this option is omitted, no virtual environment will be created.
 ```
+
 
 **Installation with ONNX Runtime**  
 Use the ONNX Runtime option if you need to offload certain neural network (NN) operations to the CPU that are **not** supported by the NPU.  
@@ -370,16 +381,6 @@ sudo apt install ./[package_name.deb]
 ```
 
 This method is generally preferred because `apt` automatically handles any package dependencies for you.
-
-> **IMPORTANT: Reboot Required After Installation!**  
->
-> After successfully installing the DKMS driver package, it is absolutely **CRITICAL** to reboot your system for the changes to take full effect.  Failing to reboot may result in the newly installed driver not functioning correctly, or could lead to unexpected system instability and issues.  
->
-> To ensure proper driver activation and system stability, please execute the following command to reboot your system immediately after installation:  
->
-> ```bash
-> sudo reboot
-> ```
 
 **Understanding Installation Messages**  
 You might see various messages during installation, especially when using `sudo apt install`. Here's what they mean:  
@@ -740,6 +741,38 @@ dx-engine          1.1.2
 For details on using **DX-RT** with Python, refer to **Section. Python Tutorials**.
 
 ---
+
+> **NOTE.**  
+> - **Python C++ Module Version Mismatch**: If you encounter errors related to Python C++ module version mismatch, it typically means the compiled Python extension was built with a different Python version than the one currently being used. Common error messages include:
+>   ```
+>   malloc(): corrupted top size
+>   ```
+>   or
+>   ```
+>   free(): invalid pointer
+>   ```
+>   or
+>   ```
+>   double free or corruption (out)
+>   ...
+>   ```
+> 
+>   **Solutions:**
+>   1. **Rebuild with correct Python version**: Ensure you're using the same Python version for both building and running:
+>      ```bash
+>      $ python3 --version  # Check current Python version
+>      $ pip --version      # Check current pip version
+>      $ cd python_package
+>      $ pip install .
+>      ```
+>   2. **Use virtual environment**: Create a virtual environment with the correct Python version:
+>      ```bash
+>      $ python3.10 -m venv dxrt_env
+>      $ source dxrt_env/bin/activate
+>      $ cd python_package
+>      $ pip install .
+>      ```
+
 
 ## Service Registration
 

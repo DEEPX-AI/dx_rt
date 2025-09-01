@@ -231,4 +231,9 @@ namespace dxrt {
         return "The current device firmware is " + version + ". The firmware must be version 2.0.0 or higher to update.";
     }
 
+    std::string LogMessages::Profiler_MemoryUsage(uint64_t current_memory)
+    {
+        return "Profiler warning: Using over " + std::to_string(current_memory/1024/1024) + "MB for profiling data"; 
+    }
+
 } // namespace dxrt
