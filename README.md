@@ -40,4 +40,9 @@ doxygen Doxyfile
 ```
 
 ## License
-This project is licensed under the [MIT License](LICENSE).  
+This software is the property of DEEPX Ltd. and is provided exclusively to customers who are supplied with DEEPX NPU (Neural Processing Unit). Unauthorized sharing or usage is strictly prohibited by law.
+
+For detailed license terms, see [LICENSE](LICENSE).
+
+### Third-Party Licenses
+This project incorporates several open-source libraries. For complete license information of third-party components, see [NOTICE.md](NOTICE.md).  

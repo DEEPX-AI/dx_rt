@@ -1,3 +1,37 @@
+## PR 633
+### 1. Changed
+- Update the .dxnn file format to version 7 (from v6).
+- Update C++ exception handling to translate exceptions into Python for improved error handling.
+- Update the Python v6_converter with enhanced functionality.
+### 2. Fixed
+- Fix several multi-tasking bugs related to CPU offloading buffer management and PPU output buffer mis-pointing.
+- Fix a bug in the process of setting the PPU model format and layout.
+- Fix a critical bug affecting models with multi-output and multi-tail configurations.
+- Fix tensor mapping errors that occurred in non-ORT inference mode.
+- Fix a warning message in get_output_tensors_info and a vector access bug in _npuModel.
+- Fix an issue that prevented error messages from being displayed.
+- Fix flaws in output tensor mapping and memory address configuration.
+### 3. Added
+- Add a new internal C++ converter for v6 models.
+- Add new Python APIs for handling device configuration and status retrieval.
+## PR 632
+### 1. Changed
+- Update license information
+### 2. Fixed
+### 3. Added
+## PR 623
+### 1. Changed
+- feat: enhance OS and architecture checks in installation scripts [CSP-717](https://deepx.atlassian.net/browse/CSP-717)
+### 2. Fixed
+- docs: Updated documentation to reflect changes in supported CPU architecture and OS requirements. [CSP-686](https://deepx.atlassian.net/browse/CSP-686)
+### 3. Added
+- feat: enhance build and uninstall scripts with common utilities and improved logging [CSP-700](https://deepx.atlassian.net/browse/CSP-700)
+  - Integrated common utility functions into build.sh for better modularity.
+  - Added uninstall.sh script to handle project uninstallation, including cleanup of symlinks and directories.
+  - Improved logging in both scripts using color-coded messages for better user feedback.
+  - Updated color_env.sh and common_util.sh to support new logging features and ensure consistent output formatting.
+  - Refactored build.sh to streamline the build process and enhance error handling.
+
 ## PR 629 NOTHING NEW
 ## PR 628 NOTHING NEW
 ## PR 625 NOTHING NEW

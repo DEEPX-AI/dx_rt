@@ -1,6 +1,11 @@
-# Copyright (c) 2022 DEEPX Corporation. All rights reserved.
-# Licensed under the MIT License.
-# Python script adapted from user's C++ code by Coding Partner.
+#
+# Copyright (C) 2018- DEEPX Ltd.
+# All rights reserved.
+#
+# This software is the property of DEEPX and is provided exclusively to customers 
+# who are supplied with DEEPX NPU (Neural Processing Unit). 
+# Unauthorized sharing or usage is strictly prohibited by law.
+#
 
 import warnings
 import os

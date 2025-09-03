@@ -1,4 +1,15 @@
 
+/*
+ * Copyright (C) 2018- DEEPX Ltd.
+ * All rights reserved.
+ *
+ * This software is the property of DEEPX and is provided exclusively to customers 
+ * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * Unauthorized sharing or usage is strictly prohibited by law.
+ * 
+ * This file uses ONNX Runtime (MIT License) - Copyright (c) Microsoft Corporation.
+ */
+
 #include "dxrt/common.h"
 #include "dxrt/configuration.h"
 #include "dxrt/exception/exception.h"
