@@ -5,6 +5,7 @@ SCRIPT_DIR=$(realpath "$(dirname "$0")")
 
 # color env settings
 source "${SCRIPT_DIR}/scripts/color_env.sh"
+source "${SCRIPT_DIR}/scripts/common_util.sh"
 
 help() {
     echo -e "Usage: ${COLOR_CYAN}$0 [OPTIONS]${COLOR_RESET}"
@@ -49,63 +50,544 @@ help() {
     exit 0
 }
 
-# parsing dxrt.cfg.cmake
-CMAKE_USE_ORT=false
-CMAKE_USE_SERVICE=true
-CMAKE_USE_PYTHON=true
-parse_cmake_options() {
-  local file="$1"
-  while IFS= read -r line || [ -n "$line" ]; do
-    parsed=$(echo "$line" | sed -E 's/option\(([^)]+)\)/\1/' )
-    IFS= read -r -a parts <<< "$(echo "$parsed" | sed -E 's/[[:space:]]+/ /g')"
-    var_name=$(echo "$parsed" | awk -F'"' '{print $1}' | xargs | cut -d' ' -f1)
-    default_val=$(echo "$parsed" | awk -F'"' '{print $2; print $3}' | tail -n1 | xargs)
-    if [ "$var_name" == 'USE_ORT' ]; then
-        if [ "$default_val" == 'ON' ]; then
-            CMAKE_USE_ORT=true
-        else
-            CMAKE_USE_ORT=false
-        fi
-    elif [ "$var_name" == 'USE_SERVICE' ]; then
-        if [ "$default_val" == 'ON' ]; then
-            CMAKE_USE_SERVICE=true
-        else
-            CMAKE_USE_SERVICE=false
-        fi
-    elif [ "$var_name" == 'USE_PYTHON' ]; then
-        if [ "$default_val" == 'ON' ]; then
-            CMAKE_USE_PYTHON=true
-        else
-            CMAKE_USE_PYTHON=false
-        fi
+setup_env() {
+    # cmake command
+    cmd=()
+    clean_build=false
+    install_ort=false
+    verbose=false
+    build_type=release
+    host_arch=$(uname -m)
+    target_arch=$(uname -m)
+    build_mode="Release Build"
+    install=""
+    uninstall=false
+    clang=false
+    build_in_docker=false
+    python_exec="python3"
+    venv_path=""
+    enable_coverage=false
+
+    if [ $target_arch == "arm64" ]; then
+        target_arch=aarch64
     fi
-  done < "$file"
+
+    if [ $target_arch == $host_arch ]; then
+        if [ -z $install ]; then
+            install=/usr/local
+        fi
+        CROSS_COMPILE="native"
+    else
+        CROSS_COMPILE=$target_arch
+    fi
+
+    build_dir=build_"$target_arch"
+    out_dir=bin
+
+    # parsing dxrt.cfg.cmake
+    CMAKE_USE_ORT=false
+    CMAKE_USE_SERVICE=true
+    CMAKE_USE_PYTHON=true
+
+    parse_cmake_options() {
+        local file="$1"
+        while IFS= read -r line || [ -n "$line" ]; do
+            parsed=$(echo "$line" | sed -E 's/option\(([^)]+)\)/\1/' )
+            IFS= read -r -a parts <<< "$(echo "$parsed" | sed -E 's/[[:space:]]+/ /g')"
+            var_name=$(echo "$parsed" | awk -F'"' '{print $1}' | xargs | cut -d' ' -f1)
+            default_val=$(echo "$parsed" | awk -F'"' '{print $2; print $3}' | tail -n1 | xargs)
+            if [ "$var_name" == 'USE_ORT' ]; then
+                if [ "$default_val" == 'ON' ]; then
+                    CMAKE_USE_ORT=true
+                else
+                    CMAKE_USE_ORT=false
+                fi
+            elif [ "$var_name" == 'USE_SERVICE' ]; then
+                if [ "$default_val" == 'ON' ]; then
+                    CMAKE_USE_SERVICE=true
+                else
+                    CMAKE_USE_SERVICE=false
+                fi
+            elif [ "$var_name" == 'USE_PYTHON' ]; then
+                if [ "$default_val" == 'ON' ]; then
+                    CMAKE_USE_PYTHON=true
+                else
+                    CMAKE_USE_PYTHON=false
+                fi
+            fi
+        done < "$file"
+    }
+
+    # read cmake/dxrt.cfg.cmake file
+    CMAKE_FILE="cmake/dxrt.cfg.cmake"
+    if [ -f "$CMAKE_FILE" ]; then
+        parse_cmake_options "$CMAKE_FILE"
+    else
+        print_colored_v2 "WARNING" "File '$CMAKE_FILE' not found."
+    fi
+
+    # display cmake options
+    print_colored_v2 "INFO" "========== CMAKE OPTIONS ======================================"
+    print_colored_v2 "INFO" "CMAKE_USE_ORT=$CMAKE_USE_ORT"
+    print_colored_v2 "INFO" "CMAKE_USE_SERVICE=$CMAKE_USE_SERVICE"
+    print_colored_v2 "INFO" "CMAKE_USE_PYTHON=$CMAKE_USE_PYTHON"
+    print_colored_v2 "INFO" "==============================================================="
 }
 
-# read cmake/dxrt.cfg.cmake file
-CMAKE_FILE="cmake/dxrt.cfg.cmake"
-if [ -f "$CMAKE_FILE" ]; then
-  parse_cmake_options "$CMAKE_FILE"
-else
-  echo "Error: File '$CMAKE_FILE' not found."
-fi
+build_dxrt() {
+    # install onnx runtime
+    if [ $install_ort == "true" ]; then
+        ./install.sh --onnxruntime --arch $target_arch || {
+            return_code=$?
+            print_colored_v2 "ERROR" "Failed to install ONNX Runtime."
+            exit $return_code
+        }
+    fi
 
-# cmake command
-cmd=()
-clean_build=false
-install_ort=false
-verbose=false
-build_type=release
-host_arch=$(uname -m)
-target_arch=$(uname -m)
-build_mode="Release Build"
-install=""
-uninstall=false
-clang=false
-build_in_docker=false
-python_exec="python3"
-venv_path=""
-enable_coverage=false
+    cmd+=(-DCMAKE_TOOLCHAIN_FILE=cmake/toolchain.$target_arch.cmake)
+    if [ $clang == "true" ]; then
+        cmd+=(-DUSE_CLANG=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++)
+    fi
+
+    cmd+=(-DCMAKE_VERBOSE_MAKEFILE=$verbose)
+    if [ $build_type == "release" ] || [ $build_type == "debug" ] || [ $build_type == "relwithdebinfo" ]; then
+        cmd+=(-DCMAKE_BUILD_TYPE=$build_type);
+    else
+        cmd+=(-DCMAKE_BUILD_TYPE=release);
+    fi
+
+    # Enable coverage for Debug builds or when explicitly requested
+    if [ $enable_coverage == "true" ]; then
+        print_colored_v2 "INFO" "Enabling code coverage collection..."
+        cmd+=(-DENABLE_COVERAGE=ON)
+        
+        if [ $clang == "true" ]; then
+            # Clang coverage flags
+            export CXXFLAGS="--coverage -fprofile-instr-generate -fcoverage-mapping -g $CXXFLAGS"
+            export CFLAGS="--coverage -fprofile-instr-generate -fcoverage-mapping -g $CFLAGS"
+            export LDFLAGS="--coverage $LDFLAGS"
+        else
+            # GCC coverage flags
+            export CXXFLAGS="--coverage -fprofile-arcs -ftest-coverage -g -O0 $CXXFLAGS"
+            export CFLAGS="--coverage -fprofile-arcs -ftest-coverage -g -O0 $CFLAGS"
+            export LDFLAGS="--coverage $LDFLAGS"
+        fi
+    else
+        cmd+=(-DENABLE_COVERAGE=OFF)
+    fi
+
+    cmd+=(-DCMAKE_GENERATOR=Ninja)
+
+    if [ ! -z $install ]; then
+        cmd+=(-DCMAKE_INSTALL_PREFIX=$install)
+    fi
+    cmd+=(-DPython_EXECUTABLE=$(which ${python_exec}))
+
+    print_colored_v2 "INFO" "========== CMAKE ARGS ========================================"
+    print_colored_v2 "INFO" "cmake args : ${cmd[@]}"
+    print_colored_v2 "INFO" "==============================================================="
+
+    [ $clean_build == "true" ] && sudo rm -rf $build_dir
+
+    # Remove stale Python extension modules when cleaning to avoid ABI/loader conflicts
+    if [ $clean_build == "true" ]; then
+        print_colored_v2 "INFO" "[CLEAN] Removing stale Python extension modules (_pydxrt*.so)"
+        rm -f "${SCRIPT_DIR}/python_package/src/dx_engine/capi/_pydxrt"*.so || true
+    fi
+
+    mkdir -p $build_dir
+    mkdir -p $out_dir
+    sudo rm -rf $build_dir/bin
+    
+    # Proactively remove stale Python extension modules before (re)build
+    print_colored_v2 "INFO" "[PREP] Removing stale Python extension modules (_pydxrt*.so)"
+    rm -f "${SCRIPT_DIR}/python_package/src/dx_engine/capi/_pydxrt"*.so || true
+    
+    # Clean coverage data from previous runs if coverage is enabled
+    if [ $enable_coverage == "true" ]; then
+        print_colored_v2 "INFO" "Cleaning previous coverage data..."
+        find . -name "*.gcda" -delete 2>/dev/null || true
+        find . -name "*.gcno" -delete 2>/dev/null || true
+    fi
+    
+    pushd $build_dir >/dev/null
+    # Prefer system CMake to avoid Python-venv cmake shim issues
+    if [ -x /usr/local/bin/cmake ]; then
+        CMAKE_BIN=/usr/local/bin/cmake
+    elif [ -x /usr/bin/cmake ]; then
+        CMAKE_BIN=/usr/bin/cmake
+    else
+        CMAKE_BIN=$(command -v cmake)
+    fi
+
+    echo "[BUILD] Using CMake: ${CMAKE_BIN}"
+    ${CMAKE_BIN} .. ${cmd[@]} || {
+        CMAKE_STATUS=$?
+        print_colored_v2 "ERROR" "CMake configuration failed. If a Python virtualenv is active, it may be shadowing system cmake. Try deactivating the venv or ensure system CMake is used."
+        exit $CMAKE_STATUS
+    }
+
+    ninja || {
+        return_code=$?
+        print_colored_v2 "ERROR" "Failed to build the project."
+        exit $return_code
+    }
+
+    sudo ninja install || {
+        return_code=$?
+        print_colored_v2 "ERROR" "Failed to install the project."
+        exit $return_code
+    }
+    popd >/dev/null
+
+    if [ $CROSS_COMPILE != "native" ]; then
+        print_colored_v2 "WARNING" "dxtop is not intended for cross-compilation. If required, please build it natively on the target system."
+    fi
+}
+
+# This function checks the system's python3 version.
+# It prints a warning if the version is 3.8 or lower.
+check_python_version() {
+    # Check if python3 is installed and available in the system's PATH.
+    if ! command -v python3 &> /dev/null; then
+        print_colored_v2 "WARNING" "python3 is not installed or not in PATH."
+        return 1
+    fi
+
+    # Get the python3 version string (e.g., "3.8.10").
+    # This extracts the second field from an output like "Python 3.8.10".
+    local PY_VERSION
+    PY_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
+
+    # Split the version string into major and minor parts using the '.' delimiter.
+    local MAJOR MINOR
+    MAJOR=$(echo "$PY_VERSION" | cut -d. -f1)
+    MINOR=$(echo "$PY_VERSION" | cut -d. -f2)
+
+    # Check if the major version is less than 3, or if the major version is 3
+    # and the minor version is 9 or less.
+    if [[ "$MAJOR" -lt 3 || ( "$MAJOR" -eq 3 && "$MINOR" -le 8 ) ]]; then
+        # If the condition is met, print the warning message.
+        print_colored_v2 "WARNING" "The current Python version ($PY_VERSION) is 3.8 or lower. Some features may not work correctly."
+        return 1
+    else
+        # If the condition is not met, print the confirmation message.
+        print_colored_v2 "INFO" "Python version ($PY_VERSION) meets the requirements."
+        return 0
+    fi
+}
+
+install_python_package() {
+    if [ $CMAKE_USE_PYTHON == "true" ]; then
+        if [ $CROSS_COMPILE == "native" ]; then
+
+            print_colored_v2 "INFO" "[Install python package ...]"
+            check_python_version
+            
+            pushd ${SCRIPT_DIR}/python_package >/dev/null
+            
+            # Attempt to install the package
+            install_result=$(pip install . 2>&1)
+            local exit_code=$?
+            
+            # Check for PEP 668 specific error
+            if [[ "$install_result" == *"PEP 668"* ]]; then
+                print_colored_v2 "WARNING" "PEP 668 externally-managed-environment error detected!"
+                print_colored_v2 "WARNING" "Skipping Python package installation due to system restrictions."
+                print_colored_v2 "HINT" "Please use --venv_path option or activate a virtual environment:"
+                echo -e "${COLOR_BRIGHT_YELLOW_ON_BLACK}example)$ python3 -m venv ./venv-dxnn; $0 --venv_path ./venv-dxnn ${COLOR_RESET}"
+                popd >/dev/null
+                return 0  # Skip installation
+            fi
+            
+            if [ $exit_code -eq 0 ]; then
+                pip list | grep dx-engine
+                print_colored_v2 "INFO" "The Python package has been installed in the following Python version folder."
+                echo -e "${COLOR_BRIGHT_YELLOW_ON_BLACK}  : $(pip --version)${COLOR_RESET}"
+                if [ ! -n "$VIRTUAL_ENV" ]; then
+                    print_colored_v2 "HINT" "To install it in a Python virtual environment,"
+                    print_colored_v2 "HINT" "you need to activate the virtual environment and then"
+                    print_colored_v2 "HINT" "reinstall it by running 'pip install .' from the python_package folder."
+                fi
+                print_colored_v2 "SUCCESS" "[Installed python package]"
+                if [ -n "$venv_path" ]; then
+                    print_colored_v2 "HINT" "To activate the virtual environment, run:"
+                    echo -e "${COLOR_BRIGHT_YELLOW_ON_BLACK}  source ${venv_path}/bin/activate ${COLOR_RESET}"
+                elif [ -n "$VIRTUAL_ENV" ]; then
+                    print_colored_v2 "HINT" "To activate the virtual environment, run:"
+                    echo -e "${COLOR_BRIGHT_YELLOW_ON_BLACK}  source ${VIRTUAL_ENV}/bin/activate ${COLOR_RESET}"
+                fi
+            else
+                print_colored_v2 "FAIL" "Fail to install python package: $install_result"
+                exit $exit_code
+            fi
+            popd >/dev/null
+        else
+            print_colored_v2 "WARNING" "Manually install the dxrt Python module on the target system."
+        fi
+    fi
+}
+
+manage_dxrt_service() {
+    if [ $build_in_docker == "false" ]; then
+        # start or restart dxrt system service (dxrtd)
+        if [ $CROSS_COMPILE == "native" ]; then
+            if [ $CMAKE_USE_SERVICE == "true" ]; then
+                print_colored_v2 "INFO" "Service mode: on"
+
+                # Create the service file
+                if [ ! -f "/etc/systemd/system/dxrt.service" ]; then
+                    sudo cp ./service/dxrt.service /etc/systemd/system/
+                    if [ $? -eq 0 ]; then
+                        print_colored_v2 "SUCCESS" "[Created dxrt.service file]"
+                        # Reload systemd to recognize the change
+                        sudo systemctl daemon-reload
+                        print_colored_v2 "SUCCESS" "[Reloaded systemd daemon]"
+                    else
+                        print_colored_v2 "WARNING" "[Failed to create dxrt.service file]"
+                    fi
+                else
+                    print_colored_v2 "INFO" "[dxrt.service file already exist]"
+                fi
+
+                # check to enabled dxrt service
+                if [ $(sudo systemctl is-enabled dxrt.service) == "enabled" ]; then
+                    print_colored_v2 "INFO" "[dxrt service already enabled]"
+                else
+                    print_colored_v2 "INFO" "[dxrt service not enabled]"
+
+                    # enable dxrt service
+                    DXRTD_LOG=$(sudo systemctl enable dxrt.service)
+                    if [ $? -eq 0 ]; then
+                        print_colored_v2 "SUCCESS" "[Enabled the dxrt service (dxrtd)]"
+                    else
+                        print_colored_v2 "WARNING" "[Failed to enable the dxrt service (dxrtd)]"
+                    fi
+                fi
+
+                # check to start dxrt service
+                if [ $(sudo systemctl is-active dxrt.service) == "active" ]; then
+                    print_colored_v2 "INFO" "[dxrt service already started]"
+
+                    # restart dxrt service
+                    DXRTD_LOG=$(sudo systemctl restart dxrt.service)
+                    if [ $? -eq 0 ]; then
+                        print_colored_v2 "SUCCESS" "[Restarted the dxrt service (dxrtd)]"
+                    else
+                        print_colored_v2 "WARNING" "[Failed to restart the dxrt service (dxrtd)]"
+                    fi
+                else
+                    print_colored_v2 "INFO" "[dxrt service not started]"
+
+                    # start dxrt service
+                    DXRTD_LOG=$(sudo systemctl start dxrt.service)
+                    if [ $? -eq 0 ]; then
+                        print_colored_v2 "SUCCESS" "[Started the dxrt service (dxrtd)]"
+                    else
+                        print_colored_v2 "WARNING" "[Failed to start the dxrt service (dxrtd)]"
+                    fi
+                fi
+            else
+                print_colored_v2 "INFO" "Service mode: off"
+
+                # check to active dxrt service
+                if [ $(sudo systemctl is-active dxrt.service) == "active" ]; then
+                    print_colored_v2 "INFO" "[dxrt service started]"
+
+                    # stop dxrt service
+                    DXRTD_LOG=$(sudo systemctl stop dxrt.service)
+                    if [ $? -eq 0 ]; then
+                        DXRTD_LOG=$(sudo systemctl disable dxrt.service)
+                        print_colored_v2 "SUCCESS" "[Stoped the dxrt service (dxrtd)]"
+                    else
+                        print_colored_v2 "FAIL" "[No registered the dxrt service (dxrtd)]"
+                    fi
+                else
+                    print_colored_v2 "INFO" "[dxrt service not started]"
+                fi
+
+                # check to enabled dxrt service
+                if [ $(sudo systemctl is-enabled dxrt.service) == "enabled" ]; then
+                    print_colored_v2 "INFO" "[dxrt service enabled]"
+
+                    # disable dxrt service
+                    DXRTD_LOG=$(sudo systemctl disable dxrt.service)
+                    if [ $? -eq 0 ]; then
+                        print_colored_v2 "SUCCESS" "[Disabled the dxrt service (dxrtd)]"
+                    else
+                        print_colored_v2 "WARNING" "[Failed to disable the dxrt service (dxrtd)]"
+                    fi
+                else
+                    print_colored_v2 "INFO" "[dxrt service not enabled]"
+                fi
+            fi
+        else
+            print_colored_v2 "WARNING" "Manually start the dxrtd service on the target system."
+        fi # native compile
+
+    fi # not build_in_docker
+}
+
+uninstall_dxrt() {
+    if [ -d $build_dir ]; then
+        pushd $build_dir >/dev/null
+        sudo ninja uninstall && {
+            print_colored_v2 "SUCCESS" "Uninstalled ninja build files"
+        } || {
+            return_code=$?
+            print_colored_v2 "FAIL" "Failed to uninstall the ninja build files."
+            exit $return_code
+        }
+        popd >/dev/null
+    else
+        print_colored_v2 "INFO" "No build directory found, skip to uninstall ninja build files."
+    fi
+}
+
+uninstall_python_package() {
+    print_colored_v2 "INFO" "[Uninstall python package ...]"
+
+    # Attempt to install the package
+    uninstall_result=$(pip uninstall -y dx-engine 2>&1)
+    local exit_code=$?
+    
+    # Check for PEP 668 specific error
+    if [[ "$uninstall_result" == *"PEP 668"* ]]; then
+        print_colored_v2 "WARNING" "PEP 668 externally-managed-environment error detected!"
+        print_colored_v2 "WARNING" "Skipping Python package uninstallation due to system restrictions."
+        print_colored_v2 "HINT" "Please use --venv_path option or activate a virtual environment:"
+        return 0  # Skip uninstallation
+    fi
+    
+    if [ $exit_code -eq 0 ]; then
+        print_colored_v2 "SUCCESS" "Uninstalled python package"
+    else
+        print_colored_v2 "FAIL" "Fail to uninstall python package: $uninstall_result"
+        exit $exit_code
+    fi
+}
+
+uninstall_dxrt_service() {
+    # Disable and stop dxrt service, then remove service file
+    if [ $CROSS_COMPILE == "native" ]; then
+        print_colored_v2 "INFO" "Uninstalling dxrt service..."
+        
+        # Stop the service if it's running
+        if systemctl is-active --quiet dxrt.service 2>/dev/null; then
+            DXRTD_LOG=$(sudo systemctl stop dxrt.service)
+            if [ $? -eq 0 ]; then
+                print_colored_v2 "SUCCESS" "[Stopped dxrt service]"
+            else
+                print_colored_v2 "WARNING" "[Failed to stop dxrt service]"
+            fi
+        fi
+        
+        # Disable the service
+        if systemctl is-enabled --quiet dxrt.service 2>/dev/null; then
+            DXRTD_LOG=$(sudo systemctl disable dxrt.service)
+            if [ $? -eq 0 ]; then
+                print_colored_v2 "SUCCESS" "[Disabled dxrt service]"
+            else
+                print_colored_v2 "WARNING" "[Failed to disable dxrt service]"
+            fi
+        fi
+        
+        # Remove the service file
+        if [ -f "/etc/systemd/system/dxrt.service" ]; then
+            sudo rm -f /etc/systemd/system/dxrt.service
+            if [ $? -eq 0 ]; then
+                print_colored_v2 "SUCCESS" "[Removed dxrt.service file]"
+                # Reload systemd to recognize the change
+                sudo systemctl daemon-reload
+                print_colored_v2 "SUCCESS" "[Reloaded systemd daemon]"
+            else
+                print_colored_v2 "WARNING" "[Failed to remove dxrt.service file]"
+            fi
+        else
+            print_colored_v2 "INFO" "[dxrt.service file not found]"
+        fi
+        
+        print_colored_v2 "SUCCESS" "[dxrt service uninstallation completed]"
+    else
+        print_colored_v2 "WARNING" "Manually uninstall the dxrt service on the target system."
+    fi
+}
+
+print_coverage_info() {
+    # Coverage information
+    if [ $enable_coverage == "true" ]; then
+        echo -e "${COLOR_GREEN}========================================${COLOR_RESET}"
+        echo -e "${COLOR_GREEN}Coverage collection is ENABLED${COLOR_RESET}"
+        echo -e "${COLOR_GREEN}========================================${COLOR_RESET}"
+        echo -e "${COLOR_YELLOW}After running tests, you can generate coverage reports with:${COLOR_RESET}"
+        echo -e "${COLOR_CYAN}  gcovr --root . --filter \"lib/.*\" --filter \"examples/.*\" --exclude \".*test.*\" --exclude \".*3rdparty.*\" --exclude \".*build.*\" --html-details coverage_report.html${COLOR_RESET}"
+        echo -e "${COLOR_CYAN}  gcovr --root . --filter \"lib/.*\" --filter \"examples/.*\" --exclude \".*test.*\" --exclude \".*3rdparty.*\" --exclude \".*build.*\" --sonarqube coverage.xml${COLOR_RESET}"
+        echo -e "${COLOR_GREEN}========================================${COLOR_RESET}"
+    fi
+}
+
+activate_venv() {
+    # Activate virtual environment if specified
+    if [ -n "$venv_path" ]; then
+        print_colored_v2 "INFO" "Activating virtual environment: ${venv_path}"
+        . ${venv_path}/bin/activate || {
+            return_code=$?
+            print_colored_v2 "ERROR" "Failed to activate the virtual environment."
+            exit $return_code
+        }
+    else
+        print_colored_v2 "INFO" "No virtual environment specified."
+    fi
+
+    # Check if virtual environment is activated
+    if [ -n "$VIRTUAL_ENV" ]; then
+        print_colored_v2 "INFO" "Virtual environment detected: $VIRTUAL_ENV"
+    else
+        print_colored_v2 "WARNING" "No virtual environment detected"
+    fi
+}
+
+build_mode() {
+    print_colored_v2 "INFO" "Build mode"
+
+    # this function is defined in scripts/common_util.sh
+    # Usage: os_check "supported_os_names" "ubuntu_versions" "debian_versions"
+    os_check "ubuntu debian" "18.04 20.04 22.04 24.04" "12"
+
+    # this function is defined in scripts/common_util.sh
+    # Usage: arch_check "supported_arch_names"
+    arch_check "amd64 x86_64 arm64 aarch64 armv7l"
+
+    build_dxrt
+    install_python_package
+    manage_dxrt_service
+
+    print_coverage_info
+
+    print_colored_v2 "SUCCESS" "Build mode completed"
+}
+
+uninstall_mode() {
+    print_colored_v2 "INFO" "Uninstall mode"
+
+    uninstall_dxrt
+    uninstall_python_package
+    uninstall_dxrt_service
+
+    print_colored_v2 "SUCCESS" "Uninstall mode completed"
+}
+
+main() {
+    activate_venv
+
+    if [ "$uninstall" == "true" ]; then
+        uninstall_mode
+    else
+        build_mode
+    fi
+}
+
+setup_env
 
 [ $# -gt 0 ] && \
 while (( $# )); do
@@ -143,245 +625,6 @@ while (( $# )); do
     esac
 done
 
-# display cmake options
-echo CMAKE_USE_ORT=$CMAKE_USE_ORT
-echo CMAKE_USE_SERVICE=$CMAKE_USE_SERVICE
-echo CMAKE_USE_PYTHON=$CMAKE_USE_PYTHON
+main
 
-# install onnx runtime
-if [ $install_ort == "true" ]; then
-    ./install.sh --onnxruntime --arch $target_arch
-fi
-
-if [ $target_arch == "arm64" ]; then
-    target_arch=aarch64
-fi
-
-if [ $target_arch == $host_arch ]; then
-    if [ -z $install ]; then
-        install=/usr/local
-    fi
-    CROSS_COMPILE="native"
-else
-    CROSS_COMPILE=$target_arch
-fi
-
-
-build_dir=build_"$target_arch"
-out_dir=bin
-
-cmd+=(-DCMAKE_TOOLCHAIN_FILE=cmake/toolchain.$target_arch.cmake)
-if [ $clang == "true" ]; then
-    cmd+=(-DUSE_CLANG=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++)
-fi
-
-cmd+=(-DCMAKE_VERBOSE_MAKEFILE=$verbose)
-if [ $build_type == "release" ] || [ $build_type == "debug" ] || [ $build_type == "relwithdebinfo" ]; then
-    cmd+=(-DCMAKE_BUILD_TYPE=$build_type);
-else
-    cmd+=(-DCMAKE_BUILD_TYPE=release);
-fi
-
-# Enable coverage for Debug builds or when explicitly requested
-if [ $enable_coverage == "true" ]; then
-    echo -e "${COLOR_YELLOW}Enabling code coverage collection...${COLOR_RESET}"
-    cmd+=(-DENABLE_COVERAGE=ON)
-    
-    if [ $clang == "true" ]; then
-        # Clang coverage flags
-        export CXXFLAGS="--coverage -fprofile-instr-generate -fcoverage-mapping -g $CXXFLAGS"
-        export CFLAGS="--coverage -fprofile-instr-generate -fcoverage-mapping -g $CFLAGS"
-        export LDFLAGS="--coverage $LDFLAGS"
-    else
-        # GCC coverage flags
-        export CXXFLAGS="--coverage -fprofile-arcs -ftest-coverage -g -O0 $CXXFLAGS"
-        export CFLAGS="--coverage -fprofile-arcs -ftest-coverage -g -O0 $CFLAGS"
-        export LDFLAGS="--coverage $LDFLAGS"
-    fi
-else
-    cmd+=(-DENABLE_COVERAGE=OFF)
-fi
-
-cmd+=(-DCMAKE_GENERATOR=Ninja)
-
-if [ ! -z $install ]; then
-    cmd+=(-DCMAKE_INSTALL_PREFIX=$install)
-fi
-cmd+=(-DPython_EXECUTABLE=$(which ${python_exec}))
-
-echo cmake args : ${cmd[@]}
-[ $clean_build == "true" ] && sudo rm -rf $build_dir
-
-# Remove stale Python extension modules when cleaning to avoid ABI/loader conflicts
-if [ $clean_build == "true" ]; then
-  echo "[CLEAN] Removing stale Python extension modules (_pydxrt*.so)"
-  rm -f "${SCRIPT_DIR}/python_package/src/dx_engine/capi/_pydxrt"*.so || true
-fi
-
-if [ $uninstall == "true" ]; then
-    cd $build_dir
-    sudo ninja uninstall
-else
-    if [ -n "$venv_path" ]; then
-        . ${venv_path}/bin/activate;
-    fi
-    mkdir -p $build_dir
-    mkdir -p $out_dir
-    sudo rm -rf $build_dir/bin
-    
-    # Proactively remove stale Python extension modules before (re)build
-    echo "[PREP] Removing stale Python extension modules (_pydxrt*.so)"
-    rm -f "${SCRIPT_DIR}/python_package/src/dx_engine/capi/_pydxrt"*.so || true
-    
-    # Clean coverage data from previous runs if coverage is enabled
-    if [ $enable_coverage == "true" ]; then
-        echo -e "${COLOR_YELLOW}Cleaning previous coverage data...${COLOR_RESET}"
-        find . -name "*.gcda" -delete 2>/dev/null || true
-        find . -name "*.gcno" -delete 2>/dev/null || true
-    fi
-    
-    cd $build_dir
-    # Prefer system CMake to avoid Python-venv cmake shim issues
-    if [ -x /usr/local/bin/cmake ]; then
-        CMAKE_BIN=/usr/local/bin/cmake
-    elif [ -x /usr/bin/cmake ]; then
-        CMAKE_BIN=/usr/bin/cmake
-    else
-        CMAKE_BIN=$(command -v cmake)
-    fi
-
-    echo "[BUILD] Using CMake: ${CMAKE_BIN}"
-    ${CMAKE_BIN} .. ${cmd[@]}
-    CMAKE_STATUS=$?
-    if [ $CMAKE_STATUS -ne 0 ]; then
-        echo -e "${TAG_ERROR} CMake configuration failed. If a Python virtualenv is active, it may be shadowing system cmake. Try deactivating the venv or ensure system CMake is used."
-        exit $CMAKE_STATUS
-    fi
-
-    ninja
-    sudo ninja install
-fi
-
-return_code=$?
-#echo $return_code
-
-if [ $return_code -ne 0 ]; then
-  exit $return_code
-fi
-
-if [ $CROSS_COMPILE != "native" ]; then
-    echo "dxtop is not intended for cross-compilation. If required, please build it natively on the target system."
-fi
-
-# install python package
-
-# This function checks the system's python3 version.
-# It prints a warning if the version is 3.8 or lower.
-check_python_version() {
-    # Check if python3 is installed and available in the system's PATH.
-    if ! command -v python3 &> /dev/null; then
-        echo "Warning: python3 is not installed or not in PATH."
-        return 1
-    fi
-
-    # Get the python3 version string (e.g., "3.8.10").
-    # This extracts the second field from an output like "Python 3.8.10".
-    local PY_VERSION
-    PY_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
-
-    # Split the version string into major and minor parts using the '.' delimiter.
-    local MAJOR MINOR
-    MAJOR=$(echo "$PY_VERSION" | cut -d. -f1)
-    MINOR=$(echo "$PY_VERSION" | cut -d. -f2)
-
-    # Check if the major version is less than 3, or if the major version is 3
-    # and the minor version is 9 or less.
-    if [[ "$MAJOR" -lt 3 || ( "$MAJOR" -eq 3 && "$MINOR" -le 8 ) ]]; then
-        # If the condition is met, print the warning message.
-        echo "Warning: The current Python version ($PY_VERSION) is 3.8 or lower. Some features may not work correctly."
-        return 1
-    else
-        # If the condition is not met, print the confirmation message.
-        echo "Python version ($PY_VERSION) meets the requirements."
-        return 0
-    fi
-}
-
-if [ $CMAKE_USE_PYTHON == "true" ]; then
-    if [ $CROSS_COMPILE == "native" ]; then
-
-        echo '[Install python package ...]'
-        check_python_version
-        cd ../python_package
-        pip install .
-        PIP_RETURN=$?
-        cd ..
-   
-        if [ $PIP_RETURN -eq 0 ]; then
-            pip list | grep dx-engine
-            echo -e ${COLOR_YELLOW}"[INFO] The Python package has been installed in the following Python version folder."${COLOR_RESET}
-            echo -e ${COLOR_YELLOW}"[INFO] "$(pip --version)${COLOR_RESET}
-            echo -e ${COLOR_YELLOW}"[INFO] To install it in a Python virtual environment,\nyou need to activate the virtual environment and then\nreinstall it by running 'pip install .' from the python_package folder."${COLOR_RESET}
-            echo '[Installed python package]'
-            if [ -n "$venv_path" ]; then
-                echo -e "${TAG_INFO} To activate the virtual environment, run:"
-                echo -e "${COLOR_BRIGHT_YELLOW_ON_BLACK}  source ${venv_path}/bin/activate ${COLOR_RESET}"
-            fi
-        else
-            echo -e ${COLOR_RED}"[ERROR] Fail to install python package"${COLOR_RESET}
-            exit 1
-        fi
-    else
-        echo "Manually install the dxrt Python module on the target system."
-    fi
-fi
-
-
-if [ $build_in_docker == "false" ]; then
-    # start or restart dxrt system service (dxrtd)
-    if [ $CROSS_COMPILE == "native" ]; then
-
-        if [ $CMAKE_USE_SERVICE == "true" ]; then
-            
-            DXRTD_LOG=$(sudo systemctl restart dxrt.service)
-            if [ $? -ne 0 ]; then
-                # Register the dxrt service (dxrtd)
-                sudo cp ./service/dxrt.service /etc/systemd/system/
-                DXRTD_LOG=$(sudo systemctl start dxrt.service)
-                if [ $? -eq 0 ]; then
-                    DXRTD_LOG=$(sudo systemctl enable dxrt.service)
-                    echo '[Registered the dxrt service (dxrtd)]'
-                    echo '[Started the dxrt service (dxrtd)]'
-                else
-                    echo '[Fail to register the dxrt service (dxrtd)]'
-                fi
-            else
-                DXRTD_LOG=$(sudo systemctl enable dxrt.service)
-                echo '[Restarted the dxrt service (dxrtd)]'
-            fi
-        else
-            
-            DXRTD_LOG=$(sudo systemctl stop dxrt.service)
-            if [ $? -eq 0 ]; then
-                DXRTD_LOG=$(sudo systemctl disable dxrt.service)
-                echo '[Stoped the dxrt service (dxrtd)]'
-            else
-                echo '[No registered the dxrt service (dxrtd)]'
-            fi
-        fi
-    else
-        echo "Manually start the dxrtd service on the target system."
-    fi # native compile
-
-fi # not build_in_docker
-
-# Coverage information
-if [ $enable_coverage == "true" ]; then
-    echo -e "${COLOR_GREEN}========================================${COLOR_RESET}"
-    echo -e "${COLOR_GREEN}Coverage collection is ENABLED${COLOR_RESET}"
-    echo -e "${COLOR_GREEN}========================================${COLOR_RESET}"
-    echo -e "${COLOR_YELLOW}After running tests, you can generate coverage reports with:${COLOR_RESET}"
-    echo -e "${COLOR_CYAN}  gcovr --root . --filter \"lib/.*\" --filter \"examples/.*\" --exclude \".*test.*\" --exclude \".*3rdparty.*\" --exclude \".*build.*\" --html-details coverage_report.html${COLOR_RESET}"
-    echo -e "${COLOR_CYAN}  gcovr --root . --filter \"lib/.*\" --filter \"examples/.*\" --exclude \".*test.*\" --exclude \".*3rdparty.*\" --exclude \".*build.*\" --sonarqube coverage.xml${COLOR_RESET}"
-    echo -e "${COLOR_GREEN}========================================${COLOR_RESET}"
-fi
+exit 0

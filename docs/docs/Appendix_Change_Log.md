@@ -1,4 +1,22 @@
-## v3.0.0 (August 2025)
+## v3.0.0 (September 2025)
+- Update the .dxnn file format to version 7 (from v6).
+- Update C++ exception handling to translate exceptions into Python for improved error handling.
+- Update the Python v6_converter with enhanced functionality.
+- Add support for models with multiple heads, tails, inputs, and outputs, including new C++ and Python APIs.
+- Add a new internal C++ converter for v6 models.
+- Add new Python APIs for handling device configuration and status retrieval.
+- Fix several multi-tasking bugs related to CPU offloading buffer management and PPU output buffer mis-pointing.
+- Fix a bug in the process of setting the PPU model format and layout.
+- Fix a critical bug affecting models with multi-output and multi-tail configurations.
+- Fix tensor mapping errors that occurred in non-ORT inference mode.
+- Fix a warning message in get_output_tensors_info and a vector access bug in _npuModel.
+- Fix an issue that prevented error messages from being displayed.
+- Fix flaws in output tensor mapping and memory address configuration.
+- Enhance OS and architecture checks in installation scripts 
+- Update documentation to reflect changes in supported CPU architecture and OS requirements.
+- Enhance build and uninstall scripts with common utilities and improved logging
+- Add PCIe bus number display for dxtop
+- Add profiling data memory usage tracking with high usage warnings.
 - Update user guide document
 - Force-disabled with a warning instead of throwing a runtime exception in builds that don't support USE_ORT.
 - Add time-base inference mode to run_model (-t, --time option)
