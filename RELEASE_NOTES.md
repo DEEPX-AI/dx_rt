@@ -16,7 +16,8 @@
 - Change build compiler has been updated to version 14 for both USE_ORT=ON and USE_ORT=OFF configurations.
 - Modify run_model logging to include host info (Linux only).
 - Enhance UI for better clarity, enabled dynamic data rendering, and added visual graphs for NPU Memory usage.
-- The default build option for DX-RT has been changed from USE_ORT=OFF to USE_ORT=ON. If the inference engine option is not specified separately, use_ort will be enabled by default, activating the CPU task for .dxnn models.
+- Change default build option for DX-RT from USE_ORT=OFF to USE_ORT=ON. If the inference engine option is not specified separately, use_ort will be enabled by default, activating the CPU task for .dxnn models.
+- Add automatic handling of input dummy padding and output dummy slicing when USE_ORT=OFF (build-time or via InferenceOption). Applications no longer need to add input dummy data or remove output dummy data for inference.
 ### 2. Fixed
 - fix kernel panic issue caused by wrong NPU channel number
 - feat: Improve error message readability in install, build scripts
@@ -49,6 +50,7 @@
 - Add weight checksum info for service
 - Add ENABLE_SHOW_MODEL_INFO build option and configuration item
 - Add dxtop tool, a terminal-based monitoring tool for Linux environments. It provides real-time insights into NPU core utilization and DRAM usage per NPU device.
+- Add support for both .dxnn file formats: v6 (compiled with dx_com 1.40.2 or later) and v7 (compiled with dx_com 2.x.x).
 
 ## v2.9.5 / 2025-06-09
 ### 1. Changed
