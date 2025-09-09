@@ -179,6 +179,21 @@ The API to convert from device format to **NCHW/NHWC** format will be supported 
 
 ---
 
+### Automatic Dummy Padding/Slicing (USE_ORT=OFF)
+
+Starting with v3.0.0, when ONNX Runtime is disabled (built with `USE_ORT=OFF` or runtime option `InferenceOption.use_ort = False`), the DX-RT runtime automatically:
+
+- Pads input tensors to the NPU-aligned format required by each task (e.g., IM2COL, align64 width/channel), and
+- Slices any alignment padding from output tensors before returning them to the application.
+
+As a result, applications no longer need to manually attach input dummy bytes or remove output dummy bytes in non-ORT inference paths. This behavior applies to both C++ and Python APIs, including PPU models. If you provide user output buffers, ensure the buffer size is at least `ie.GetOutputSize()` (C++) or `ie.get_output_size()` (Python).
+
+> Note
+> - This automatic handling is internal to the runtime’s NPU format processing and does not change model-visible tensor shapes reported by the APIs.
+> - When `use_ort = True`, CPU-side execution for unsupported subgraphs is enabled via ONNX Runtime; NPU tasks still follow the same alignment policy internally.
+
+---
+
 ## Profile Application
 
 ### Gather Timing Data per Event
