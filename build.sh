@@ -50,7 +50,23 @@ help() {
     exit 0
 }
 
+check_cross_compile() {
+    if [ $target_arch == "arm64" ]; then
+        target_arch=aarch64
+    fi
+
+    if [ $target_arch == $host_arch ]; then
+        if [ -z $install ]; then
+            install=/usr/local
+        fi
+        CROSS_COMPILE="native"
+    else
+        CROSS_COMPILE=$target_arch
+    fi
+}
+
 setup_env() {
+
     # cmake command
     cmd=()
     clean_build=false
@@ -67,19 +83,6 @@ setup_env() {
     python_exec="python3"
     venv_path=""
     enable_coverage=false
-
-    if [ $target_arch == "arm64" ]; then
-        target_arch=aarch64
-    fi
-
-    if [ $target_arch == $host_arch ]; then
-        if [ -z $install ]; then
-            install=/usr/local
-        fi
-        CROSS_COMPILE="native"
-    else
-        CROSS_COMPILE=$target_arch
-    fi
 
     build_dir=build_"$target_arch"
     out_dir=bin
@@ -587,6 +590,7 @@ main() {
     fi
 }
 
+
 setup_env
 
 [ $# -gt 0 ] && \
@@ -602,6 +606,7 @@ while (( $# )); do
         --arch)
             shift
             target_arch=$1
+            echo "Target architecture: $target_arch"
             shift;;
         --python_exec)
             shift
@@ -625,6 +630,7 @@ while (( $# )); do
     esac
 done
 
+check_cross_compile
 main
 
 exit 0
