@@ -553,14 +553,6 @@ activate_venv() {
 build_mode() {
     print_colored_v2 "INFO" "Build mode"
 
-    # this function is defined in scripts/common_util.sh
-    # Usage: os_check "supported_os_names" "ubuntu_versions" "debian_versions"
-    os_check "ubuntu debian" "18.04 20.04 22.04 24.04" "12"
-
-    # this function is defined in scripts/common_util.sh
-    # Usage: arch_check "supported_arch_names"
-    arch_check "amd64 x86_64 arm64 aarch64 armv7l"
-
     build_dxrt
     install_python_package
     manage_dxrt_service
