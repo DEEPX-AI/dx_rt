@@ -117,6 +117,10 @@ namespace dxrt {
          * \param[in] file file to save
         */
         void Save(const std::string& file);
+        void Flush();
+
+        std::map<std::string, std::vector<int64_t>> GetPerformanceData();
+
 
         
 

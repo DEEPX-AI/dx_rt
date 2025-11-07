@@ -41,8 +41,6 @@ using rapidjson::StringBuffer;
 using rapidjson::Value;
 using rapidjson::Writer;
 
-
-
 namespace dxrt
 {
     Profiler* Profiler::_staticInstance = nullptr;
@@ -61,7 +59,7 @@ namespace dxrt
 
 
     Profiler::Profiler()
-    : _save_exit(ENABLE_SAVE_PROFILER_DATA), _show_exit(ENABLE_SHOW_PROFILER_DATA), _enabled(USE_PROFILER)
+    : _save_exit(SAVE_PROFILER_DATA), _show_exit(SHOW_PROFILER_DATA), _enabled(USE_PROFILER)
     {
         LOG_DXRT_DBG << endl;
     }
@@ -383,6 +381,52 @@ namespace dxrt
             LOG_DXRT_ERR("Failed to open output file");
         }
     }
+
+    void Profiler::Flush()
+    {
+        if (_enabled == false) return;
+
+        std::unique_lock<std::mutex> lk(_lock);
+        timePoints.clear();
+        idx.clear();
+    }
+
+    std::map<string, std::vector<int64_t>> Profiler::GetPerformanceData()
+    {
+
+        std::unique_lock<std::mutex> lk(_lock);
+        if (timePoints.empty())
+            return {};
+        
+        std::map<string, std::vector<int64_t>> data;
+        
+        for (const auto& entry : timePoints) {
+            const std::string& mName = entry.first;
+            const std::vector<TimePoint>& tps = entry.second;
+
+            string baseName = mName;
+            
+            size_t bracketPos = mName.find('[');
+            if (bracketPos != string::npos)
+            {
+                baseName = mName.substr(0, bracketPos);
+            }
+
+            if(baseName != "NPU Core" && baseName != "NPU Task") continue;
+
+            for (const auto& tp : tps) {
+                if (tp.start.time_since_epoch().count() == 0 || tp.end.time_since_epoch().count() == 0 )
+                    continue;
+
+                auto elapsedTime = tp.end - tp.start;
+                int64_t elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(elapsedTime).count();
+                data[baseName].push_back(elapsed_ms);
+            }
+        }
+
+        return data;
+    }
+
     uint8_t DEBUG_DATA = 0;
     uint8_t SHOW_PROFILE = 0;
     uint8_t SKIP_INFERENCE_IO = 0;

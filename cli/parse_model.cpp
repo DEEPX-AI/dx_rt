@@ -20,6 +20,9 @@
 
 static struct option const opts[] = {
     { "model", required_argument, 0, 'm' },
+    { "verbose", no_argument, 0, 'v' },
+    { "output", required_argument, 0, 'o' },
+    { "json", no_argument, 0, 'j' },
     { "help", no_argument, 0, 'h' },
     { 0, 0, 0, 0 }
 };
@@ -30,8 +33,18 @@ using std::endl;
 using std::string;
 
 const char* usage = "parse model\n"
-                    "  -m, --model     model path\n"
-                    "  -h, --help      show help\n";
+                    "Usage: parse_model [options]\n\n"
+                    "Options:\n"
+                    "  -m, --model FILE    model path (required)\n"
+                    "  -v, --verbose       show detailed task dependencies and memory usage\n"
+                    "  -o, --output FILE   save the raw console output to a file (without color codes)\n"
+                    "  -j, --json          extract JSON binary data (graph_info, rmap_info) to files\n"
+                    "  -h, --help          show this help message\n\n"
+                    "Examples:\n"
+                    "  parse_model -m model.dxnn\n"
+                    "  parse_model -m model.dxnn -v\n"
+                    "  parse_model -m model.dxnn -o output.txt\n"
+                    "  parse_model -m model.dxnn -j    # Extracts model_graph_info.json, model_rmap_info_*.json\n";
 
 void help()
 {
@@ -42,22 +55,36 @@ int main(int argc, char *argv[])
 {
     int ret;
     string modelPath = "";
-    if (argc ==1)
+    bool verbose = false;
+    bool json_extract = false;
+    string outputFile = "";
+    
+    if (argc == 1)
     {
         cout << "Error: no arguments." << endl;
         help();
         return -1;
     }
 
+    
 #ifdef __linux__
     int optCmd;
-    while ((optCmd = getopt_long(argc, argv, "m:h", opts,
+    while ((optCmd = getopt_long(argc, argv, "m:vo:jh", opts,
         NULL)) != -1) {
         switch (optCmd) {
             case '0':
                 break;
             case 'm':
                 modelPath = strdup(optarg);
+                break;
+            case 'v':
+                verbose = true;
+                break;
+            case 'o':
+                outputFile = strdup(optarg);
+                break;
+            case 'j':
+                json_extract = true;
                 break;
             case 'h':
             default:
@@ -79,6 +106,26 @@ int main(int argc, char *argv[])
                 return -1;
             }
         }
+        else if (arg == "-v" || arg == "--verbose")
+        {
+            verbose = true;
+        }
+        else if (arg == "-o" || arg == "--output")
+        {
+            if (i + 1 < argc) {
+                outputFile = argv[++i];
+            }
+            else
+            {
+                std::cerr << "Error: -o option requires an argument." << endl;
+                return -1;
+            }
+        }
+
+        else if (arg == "-j" || arg == "--json")
+        {
+            json_extract = true;
+        }
         else if (arg == "-h" || arg == "--help")
         {
             help();
@@ -87,7 +134,11 @@ int main(int argc, char *argv[])
     }
 #endif
 
-    LOG_VALUE(modelPath);
+    if (modelPath.empty()) {
+        cout << "Error: model path is required." << endl;
+        help();
+        return -1;
+    }
 
     try {
         /*auto& devices = dxrt::CheckDevices();
@@ -109,7 +160,14 @@ int main(int argc, char *argv[])
             cout << "=======================================================" << endl;
         }*/
 
-        ret = dxrt::ParseModel(modelPath);
+        // Create parse options
+        dxrt::ParseOptions options;
+        options.verbose = verbose;
+        options.json_extract = json_extract;
+        options.output_file = outputFile;
+        options.no_color = !outputFile.empty(); // Disable color for file output
+
+        ret = dxrt::ParseModel(modelPath, options);
     }
     catch (const dxrt::Exception& e)
     {

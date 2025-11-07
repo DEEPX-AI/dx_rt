@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -54,6 +54,12 @@ public:
     static RequestPtr Create(Task *task_, Tensors inputs_, Tensors outputs_, void *userArg, int jobId=0);
     static RequestPtr Create(Task *task_, void *input, void *output, void *userArg, int jobId=0);
     static RequestPtr GetById(int id);
+#ifdef DXRT_USE_DEVICE_VALIDATION
+    static RequestPtr CreateValidateRequest(Task* task_, void* input, void* output);
+    void* ValidateBufferPtr();
+    bool is_validate_request() const { return _is_validate_request; }
+    Tensor ValidateOutputTensor() const;
+#endif
     static RequestPtr Pick();
     static void ShowAll();
     void Wait();
@@ -94,10 +100,6 @@ public:
     void setNpuInferenceAcc(dxrt_request_acc_t npuInferenceAcc);
     void setInferenceJob(InferenceJob* job);  // works for start next request or complete whole inference
     void onRequestComplete(RequestPtr req);
-	
-    int  DSP_GetDspEnable() { return _isDsp.load(); }
-    void DSP_SetDspEnable(int enable) { _isDsp.store(enable); }
-    void DSP_reqOnRequestComplete(RequestPtr req);
 
     void setBufferSet(std::unique_ptr<BufferSet> buffers);
     void releaseBuffers();
@@ -125,7 +127,6 @@ private:
     std::atomic<Status> _status = {REQ_IDLE};
     std::shared_ptr<TimePoint> _timePoint;
     int _latency;
-    std::atomic<int> _isDsp{0};
     bool _latencyValid;
     bool _validateDevice = false;
     int16_t _modelType;
@@ -133,9 +134,12 @@ private:
     InferenceJob*  _job;
     std::atomic<bool> _use_flag = {false};
     std::mutex _reqLock;
-    
+
     std::unique_ptr<BufferSet> _bufferSet;
     bool _bufferReleased = false;
+    bool _is_validate_request = false;
+    uint32_t _validate_output_size = 0;
+    void* _validate_output_ptr = nullptr;
 
 };
 class DXRT_API RequestMap
@@ -154,8 +158,5 @@ DXRT_API std::ostream& operator<<(std::ostream&, const Request::Status&);
 
 int InferenceRequest(RequestPtr req);
 int ProcessResponse(RequestPtr req, dxrt_response_t *response=nullptr, int deviceType = -1);
-
-int DSP_ProcRequest(RequestPtr req, dxrt_dspcvmat_t *dspCvMatInPtr, dxrt_dspcvmat_t *dspCvMatOutPtr);
-int DSP_ProcessResponse(RequestPtr req);
 
 } // namespace dxrt

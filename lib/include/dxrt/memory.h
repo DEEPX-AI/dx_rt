@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -26,7 +26,7 @@ namespace MemoryConfig {
     constexpr double MEDIUM_FRAGMENTATION_THRESHOLD = 0.5;   // 50% - trigger light defrag
     constexpr double LOW_FRAGMENTATION_THRESHOLD = 0.3;      // 30% - trigger warning and basic cleanup
     constexpr uint64_t LARGE_ALLOCATION_THRESHOLD = 100 * 1024 * 1024;  // 100MB - considered large
-    
+
     // Memory alignment for better performance
     constexpr uint64_t MEMORY_ALIGNMENT = 64;  // 64-byte alignment for NPU efficiency
 }
@@ -70,19 +70,19 @@ public:
     uint64_t data() const;
     uint64_t free_size() const;
     uint64_t used_size() const;
-    
+
     // Enhanced fragmentation management
     MemoryFragmentationInfo GetFragmentationInfo() const;
     bool CanAllocateContiguous(uint64_t required) const;
     void PrintMemoryMap() const;
-    
+
     // Smart defragmentation functions
     bool TryDefragmentation(uint64_t required_size);
     void CompactMemory();
     uint64_t GetLargestFreeBlock() const;
-    
+
     friend DXRT_API std::ostream& operator<<(std::ostream& os, const Memory& memory);
-    
+
 private:
     // Core memory management
     std::map<uint64_t, MemoryNode> _pool;
@@ -94,11 +94,12 @@ private:
     uint64_t _dataEnd;  // pointer to addr
     uint64_t _used_size = 0;
     std::mutex _lock;
-    
+
     // Helper functions
     uint64_t AlignSize(uint64_t size) const;
     std::map<uint64_t, MemoryNode>::iterator FindBestFit(uint64_t required);
     void MergeAllAdjacentFreeBlocks();
+    MemoryFragmentationInfo GetFragmentationInfoNoLock() const;
 };
 
 } // namespace dxrt

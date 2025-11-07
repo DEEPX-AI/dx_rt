@@ -12,6 +12,8 @@
 #include <fstream>
 #include <cstring>
 #include <string>
+#include <unordered_set>
+#include <unordered_map>
 
 #include "dxrt/filesys_support.h"
 #include "dxrt/exception/exception.h"
@@ -439,7 +441,75 @@ int V7ModelParser::LoadGraphInfo(deepx_graphinfo::GraphInfoDatabase& param, Mode
                 }
             }
 
+            // Parse head and tail flags from graph_info
+            if (subGraphObj.HasMember("head") && subGraphObj["head"].IsBool())
+                subGraph.head() = subGraphObj["head"].GetBool();
+
+            if (subGraphObj.HasMember("tail") && subGraphObj["tail"].IsBool())
+                subGraph.tail() = subGraphObj["tail"].GetBool();
+
             param.subgraphs().push_back(subGraph);
+        }
+    }
+
+    // Fallback inference for missing head/tail flags (backward compatibility)
+    // If any subgraph lacks explicit head/tail specification, we infer:
+    //  head: no producers for any of its input tensors (owner empty) OR it consumes a model-level input.
+    //  tail: none of its output tensors are consumed by other subgraphs (users empty) OR it produces a model-level output.
+    // We only set a flag if it was false and inference condition matches to avoid overriding explicit JSON.
+    if (!param.subgraphs().empty()) {
+        // Build quick lookup of model-level IO for faster checks
+        std::unordered_set<std::string> modelInputs(param.inputs().begin(), param.inputs().end());
+        std::unordered_set<std::string> modelOutputs(param.outputs().begin(), param.outputs().end());
+
+        // Build tensor usage maps to derive producer/consumer relationships
+        std::unordered_map<std::string, int> producerCount; // number of owners (should be 0 or 1)
+        std::unordered_map<std::string, int> consumerCount; // total user count across subgraphs
+        for (const auto& sg : param.subgraphs()) {
+            for (const auto& t : sg.outputs()) {
+                producerCount[t.name()] += 1;
+                for (const auto& u : t.users()) consumerCount[u] += 1;
+            }
+        }
+
+        for (auto& sg : param.subgraphs()) {
+            bool anyInputModelLevel = false;
+            bool allInputsNoProducer = true; // will confirm if owner empty or producerCount==0
+            for (const auto& t : sg.inputs()) {
+                if (modelInputs.count(t.name())) anyInputModelLevel = true;
+                // If tensor has an owner string referencing another subgraph output, treat as having a producer.
+                if (!t.owner().empty()) {
+                    allInputsNoProducer = false;
+                } else {
+                    // owner empty; check if someone else lists it as output
+                    if (producerCount.count(t.name()) && producerCount[t.name()] > 0) {
+                        allInputsNoProducer = false;
+                    }
+                }
+            }
+
+            bool anyOutputModelLevel = false;
+            bool allOutputsNoConsumer = true;
+            for (const auto& t : sg.outputs()) {
+                if (modelOutputs.count(t.name())) anyOutputModelLevel = true;
+                // If some other tensor lists this as user it will appear in consumerCount for that name
+                if (consumerCount.count(t.name()) && consumerCount[t.name()] > 0) {
+                    allOutputsNoConsumer = false;
+                }
+                // Also if any output tensor lists users explicitly, then it has consumers
+                if (!t.users().empty()) allOutputsNoConsumer = false;
+            }
+
+            if (!sg.head()) {
+                if (anyInputModelLevel || allInputsNoProducer) {
+                    sg.head() = true;
+                }
+            }
+            if (!sg.tail()) {
+                if (anyOutputModelLevel || allOutputsNoConsumer) {
+                    sg.tail() = true;
+                }
+            }
         }
     }
 
@@ -609,7 +679,9 @@ std::string V7ModelParser::LoadRmapInfo(deepx_rmapinfo::rmapInfoDatabase& param,
                     tensor.layout() = deepx_rmapinfo::GetLayoutNum(tensorObj["layout"].GetString());
 
                 if (tensorObj.HasMember("align_unit") && tensorObj["align_unit"].IsInt())
+                {
                     tensor.align_unit() = tensorObj["align_unit"].GetInt();
+                }
 
                 if (tensorObj.HasMember("transpose") && tensorObj["transpose"].IsString())
                     tensor.transpose() = deepx_rmapinfo::GetTransposeNum(tensorObj["transpose"].GetString());
@@ -707,7 +779,9 @@ std::string V7ModelParser::LoadRmapInfo(deepx_rmapinfo::rmapInfoDatabase& param,
                     if (memObj.HasMember("size") && memObj["size"].IsInt64())
                         mem.size() = memObj["size"].GetInt64();
                     if (memObj.HasMember("type") && memObj["type"].IsString())
+                    {
                         mem.type() = deepx_rmapinfo::GetMemoryTypeNum(memObj["type"].GetString());
+                    }
                     tensor.memory() = mem;
                 }
 
@@ -753,7 +827,7 @@ std::string V7ModelParser::LoadRmapInfo(deepx_rmapinfo::rmapInfoDatabase& param,
                         for (rapidjson::SizeType j = 0; j < shapeArr.Size(); j++) {
                             int64_t value = shapeArr[j].GetInt64();
                             if (j == shapeArr.Size() - 1)
-                                value = GetAlign(value);
+                                value = GetAlign(value, tensor.align_unit());
                             product *= value;
                         }
                         int elementSize = getElementSize(tensor.dtype_encoded());

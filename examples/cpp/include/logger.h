@@ -19,10 +19,10 @@ class Logger
 {
     public:
         enum class Level {
-            NONE = 0,
-            ERROR,
-            INFO,
-            DEBUG
+            LOGLEVEL_NONE = 0,
+            LOGLEVEL_ERROR,
+            LOGLEVEL_INFO,
+            LOGLEVEL_DEBUG
         };
 
     private:
@@ -48,7 +48,7 @@ class Logger
         //member functions
         void Error(const std::string& msg) const
         {
-            if(_level.load() >= Level::ERROR)
+            if(_level.load() >= Level::LOGLEVEL_ERROR)
             {
                 std::cerr << "[ERROR] " << msg << "\n";
             }
@@ -56,7 +56,7 @@ class Logger
     
         void Info(const std::string& msg) const
         {
-            if(_level.load() >= Level::INFO)
+            if(_level.load() >= Level::LOGLEVEL_INFO)
             {
                 std::cout << "[INFO] " << msg << "\n";
             }
@@ -64,7 +64,7 @@ class Logger
 
         void Debug(const std::string& msg) const
         {
-            if(_level.load() >= Level::DEBUG)
+            if(_level.load() >= Level::LOGLEVEL_DEBUG)
             {
                 std::cout << "[DEBUG] " << msg << "\n";
             }
@@ -75,7 +75,7 @@ class Logger
         
 
     private:
-        Logger() : _level(Level::INFO) {}
+        Logger() : _level(Level::LOGLEVEL_INFO) {}
         ~Logger() = default;
 
         //forbidden copy

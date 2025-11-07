@@ -8,6 +8,7 @@
  */
 
 #include "dxrt/dxrt_api.h"
+#include "dxrt/extern/cxxopts.hpp"
 #include <iostream>
 #include <vector>
 #include <map>
@@ -774,12 +775,28 @@ bool example9_simpleAsyncInference(dxrt::InferenceEngine& ie, int loopCount = 3)
 
 int main(int argc, char* argv[]) {
     std::string modelPath;
-    
-    if (argc > 1) {
-        modelPath = argv[1];
-    } else {
-        std::cout << "Usage: " << argv[0] << " <model_path>" << std::endl;
-        std::cout << "Example: " << argv[0] << " model.dxnn" << std::endl;
+    int loop_count;
+
+    cxxopts::Options options("multi_input_model_inference", "Multi-input model inference examples");
+    options.add_options()
+        ("m,model", "Path to model file (.dxnn)", cxxopts::value<std::string>(modelPath))
+        ("l,loops", "Number of loops", cxxopts::value<int>(loop_count)->default_value("3"))
+        ("h,help", "Print usage");
+
+    try
+    {
+        auto result = options.parse(argc, argv);
+
+        if (result.count("help") || !result.count("model"))
+        {
+            std::cout << options.help() << std::endl;
+            return result.count("help") ? 0 : -1;
+        }
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << "Error parsing arguments: " << e.what() << std::endl;
+        std::cout << options.help() << std::endl;
         return -1;
     }
     
@@ -815,8 +832,8 @@ int main(int argc, char* argv[]) {
         testResults.emplace_back("Batch Explicit", example7_batchInferenceExplicit(ie, 3));
         
         // Async inference tests
-        testResults.emplace_back("Async Callback", example8_asyncInferenceCallback(ie, 3));
-        testResults.emplace_back("Simple Async", example9_simpleAsyncInference(ie, 3));
+        testResults.emplace_back("Async Callback", example8_asyncInferenceCallback(ie, loop_count));
+        testResults.emplace_back("Simple Async", example9_simpleAsyncInference(ie, loop_count));
         
     } catch (const dxrt::Exception& e) {
         std::cerr << "[ERROR] Critical Error: " << e.what() << " (Code: " << e.code() << ")" << std::endl;

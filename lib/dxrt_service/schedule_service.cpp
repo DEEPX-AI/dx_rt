@@ -37,16 +37,11 @@ void SchedulerService::StopScheduler(int procId)
     std::unique_lock<std::mutex> lk(_lock);
     _map[procId].clear();
     _map.erase(procId);
-    _procId.emplace_back(procId);
     cleanTaskInferenceTime(procId);
 }
 
-void SchedulerService::StartScheduler(int procId)
-{
-    std::unique_lock<std::mutex> lk(_lock);
-    _procId.erase(std::remove(_procId.begin(), _procId.end(), procId), _procId.end());
-}
 
+/* 
 int SchedulerService::GetProcLoad(int procId)
 {
     std::unique_lock<std::mutex> lk(_lock);
@@ -57,6 +52,7 @@ int SchedulerService::GetProcLoad(int procId)
         return 0;
     }
 }
+*/
 
 void SchedulerService::ClearAllLoad()
 {
@@ -76,24 +72,28 @@ void SchedulerService::ClearProcLoad(int procId)
 void SchedulerService::AddScheduler(const dxrt::dxrt_request_acc_t& packet_data, int deviceId)
 {
     std::unique_lock<std::mutex> lk(_lock);
-
+    
     int proc_id = packet_data.proc_id;
     int req_id = packet_data.req_id;
+
     _map[proc_id][req_id] = packet_data;
-    if (std::find(_procId.begin(), _procId.end(), proc_id) == _procId.end())
-        pushRequest(deviceId, proc_id, req_id, packet_data.task_id);
-    else
-    {
-        LOG_DXRT_S_DBG << "SCHEDULER FAULT AddScheduler - pushRequest" << proc_id << " " << req_id << endl;
-    }
     _loadsProc[proc_id]++;
+
+    LOG_DXRT_S_DBG << "[AddScheduler] PID: " << proc_id
+               << ", Device: " << deviceId
+               << ", Task: " << packet_data.task_id
+               << ", Bound from request: " << packet_data.bound << endl;
+
+    pushRequest(deviceId, proc_id, req_id, packet_data.task_id);
+  
+    LOG_DXRT_S_DBG << "Load Increase in Add Scheduler - Process: "<< proc_id<<" Load Proc: "<<_loadsProc[proc_id]<<" Request Id: "<<req_id<<endl;
     if (_loads[deviceId].load() < DX_RT_SERVICE_SCHED_THRE)
     {
         schedule(deviceId);
     }
     else
     {
-        LOG_DXRT_S_DBG << "SCHEDULER FAULT AddScheduler - loads"<< proc_id << " " << req_id << endl;
+        LOG_DXRT_S << "SCHEDULER FAULT AddScheduler - "<< proc_id << " " << req_id << endl;
     }
 }
 
@@ -106,31 +106,47 @@ void SchedulerService::FinishJobs(int deviceId, const dxrt::dxrt_response_t& res
     {
         std::unique_lock<std::mutex> lk(_lock);
 
+        // Remove from running requests
+        RemoveRunningRequest(proc_id, deviceId, req_id);
 
         // get response_data
+        LOG_DXRT_S_DBG<< deviceId << "," <<proc_id << " 's req " << req_id <<
+            ", load: " << _loads[deviceId].load() << ", loadsProc" << _loadsProc[proc_id].load() << "DMA Channel: "<< response_data.dma_ch << endl;
 
-        _loadsProc[proc_id]--;
-        _loads[deviceId]--;
-
-        LOG_DXRT_S_DBG << deviceId << "," <<proc_id << " 's req " << req_id <<
-            ", load: " << _loads[deviceId].load() << ", loadsProc" << _loadsProc[proc_id].load() << endl;
+        // Device's Loads are always decremented in FinishJobs to maintain consistency -> even for already terminated processes.
+        if(_loads[deviceId] > 0){
+            _loads[deviceId]--;
+        } else {
+            LOG_DXRT_DBG << "_loads[" << deviceId << "] is zero, cannot decrement." << endl;
+        }
 
         auto it = _map.find(proc_id);
-        if (it == _map.end())
+        if (it == _map.end()) {
+            LOG_DXRT_S_DBG << "Cannot Find processId in _map";
             return;
+        }
+
+        // If check_die_thread was called first, _loadsProc would have been initialized to 0, so ignore.
+        // This is only meaningful when FinishJobs is called before check_die_thread (when >0).
+
+        if(_loadsProc.count(proc_id) && _loadsProc[proc_id] > 0){
+            _loadsProc[proc_id]--;
+        } else{
+            LOG_DXRT_DBG << "_loadsProc[" << proc_id << "] is zero or not found, cannot decrement." << endl;
+        }
+
+
         int task_id = it->second[req_id].task_id;
+
         updateTaskInferenceTime(proc_id, task_id, response_data.inf_time);
         it->second.erase(req_id);
+
         schedule(deviceId);
-        if (std::find(_procId.begin(), _procId.end(), proc_id) == _procId.end())
-        {
-            lk.unlock();
-            _callBack(response_to_send, deviceId);  // send result to client
-        }
-            else
-        {
-            LOG_DXRT_S_DBG << "SCHEDULER FAULT2 "<< proc_id << " " << req_id << endl;
-        }
+    
+        lk.unlock();
+        _callBack(response_to_send, deviceId);  // send result to client
+        LOG_DXRT_S_DBG << "At FinishJobs end - After _callBack end's successful"<<endl;
+       
     }
 }
 
@@ -152,7 +168,6 @@ void SchedulerService::SetTaskValidator(std::function<bool(pid_t, int, int)> val
 void SchedulerService::StopTaskInference(pid_t pid, int deviceId, int taskId)
 {
     std::unique_lock<std::mutex> lk(_lock);
-
     LOG_DXRT_S_DBG << "Stopping inference for PID " << pid << ", Device " << deviceId << ", Task " << taskId << endl;
 
     // Remove all pending inference requests for this specific task
@@ -160,24 +175,47 @@ void SchedulerService::StopTaskInference(pid_t pid, int deviceId, int taskId)
     if (procIt != _map.end()) {
         auto& requests = procIt->second;
         std::vector<int> requestsToRemove;
-
+        
+        
         for (const auto& reqPair : requests) {
             int reqId = reqPair.first;
             const auto& reqData = reqPair.second;
 
-            if (reqData.task_id == static_cast<uint32_t>(taskId)) {
+             // Remove only if request is not currently running
+            if (reqData.task_id == static_cast<uint32_t>(taskId) && !IsRequestRunning(pid, deviceId, reqId)) {
                 requestsToRemove.push_back(reqId);
                 LOG_DXRT_S_DBG << "Stopping inference request " << reqId
                                << " for Task " << taskId << ", PID " << pid
                                << " on device " << deviceId << endl;
             }
+            else {
+                LOG_DXRT_S_ERR("Task id mismatch in StopTaskInference");
+            }
         }
 
-        // Remove the requests and update load counters
+        // Remove non-running requests
         for (int reqId : requestsToRemove) {
             requests.erase(reqId);
-            _loadsProc[pid]--;
-            _loads[deviceId]--;
+            if(_loadsProc.count(pid) && _loadsProc[pid] > 0){
+                _loadsProc[pid]--;
+                LOG_DXRT_S_DBG << "Decrease loadsProc in StopTaskInference - Process: "<< pid<<"LoadsProc: "<<_loadsProc[pid]<<"RequestId: "<<reqId<<endl;
+            }
+            
+            else if (_loadsProc.count(pid) && _loadsProc[pid] == 0){
+                LOG_DXRT_S_DBG << "Cannot Decrease loadsProc in StopTaskInference - LoadsProc is already zero."<<   endl;
+            }
+            else {
+                LOG_DXRT_S_DBG << "[StopTaskInference] _loadsProc[" << pid << "] cannot not found, cannot decrement." << endl;
+            }
+
+            if(_loads[deviceId] > 0){
+                _loads[deviceId]--;
+                LOG_DXRT_S_DBG << "Load Decrease in StopTaskInference - Process: "<< pid<<"LoadProc: " <<_loadsProc[pid];
+            } 
+            
+            else {
+                LOG_DXRT_S_DBG << "[StopTaskInference] _loads[" << deviceId << "] is zero or not found, cannot decrement." << endl;
+            }
         }
 
         LOG_DXRT_S_DBG << "Stopped " << requestsToRemove.size() << " inference requests for Task "
@@ -204,8 +242,19 @@ void SchedulerService::StopAllInferenceForProcess(pid_t pid, int deviceId)
                 const auto& reqData = reqIt->second;
                 if (reqData.task_id == 0) {  // Assuming task_id 0 means it's a process-level request
                     reqIt = it->second.erase(reqIt);
-                    _loadsProc[pid]--;
-                    _loads[deviceId]--;
+                    
+                    if(_loadsProc.count(pid) &&  _loadsProc[pid] > 0){
+                        _loadsProc[pid]--;
+                    } else {
+                        LOG_DXRT_S_DBG << "[StopAllInferenceForProcess] _loadsProc[" << pid << "] is zero or not found, cannot decrement." << endl;
+                    }
+
+                    if(_loads[deviceId] > 0){
+                        _loads[deviceId]--;
+                    } else {
+                        LOG_DXRT_S_DBG << "[StopAllInferenceForProcess] _loads[" << deviceId << "] is zero or not found, cannot decrement." << endl;
+                    }
+
                 } else {
                     reqIt++;
                 }
@@ -231,6 +280,7 @@ void SchedulerService::StopAllInferenceForProcess(pid_t pid, int deviceId)
 
 void SchedulerService::cleanDiedProcess(int pid)
 {
+    std::unique_lock<std::mutex> lk(_lock);
     _map.erase(pid);
 }
 
@@ -246,6 +296,7 @@ void SchedulerService::doInference(int deviceId, int procId, int reqId)
     dxrt::dxrt_request_acc_t new_req = _map[procId][reqId];
 
     // Task validity verification
+    // This could cause DeadLock if not handled carefully
     if (_taskValidator && !_taskValidator(procId, deviceId, new_req.task_id)) {
         LOG_DXRT_S_ERR("Task " + std::to_string(new_req.task_id) +
                        " is not valid for process " + std::to_string(procId) +
@@ -262,8 +313,20 @@ void SchedulerService::doInference(int deviceId, int procId, int reqId)
         // Invalid task requests are removed from the queue and load counter is decreased
         {
             std::unique_lock<std::mutex> lk(_lock);
-            _loadsProc[procId]--;
-            _loads[deviceId]--;
+            if(_loadsProc.count(procId) &&  _loadsProc[procId] > 0){
+                // std::cout<<"Process :"<< procId<<"Load Decrease in Invalid Task"<<std::endl;
+                _loadsProc[procId]--;
+
+            }   else {
+                LOG_DXRT_S_DBG << "[doInference] _loadsProc[" << procId << "] is zero or not found, cannot decrement." << endl;
+            }
+
+            if(_loads[deviceId] > 0){
+                _loads[deviceId]--;
+            } else {
+                LOG_DXRT_S_DBG << "[doInference] _loads[" << deviceId << "] is zero or not found, cannot decrement." << endl;
+            }
+    
             auto it = _map.find(procId);
             if (it != _map.end()) {
                 it->second.erase(reqId);
@@ -286,8 +349,18 @@ void SchedulerService::doInference(int deviceId, int procId, int reqId)
         // Remove from queue and decrease load
         {
             std::unique_lock<std::mutex> lk(_lock);
-            _loadsProc[procId]--;
-            _loads[deviceId]--;
+            if(_loadsProc.count(procId) && _loadsProc[procId] > 0){
+                _loadsProc[procId]--;
+            }   else {
+                LOG_DXRT_S_DBG << "[doInference] _loadsProc[" << procId << "] is zero or not found, cannot decrement." << endl;
+            }
+
+            if(_loads[deviceId] > 0){
+                _loads[deviceId]--;
+            } else {
+                LOG_DXRT_S_DBG << "[doInference] _loads[" << deviceId << "] is zero or not found, cannot decrement." << endl;
+            }
+
             auto it = _map.find(procId);
             if (it != _map.end()) {
                 it->second.erase(reqId);
@@ -297,22 +370,30 @@ void SchedulerService::doInference(int deviceId, int procId, int reqId)
     }
 
     {
+         AddRunningRequest(procId, deviceId, reqId);
         _loads[deviceId]++;
+
+        //Scheduling debug log
+        LOG_DXRT_S_DBG << "Do Inference - InferenceRequest start" << deviceId << " - PROCESS_ID : " << procId << " - REQ_ID : " << reqId << " - Device LOAD : " << _loads[deviceId].load() << std::endl;
         // do inference
 
         // if(reqId%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || reqId%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
         // {
         //    std::cout<<"[DoINF      ]              DEVICE : "<<deviceId<<" - PROCESS_ID : "<<procId<<" - REQ_ID : "<<reqId<<" - LOAD : "<<_loads[deviceId]<<endl;//AGING LOG
         //}
-
         int retval = _devices[deviceId]->InferenceRequest(&new_req);
+        LOG_DXRT_S_DBG << "Do Inference - InferenceRequest end"<<deviceId<<" - PROCESS_ID : "<<procId<<" -Bound: " << new_req.bound << " - REQ_ID : "<<reqId<<" - Device LOAD : "<<_loads[deviceId].load()<<std::endl;//AGING LOG
+        
         if ((retval == -EBUSY) || (retval == -EAGAIN))
         {
             _loads[deviceId]--;
+            RemoveRunningRequest(procId, deviceId, reqId);
             LOG_DXRT_S << "AGAIN retval" << endl;
             pushRequest(deviceId, procId, reqId, new_req.task_id);
             return;
         }
+        
+        // No empty queue in list(-2) case
         if (retval != 0)
         {
             LOG_DXRT_S << "Report error message to client:" << retval << endl;
@@ -345,6 +426,82 @@ void SchedulerService::cleanTaskInferenceTime(int procId)
     std::ignore = procId;
 }
 
+int SchedulerService::GetRunningRequestCount(pid_t pid, int deviceId) 
+{
+    std::lock_guard<std::mutex> lock(_runningRequestsMutex);
+    auto key = std::make_pair(pid, deviceId);
+    return _runningRequests[key].size();
+}
+
+bool SchedulerService::IsRequestRunning(pid_t pid, int deviceId, int reqId)
+{
+    std::lock_guard<std::mutex> lock(_runningRequestsMutex);
+    auto key = std::make_pair(pid, deviceId);
+    return _runningRequests[key].count(reqId) > 0; 
+}
+
+void SchedulerService::AddRunningRequest(pid_t pid, int deviceId, int reqId) 
+{
+    std::lock_guard<std::mutex> lock(_runningRequestsMutex);
+    auto key = std::make_pair(pid, deviceId);
+    _runningRequests[key].insert(reqId);  
+    
+    LOG_DXRT_S_DBG << "Added running request: PID " << pid 
+                   << ", Device " << deviceId 
+                   << ", Request " << reqId 
+                   << " (total: " << _runningRequests[key].size() << ")" << endl;
+}
+
+void SchedulerService::RemoveRunningRequest(pid_t pid, int deviceId, int reqId) 
+{
+    std::lock_guard<std::mutex> lock(_runningRequestsMutex);
+    auto key = std::make_pair(pid, deviceId);
+    
+    auto& requestSet = _runningRequests[key];
+    auto it = requestSet.find(reqId);
+    if (it != requestSet.end()) {
+        requestSet.erase(it);
+        LOG_DXRT_S_DBG << "Removed running request: PID " << pid 
+                       << ", Device " << deviceId 
+                       << ", Request " << reqId 
+                       << " (remaining: " << requestSet.size() << ")" << endl;
+    }
+}
+
+void SchedulerService::ClearRunningRequests(pid_t pid, int deviceId) 
+{
+    std::lock_guard<std::mutex> lock(_runningRequestsMutex);
+    auto key = std::make_pair(pid, deviceId);
+    
+    auto it = _runningRequests.find(key);
+    if (it != _runningRequests.end()) {
+        LOG_DXRT_S_DBG << "Force clearing " << it->second.size() 
+                   << " running requests for PID " << pid 
+                   << ", Device " << deviceId << endl;
+        
+        _runningRequests.erase(it);
+    }
+}
+
+std::vector<int> SchedulerService::GetRunningRequestIds(pid_t pid, int deviceId) 
+{
+    std::lock_guard<std::mutex> lock(_runningRequestsMutex);
+    auto key = std::make_pair(pid, deviceId);
+    
+    std::vector<int> result;
+    auto it = _runningRequests.find(key);
+    if (it != _runningRequests.end()) {
+        const std::set<int>& requestSet = it->second;
+        result.reserve(requestSet.size());
+        
+        for (int reqId : requestSet) {
+            result.push_back(reqId);
+        }
+    }
+    
+    return result;
+}
+
 FIFOSchedulerService::FIFOSchedulerService(std::vector<std::shared_ptr<dxrt::ServiceDevice>> devices_)
 : SchedulerService(devices_), _device_queues(_devices.size())
 {
@@ -354,12 +511,14 @@ void FIFOSchedulerService::pushRequest(int deviceId, int procId, int reqId, int 
 {
     std::ignore = taskId;
     _device_queues[deviceId].push(std::make_pair(procId, reqId));
+    LOG_DXRT_S_DBG << "[Device " << deviceId << "] Push Done. Current Queue size: " << _device_queues[deviceId].size() << std::endl;
 }
 
 void FIFOSchedulerService::schedule(int deviceId)
 {
     if (_device_queues[deviceId].empty())
     {
+        LOG_DXRT_S_DBG << "_device_queue is empty.So nothing to Schedule.";
         return;
     }
     else

@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -38,9 +38,9 @@ struct DXRT_API TaskStats
 {
     static TaskStats& GetInstance(int id);
     std::string name;
-    int id;
-    float latency_us;
-    float inference_time_us;
+    int id = 0;
+    float latency_us = 0.0f;
+    float inference_time_us = 0.0f;
     std::vector<int> latency_data;
     std::vector<uint32_t> inference_time_data;
 };
@@ -51,17 +51,17 @@ struct BufferSet {
     void* encoded_input;
     void* output;
     void* encoded_output;
-    
+
     BufferSet() : encoded_input(nullptr), output(nullptr), encoded_output(nullptr) {}
 };
 
 class Request;
 using RequestPtr = std::shared_ptr<Request>;
 class DXRT_API Task
-{    
+{
 public:
-    Task(std::string name_, rmapinfo, std::vector<std::vector<uint8_t>>&&, npu_bound_op boundOp = N_BOUND_NORMAL);
-    Task(std::string name_, rmapinfo, std::vector<std::vector<uint8_t>>&&, npu_bound_op boundOp, std::vector<std::shared_ptr<Device>>& devices_);
+    Task(std::string name_, rmapinfo, std::vector<std::vector<uint8_t>>&&, npu_bound_op boundOp = N_BOUND_NORMAL, bool hasPpuBinary = false);
+    Task(std::string name_, rmapinfo, std::vector<std::vector<uint8_t>>&&, npu_bound_op boundOp, const std::vector<int>& deviceIds, bool hasPpuBinary = false);
 
     Task();
     ~Task(void);
@@ -86,7 +86,7 @@ public:
     std::atomic<int> &inference_count();
     rmapinfo npu_param();
     dxrt_model_t npu_model();
-    
+
     TaskPtr &next();
     TaskPtrs &prevs();
     TaskPtrs &nexts();
@@ -117,7 +117,6 @@ public:
     void ReleaseEncodedOutputBuffer(void* ptr);
     void ClearOutputBuffer();
 
-    // Deadlock 방지를 위한 원자적 buffer 관리 메서드들
     BufferSet AcquireAllBuffers();
     void ReleaseAllBuffers(const BufferSet& buffers);
 
@@ -155,9 +154,9 @@ public:
     std::mutex _reqLock;
     std::mutex _completeCntLock;
     std::mutex _lastOutputLock;
- 
+
     std::mutex _bufferMutex;
-    
+
     bool _isHead = false;
     bool _isTail = false;
 

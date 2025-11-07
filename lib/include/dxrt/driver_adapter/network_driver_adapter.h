@@ -42,12 +42,15 @@ class NetworkDriverAdapter : public DriverAdapter {
       return 0;
     }
 
-    int GetFd() override {
+    int GetFd() const override {
       return 0;
     }
 
     ~NetworkDriverAdapter() override;
- private:
+
+    std::string GetName() const override { return "NetworkDriverAdapter"; }
+
+  private:
     /* Type, socket, port */
     std::map<tcpMsgType, std::pair<int, int>> sockMap;
 };

@@ -64,6 +64,8 @@ THE SOFTWARE.
 #endif  // CXXOPTS_NO_REGEX
 
 // Nonstandard before C++17, which is coincidentally what we also need for <optional>
+#if __cplusplus > 201603L
+
 #ifdef __has_include
 #  if __has_include(<optional>)
 #    include <optional>
@@ -71,6 +73,8 @@ THE SOFTWARE.
 #      define CXXOPTS_HAS_OPTIONAL
 #    endif
 #  endif
+#endif
+
 #endif
 
 #define CXXOPTS_FALLTHROUGH

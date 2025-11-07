@@ -5,6 +5,7 @@ Description=DX-RT Service
 ExecStart=/usr/local/bin/dxrtd
 WorkingDirectory=/usr/local/bin/
 Restart=on-failure
+RestartSec=2s
 
 [Install]
 WantedBy=multi-user.target

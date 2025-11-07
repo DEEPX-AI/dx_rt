@@ -2,19 +2,22 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
- * 
+ *
  * This file uses ONNX Runtime (MIT License) - Copyright (c) Microsoft Corporation.
  */
 
 #include "dxrt/common.h"
 #include <cstring>
+#include <string>
+#include <sstream>
 #include "dxrt/device_version.h"
 #include "dxrt/driver.h"
 #include "dxrt/exception/exception.h"
 #include "resource/log_messages.h"
+#include "dxrt/device_core.h"
 
 #ifdef USE_ORT
 #include <onnxruntime_cxx_api.h>
@@ -34,16 +37,17 @@ std::vector<int> ParseVersion(const std::string& version, char delimiter = '.') 
     std::vector<int> parts;
     std::stringstream ss(version);
     std::string part;
-    
+
     while (std::getline(ss, part, delimiter)) {
         try {
             parts.push_back(std::stoi(part));
         } catch (const std::exception& e) {
+            std::ignore = e;
             // If conversion fails, treat as 0
             parts.push_back(0);
         }
     }
-    
+
     return parts;
 }
 
@@ -56,12 +60,12 @@ std::vector<int> ParseVersion(const std::string& version, char delimiter = '.') 
 bool IsVersionEqualOrHigher(const std::string& currentVersion, const std::string& minVersion) {
     std::vector<int> current = ParseVersion(currentVersion);
     std::vector<int> minimum = ParseVersion(minVersion);
-    
+
     // Make both vectors the same length by padding with zeros
     size_t maxLength = std::max(current.size(), minimum.size());
     current.resize(maxLength, 0);
     minimum.resize(maxLength, 0);
-    
+
     // Compare each component from left to right
     for (size_t i = 0; i < maxLength; ++i) {
         if (current[i] > minimum[i]) {
@@ -71,19 +75,19 @@ bool IsVersionEqualOrHigher(const std::string& currentVersion, const std::string
         }
         // If equal, continue to next component
     }
-    
+
     return true; // All components are equal
 }
 
 bool IsVersionHigher(const std::string& currentVersion, const std::string& minVersion) {
     std::vector<int> current = ParseVersion(currentVersion);
     std::vector<int> minimum = ParseVersion(minVersion);
-    
+
     // Make both vectors the same length by padding with zeros
     size_t maxLength = std::max(current.size(), minimum.size());
     current.resize(maxLength, 0);
     minimum.resize(maxLength, 0);
-    
+
     // Compare each component from left to right
     for (size_t i = 0; i < maxLength; ++i) {
         if (current[i] > minimum[i]) {
@@ -93,11 +97,11 @@ bool IsVersionHigher(const std::string& currentVersion, const std::string& minVe
         }
         // If equal, continue to next component
     }
-    
+
     return false; // All components are equal
 }
 
-DxDeviceVersion::DxDeviceVersion(Device *device, uint16_t fw_ver, int type, int interface_value, uint32_t variant)
+DxDeviceVersion::DxDeviceVersion(DeviceCore* device, uint16_t fw_ver, int type, int interface_value, uint32_t variant)
 {
     LOG_DXRT_DBG << "DeepX version Create " << std::endl;
     _dev       = device;
@@ -111,24 +115,43 @@ DxDeviceVersion::DxDeviceVersion(Device *device, uint16_t fw_ver, int type, int 
 dxrt_dev_info_t DxDeviceVersion::GetVersion(void)
 {
     int ret;
+
+    memset(&devInfo.rt_drv_ver.driver_version_suffix, 0, sizeof(devInfo.rt_drv_ver.driver_version_suffix));
+
     if (_interface == DEVICE_INTERFACE_FPGA)
     {
+        uint32_t rt_drv_ver_STD;
         ret = _dev->Process(dxrt::dxrt_cmd_t::DXRT_CMD_DRV_INFO,
-            reinterpret_cast<void*>(&devInfo.rt_drv_ver),
+            reinterpret_cast<void*>(&rt_drv_ver_STD),
             0,
             dxrt::dxrt_drvinfo_sub_cmd_t::DRVINFO_CMD_GET_RT_INFO);
         // DXRT_ASSERT(ret == 0, "failed to get RT driver info");
         if ( ret != 0 ) throw InvalidOperationException(EXCEPTION_MESSAGE("failed to get RT driver info"));
+        devInfo.rt_drv_ver.driver_version = rt_drv_ver_STD;
     }
     if ((_interface == DEVICE_INTERFACE_ASIC) && (_type == DEVICE_TYPE_ACCELERATOR))
     {
-        ret = _dev->Process(dxrt::dxrt_cmd_t::DXRT_CMD_DRV_INFO,
-            reinterpret_cast<void*>(&devInfo.rt_drv_ver),
+        {   // for backward compativility
+            uint32_t rt_drv_vers;
+            ret = _dev->Process(dxrt::dxrt_cmd_t::DXRT_CMD_DRV_INFO,
+            reinterpret_cast<void*>(&rt_drv_vers),
             0,
             dxrt::dxrt_drvinfo_sub_cmd_t::DRVINFO_CMD_GET_RT_INFO);
+            if ( ret != 0 ) throw InvalidOperationException(EXCEPTION_MESSAGE("failed to get RT driver info"));
 
-        // DXRT_ASSERT(ret == 0, "failed to get RT driver info");
-        if ( ret != 0 ) throw InvalidOperationException(EXCEPTION_MESSAGE("failed to get RT driver info"));
+            devInfo.rt_drv_ver.driver_version = rt_drv_vers;
+            if (rt_drv_vers > 1701)
+            {
+                ret = _dev->Process(dxrt::dxrt_cmd_t::DXRT_CMD_DRV_INFO,
+                reinterpret_cast<void*>(&devInfo.rt_drv_ver),
+                0,
+                dxrt::dxrt_drvinfo_sub_cmd_t::DRVINFO_CMD_GET_RT_INFO_V2);
+
+                // DXRT_ASSERT(ret == 0, "failed to get RT driver info");
+                if ( ret != 0 ) throw InvalidOperationException(EXCEPTION_MESSAGE("failed to get RT driver info with suffix"));
+            }
+        }
+
 
         ret = _dev->Process(dxrt::dxrt_cmd_t::DXRT_CMD_DRV_INFO,
             reinterpret_cast<void*>(&devInfo.pcie),
@@ -148,17 +171,17 @@ void DxDeviceVersion::CheckVersion(void)
 
         if (_interface == DEVICE_INTERFACE_FPGA)
         {
-            if ( devInfo.rt_drv_ver < RT_DRV_VERSION_CHECK )
+            if ( devInfo.rt_drv_ver.driver_version < RT_DRV_VERSION_CHECK )
             {
-                throw InvalidOperationException(EXCEPTION_MESSAGE(LogMessages::NotSupported_DeviceDriverVersion(devInfo.rt_drv_ver, RT_DRV_VERSION_CHECK)));
+                throw InvalidOperationException(EXCEPTION_MESSAGE(LogMessages::NotSupported_DeviceDriverVersion(devInfo.rt_drv_ver.driver_version, RT_DRV_VERSION_CHECK)));
             }
         }
 
         if ((_interface == DEVICE_INTERFACE_ASIC) && (_type == DEVICE_TYPE_ACCELERATOR))
         {
-            if ( devInfo.rt_drv_ver < RT_DRV_VERSION_CHECK )
+            if ( devInfo.rt_drv_ver.driver_version < RT_DRV_VERSION_CHECK )
             {
-                throw InvalidOperationException(EXCEPTION_MESSAGE(LogMessages::NotSupported_DeviceDriverVersion(devInfo.rt_drv_ver, RT_DRV_VERSION_CHECK)));
+                throw InvalidOperationException(EXCEPTION_MESSAGE(LogMessages::NotSupported_DeviceDriverVersion(devInfo.rt_drv_ver.driver_version, RT_DRV_VERSION_CHECK)));
             }
 
             if ( devInfo.pcie.driver_version < PCIE_VERSION_CHECK )

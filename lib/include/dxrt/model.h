@@ -15,6 +15,8 @@
 #include <cassert>
 #include <tuple>
 #include <vector>
+#include <algorithm>
+#include <cctype>
 #ifdef _WINDOWS
 #include <limits>
     #ifdef max
@@ -28,7 +30,7 @@
 
 #define MIN_COMPILER_VERSION "1.18.1"
 #define MIN_SINGLEFILE_VERSION 6
-#define MAX_SINGLEFILE_VERSION 7
+#define MAX_SINGLEFILE_VERSION 8
 
 
 
@@ -40,6 +42,14 @@ struct DXRT_API Models {
     std::vector<char> &buffer()   { return _buffer; }  // binary data
     int64_t &offset() { return _offset; }
     int64_t &size()   { return _size; }
+
+    // const versions
+    const std::string &npu() const     { return _npu; }
+    const std::string &name() const    { return _name; }  // npu task name
+    const std::string &str() const     { return _str; }  // info json data
+    const std::vector<char> &buffer() const   { return _buffer; }  // binary data
+    const int64_t &offset() const { return _offset; }
+    const int64_t &size() const   { return _size; }
 
     std::string _npu;
     std::string _name;
@@ -64,6 +74,8 @@ struct DXRT_API BinaryInfoDatabase {
     Models &rmap_info(int i)     { return _rmap_info[i]; }
     std::vector<Models> &bitmatch_mask()  { return _bitmatch_mask; }
     Models &bitmatch_mask(int i)     { return _bitmatch_mask[i]; }
+    std::vector<Models> &ppu()       { return _ppu; }
+    Models &ppu(int i)               { return _ppu[i]; }
 
     Models _merged_model;
     std::vector<Models> _npu_models;
@@ -73,10 +85,12 @@ struct DXRT_API BinaryInfoDatabase {
     std::vector<Models> _weight;
     std::vector<Models> _rmap_info;
     std::vector<Models> _bitmatch_mask;
+    std::vector<Models> _ppu;  // v8: PPU binary for PPCPU model type
 
     // version info (file-format & compiler)
-    int32_t _dxnnFileFormatVersion;
+    int32_t _dxnnFileFormatVersion = 0;
     std::string _compilerVersion;
+    int _ppuType = -1;  // v8: PPU type from compile_config.json, -1 means not set
 };
 } /* namespace deepx_binaryinfo */
 
@@ -107,6 +121,10 @@ struct DXRT_API SubGraph {
     const std::vector<Tensor> &outputs() const { return _outputs; }
     Tensor &outputs(int i)    { return _outputs[i]; }
     const Tensor &outputs(int i) const { return _outputs[i]; }
+    bool &head() { return _head; }
+    const bool &head() const { return _head; }
+    bool &tail() { return _tail; }
+    const bool &tail() const { return _tail; }
 
     std::string _name;
 
@@ -114,6 +132,8 @@ struct DXRT_API SubGraph {
 
     std::vector<Tensor> _inputs;
     std::vector<Tensor> _outputs;
+    bool _head = false;
+    bool _tail = false;
 };
 
 struct DXRT_API GraphInfoDatabase {
@@ -125,7 +145,7 @@ struct DXRT_API GraphInfoDatabase {
     std::vector<std::string> &inputs()         { return _inputs; }
     std::vector<std::string> &outputs()        { return _outputs; }
 
-    bool _use_offloading;
+    bool _use_offloading = false;
     std::vector<std::string> _topoSort_order;
 
     std::vector<std::string> _inputs;
@@ -234,6 +254,7 @@ struct DXRT_API RegisterInfoDatabase {
     std::vector<TensorInfo>& inputs() { return _inputs; }
     std::vector<TensorInfo>& outputs() { return _outputs; }
     ModelMemory& model_memory() { return _model_memory; }
+    int& ppu_type() { return _ppu_type; }
     bool is_initialized() const {
         return _size != -1;
     }
@@ -246,6 +267,7 @@ struct DXRT_API RegisterInfoDatabase {
     std::vector<TensorInfo> _inputs;
     std::vector<TensorInfo> _outputs;
     ModelMemory  _model_memory;
+    int _ppu_type = -1;  // v8: PPU type from compile_config.json, -1 means not set
 };
 
 struct DXRT_API rmapInfoDatabase {
@@ -323,44 +345,59 @@ inline const char* TransposeToString(Transpose transpose) {
     }
 }
 
+// Helper: convert string to uppercase (ASCII)
+inline std::string ToUpperCopy(const std::string& str) {
+    std::string s;
+    s.reserve(str.size());
+    for (unsigned char c : str) {
+        s.push_back(static_cast<char>(std::toupper(c)));
+    }
+    return s;
+}
+
 inline DataType GetDataTypeNum(const std::string& str) {
-    if (str == "TYPE_NONE") return DataType::DATA_TYPE_NONE;
-    if (str == "UINT8")     return DataType::UINT8;
-    if (str == "UINT16")    return DataType::UINT16;
-    if (str == "UINT32")    return DataType::UINT32;
-    if (str == "UINT64")    return DataType::UINT64;
-    if (str == "INT8")      return DataType::INT8;
-    if (str == "INT16")     return DataType::INT16;
-    if (str == "INT32")     return DataType::INT32;
-    if (str == "INT64")     return DataType::INT64;
-    if (str == "FLOAT32")   return DataType::FLOAT32;
+    // Normalize to uppercase for case-insensitive comparison
+    std::string s = ToUpperCopy(str);
+    if (s == "TYPE_NONE") return DataType::DATA_TYPE_NONE;
+    if (s == "UINT8")     return DataType::UINT8;
+    if (s == "UINT16")    return DataType::UINT16;
+    if (s == "UINT32")    return DataType::UINT32;
+    if (s == "UINT64")    return DataType::UINT64;
+    if (s == "INT8")      return DataType::INT8;
+    if (s == "INT16")     return DataType::INT16;
+    if (s == "INT32")     return DataType::INT32;
+    if (s == "INT64")     return DataType::INT64;
+    if (s == "FLOAT32")   return DataType::FLOAT32;
     return DataType::DATA_TYPE_NONE;
 };
 
 inline MemoryType GetMemoryTypeNum(const std::string& str) {
-    if (str == "MEMORYTYPE_NONE") return MemoryType::MEMORYTYPE_NONE;
-    if (str == "DRAM")            return MemoryType::DRAM;
-    if (str == "ARGMAX")          return MemoryType::ARGMAX;
-    if (str == "PPU")             return MemoryType::PPU;
+    std::string s = ToUpperCopy(str);
+    if (s == "MEMORYTYPE_NONE") return MemoryType::MEMORYTYPE_NONE;
+    if (s == "DRAM")            return MemoryType::DRAM;
+    if (s == "ARGMAX")          return MemoryType::ARGMAX;
+    if (s == "PPU")             return MemoryType::PPU;
     return MEMORYTYPE_NONE;
 }
 
 inline Layout GetLayoutNum(const std::string& str) {
-    if (str == "LAYOUT_NONE")     return Layout::LAYOUT_NONE;
-    if (str == "PRE_FORMATTER")       return Layout::PRE_FORMATTER;
-    if (str == "PRE_IM2COL")       return Layout::PRE_IM2COL;
-    if (str == "FORMATTED")       return Layout::FORMATTED;
-    if (str == "ALIGNED")       return Layout::ALIGNED;
-    if (str == "PPU_YOLO")       return Layout::PPU_YOLO;
-    if (str == "PPU_FD")       return Layout::PPU_FD;
-    if (str == "PPU_POSE")       return Layout::PPU_POSE;
+    std::string s = ToUpperCopy(str);
+    if (s == "LAYOUT_NONE")     return Layout::LAYOUT_NONE;
+    if (s == "PRE_FORMATTER")   return Layout::PRE_FORMATTER;
+    if (s == "PRE_IM2COL")      return Layout::PRE_IM2COL;
+    if (s == "FORMATTED")       return Layout::FORMATTED;
+    if (s == "ALIGNED")         return Layout::ALIGNED;
+    if (s == "PPU_YOLO")        return Layout::PPU_YOLO;
+    if (s == "PPU_FD")          return Layout::PPU_FD;
+    if (s == "PPU_POSE")        return Layout::PPU_POSE;
     return Layout::LAYOUT_NONE;
 }
 
 inline Transpose GetTransposeNum(const std::string& str) {
-    if (str == "TRANSPOSE_NONE")           return Transpose::TRANSPOSE_NONE;
-    if (str == "CHANNEL_FIRST_TO_LAST")    return Transpose::CHANNEL_FIRST_TO_LAST;
-    if (str == "CHANNEL_LAST_TO_FIRST")    return Transpose::CHANNEL_LAST_TO_FIRST;
+    std::string s = ToUpperCopy(str);
+    if (s == "TRANSPOSE_NONE")           return Transpose::TRANSPOSE_NONE;
+    if (s == "CHANNEL_FIRST_TO_LAST")    return Transpose::CHANNEL_FIRST_TO_LAST;
+    if (s == "CHANNEL_LAST_TO_FIRST")    return Transpose::CHANNEL_LAST_TO_FIRST;
     return Transpose::TRANSPOSE_NONE;
 }
 } /* namespace deepx_rmapinfo */
@@ -385,6 +422,22 @@ DXRT_API std::ostream& operator<<(std::ostream&, const ModelDataBase&);
            return -1 if failed to parse model
 */
 DXRT_API int ParseModel(std::string file);
+
+// Parse options structure
+struct ParseOptions {
+    bool verbose = false;       // Show detailed task info
+    bool json_extract = false;  // Extract JSON binary data to files
+    bool no_color = false;      // Disable color output
+    std::string output_file;    // Output file path
+};
+
+/** \brief parse a model with options
+ * \param file model file path
+ * \param options parsing options
+ * \return return 0 if model parsing is done successfully, 
+           return -1 if failed to parse model
+*/
+DXRT_API int ParseModel(std::string file, const ParseOptions& options);
 DXRT_API ModelDataBase LoadModelParam(std::string file);
 DXRT_API std::string LoadModelParam(ModelDataBase& modelDB, std::string file);
 DXRT_API int LoadGraphInfo(deepx_graphinfo::GraphInfoDatabase& graphInfo, ModelDataBase& data);

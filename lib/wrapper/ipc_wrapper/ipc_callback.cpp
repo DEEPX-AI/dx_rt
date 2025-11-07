@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -20,6 +20,7 @@
 #include "dxrt/task.h"
 #include "dxrt/request.h"
 #include "service_error.h"
+#include "dxrt/device_pool.h"
 
 
 using std::cout;
@@ -109,11 +110,10 @@ int ipc_callBack(const IPCServerMessage& outResponseServerMessage, void* usrData
         case RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH2:
             {
 
-                auto& devices = CheckDevices();
-                if ( outResponseServerMessage.deviceId < static_cast<uint32_t>(devices.size()) )
+                if ( outResponseServerMessage.deviceId < DevicePool::GetInstance().GetDeviceCount() )
                 {
-                    DevicePtr& devicePtr = CheckDevices()[outResponseServerMessage.deviceId];
-                    devicePtr->ProcessResponseFromService(outResponseServerMessage.npu_resp);
+                    DevicePool::GetInstance().GetDeviceTaskLayer(outResponseServerMessage.deviceId)
+                        ->ProcessResponseFromService(outResponseServerMessage.npu_resp);
                 }
                 else
                 {
@@ -124,11 +124,12 @@ int ipc_callBack(const IPCServerMessage& outResponseServerMessage, void* usrData
 
             break;
         case RESPONSE_CODE::ERROR_REPORT: {
-            auto& devices = CheckDevices();
-            if ( outResponseServerMessage.deviceId < static_cast<uint32_t>(devices.size()) )
+
+            if ( outResponseServerMessage.deviceId < DevicePool::GetInstance().GetDeviceCount() )
             {
-                DevicePtr& devicePtr = CheckDevices()[outResponseServerMessage.deviceId];
-                devicePtr->ProcessErrorFromService(static_cast<dxrt::dxrt_server_err_t>(outResponseServerMessage.data),
+
+                DevicePool::GetInstance().GetDeviceTaskLayer(outResponseServerMessage.deviceId)
+                        ->ProcessErrorFromService(static_cast<dxrt::dxrt_server_err_t>(outResponseServerMessage.data),
                     static_cast<int>(outResponseServerMessage.result));
             }
             else
@@ -159,7 +160,7 @@ std::string dxrt::to_string(dxrt::REQUEST_CODE code)
 {
 switch (code)
     {
-        REQUEST_CODE_MACRO(REGISTESR_PROCESS)
+        REQUEST_CODE_MACRO(REGISTER_PROCESS)
         REQUEST_CODE_MACRO(GET_MEMORY)
         REQUEST_CODE_MACRO(FREE_MEMORY)
         REQUEST_CODE_MACRO(GET_MEMORY_FOR_MODEL)
@@ -180,7 +181,7 @@ switch (code)
         REQUEST_CODE_MACRO(MEMORY_ALLOCATION_INPUT_AND_OUTPUT)
         REQUEST_CODE_MACRO(TRANSFER_INPUT_AND_RUN)
         REQUEST_CODE_MACRO(COMPLETE_TRANSFER_AND_RUN)
-        REQUEST_CODE_MACRO(COMPLETE_TRNASFER_OUTPUT)
+        REQUEST_CODE_MACRO(COMPLETE_TRANSFER_OUTPUT)
         REQUEST_CODE_MACRO(REQUEST_SCHEDULE_INFERENCE)
         REQUEST_CODE_MACRO(INFERENCE_COMPLETED)
         REQUEST_CODE_MACRO(CLOSE)

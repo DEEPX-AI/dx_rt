@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 #pragma once
@@ -48,7 +48,7 @@ class ObjectsPool
 
     // member variable
     std::shared_ptr<CircularDataPool<Request> > _requestPool;
-    std::vector<std::shared_ptr<Device> > _devices;
+    //std::vector<std::shared_ptr<Device> > _devices;
     std::shared_ptr<MultiprocessMemory> _multiProcessMemory;
     std::once_flag _initDevicesOnceFlag;
 
@@ -65,29 +65,30 @@ class ObjectsPool
     RequestPtr PickRequest();  // new one
     RequestPtr GetRequestById(int id);  // find one by id
 
-    DevicePtr GetDevice(int id);
+
+    //DevicePtr GetDevice(int id);
 
     MultiprocessMemoryPtr GetMultiProcessMemory();
-
+/*
     int DeviceCount();
 
     void InitDevices(SkipMode skip, uint32_t subCmd);
-    int DSP_GetBufferPtrFromDevices(uint64_t *inputPtr, uint64_t *outputPtr);
 
-    std::shared_ptr<Device> PickOneDevice(const std::vector<int> &device_ids_, int isDspReq);
+    std::shared_ptr<Device> PickOneDevice(const std::vector<int> &device_ids_);
 
     std::vector<std::shared_ptr<Device> >& CheckDevices();
 
     // wait and awake
-    std::shared_ptr<Device> WaitDevice(const std::vector<int> &device_ids, int isDspReq);
+    std::shared_ptr<Device> WaitDevice(const std::vector<int> &device_ids);
     void AwakeDevice(size_t devIndex);
+    */
 
 
  private:
     std::condition_variable _deviceCV;
     std::mutex _deviceMutex;
     int _currentPickDevice;
-    int pickDeviceIndex(const std::vector<int> &device_ids, int isDspReq);
+    int pickDeviceIndex(const std::vector<int> &device_ids);
 
 };
 

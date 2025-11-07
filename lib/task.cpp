@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -21,11 +21,14 @@
 #include "dxrt/objects_pool.h"
 #include "dxrt/fixed_size_buffer.h"
 #include "dxrt/configuration.h"
+#include "dxrt/device_task_layer.h"
 #ifdef USE_SERVICE
 #include "dxrt/multiprocess_memory.h"
 #endif
 
 using std::endl;
+
+#include "dxrt/device_pool.h"
 
 
 namespace dxrt {
@@ -54,62 +57,67 @@ TaskStats &TaskStats::GetInstance(int id)
     return taskStatsInstances._map[id];
 }
 
-Task::Task(string name_, rmapinfo rmapInfo_, std::vector<std::vector<uint8_t>>&& data_, npu_bound_op boundOp)
-: Task(name_, rmapInfo_, std::move(data_), boundOp, CheckDevices())
+static std::vector<int> makeList(int n)
+{
+    std::vector<int> vec(n);
+    std::iota(vec.begin(), vec.end(), 0);
+    return vec;
+}
+
+// Constructor 1: Default devices + hasPpuBinary
+Task::Task(std::string name_, rmapinfo rmapInfo_, std::vector<std::vector<uint8_t>>&& data_, npu_bound_op boundOp, bool hasPpuBinary)
+: Task(name_, rmapInfo_, std::move(data_), boundOp, makeList(DevicePool::GetInstance().GetDeviceCount()), hasPpuBinary)
 {
 }
+
+// Constructor 2: Specific devices + hasPpuBinary
 Task::Task(std::string name_, rmapinfo rmapInfo_, std::vector<std::vector<uint8_t>>&& data_,
-    npu_bound_op boundOp, std::vector<DevicePtr>& devices_)
+    npu_bound_op boundOp, const std::vector<int>& deviceIds, bool hasPpuBinary)
 : _taskData(getNextId(), name_, rmapInfo_), _data(std::move(data_)), _boundOp(boundOp)
 {
+    _device_ids = deviceIds;
     _inferenceCnt.store(0);
     if (_taskData._info.is_initialized())
     {
         _taskData._processor = Processor::NPU;
-        // DXRT_ASSERT(_data.size() == 2 || _data.size() == 4,
-        //    "invalid npu task " + name() + ": " + to_string(data_.size()));
-        if (_data.size() != 2 && _data.size() != 4 )
+        // v6/v7: data.size() == 2 (rmap, weight) or 4 (with bitmatch)
+        // v8 PPCPU: data.size() == 3 (rmap, weight, ppu) or 5 (with bitmatch + ppu)
+        if (_data.size() != 2 && _data.size() != 3 && _data.size() != 4 && _data.size() != 5)
             throw InvalidModelException(EXCEPTION_MESSAGE(
-                "invalid npu task " + name() + ": " + std::to_string(data_.size())));
-        _taskData.set_from_npu(_data);
+                "invalid npu task " + name() + ": data size = " + std::to_string(data_.size())));
+        
+        // Set data reference for device memory write
+        _taskData._data = &_data;
+        
+        _taskData.set_from_npu(_data, hasPpuBinary);
         LOG_DXRT_DBG << "NPU Task: imported npu parameters" << endl;
-        SetEncodedInputBuffer(devices_.size() * DXRT_TASK_MAX_LOAD);
-        SetOutputBuffer(devices_.size() * DXRT_TASK_MAX_LOAD);
-        for (auto device : devices_)
-        {
-            if (device->isBlocked()) continue;
-            _device_ids.push_back(device->id());
-        }
+        SetEncodedInputBuffer(_device_ids.size() * DXRT_TASK_MAX_LOAD);
+        SetOutputBuffer(_device_ids.size() * DXRT_TASK_MAX_LOAD);
+
         LOG_DXRT_DBG << "NPU Task: checked devices" << endl;
-        for (auto &device : devices_)
+        for (auto deviceId : _device_ids)
         {
-            if (device->isBlocked()) continue;
+            auto devicePtr = DevicePool::GetInstance().GetDeviceTaskLayer(deviceId);
+            if (devicePtr->isBlocked())
+                continue;
             // DXRT_ASSERT(device->RegisterTask(getData()) == 0, "failed to register task");
-            if ( device->RegisterTask(getData()) != 0 )
+            if ( devicePtr->RegisterTask(getData()) != 0 )
                 throw InvalidModelException(EXCEPTION_MESSAGE("failed to register task"));
 
-#ifdef USE_SERVICE
-            if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE))
-            {
-                // Unified Task-based initialization
-                InitializeTaskWithService(device->id());
-            }
-            else
-#endif
-            {
-                // Direct device initialization (non-service mode)
-                device->BoundOption(DX_SCHED_ADD, static_cast<npu_bound_op>(_boundOp));
-            }
+
+
+            InitializeTaskWithService(deviceId);
+
         }
         LOG_DXRT_DBG << "NPU Task created" << endl;
     }
     else
     {
         _taskData._processor = Processor::CPU;
-        _cpuHandle = std::make_shared<CpuHandle>(_data.front().data(), _data.front().size(), _taskData._name, devices_.size());
+        _cpuHandle = std::make_shared<CpuHandle>(_data.front().data(), _data.front().size(), _taskData._name, _device_ids.size());
         // cout << *_cpuHandle << endl;
         _taskData.set_from_cpu(_cpuHandle);
-        SetOutputBuffer(devices_.size() * DXRT_TASK_MAX_LOAD);
+        SetOutputBuffer(_device_ids.size() * DXRT_TASK_MAX_LOAD);
         _cpuHandle->Start();
         LOG_DXRT_DBG << "CPU Task created" << endl;
     }
@@ -135,20 +143,12 @@ Task::~Task(void)
         // NPU Task cleanup - unified Task-based approach
         for (int device_id : _device_ids)
         {
-            auto device = ObjectsPool::GetInstance().GetDevice(device_id);
+            auto device = DevicePool::GetInstance().GetDeviceTaskLayer(device_id);
 
-#ifdef USE_SERVICE
-            if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE))
-            {
-                // New unified Task-based cleanup
-                CleanupTaskFromService(device_id);
-            }
-            else
-#endif
-            {
-                // Direct device cleanup (non-service mode)
-                device->BoundOption(DX_SCHED_DELETE, static_cast<npu_bound_op>(_boundOp));
-            }
+
+            // New unified Task-based cleanup
+            CleanupTaskFromService(device_id);
+
 
             // Release device-local resources
             device->Release(getData());
@@ -190,7 +190,7 @@ int Task::id()
 {
     return _taskData.id();
 }
-string Task::name()
+std::string Task::name()
 {
     return _taskData.name();
 }
@@ -268,11 +268,11 @@ std::map<int, std::vector<int>> &Task::output_index()
 {
     return _outputTensorIdx;
 }
-void Task::input_name_order(const std::vector<string>& order) {
+void Task::input_name_order(const std::vector<std::string>& order) {
     _inputNameOrder = order;
 }
 
-const std::vector<string>& Task::input_name_order() const {
+const std::vector<std::string>& Task::input_name_order() const {
     return _inputNameOrder;
 }
 std::atomic<int> &Task::inference_count()
@@ -330,31 +330,28 @@ std::function<int(TensorPtrs&, void*)> Task::callback()
 void Task::InitializeTaskWithService(int device_id)
 {
     LOG_DXRT_DBG << "Task " << id() << " initialization with service on device " << device_id << endl;
-#ifdef USE_SERVICE
-    auto multiProcessMemory = ObjectsPool::GetInstance().GetMultiProcessMemory();
+
+    //auto multiProcessMemory = ObjectsPool::GetInstance().GetMultiProcessMemory();
     uint64_t modelMemSize = _taskData._npuModel.rmap.size + _taskData._npuModel.weight.size;
 
     // 1. Signal Task Init (Register Task metadata)
-    multiProcessMemory->SignalTaskInit(device_id, _taskData._id, static_cast<npu_bound_op>(_boundOp), modelMemSize);
+    DevicePool::GetInstance().GetServiceLayer()->SignalTaskInit(device_id,
+        _taskData._id, static_cast<npu_bound_op>(_boundOp), modelMemSize);
 
     LOG_DXRT_DBG << "Task " << id() << " service initialization completed for device " << device_id << endl;
-#endif
+
 }
 
 void Task::CleanupTaskFromService(int device_id)
 {
     LOG_DXRT_DBG << "Task " << id() << " cleanup from service on device " << device_id << endl;
-#ifdef USE_SERVICE
-    auto multiProcessMemory = ObjectsPool::GetInstance().GetMultiProcessMemory();
 
-    // 1. Signal Task DeInit (Task metadata cleanup + device binding release)
-    multiProcessMemory->SignalTaskDeInit(device_id, _taskData._id, static_cast<npu_bound_op>(_boundOp));
 
-    // 2. Deallocate Task Memory (Task-based memory deallocation)
-    multiProcessMemory->DeallocateTaskMemory(device_id, _taskData._id);
+    DevicePool::GetInstance().GetServiceLayer()->SignalTaskDeInit(device_id,
+        _taskData._id, static_cast<npu_bound_op>(_boundOp));
+
 
     LOG_DXRT_DBG << "Task " << id() << " service cleanup completed for device " << device_id << endl;
-#endif
 }
 
 InferenceTimer& Task::GetTaskTimer()
@@ -515,7 +512,7 @@ void Task::ReleaseOutputBuffer(void* ptr)
 
     if (buffer) {
         LOG_DXRT_DBG << "Task "<< id() <<" Output Buffer RELEASE " << std::endl;
-        buffer->releaseBuffer(ptr); 
+        buffer->releaseBuffer(ptr);
     }
 }
 

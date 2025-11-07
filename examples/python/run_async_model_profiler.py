@@ -8,7 +8,8 @@
 #
 
 import numpy as np
-import sys
+import argparse
+import os
 from dx_engine import InferenceEngine, Configuration, DeviceStatus
 
 import threading
@@ -50,7 +51,20 @@ def onInferenceCallbackFunc(outputs, user_arg):
     return 0
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Run asynchronous model inference with profiler")
+    parser.add_argument("--model", "-m", type=str, required=True, help="Path to model file (.dxnn)")
+    parser.add_argument("--loops", "-l", type=int, default=1, help="Number of inference loops (default: 1)")
+    args = parser.parse_args()
+
+    if not os.path.exists(args.model):
+        parser.error(f"Model path '{args.model}' does not exist.")
+    
+    return args
+
+
 if __name__ == "__main__":
+    args = parse_args()
 
     config = Configuration()
     config.set_enable(Configuration.ITEM.PROFILER, True)
@@ -72,22 +86,10 @@ if __name__ == "__main__":
     else:
         print('PROFILER configuration is disabled')
 
-    DEFAULT_LOOP_COUNT = 1
-    loop_count = DEFAULT_LOOP_COUNT
-    modelPath = ""
-    argc = len(sys.argv)
-    if ( argc > 1 ) :
-        modelPath = sys.argv[1];
-        if ( argc > 2 ) :
-            loop_count = int(sys.argv[2])
-    else:
-        print("[Usage] run_async_model [dxnn-file-path] [loop-count]")
-        exit(-1)
-    
     result = -1
 
     # create inference engine instance with model
-    with InferenceEngine(modelPath) as ie:
+    with InferenceEngine(args.model) as ie:
 
         # register call back function
         ie.register_callback(onInferenceCallbackFunc)
@@ -95,11 +97,11 @@ if __name__ == "__main__":
         input = [np.zeros(ie.get_input_size(), dtype=np.uint8)]
 
         # inference loop
-        for i in range(loop_count):
+        for i in range(args.loops):
 
             # inference asynchronously, use all npu cores
             # if device-load >= max-load-value, this function will block  
-            ie.run_async(input, user_arg=[i, loop_count])
+            ie.run_async(input, user_arg=[i, args.loops])
 
             print("Inference start (async)", i)
 

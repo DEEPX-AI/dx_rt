@@ -64,3 +64,6 @@ class Configuration:
 
     def get_pcie_driver_version(self) -> str:
         return C.configuration_get_pcie_driver_version(self._instance)
+
+    def set_fw_config_with_json(self, json_file: str):
+        C.configuration_set_fw_config_with_json(self._instance, json_file)

@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -14,15 +14,16 @@
 #include <sstream>
 #include <iomanip>
 #include <vector>
+#include <string>
 using std::cout;
 using std::endl;
 
 namespace dxrt
 {
 
-string ParseFwLog(dxrt_device_log_t &log)
+std::string ParseFwLog(dxrt_device_log_t &log)
 {
-    string ret;
+    std::string ret;
     std::ostringstream oss;
     oss << std::dec;
     if (log.cmd >= dxrt::dxrt_fwlog_cmd_t::FW_LOG_MAX)
@@ -151,11 +152,11 @@ FwLog::~FwLog()
 
 }
 
-string FwLog::str()
+std::string FwLog::str()
 {
     return _str;
 }
-void FwLog::ToFileAppend(string file)
+void FwLog::ToFileAppend(std::string file)
 {
     std::ofstream outputFile(file, std::ios::app);
     if (outputFile.is_open())
@@ -170,7 +171,7 @@ void FwLog::ToFileAppend(string file)
     }
 }
 
-Fw::Fw(string file)
+Fw::Fw(std::string file)
 {
     std::vector<char> data(sizeof(dx_fw_header_t));
     DataFromFile(file, static_cast<void*>(data.data()), sizeof(dx_fw_header_t));
@@ -188,7 +189,7 @@ uint32_t Fw::GetBoardType()
 }
 
 // constexpr std::array<pair_type, 3> board_types = {{{1, "SOM"}, {2, "M.2"}, {3, "H1"}}};
-string Fw::GetBoardTypeString()
+std::string Fw::GetBoardTypeString()
 {
     switch (fwHeader.board_type) {
         case 1:
@@ -202,7 +203,7 @@ string Fw::GetBoardTypeString()
     }
 }
 
-string Fw::GetDdrTypeString()
+std::string Fw::GetDdrTypeString()
 {
     switch (fwHeader.ddr_type) {
         case 1:
@@ -224,20 +225,20 @@ void Fw::Show(void)
     cout << "Firmware Ver: " << fwHeader.fw_ver << endl;
 }
 
-string Fw::GetFwBinVersion()
+std::string Fw::GetFwBinVersion()
 {
-    return string(fwHeader.fw_ver);
+    return std::string(fwHeader.fw_ver);
 }
 
 bool Fw::IsMatchSignature()
 {
-    string dxSign = "DEEPX GENESIS-M";
-    return (dxSign.compare(string(fwHeader.signature)) == 0) ? true : false;
+    std::string dxSign = "DEEPX GENESIS-M";
+    return (dxSign.compare(std::string(fwHeader.signature)) == 0) ? true : false;
 }
 
-string Fw::GetFwUpdateResult(uint32_t errCode)
+std::string Fw::GetFwUpdateResult(uint32_t errCode)
 {
-    string errMsg = "";
+    std::string errMsg = "";
     for (uint32_t i = 0; i < sizeof(fw_update_err_code_t) * 8; ++i)
     {
         uint32_t mask = 1 << i;
@@ -266,7 +267,7 @@ string Fw::GetFwUpdateResult(uint32_t errCode)
                     break;
                 case static_cast<uint32_t>(fw_update_err_code_t::ERR_NOT_SUPPORT):
                     errMsg += "Firmware version 2.x.x and above cannot be downgraded to version 1.x.x." +
-                            string("\nPlease upgrade to version 2.x.x or later\n");
+                            std::string("\nPlease upgrade to version 2.x.x or later\n");
                     break;
                 default:
                     errMsg += ("Unknown error detected("+ std::to_string(mask) +")");

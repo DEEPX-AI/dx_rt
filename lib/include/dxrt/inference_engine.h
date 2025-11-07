@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -35,13 +35,13 @@
 #define NPU_PARAM_FILE "rmap.info"
 
 
-/** 
+/**
  * @mainpage DX Runtime API
- * 
+ *
  * @subsection intro_sec Introduction
- * This is the main page of the documentation.  
+ * This is the main page of the documentation.
  * The DX Runtime API is an API for developing applications using the DX NPU Core.
- * 
+ *
  */
 
 namespace dxrt {
@@ -81,9 +81,9 @@ class DXRT_API InferenceEngine
      * auto modelPath = "model.dxnn"; // assume compiled model path name is "model.dxnn"
      * dxrt::InferenceEngine ie(modelPath);
      * auto outputs = ie.Run();
-     * 
+     *
      * dxrt::InferenceOption op;
-     * op.devices.push_back(0); 
+     * op.devices.push_back(0);
      * op.boundOption = dxrt::InferenceOption::BOUND_OPTION::NPU_0; // NPU_0 only
      * dxrt::InferenceEngine ie(modelPath, op);
      * auto outputs = ie.Run();
@@ -157,9 +157,9 @@ class DXRT_API InferenceEngine
      * @return An integer jobId.
      */
     int RunAsyncMultiInput(const std::vector<void*>& inputPtrs, void *userArg=nullptr, void *outputPtr = nullptr);
-    
-    /** 
-     * @deprecated Use RunBenchmark() instead. 
+
+    /**
+     * @deprecated Use RunBenchmark() instead.
      * @brief run benchmark with loop n times (Legacy API)
      * @param[in] num number of inferences
      * @param[in] inputPtr input data pointer to run inference
@@ -175,27 +175,27 @@ class DXRT_API InferenceEngine
      */
     float RunBenchmark(int num, void* inputPtr = nullptr);
 
-    /** 
+    /**
      * @brief Validate inference of a specific NPU device connected to the host.
      * This function runs a validation process using the provided input data on the specified NPU device.
      * It can be used to ensure that the NPU device is operational and can process inference tasks correctly.
-     * 
+     *
      * @param[in] inputPtr Pointer to the input data used for validation.
      * @param[in] deviceId ID of the NPU device to validate. Default is 0 (first device).
      * @return Output tensors as a vector of smart pointer instances, representing the validation results.
-     * 
+     * @warning This function is intended for validation purposes only and may not be optimized for performance.
      */
     TensorPtrs ValidateDevice(void *inputPtr, int deviceId = 0);
 
-    /** 
+    /**
      * @brief Validate inference of a specific NPU device with automatic multi-input detection.
      * This function automatically detects whether the input should be interpreted as multi-input
      * based on the model requirements and input count.
-     * 
+     *
      * @param[in] inputPtrs Vector of input data pointers for validation.
      * @param[in] deviceId ID of the NPU device to validate. Default is 0 (first device).
      * @return Output tensors as a vector of smart pointer instances, representing the validation results.
-     * 
+     * @warning This function is intended for validation purposes only and may not be optimized for performance.
      */
     TensorPtrs ValidateDevice(const std::vector<void*>& inputPtrs, int deviceId = 0);
 
@@ -203,6 +203,7 @@ class DXRT_API InferenceEngine
      * @param[in] inputTensors Map of tensor name to input data pointer
      * @param[in] deviceId ID of the NPU device to validate. Default is 0 (first device).
      * @return Output tensors as a vector of smart pointer instances, representing the validation results.
+     * @warning This function is intended for validation purposes only and may not be optimized for performance.
      */
     TensorPtrs ValidateDeviceMultiInput(const std::map<std::string, void*>& inputTensors, int deviceId = 0);
 
@@ -210,11 +211,12 @@ class DXRT_API InferenceEngine
      * @param[in] inputPtrs Vector of input data pointers in the order specified by GetInputTensorNames()
      * @param[in] deviceId ID of the NPU device to validate. Default is 0 (first device).
      * @return Output tensors as a vector of smart pointer instances, representing the validation results.
+     * @warning This function is intended for validation purposes only and may not be optimized for performance.
      */
     TensorPtrs ValidateDeviceMultiInput(const std::vector<void*>& inputPtrs, int deviceId = 0);
 
-    /** 
-     * @deprecated Use RegisterCallback() instead. 
+    /**
+     * @deprecated Use RegisterCallback() instead.
      * @brief Register user callback function to be called by inference completion. (Legacy API)
      * @param[in] callbackFunc Function which is called when inference is complete, it gets outputs and user_arg ptr
      * @param outputs output tensors data
@@ -235,7 +237,7 @@ class DXRT_API InferenceEngine
     TensorPtrs Wait(int jobId);
 
     /**
-     *  @deprecated Use GetInputs() instead. 
+     *  @deprecated Use GetInputs() instead.
      *  @brief Get input tensor (Legacy API)
      *  @param[in] ptr pointer to virtual address
      *  @param[in] phyAddr pointer to physical address
@@ -252,7 +254,7 @@ class DXRT_API InferenceEngine
      */
     Tensors GetInputs(void *ptr = nullptr, uint64_t phyAddr = 0);
 
-    /** 
+    /**
      *  @deprecated Use GetInputs() instead.
      *  @brief Get input tensor (Legacy API)
      *  @param[in] devId device id
@@ -267,7 +269,7 @@ class DXRT_API InferenceEngine
      */
     std::vector<Tensors> GetInputs(int devId);
 
-    /** 
+    /**
      *  @deprecated Use GetOutputs() instead.
      *  @brief Get output tensor (Legacy API)
      *  @param[in] ptr pointer to virtual address
@@ -285,7 +287,7 @@ class DXRT_API InferenceEngine
      */
     Tensors GetOutputs(void *ptr = nullptr, uint64_t phyAddr = 0);
 
-    /** 
+    /**
      * @deprecated Use GetInputSize() instead.
      * @brief Get total size of input tensors (Legacy API)
      * @return Input size of one inference in bytes
@@ -293,25 +295,28 @@ class DXRT_API InferenceEngine
     [[deprecated("Use GetInputSize() instead")]]
     uint64_t input_size() { return GetInputSize(); }
 
-    /** 
+    /**
      * @brief Gets the total size of all input tensors combined in bytes.
      * @return The total input size as a uint64_t.
      */
     uint64_t GetInputSize();
 
-    /** 
+    /**
      * @brief Gets the individual sizes (in bytes) of each input tensor for multi-input models.
      * @return A vector of input tensor sizes, in the order specified by GetInputTensorNames().
      */
     std::vector<uint64_t> GetInputTensorSizes();
 
-    /** 
+    /**
      * @brief Gets the individual sizes (in bytes) of each output tensor.
      * @return A vector of output tensor sizes, in the order specified by GetOutputTensorNames().
+     *         For dynamic shape tensors, returns 0 as the size cannot be determined at compile time.
+     *         Actual sizes for dynamic tensors are available after inference execution.
+     * @warning Dynamic shape tensors will return 0 and log a warning message.
      */
     std::vector<uint64_t> GetOutputTensorSizes();
 
-    /** 
+    /**
      * @deprecated Use GetOutputSize() instead.
      * @brief Get total size of output tensors (Legacy API)
      * @return Output size of one inference in bytes
@@ -319,13 +324,17 @@ class DXRT_API InferenceEngine
     [[deprecated("Use GetOutputSize() instead")]]
     uint64_t output_size() { return GetOutputSize(); }
 
-    /** 
+    /**
      * @brief Gets the total size of all output tensors combined in bytes.
-     * @return The total output size as a uint64_t.
+     * @return The total output size as a uint64_t. Returns 0 for models with dynamic shape outputs,
+     *         as the size cannot be determined statically. For dynamic models, use GetOutputTensorSizes()
+     *         for individual tensor sizes or allocate buffers after inference when actual shapes are known.
+     * @warning For dynamic shape models, this method returns 0 and logs a warning.
+     *          Do not use the return value for memory allocation in such cases.
      */
     uint64_t GetOutputSize();
 
-     /** 
+     /**
      * @deprecated Use GetModelName() instead.
      * @brief Get model name (Legacy API)
      * @return model name
@@ -333,13 +342,13 @@ class DXRT_API InferenceEngine
     [[deprecated("Use GetModelName() instead")]]
     std::string name() { return GetModelName(); }
 
-    /** 
+    /**
      * @brief Gets the name of the model.
      * @return The model name as a std::string.
      */
     std::string GetModelName();
 
-    /** 
+    /**
      * @deprecated Use GetTaskOrder() instead.
      * @brief Get model task order (Legacy API)
      * @return task order
@@ -347,14 +356,14 @@ class DXRT_API InferenceEngine
     [[deprecated("Use GetTaskOrder() instead")]]
     std::vector<std::string> task_order() { return GetTaskOrder(); }
 
-    /** 
+    /**
      * @brief Gets the model's task execution order.
      * @return A vector of strings representing the task order.
      */
     std::vector<std::string> GetTaskOrder();
 
     /**
-     * @deprecated Use GetLatency() instead. 
+     * @deprecated Use GetLatency() instead.
      * @brief Get latest latency (Legacy API)
      * @return latency (microseconds)
      */
@@ -367,7 +376,7 @@ class DXRT_API InferenceEngine
     int GetLatency();
 
     /**
-     * @deprecated Use GetNpuInferenceTime() instead.  
+     * @deprecated Use GetNpuInferenceTime() instead.
      * @brief Get latest inference time (Legacy API)
      * @return inference time (microseconds)
      */
@@ -419,21 +428,21 @@ class DXRT_API InferenceEngine
      */
     int GetNpuInferenceTimeCnt();
 
-    /** 
+    /**
      *  @deprecated Use GetAllTaskOutputs() instead.
      *  @brief Get output tensors of all tasks (Legacy API)
-     *  @return the output of all tasks as a vector of smart pointer instance vectors.  
+     *  @return the output of all tasks as a vector of smart pointer instance vectors.
      */
     [[deprecated("Use GetAllTaskOutputs() instead")]]
     std::vector<TensorPtrs> get_outputs() { return GetAllTaskOutputs(); }
 
-    /** 
+    /**
      *  @brief Retrieves the output tensors of all internal tasks in the model.
      *  @return A vector of TensorPtrs, where each element represents the outputs of a single task.
      */
     std::vector<TensorPtrs> GetAllTaskOutputs();
 
-    /** 
+    /**
      *  @deprecated Use GetBitmatchMask() instead.
      *  @internal
      *  @brief Get bitmatch mask (Legacy API)
@@ -443,7 +452,7 @@ class DXRT_API InferenceEngine
     [[deprecated("Use GetBitmatchMask() instead")]]
     std::vector<uint8_t> bitmatch_mask(int index) { return GetBitmatchMask(index); }
 
-    /** 
+    /**
      *  @internal
      *  @brief An internal function to get the bitmatch mask for a given NPU task index.
      *  @param[in] index The index of the NPU task.
@@ -451,24 +460,24 @@ class DXRT_API InferenceEngine
      */
     std::vector<uint8_t> GetBitmatchMask(int index);
 
-    /** 
+    /**
      * @deprecated Use GetNumTailTasks() instead.
      * @brief Returns the number of tail tasks in the model. (Legacy API)
      * @return The number of tasks that have no subsequent tasks.
-     * 
+     *
      * Tail tasks are those which do not have any tasks following them in the model's task chain.
      * This function provides the count of such tail tasks.
      */
     [[deprecated("Use GetNumTailTasks() instead")]]
     int get_num_tails() { return GetNumTailTasks(); }
 
-    /** 
+    /**
      * @brief Returns the number of "tail" tasks in the model, which are tasks that have no subsequent tasks.
      * @return The number of tail tasks.
      */
     int GetNumTailTasks();
 
-    /** 
+    /**
      * @deprecated Use GetCompileType() instead.
      * @brief Returns the compile type of the model. (Legacy API)
      * @return The compile type of the model.
@@ -476,19 +485,19 @@ class DXRT_API InferenceEngine
     [[deprecated("Use GetCompileType() instead")]]
     std::string get_compile_type() { return GetCompileType(); }
 
-    /** 
+    /**
      * @brief Returns the compile type of the loaded model.
      * @return The compile type as a std::string.
      */
     std::string GetCompileType();
 
-    /** 
+    /**
      * @brief Returns the DXNN file format version of the loaded model.
      * @return The model version string.
      */
     std::string GetModelVersion();
 
-    /** 
+    /**
      * @deprecated Use IsPPU() instead.
      * @brief Returns whether the model is using PPU. (Legacy API)
      * @return whether the model is using PPU.
@@ -496,11 +505,17 @@ class DXRT_API InferenceEngine
     [[deprecated("Use IsPPU() instead")]]
     bool is_PPU() { return IsPPU(); }
 
-    /** 
+    /**
      * @brief Checks if the loaded model utilizes a Post-Processing Unit (PPU).
      * @return true if the model uses a PPU, false otherwise.
      */
     bool IsPPU();
+
+    /**
+     * @brief Checks whether any output tensor has dynamic shape.
+     * @return true if at least one output tensor has dynamic shape, false otherwise.
+     */
+    bool HasDynamicOutput();
 
     /**
      * @brief Checks whether ONNX Runtime (ORT) is configured and available for use.
@@ -508,37 +523,39 @@ class DXRT_API InferenceEngine
      */
     bool IsOrtConfigured();
 
-    /** 
+    /**
      * @brief Checks if the loaded model requires multiple input tensors.
      * @return true if the model has multiple inputs, false otherwise.
      */
     bool IsMultiInputModel() const;
 
-    /** 
+    /**
      * @brief Returns the number of input tensors required by the model.
      * @return The count of input tensors.
      */
     int GetInputTensorCount() const;
 
-    /** 
+    /**
      * @brief Returns the names of all input tensors in the order they should be provided.
      * @return A vector of input tensor names.
      */
     std::vector<std::string> GetInputTensorNames() const;
 
-    /** 
+    /**
      * @brief Returns the names of all output tensors in the order they are produced.
      * @return A vector of output tensor names.
      */
     std::vector<std::string> GetOutputTensorNames() const;
 
-    /** 
+
+
+    /**
      * @brief Returns the mapping from input tensor names to their target tasks within the model graph.
      * @return A map where the key is the tensor name and the value is the task name.
      */
     std::map<std::string, std::string> GetInputTensorToTaskMapping() const;
 
-    /** 
+    /**
      * @brief Deallocates resources and performs cleanup. This should be called to release memory and handles held by the engine.
      */
     void Dispose();
@@ -577,11 +594,6 @@ class DXRT_API InferenceEngine
      */
     size_t GetOutputTensorOffset(const std::string& tensorName) const;
 
-    // DSP Code
-    int DSP_GetDeviceBufferPtr(uint64_t *inputPtr, uint64_t *outputPtr);
-    void *DSP_Run(void *inputPtr, void *outputPtr = nullptr, void *userArg = nullptr);
-    void *DSP_Wait(int jobId);
-
  private:  // private functions
     int runAsync(void *inputPtr, void *userArg, void *outputPtr,
         std::function<void(TensorPtrs &outputs, void *userArg, int jobId)> batchCallback);
@@ -616,8 +628,7 @@ class DXRT_API InferenceEngine
     std::map<std::string, std::shared_ptr<Task>> _taskMap;
     InferenceTimer _inferenceTimer;
     std::vector<std::string> _taskOrder;
-    std::vector<std::string> _lastOutputOrder;  // Keep for backward compatibility
-    std::vector<std::string> _finalOutputOrder;  // New tensor-centric order
+    std::vector<std::string> _lastOutputOrder;
 
     // Multi-input support
     bool _isMultiInput = false;
@@ -678,6 +689,8 @@ class DXRT_API InferenceEngine
 
  private:
     static std::mutex _sInferenceEngineMutex;
+
+    std::vector<uint8_t> _validationOutputBuffer;
 };
 
 } /* namespace dxrt */

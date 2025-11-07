@@ -35,7 +35,7 @@ int InferenceRequest(RequestPtr req)
             << req->requestor_name() << " -> " << req->task()->name() << std::endl;
         // if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
         //    cout<<"[PROC         ][Job_"<<req->getData()->jobId<<"][Req_"<<req->id()<<"] wait device..."<<endl;
-        auto device = ObjectsPool::GetInstance().PickOneDevice(req->task()->getDeviceIds(), req->DSP_GetDspEnable());
+        auto device = ObjectsPool::GetInstance().PickOneDevice(req->task()->getDeviceIds());
         // if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
         //    cout<<"[PROC         ][Job_"<<req->getData()->jobId<<"][Req_"<<req->id()<<"][Dev_"<<device->id()<<"] DEV GET"<<endl;
         // cout<<"[PROC         ][Job_"<<req->getData()->jobId<<"][Req_"<<req->id()<<"][Dev_"<<device->id()<<"]"<<endl;
@@ -50,13 +50,7 @@ int InferenceRequest(RequestPtr req)
 
             try {
                 BufferSet buffers = req->task()->AcquireAllBuffers();
-#ifdef USE_PROFILER
-                req->CheckTimePoint(0);
-                // Start profiling for overall NPU task (input preprocess + PCIe + NPU execution + output postprocess)
-                auto& profiler = dxrt::Profiler::GetInstance();
-                std::string profile_name = "NPU Task[Job_" + to_string(req->job_id()) + "][" + req->task()->name() + "][Req_" + to_string(req->id()) + "]";
-                profiler.Start(profile_name);     
-#endif
+
                 req->getData()->output_buffer_base = buffers.output;
                 req->getData()->encoded_inputs_ptr = buffers.encoded_input;
                 req->getData()->encoded_outputs_ptr = buffers.encoded_output;
@@ -83,7 +77,13 @@ int InferenceRequest(RequestPtr req)
             req->getData()->encoded_outputs_ptr = req->task()->GetEncodedOutputBuffer();
         }
 
-
+#ifdef USE_PROFILER
+                req->CheckTimePoint(0);
+                // Start profiling for overall NPU task (input preprocess + PCIe + NPU execution + output postprocess)
+                auto& profiler = dxrt::Profiler::GetInstance();
+                std::string profile_name = "NPU Task[Job_" + to_string(req->job_id()) + "][" + req->task()->name() + "][Req_" + to_string(req->id()) + "]";
+                profiler.Start(profile_name);
+#endif
 
         req->getData()->BuildEncodedInputPtrs(req->taskData()->_encodedInputOffsets);
         req->getData()->BuildEncodedOutputPtrs(req->taskData()->_encodedOutputOffsets);
@@ -155,25 +155,4 @@ int ProcessResponse(RequestPtr req, dxrt_response_t *response, int deviceType)
     return 0;
 }
 
-// DSP code //////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-int DSP_ProcRequest(RequestPtr req, dxrt_dspcvmat_t *dspCvMatInPtr, dxrt_dspcvmat_t *dspCvMatOutPtr)
-{
-    LOG_DXRT_DBG << "[" << req->id() << "] " << "N) Req " << req->id() << ": "
-        << req->requestor_name() << " -> " << req->task()->name() << std::endl;
-    auto device = ObjectsPool::GetInstance().PickOneDevice(req->task()->getDeviceIds(), req->DSP_GetDspEnable());
-    TASK_FLOW("["+std::to_string(req->job_id())+"]"+req->task()->name()+" picks device");
-
-    device->DSP_ProcessRequest(req->getData(), dspCvMatInPtr, dspCvMatOutPtr);
-
-    return req->id();
-}
-
-int DSP_ProcessResponse(RequestPtr req)
-{
-    req->DSP_reqOnRequestComplete(req);
-    return 0;
-}
-
-// ~DSP code //////////////////////////////////////////////////////////////////////////////////////////////////////////
 }  // namespace dxrt

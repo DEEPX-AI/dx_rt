@@ -1,15 +1,15 @@
 site_name: DXNN Runtime (DX-RT) User Manual
 use_directory_urls: false
-docs_dir: docs # markdown original file folder
+docs_dir: source # markdown original file folder
 site_dir: html_docs # html target folder
-theme: 
+theme:
   name : material
   language: en
   font:
     text: Noto Sans Display
     #text: Noto Serif
-    #code: Noto Sans 
-    code: Roboto Mono 
+    #code: Noto Sans
+    code: Roboto Mono
   logo: ./img/deepx.png
   #favicon: ./img/favicon.png
   palette:
@@ -17,7 +17,7 @@ theme:
     - scheme: default
       primary: black
       toggle:
-        icon: material/brightness-7 
+        icon: material/brightness-7
         name: Switch to dark mode
     # Palette toggle for dark mode
     - media: "(prefers-color-scheme: dark)"
@@ -39,7 +39,7 @@ nav:
   - Installation on Linux: docs/02_Installation_on_Linux.md
   - Installation on Windows: docs/03_Installation_on_Windows.md
   - Model Inference: docs/04_Model_Inference.md
-  - Command Line Interface: docs/05_Command_Line_Interface.md  
+  - Command Line Interface: docs/05_Command_Line_Interface.md
   - Inference API Guide: docs/06_Inference_API.md
   - Multi-input Inference Guide: docs/07_Multi_Input_Inference.md
   - Configuration and DeviceStatus Guide: docs/08_Global_Instance.md
@@ -58,16 +58,16 @@ plugins:
       copyright: ⓒ Copyright 2025 DEEPX All Rights Reserved.
       cover_title: DXNN Runtime (DX-RT) User Manual
       cover_subtitle: v3.0.0
-      cover_logo: img/deepx.png
-      custom_template_path: docs/stylesheets
-      output_path: ../docs/DEEPX_DX-RT_UM_v3.0.0.pdf
+      cover_logo: source/img/deepx.png
+      custom_template_path: source/stylesheets
+      output_path: ../DEEPX_DX-RT_UM_v3.0.0.pdf
 extra:
   homepage: https://developer.deepx.ai
   generator: false
   social:
      - icon: fontawesome/brands/linkedin
        link: https://www.linkedin.com/company/deepx-corporation/
-extra_css: 
+extra_css:
   - stylesheets/extra.css
 markdown_extensions:
   - admonition
@@ -90,7 +90,7 @@ markdown_extensions:
   - pymdownx.snippets
   - pymdownx.superfences
   - pymdownx.tabbed:
-      alternate_style: true 
+      alternate_style: true
   - attr_list
   - md_in_html
 extra_javascript:

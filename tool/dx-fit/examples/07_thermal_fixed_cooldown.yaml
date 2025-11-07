@@ -1,0 +1,36 @@
+# ============================================================================
+# Thermal Management with Fixed Cooldown
+# ============================================================================
+# Random search with fixed cooling period between tests
+# Execution focus: When dxrt-cli is not available for thermal monitoring
+
+model_path: /path/to/your/model.dxnn  # ⚠️ CHANGE THIS to your model path
+
+# Execution Settings
+target_duration: 3.0    # Auto loop selection (RECOMMENDED)
+# loop_count: 30        # Or use fixed loop count
+warmup_runs: 5          # Warmup iterations before measurement
+timeout: 60             # Timeout per trial (seconds)
+use_ort: true           # Enable ONNX Runtime (recommended)
+
+# Strategy: Random Search (fast with fixed cooldown)
+strategy: random
+max_random_samples: 30  # Number of iterations for random sampling
+
+# Parameter Search Space
+parameters:
+  DXRT_TASK_MAX_LOAD: [2, 4, 6, 8, 10, 12, 14, 16]
+  DXRT_DYNAMIC_CPU_THREAD: [0, 1]
+  CUSTOM_INTRA_OP_THREADS_COUNT: [1, 2, 3, 4]
+  CUSTOM_INTER_OP_THREADS_COUNT: [1, 2]
+  NFH_INPUT_WORKER_THREADS: [1, 2]
+  NFH_OUTPUT_WORKER_THREADS: [1, 2, 3, 4]
+
+# Fixed Cooldown Configuration
+thermal_management:
+  enabled: true
+  cooldown_duration: 5           # Fixed 5s wait between tests
+  check_interval: 0               # Disable temp checking
+  max_cooling_time: 900           # Upper bound for cumulative cooldown (seconds)
+
+# Note: This uses fixed cooldown, not dynamic temperature monitoring

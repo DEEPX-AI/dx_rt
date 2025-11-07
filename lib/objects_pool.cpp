@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -14,6 +14,14 @@
 #include "dxrt/profiler.h"
 #include "dxrt/exception/exception.h"
 #include "resource/log_messages.h"
+#ifdef __linux__
+#include "dxrt/driver_adapter/linux_driver_adapter.h"
+#elif _WIN32
+#include "dxrt/driver_adapter/windows_driver_adapter.h"
+#endif
+
+
+
 #include <chrono>
 #include <stdexcept>
 #include <string>
@@ -56,14 +64,14 @@ ObjectsPool::ObjectsPool()
 
     _requestPool = std::make_shared<CircularDataPool<Request>>(ObjectsPool::REQUEST_MAX_COUNT);
 
-    makeDeviceList();
+    //makeDeviceList();
 
 }
 
 ObjectsPool::~ObjectsPool()
 {
-    LOG_DXRT_DBG << "~ObjectPool start" << std::endl;
-    _devices.clear();
+    LOG_DXRT_DBG << "~ObjectsPool start" << std::endl;
+    //_devices.clear();
     _requestPool = nullptr;
 
     // delete multiprocess_memory
@@ -75,12 +83,9 @@ ObjectsPool::~ObjectsPool()
     // delete configuration
     Configuration::deleteInstance();
 
-    LOG_DXRT_DBG << "~ObjectPool end" << std::endl;
+    LOG_DXRT_DBG << "~ObjectsPool end" << std::endl;
 }
-
-// #define DEVICE_FILE "dxrt"
-// #define DEVICE_FILE_DSP "dxrt_dsp"
-
+/*
 void ObjectsPool::makeDeviceList()
 {
     LOG_DXRT_DBG << std::endl;
@@ -98,7 +103,6 @@ void ObjectsPool::makeDeviceList()
         // LOG << "DXRT " DXRT_VERSION << std::endl;
         _devices.clear();
         int cnt = 0;
-        int cntDsp = 0;
         while (true)
         {
 #ifdef __linux__
@@ -130,33 +134,13 @@ void ObjectsPool::makeDeviceList()
             }
             cnt++;
         }
-        // find DSP device
-        {
-#ifdef __linux__
-            string devFileDsp("/dev/" + string(DEVICE_FILE_DSP) + std::to_string(cntDsp));
-#elif _WIN32
-            string devFileDsp("\\\\.\\" + string(DEVICE_FILE_DSP) + std::to_string(cntDsp));
-#endif
-            if (fileExists(devFileDsp))
-            {
-                LOG_DBG("Found " + devFileDsp);
-                std::shared_ptr<Device> device = std::make_shared<Device>(devFileDsp);
-                device->DSP_SetDspEnable(1);
-                _devices.emplace_back(std::move(device));
-                cntDsp++;
-            }
-            else
-            {
-                // No op.
-            }
-        }
-        if ( (cnt+cntDsp) == 0 )
+        if ( cnt == 0 )
         {
             throw DeviceIOException(EXCEPTION_MESSAGE(LogMessages::DeviceNotFound()));
         }
     }
 }
-
+*/
 RequestPtr ObjectsPool::PickRequest()  // new one
 {
     return _requestPool->pick();
@@ -166,7 +150,7 @@ RequestPtr ObjectsPool::GetRequestById(int id)  // find one by id
 {
     return _requestPool->GetById(id);
 }
-
+/*
 void ObjectsPool::InitDevices(SkipMode skip, uint32_t subCmd)
 {
     std::call_once(_initDevicesOnceFlag, &ObjectsPool::InitDevices_once, this, skip, subCmd);
@@ -178,20 +162,17 @@ void ObjectsPool::InitDevices_once(SkipMode skip, uint32_t subCmd)
 
     for (size_t i = 0; i < _devices.size(); i++)
     {
-        if (_devices[i]->DSP_GetDspEnable())
-            _devices[i]->DSP_Identify(i, skip, subCmd);
-        else
-            _devices[i]->Identify(i, skip, subCmd);
+        _devices[i]->Identify(i, skip, subCmd);
     }
     _device_identified = true;
 }
 
 
 
-shared_ptr<Device> ObjectsPool::PickOneDevice(const std::vector<int> &device_ids, int isDspReq)
+shared_ptr<Device> ObjectsPool::PickOneDevice(const std::vector<int> &device_ids)
 {
     std::lock_guard<std::mutex> lock(_methodMutex);
-    return WaitDevice(device_ids, isDspReq);
+    return WaitDevice(device_ids);
 
 
 #if 0
@@ -267,13 +248,13 @@ int ObjectsPool::DeviceCount()
 }
 
 // wait and awake
-std::shared_ptr<Device> ObjectsPool::WaitDevice(const std::vector<int> &device_ids, int isDspReq)
+std::shared_ptr<Device> ObjectsPool::WaitDevice(const std::vector<int> &device_ids)
 {
     std::unique_lock<std::mutex> lock(_deviceMutex);
 
     // 3600 second timeout to prevent deadlock
-    bool success = _deviceCV.wait_for(lock, std::chrono::seconds(3600), [this, &device_ids, isDspReq]{
-        _currentPickDevice = pickDeviceIndex(device_ids, isDspReq);
+    bool success = _deviceCV.wait_for(lock, std::chrono::seconds(3600), [this, &device_ids]{
+        _currentPickDevice = pickDeviceIndex(device_ids);
         return _currentPickDevice >= 0;
     });
 
@@ -301,12 +282,11 @@ void ObjectsPool::AwakeDevice(size_t devIndex)
 }
 
 
-int ObjectsPool::pickDeviceIndex(const std::vector<int> &device_ids, int isDspReq)
+int ObjectsPool::pickDeviceIndex(const std::vector<int> &device_ids)
 {
     int device_index = -1;
     int load = std::numeric_limits<int>::max();
     int curDeviceLoad;
-    int targetDevIsDsp;
     int device_id_size = device_ids.size();
     int block_count = 0;
     for (int i = 0; i < device_id_size; i++)
@@ -319,33 +299,16 @@ int ObjectsPool::pickDeviceIndex(const std::vector<int> &device_ids, int isDspRe
             continue;
         }
         curDeviceLoad = _devices[device_id]->load();
-        targetDevIsDsp = _devices[device_id]->DSP_GetDspEnable();
-        if (isDspReq == 1)  // DSP
-        {
-            if (targetDevIsDsp)
-            {
-                load = curDeviceLoad;
-                device_index = device_id;
-            }
-        }
-        else  // NPU
-        {
-            int maxDeviceLoad;
-            DeviceType deviceType = _devices[device_id]->getDeviceType();
-            if (deviceType == DeviceType::STD_TYPE)
-            {
-                maxDeviceLoad = 1;  // DEVICE_NUM_BUF;
-            }
-            else
-            {
-                maxDeviceLoad = DXRT_TASK_MAX_LOAD;
-            }
 
-            if (curDeviceLoad < maxDeviceLoad && curDeviceLoad < load && !targetDevIsDsp)
-            {
-                load = curDeviceLoad;
-                device_index = device_id;
-            }
+        int maxDeviceLoad;
+        DeviceType deviceType = _devices[device_id]->getDeviceType();
+        if(deviceType == DeviceType::STD_TYPE) maxDeviceLoad = 1;//DEVICE_NUM_BUF;
+        else                                   maxDeviceLoad = DXRT_TASK_MAX_LOAD;
+
+        if(curDeviceLoad < maxDeviceLoad && curDeviceLoad < load)
+        {
+            load = curDeviceLoad;
+            device_index = device_id;
         }
     }
 
@@ -359,34 +322,10 @@ int ObjectsPool::pickDeviceIndex(const std::vector<int> &device_ids, int isDspRe
 
     return device_index;
 }
-
-shared_ptr<MultiprocessMemory> ObjectsPool::GetMultiProcessMemory()
+*/
+std::shared_ptr<MultiprocessMemory> ObjectsPool::GetMultiProcessMemory()
 {
     return _multiProcessMemory;
 }
-
-// DSP code //////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-int ObjectsPool::DSP_GetBufferPtrFromDevices(uint64_t *inputPtr, uint64_t *outputPtr)
-{
-    int ret = 0;
-
-    *inputPtr  = 0;  // NULL;
-    *outputPtr = 0;  // NULL;
-    ret = -1;
-
-    for (size_t i = 0; i < _devices.size(); i++)
-    {
-        LOG_DXRT_DBG << "_devices.size() = " << _devices.size() << " i= " << i << std::endl;
-        if (_devices[i]->DSP_GetDspEnable())
-        {
-            _devices[i]->DSP_GetBufferPtrFromMem(inputPtr, outputPtr);
-        }
-    }
-
-    return ret;
-}
-
-// ~DSP code //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 }  // namespace dxrt

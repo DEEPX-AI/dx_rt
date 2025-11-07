@@ -12,6 +12,7 @@
 #pragma once
 
 #include "driver_adapter.h"
+#include <string>
 
 namespace dxrt {
 
@@ -23,11 +24,13 @@ class LinuxDriverAdapter : public DriverAdapter {
     int32_t Read(void* buffer, uint32_t size) override;
     void* MemoryMap(void *__addr, size_t __len, off_t __offset = 0) override;
     int32_t Poll() override;
-    int GetFd() override { return _fd; }
+    int GetFd() const override { return _fd; }
+    std::string GetName() const override { return _name;  }
 
     ~LinuxDriverAdapter() override;
  private:
     int _fd;
+    std::string _name;
 };
 
 }  // namespace dxrt

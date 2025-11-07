@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -11,19 +11,20 @@
 #include "ipc/dxtop_ipc_client.h"
 #include <sstream>
 #include <iomanip>
+#include "dxrt/device_core.h"
 namespace dxrt {
 
-NpuDevice::NpuDevice(uint8_t deviceNumber, dxrt::DevicePtr devicePtr, DXTopIPCClient& dxtopIPCClient)
+NpuDevice::NpuDevice(uint8_t deviceNumber, std::shared_ptr<DeviceCore> devicePtr, DXTopIPCClient& dxtopIPCClient)
 :_deviceNumber(deviceNumber), _devicePtr(devicePtr), _dramUsage(0)
 {
     _coreCount = CORE_COUNT;
     _devicePtr = devicePtr;
-    
+
     //Init Device
     _info = _devicePtr->info();
 
-    //Init Core 
-    _status = _devicePtr->status();
+    //Init Core
+    _status = _devicePtr->Status();
 
     //Init DevInfo
     _devInfo = _devicePtr->devInfo();
@@ -37,7 +38,7 @@ NpuDevice::NpuDevice(uint8_t deviceNumber, dxrt::DevicePtr devicePtr, DXTopIPCCl
         uint32_t voltage = _status.voltage[i];
         uint32_t clock = _status.clock[i];
         uint32_t temperature = _status.temperature[i];
-        
+
         auto core = std::make_shared<dxrt::NpuCore>(i, _deviceNumber);
         core->UpdateData(dxtopIPCClient, voltage, clock, temperature);
         _cores.push_back(core);
@@ -62,7 +63,7 @@ void NpuDevice::UpdateDeviceInfoData()
 
 void NpuDevice::UpdateCoreData(DXTopIPCClient& dxtopIPCClient)
 {
-    _status = _devicePtr->status();
+    _status = _devicePtr->Status();
 
     for(uint8_t core_num = 0; core_num < _coreCount; ++core_num)
     {
@@ -116,7 +117,7 @@ uint32_t NpuDevice::GetDeviceType() const
 
 uint32_t NpuDevice::GetDeviceVariant() const
 {
-    
+
     return _info.variant;
 }
 

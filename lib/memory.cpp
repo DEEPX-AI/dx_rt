@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -82,7 +82,7 @@ int64_t Memory::Allocate(uint64_t required)
         // Second attempt: Check if defragmentation can help for large allocations
         if (required >= MemoryConfig::LARGE_ALLOCATION_THRESHOLD)
         {
-            auto fragInfo = GetFragmentationInfo();
+            auto fragInfo = GetFragmentationInfoNoLock();
             if (fragInfo.fragmentation_ratio > MemoryConfig::MEDIUM_FRAGMENTATION_THRESHOLD)
             {
                 LOG_DXRT_DBG << "Attempting defragmentation for " << (required / (1024*1024)) << "MB allocation" << endl;
@@ -114,7 +114,7 @@ int64_t Memory::Allocate(uint64_t required)
     }
 
     // Memory allocation failed - provide detailed diagnosis
-    auto fragInfo = GetFragmentationInfo();
+    auto fragInfo = GetFragmentationInfoNoLock();
     LOG_DXRT_ERR("Failed to allocate " + std::to_string(required / (1024*1024)) + "MB. " +
                  "Free: " + std::to_string(fragInfo.total_free_size / (1024*1024)) + "MB, " +
                  "Largest block: " + std::to_string(fragInfo.largest_free_block / (1024*1024)) + "MB, " +
@@ -152,7 +152,7 @@ int64_t Memory::BackwardAllocate(uint64_t required)
     if (best_it == _pool.end() && required >= MemoryConfig::LARGE_ALLOCATION_THRESHOLD)
     {
         // Try defragmentation for large backward allocations
-        auto fragInfo = GetFragmentationInfo();
+        auto fragInfo = GetFragmentationInfoNoLock();
         if (fragInfo.fragmentation_ratio > MemoryConfig::MEDIUM_FRAGMENTATION_THRESHOLD)
         {
             if (TryDefragmentation(required))
@@ -198,7 +198,7 @@ int64_t Memory::BackwardAllocate(uint64_t required)
     }
 
     // Memory allocation failed
-    auto fragInfo = GetFragmentationInfo();
+    auto fragInfo = GetFragmentationInfoNoLock();
     LOG_DXRT_ERR("Failed to backward allocate " + std::to_string(required / (1024*1024)) + "MB. " +
                  "Free: " + std::to_string(fragInfo.total_free_size / (1024*1024)) + "MB, " +
                  "Largest block: " + std::to_string(fragInfo.largest_free_block / (1024*1024)) + "MB")
@@ -341,6 +341,10 @@ uint64_t Memory::used_size(void) const
 MemoryFragmentationInfo Memory::GetFragmentationInfo() const
 {
     std::unique_lock<std::mutex> lk(const_cast<std::mutex&>(_lock));
+    return GetFragmentationInfoNoLock();
+}
+MemoryFragmentationInfo Memory::GetFragmentationInfoNoLock() const
+{
     MemoryFragmentationInfo info = {0, 0, UINT64_MAX, 0, 0.0};
 
     for (const auto &pair : _pool)
@@ -461,7 +465,7 @@ void Memory::MergeAllAdjacentFreeBlocks()
 {
     // A flag to track if a merge occurred during a full scan.
     bool merged = true;
-    
+
     // Keep looping as long as merges are happening.
     while (merged)
     {
@@ -489,17 +493,17 @@ void Memory::MergeAllAdjacentFreeBlocks()
                     // Calculate the combined size and store the starting address.
                     uint64_t new_size = it->second.size + next_it->second.size;
                     uint64_t addr = it->first;
-                    
+
                     // Erase the two old, smaller blocks.
                     _pool.erase(it);
                     _pool.erase(next_it);
-                    
+
                     // Create a new, merged block in the pool.
                     MemoryNode& newNode = _pool[addr];
                     newNode.addr = addr;
                     newNode.size = new_size;
                     newNode.status = 0; // Set its status to free.
-                    
+
                     // A merge has occurred, so set the flag to true.
                     merged = true;
 

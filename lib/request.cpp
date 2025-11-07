@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -60,6 +60,7 @@ Request::~Request()
 RequestPtr Request::Create(Task *task_, Tensors inputs_, Tensors outputs_, void *userArg, int jobId)
 {
     RequestPtr req = Request::Pick();
+    req->_is_validate_request = false;
     req->_task = task_;
     req->_data.taskData = task_->getData();
     req->_data.inputs.clear();
@@ -85,6 +86,7 @@ RequestPtr Request::Create(Task *task_, void *input, void *output, void *userArg
     RequestPtr req = Request::Pick();
     req->_task = task_;
     req->_data.taskData = task_->getData();
+    req->_is_validate_request = false;
 
     if (input == nullptr)
         req->setInputs({});
@@ -310,7 +312,6 @@ void Request::Reset()
     _requestorName = "";
     _job = nullptr;
     SetStatus(Status::REQ_IDLE);
-    DSP_SetDspEnable(0);
 
     _task = nullptr;
     _use_flag = false;
@@ -458,16 +459,72 @@ void Request::markBufferReleased()
     _bufferReleased = true;
 }
 
-void Request::DSP_reqOnRequestComplete(RequestPtr req)
+#ifdef DXRT_USE_DEVICE_VALIDATION
+RequestPtr Request::CreateValidateRequest(Task* task_, void* input, void* output)
 {
-    _status = Request::Status::REQ_DONE;
+    RequestPtr req = Request::Pick();
+    req->_task = task_;
+    req->_data.taskData = task_->getData();
 
-    LOG_DXRT_DBG << endl;
+    if (input == nullptr)
+        req->setInputs({});
+    else
+        req->setInputs(task_->inputs(input)); // TODO: check to move to device?
 
-    if (_job != nullptr)
-        _job->DSP_OnRequestComplete(req);
+    req->_userArg = nullptr;
+    req->latency_valid() = true;
+    req->latency() = 0;
+    req->inference_time() = 0;
+    req->_requestorName = "";
+    req->_data.jobId = 0;
+    req->setInferenceJob(nullptr);
+    req->_data.output_buffer_base = nullptr;
+    req->_modelType = task_->getData()->_npuModel.type;
+    req->_data.encoded_inputs_ptr = input;
+    req->_data.encoded_outputs_ptr = output;
 
-    LOG_DXRT_DBG << " done " << endl;
+    req->_is_validate_request = true;
+    req->_validate_output_ptr = output;
+    req->_validate_output_size = task_->getData()->_npuModel.output_all_size;
+
+    req->setOutputs({});  // outputs will be set after validation
+    req->getData()->output_buffer_base = output;  // for validation, output buffer is provided by user
+    req->getData()->outputs_is_user_buffer = true;  // indicate that output buffer is user-provided
+
+    return req;
+}
+void* Request::ValidateBufferPtr()
+{
+    if (_is_validate_request == false)
+    {
+        LOG_DXRT_ERR("Request::ValidateBufferPtr - not a validate request");
+        return nullptr;
+    }
+    return _validate_output_ptr;
 }
 
+Tensor Request::ValidateOutputTensor() const
+{
+    if (_is_validate_request == false)
+    {
+        LOG_DXRT_ERR("Request::ValidateOutputTensor - not a validate request");
+        return Tensor("", {}, DataType::NONE_TYPE, nullptr);
+    }
+
+    // Handle empty output case (size == 0 or ptr == nullptr)
+    if (_validate_output_size == 0 || _validate_output_ptr == nullptr)
+    {
+        LOG_DXRT_DBG << "Request::ValidateOutputTensor - empty output detected "
+                     << "(size=" << _validate_output_size 
+                     << ", ptr=" << _validate_output_ptr << "). "
+                     << "Returning empty tensor.";
+        
+        // Return empty tensor with valid dummy pointer to avoid NONE_TYPE
+        static uint8_t dummy_buffer[1] = {0};
+        return Tensor("validate_output", std::vector<int64_t>{0}, DataType::INT8, dummy_buffer);
+    }
+
+    return Tensor("validate_output", std::vector<int64_t>{_validate_output_size}, DataType::INT8, _validate_output_ptr);
+}
+#endif
 }  // namespace dxrt

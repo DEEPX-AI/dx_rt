@@ -1,0 +1,1064 @@
+#!/usr/bin/python3
+"""
+DX-RT Parameter Fitting Tool (dx-fit)
+
+This tool automatically searches for optimal environment variable combinations
+to maximize inference performance using run_model with different parameter settings.
+"""
+
+import os
+import sys
+import subprocess
+import json
+import csv
+import time
+import re
+import yaml
+import random
+import signal
+import itertools
+import shutil
+from pathlib import Path
+from datetime import datetime
+from typing import Dict, List, Tuple, Any, Optional
+from dataclasses import dataclass
+
+# Check for Bayesian Optimization support
+try:
+    from skopt import gp_minimize
+    from skopt.space import Integer, Real, Categorical
+    from skopt.utils import use_named_args
+    BAYESIAN_AVAILABLE = True
+except ImportError:
+    BAYESIAN_AVAILABLE = False
+
+@dataclass
+class NPUStatus:
+    """NPU status information"""
+    npu_id: int
+    voltage: float  # mV
+    clock: int      # MHz
+    temperature: float  # Celsius
+
+@dataclass
+class TestResult:
+    """Data class for storing test results."""
+    test_id: int
+    success: bool
+    fps: Optional[float] = None
+    latency: Optional[float] = None
+    npu_processing_time: Optional[float] = None
+    run_time: float = 0.0
+    env_vars: Dict[str, Any] = None
+    error: str = ""
+    raw_output: str = ""
+    # Thermal monitoring data
+    pre_test_temp: Optional[float] = None
+    post_test_temp: Optional[float] = None
+    pre_test_voltage: Optional[float] = None
+    post_test_voltage: Optional[float] = None
+    cooling_time: float = 0.0
+
+class ThermalManager:
+    """Manages NPU thermal monitoring and cooling"""
+    
+    def __init__(self, config: dict):
+        thermal_config = config.get('thermal_management', {})
+        self.enabled = thermal_config.get('enabled', False)
+        self.max_temp = thermal_config.get('max_temperature', 80.0)
+        self.target_temp = thermal_config.get('target_temperature', 65.0)
+        self.fixed_cooldown = thermal_config.get('fixed_cooldown_seconds', 0)
+        self.check_interval = thermal_config.get('check_interval', 5)
+        self.max_cooling_time = thermal_config.get('max_cooling_time', 300)
+        
+        # Check dxrt-cli availability if thermal management is enabled
+        if self.enabled:
+            if not self._check_dxrt_cli_available():
+                print("Warning: dxrt-cli not found or not accessible.")
+                print("  Thermal management will be disabled.")
+                print("  Please ensure dxrt-cli is installed and in your PATH.")
+                self.enabled = False
+                if self.fixed_cooldown > 0:
+                    print(f"  Falling back to fixed cooldown: {self.fixed_cooldown}s")
+        
+        print(f"Thermal Management: {'Enabled' if self.enabled else 'Disabled'}")
+        if self.enabled:
+            print(f"  Max temperature: {self.max_temp}°C")
+            print(f"  Target temperature: {self.target_temp}°C")
+            print(f"  Check interval: {self.check_interval}s")
+            print(f"  Max cooling time: {self.max_cooling_time}s")
+        elif self.fixed_cooldown > 0:
+            print(f"  Fixed cooldown: {self.fixed_cooldown}s")
+    
+    def _check_dxrt_cli_available(self) -> bool:
+        """Check if dxrt-cli is available and working"""
+        try:
+            result = subprocess.run(['dxrt-cli', '-s'], 
+                                  capture_output=True, 
+                                  text=True, 
+                                  timeout=5)
+            return result.returncode == 0
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            return False
+        except Exception:
+            return False
+    
+    def get_npu_status(self) -> List[NPUStatus]:
+        """Get current NPU status using dxrt-cli"""
+        try:
+            result = subprocess.run(['dxrt-cli', '-s'], 
+                                  capture_output=True, 
+                                  text=True, 
+                                  timeout=10)
+            
+            if result.returncode != 0:
+                return []
+            
+            npu_statuses = []
+            lines = result.stdout.split('\n')
+            
+            for line in lines:
+                # Parse NPU status line: "NPU 0: voltage 745 mV, clock 1000 MHz, temperature 71'C"
+                npu_match = re.match(r'NPU (\d+): voltage (\d+) mV, clock (\d+) MHz, temperature (\d+)\'C', line)
+                if npu_match:
+                    npu_id = int(npu_match.group(1))
+                    voltage = float(npu_match.group(2))
+                    clock = int(npu_match.group(3))
+                    temperature = float(npu_match.group(4))
+                    
+                    npu_statuses.append(NPUStatus(npu_id, voltage, clock, temperature))
+            
+            return npu_statuses
+            
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError):
+            return []
+    
+    def get_max_temperature(self) -> Optional[float]:
+        """Get the maximum temperature across all NPUs"""
+        statuses = self.get_npu_status()
+        if not statuses:
+            return None
+        return max(status.temperature for status in statuses)
+    
+    def get_average_voltage(self) -> Optional[float]:
+        """Get the average voltage across all NPUs"""
+        statuses = self.get_npu_status()
+        if not statuses:
+            return None
+        return sum(status.voltage for status in statuses) / len(statuses)
+    
+    def wait_for_cooling(self, test_id: int) -> float:
+        """Wait for NPU to cool down and return cooling time"""
+        if not self.enabled:
+            if self.fixed_cooldown > 0:
+                print(f"Fixed cooldown: {self.fixed_cooldown}s")
+                time.sleep(self.fixed_cooldown)
+                return self.fixed_cooldown
+            return 0.0
+        
+        print(f"Checking NPU temperature before test {test_id}...")
+        
+        current_temp = self.get_max_temperature()
+        if current_temp is None:
+            print("Warning: Cannot read NPU temperature, using fixed cooldown")
+            if self.fixed_cooldown > 0:
+                time.sleep(self.fixed_cooldown)
+                return self.fixed_cooldown
+            return 0.0
+        
+        print(f"Current max NPU temperature: {current_temp}°C")
+        
+        if current_temp <= self.target_temp:
+            print("NPU temperature is acceptable, starting test")
+            return 0.0
+        
+        if current_temp > self.max_temp:
+            print(f"Warning: NPU temperature ({current_temp}°C) exceeds maximum ({self.max_temp}°C)")
+        
+        print(f"Cooling down NPU from {current_temp}°C to {self.target_temp}°C...")
+        
+        cooling_start = time.time()
+        last_temp = current_temp
+        
+        while time.time() - cooling_start < self.max_cooling_time:
+            time.sleep(self.check_interval)
+            
+            current_temp = self.get_max_temperature()
+            if current_temp is None:
+                print("Warning: Lost NPU temperature reading")
+                break
+            
+            # Show cooling progress
+            if abs(current_temp - last_temp) > 1.0:  # Temperature changed by more than 1°C
+                cooling_time = time.time() - cooling_start
+                print(f"  Cooling... {current_temp}°C (after {cooling_time:.1f}s)")
+                last_temp = current_temp
+            
+            if current_temp <= self.target_temp:
+                cooling_time = time.time() - cooling_start
+                print(f"NPU cooled to {current_temp}°C in {cooling_time:.1f}s")
+                return cooling_time
+        
+        # Timeout reached
+        cooling_time = time.time() - cooling_start
+        final_temp = self.get_max_temperature()
+        print(f"Cooling timeout reached after {cooling_time:.1f}s. Final temperature: {final_temp}°C")
+        return cooling_time
+
+class DxFitTuner:
+    """DX-RT Parameter Optimization Tool"""
+
+    def __init__(self, config_path: str):
+        """Initialize the tuner with YAML configuration."""
+        with open(config_path, 'r') as f:
+            self.config = yaml.safe_load(f)
+
+        # Validate required fields
+        if 'model_path' not in self.config:
+            raise ValueError("model_path is required in configuration")
+        if 'parameters' not in self.config:
+            raise ValueError("parameters is required in configuration")
+        
+        self.model_path = self.config['model_path']
+        
+        # Validate model path exists
+        if not Path(self.model_path).exists():
+            raise FileNotFoundError(f"Model file not found: {self.model_path}")
+        
+        self.loop_count = self.config.get('loop_count', 100)
+        self.use_ort = self.config.get('use_ort', True)
+        self.warmup_runs = self.config.get('warmup_runs', 5)
+        self.timeout = self.config.get('timeout', 300)
+        self.strategy = self.config.get('strategy', 'grid')
+        self.max_random_samples = self.config.get('max_random_samples', 100)
+        self.use_python = self.config.get('use_python', False)  # Use Python version of run_model
+        
+        # Loop selection configuration
+        self.target_duration = self.config.get('target_duration')
+        self.loop_selection_method = None  # Will be set during initialization
+        
+        # Find loop-selector tool if target_duration is specified
+        if self.target_duration is not None:
+            self.loop_selector_cmd = self._find_loop_selector()
+            if self.loop_selector_cmd:
+                self.loop_selection_method = "loop-selector"
+                print(f"Loop selection: Using loop-selector (target: {self.target_duration}s)")
+            else:
+                print(f"Warning: target_duration specified but loop-selector not found, using default loop_count")
+                self.loop_selection_method = "config_default"
+        else:
+            self.loop_selection_method = "config_loop_count"
+            print(f"Loop selection: Using config loop_count ({self.loop_count})")
+
+        # Validate configuration values
+        if self.loop_count <= 0:
+            raise ValueError(f"loop_count must be positive, got {self.loop_count}")
+        if self.warmup_runs < 0:
+            raise ValueError(f"warmup_runs cannot be negative, got {self.warmup_runs}")
+        if self.timeout <= 0:
+            raise ValueError(f"timeout must be positive, got {self.timeout}")
+        
+        # Validate target_duration if specified
+        if self.target_duration is not None and self.target_duration <= 0:
+            raise ValueError(f"target_duration must be positive, got {self.target_duration}")
+        
+        # Validate strategy
+        if self.strategy not in ['grid', 'random', 'bayesian']:
+            raise ValueError(f"strategy must be 'grid', 'random', or 'bayesian', got '{self.strategy}'")
+        if self.strategy == 'random' and self.max_random_samples <= 0:
+            raise ValueError(f"max_random_samples must be positive for random strategy, got {self.max_random_samples}")
+        if self.strategy == 'bayesian':
+            if not BAYESIAN_AVAILABLE:
+                raise ValueError("Bayesian optimization requires scikit-optimize. Install it with: pip install scikit-optimize")
+            if self.max_random_samples <= 0:
+                raise ValueError(f"max_random_samples (n_calls) must be positive for bayesian strategy, got {self.max_random_samples}")
+        
+        self.parameters = self.config['parameters']
+        
+        # Validate parameters
+        if not self.parameters:
+            raise ValueError("parameters cannot be empty")
+        for param_name, param_values in self.parameters.items():
+            if not param_values:
+                raise ValueError(f"Parameter '{param_name}' has no values")
+        
+        # Initialize thermal manager
+        self.thermal_manager = ThermalManager(self.config)
+
+        # Setup output files in organized directory structure
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.output_dir = f"results_{timestamp}"
+        os.makedirs(self.output_dir, exist_ok=True)
+        
+        self.results_csv = os.path.join(self.output_dir, "results.csv")
+        self.best_config_json = os.path.join(self.output_dir, "best_config.json")
+        self.report_txt = os.path.join(self.output_dir, "tuning_report.txt")
+        # Note: Plots are generated by dx-fit-analyze, not here
+
+        # Signal handling for graceful shutdown
+        self.running = True
+        signal.signal(signal.SIGINT, self._signal_handler)
+        signal.signal(signal.SIGTERM, self._signal_handler)
+
+        # Perform loop selection if target_duration is specified
+        if self.target_duration is not None and self.loop_selector_cmd:
+            selected_loops, reason = self._adjust_loop_count()
+            if selected_loops != self.loop_count:
+                print(f"Loop count adjusted: {self.loop_count} → {selected_loops} ({reason})")
+                self.loop_count = selected_loops
+            else:
+                print(f"Loop count unchanged: {self.loop_count} ({reason})")
+        elif self.target_duration is not None and not self.loop_selector_cmd:
+            print(f"Warning: target_duration specified but loop-selector not available, using loop_count: {self.loop_count}")
+
+        print("=== DX-RT Parameter Fitting Tool ===")
+        print(f"Model: {self.model_path}")
+        print(f"Strategy: {self.strategy}")
+        if self.loop_selection_method == "loop-selector":
+            print(f"Loop selection: Dynamic (target: {self.target_duration}s) → {self.loop_count} loops")
+        elif self.loop_selection_method == "config_loop_count":
+            print(f"Loop selection: Static ({self.loop_count} loops)")
+        else:
+            print(f"Loop selection: Default ({self.loop_count} loops)")
+        if self.strategy == 'grid':
+            total_combinations = self._calculate_grid_combinations()
+            print(f"Total combinations: {total_combinations}")
+        else:
+            print(f"Max random samples: {self.max_random_samples}")
+        print(f"Output directory: {self.output_dir}/")
+        print()
+        print(f"Results: {self.results_csv}")
+        print()
+    
+    def _find_loop_selector(self) -> Optional[str]:
+        """Find loop-selector executable path"""
+        # Check in ../loop-selector/ directory (relative to dx-fit)
+        loop_selector_path = Path(__file__).parent.parent / "loop-selector" / "loop-selector"
+        if loop_selector_path.exists():
+            return str(loop_selector_path)
+        
+        # Check in current tool directory
+        tool_path = Path(__file__).parent / "loop-selector"
+        if tool_path.exists():
+            return str(tool_path)
+        
+        # Check in bin/ directory
+        workspace_root = Path(__file__).parent.parent.parent
+        bin_path = workspace_root / "bin" / "loop-selector"
+        if bin_path.exists():
+            return str(bin_path)
+        
+        # Check in PATH
+        if shutil.which("loop-selector"):
+            return "loop-selector"
+        
+        return None
+    
+    def _adjust_loop_count(self) -> Tuple[int, str]:
+        """
+        Adjust loop count using loop-selector
+        
+        Returns:
+            (loop_count, reason)
+        """
+        if not self.loop_selector_cmd:
+            return self.loop_count, "loop-selector not found, using config default"
+        
+        # Find run_model command for loop-selector
+        run_model_cmd = self._find_run_model()
+        if not run_model_cmd:
+            return self.loop_count, "run_model not found, using config default"
+        
+        try:
+            cmd = [
+                self.loop_selector_cmd,
+                self.model_path,
+                '--target-duration', str(self.target_duration),
+                '--format', 'json',
+                '--run-model', run_model_cmd
+            ]
+            
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=600  # 10 minutes timeout
+            )
+            
+            if result.returncode != 0:
+                print(f"Warning: loop-selector failed: {result.stderr}")
+                return self.loop_count, "loop-selector failed, using config default"
+            
+            # Parse JSON output
+            data = json.loads(result.stdout)
+            selected_loops = data.get('loops', self.loop_count)
+            reason = data.get('reason', f'Selected by loop-selector (target: {self.target_duration}s)')
+            
+            return selected_loops, reason
+            
+        except subprocess.TimeoutExpired:
+            print("Warning: loop-selector timeout")
+            return self.loop_count, "loop-selector timeout, using config default"
+        except json.JSONDecodeError as e:
+            print(f"Warning: Failed to parse loop-selector output: {e}")
+            return self.loop_count, "Failed to parse loop-selector output, using config default"
+        except Exception as e:
+            print(f"Warning: loop-selector error: {e}")
+            return self.loop_count, f"loop-selector error: {e}, using config default"
+    
+    def _find_run_model(self) -> Optional[str]:
+        """Find run_model executable path"""
+        # Use Python version if specified
+        if self.use_python:
+            python_run_model = Path(__file__).parent.parent.parent / "python_package" / "cli" / "run_model.py"
+            if python_run_model.exists():
+                return f"python3 {python_run_model}"
+        
+        # Check in bin/ directory
+        workspace_root = Path(__file__).parent.parent.parent
+        bin_path = workspace_root / "bin" / "run_model"
+        if bin_path.exists():
+            return str(bin_path)
+        
+        # Check in PATH
+        if shutil.which("run_model"):
+            return "run_model"
+        
+        return None
+
+    def _signal_handler(self, signum, frame):
+        """Handle interrupt signals gracefully."""
+        print(f"\nReceived signal {signum}. Shutting down gracefully...")
+        self.running = False
+
+    def _calculate_grid_combinations(self) -> int:
+        """Calculate total number of parameter combinations for grid search."""
+        total = 1
+        for values in self.parameters.values():
+            total *= len(values)
+        return total
+
+    def _generate_parameter_combinations(self) -> List[Dict[str, Any]]:
+        """Generate parameter combinations based on strategy."""
+        if self.strategy == 'grid':
+            # Grid search: all combinations
+            param_names = list(self.parameters.keys())
+            param_values = [self.parameters[name] for name in param_names]
+            combinations = []
+
+            for combo in itertools.product(*param_values):
+                combinations.append(dict(zip(param_names, combo)))
+
+            return combinations
+
+        elif self.strategy == 'random':
+            # Random search: sample combinations
+            combinations = []
+            param_names = list(self.parameters.keys())
+
+            for _ in range(self.max_random_samples):
+                combo = {}
+                for name in param_names:
+                    values = self.parameters[name]
+                    combo[name] = random.choice(values)
+                combinations.append(combo)
+
+            return combinations
+
+        elif self.strategy == 'bayesian':
+            # Bayesian optimization will be handled separately in run_tuning()
+            # Return empty list as placeholder
+            return []
+
+        else:
+            raise ValueError(f"Unknown strategy: {self.strategy}")
+
+    def _create_search_space(self) -> List:
+        """Create search space for Bayesian optimization."""
+        from skopt.space import Integer, Categorical
+        
+        space = []
+        param_names = list(self.parameters.keys())
+        
+        for param_name in param_names:
+            values = self.parameters[param_name]
+            
+            # Check if values are all integers
+            if all(isinstance(v, int) for v in values):
+                # Use Integer space
+                space.append(Integer(min(values), max(values), name=param_name))
+            else:
+                # Use Categorical space for mixed or string types
+                space.append(Categorical(values, name=param_name))
+        
+        return space
+
+    def _objective_function(self, *args) -> float:
+        """
+        Objective function for Bayesian optimization.
+        Returns negative FPS (because gp_minimize minimizes).
+        """
+        # Convert args to parameter dict
+        param_names = list(self.parameters.keys())
+        params = dict(zip(param_names, args))
+        
+        # Run test
+        test_id = len(self.bayesian_results) + 1
+        result = self._run_single_test(params, test_id)
+        self.bayesian_results.append(result)
+        
+        # Return negative FPS (minimize)
+        # If test failed, return a large penalty
+        if result.success and result.fps is not None:
+            fps = result.fps
+            print(f"  Test {test_id}: FPS = {fps:.2f}")
+            return -fps  # Negative because we minimize
+        else:
+            print(f"  Test {test_id}: FAILED")
+            return 1000.0  # Large penalty for failures
+
+    def _run_bayesian_optimization(self) -> List[TestResult]:
+        """
+        Run Bayesian optimization to find optimal parameters.
+        """
+        from skopt import gp_minimize
+        from skopt.utils import use_named_args
+        
+        print("Running Bayesian Optimization...")
+        print(f"Maximum iterations: {self.max_random_samples}")
+        print()
+        
+        # Create search space
+        space = self._create_search_space()
+        
+        # Store results during optimization
+        self.bayesian_results = []
+        
+        # Create the decorated objective function
+        @use_named_args(space)
+        def objective(**params):
+            # Convert params to list in correct order
+            param_names = list(self.parameters.keys())
+            args = [params[name] for name in param_names]
+            return self._objective_function(*args)
+        
+        # Run optimization
+        try:
+            result = gp_minimize(
+                objective,
+                space,
+                n_calls=self.max_random_samples,
+                n_initial_points=min(10, self.max_random_samples // 2),  # Initial random exploration
+                acq_func='EI',  # Expected Improvement
+                random_state=42,
+                verbose=False
+            )
+            
+            print(f"\nBayesian Optimization complete!")
+            print(f"Best FPS found: {-result.fun:.2f}")
+            print(f"Best parameters: {dict(zip([s.name for s in space], result.x))}")
+            
+        except Exception as e:
+            print(f"\nWarning: Bayesian optimization failed: {e}")
+            print("Falling back to results collected so far...")
+        
+        return self.bayesian_results
+
+    def _parse_run_model_output(self, output: str) -> Dict[str, Any]:
+        """Parse run_model output to extract performance metrics."""
+        metrics = {}
+
+        lines = output.split('\n')
+
+        # Extract FPS
+        fps_match = re.search(r'FPS\s*:\s*(\d+\.?\d*)', output)
+        if fps_match:
+            metrics['fps'] = float(fps_match.group(1))
+
+        # Extract latency
+        latency_match = re.search(r'Latency Average\s*:\s*(\d+\.?\d*)\s*ms', output)
+        if latency_match:
+            metrics['latency'] = float(latency_match.group(1))
+
+        # Extract NPU processing time
+        npu_match = re.search(r'NPU Processing Time Average\s*:\s*(\d+\.?\d*)\s*ms', output)
+        if npu_match:
+            metrics['npu_processing_time'] = float(npu_match.group(1))
+
+        return metrics
+
+    def _run_single_test(self, env_vars: Dict[str, Any], test_id: int) -> TestResult:
+        """Run a single test with given environment variables."""
+        print(f"\n--- Test {test_id} ---")
+        print(f"Parameters: {env_vars}")
+
+        # Wait for cooling if thermal management is enabled
+        cooling_time = self.thermal_manager.wait_for_cooling(test_id)
+        
+        # Get pre-test thermal status
+        pre_test_temp = self.thermal_manager.get_max_temperature()
+        pre_test_voltage = self.thermal_manager.get_average_voltage()
+
+        # Set environment variables
+        original_env = {}
+        for key, value in env_vars.items():
+            original_env[key] = os.environ.get(key)
+            os.environ[key] = str(value)
+
+        try:
+            # Build command
+            if self.use_python:
+                cmd = [
+                    'python3', 'python_package/cli/run_model.py',
+                    '-m', self.model_path,
+                    '-l', str(self.loop_count),
+                    '-w', str(self.warmup_runs)
+                ]
+            else:
+                cmd = [
+                    'run_model',
+                    '-m', self.model_path,
+                    '-l', str(self.loop_count),
+                    '-w', str(self.warmup_runs)
+                ]
+
+            if self.use_ort:
+                cmd.append('--use-ort')
+
+            cmd.extend(['-v'])
+
+            print(f"Command: {' '.join(cmd)}")
+
+            # Run command with timeout
+            start_time = time.time()
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=self.timeout
+            )
+            run_time = time.time() - start_time
+
+            # Get post-test thermal status
+            post_test_temp = self.thermal_manager.get_max_temperature()
+            post_test_voltage = self.thermal_manager.get_average_voltage()
+
+            # Parse metrics
+            metrics = self._parse_run_model_output(result.stdout)
+
+            if result.returncode == 0 and 'fps' in metrics:
+                test_result = TestResult(
+                    test_id=test_id,
+                    success=True,
+                    fps=metrics.get('fps'),
+                    latency=metrics.get('latency'),
+                    npu_processing_time=metrics.get('npu_processing_time'),
+                    run_time=run_time,
+                    env_vars=env_vars.copy(),
+                    raw_output=result.stdout,
+                    pre_test_temp=pre_test_temp,
+                    post_test_temp=post_test_temp,
+                    pre_test_voltage=pre_test_voltage,
+                    post_test_voltage=post_test_voltage,
+                    cooling_time=cooling_time
+                )
+
+                print(f"SUCCESS: FPS={test_result.fps:.2f}", end="")
+                if test_result.latency is not None:
+                    print(f", Latency={test_result.latency:.2f}ms", end="")
+                if test_result.npu_processing_time is not None:
+                    print(f", NPU Time={test_result.npu_processing_time:.2f}ms", end="")
+                print(f", Run Time={test_result.run_time:.2f}s", end="")
+                
+                # Print thermal info
+                if pre_test_temp is not None and post_test_temp is not None:
+                    temp_change = post_test_temp - pre_test_temp
+                    print(f", Temp: {pre_test_temp:.1f}°C → {post_test_temp:.1f}°C ({temp_change:+.1f}°C)", end="")
+                if cooling_time > 0:
+                    print(f", Cooling: {cooling_time:.1f}s", end="")
+                print()
+                
+            else:
+                error_msg = result.stderr.strip() or "Unknown error"
+                test_result = TestResult(
+                    test_id=test_id,
+                    success=False,
+                    run_time=run_time,
+                    env_vars=env_vars.copy(),
+                    error=error_msg,
+                    raw_output=result.stdout + "\n" + result.stderr,
+                    pre_test_temp=pre_test_temp,
+                    post_test_temp=post_test_temp,
+                    pre_test_voltage=pre_test_voltage,
+                    post_test_voltage=post_test_voltage,
+                    cooling_time=cooling_time
+                )
+                print(f"FAILED: {error_msg}")
+
+        except subprocess.TimeoutExpired:
+            run_time = self.timeout
+            post_test_temp = self.thermal_manager.get_max_temperature()
+            post_test_voltage = self.thermal_manager.get_average_voltage()
+            
+            test_result = TestResult(
+                test_id=test_id,
+                success=False,
+                run_time=run_time,
+                env_vars=env_vars.copy(),
+                error=f"Timeout after {self.timeout} seconds",
+                raw_output="",
+                pre_test_temp=pre_test_temp,
+                post_test_temp=post_test_temp,
+                pre_test_voltage=pre_test_voltage,
+                post_test_voltage=post_test_voltage,
+                cooling_time=cooling_time
+            )
+            print(f"TIMEOUT: Test exceeded {self.timeout} seconds")
+
+        except Exception as e:
+            test_result = TestResult(
+                test_id=test_id,
+                success=False,
+                run_time=0,
+                env_vars=env_vars.copy(),
+                error=str(e),
+                raw_output="",
+                pre_test_temp=pre_test_temp,
+                post_test_temp=None,
+                pre_test_voltage=pre_test_voltage,
+                post_test_voltage=None,
+                cooling_time=cooling_time
+            )
+            print(f"ERROR: {str(e)}")
+
+        finally:
+            # Restore original environment variables
+            for key, value in original_env.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+
+        return test_result
+
+    def _save_results_to_csv(self, results: List[TestResult]):
+        """Save all results to CSV file."""
+        fieldnames = [
+            'test_id', 'success', 'fps', 'latency', 'npu_processing_time',
+            'run_time', 'cooling_time',
+            'pre_test_temp', 'post_test_temp', 'temp_change',
+            'pre_test_voltage', 'post_test_voltage', 'voltage_change'
+        ]
+
+        # Add parameter columns
+        param_names = list(self.parameters.keys())
+        fieldnames.extend(param_names)
+        fieldnames.append('error')
+
+        with open(self.results_csv, 'w', newline='') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+
+            for result in results:
+                # Calculate changes
+                temp_change = None
+                if result.pre_test_temp is not None and result.post_test_temp is not None:
+                    temp_change = result.post_test_temp - result.pre_test_temp
+                
+                voltage_change = None
+                if result.pre_test_voltage is not None and result.post_test_voltage is not None:
+                    voltage_change = result.post_test_voltage - result.pre_test_voltage
+
+                row = {
+                    'test_id': result.test_id,
+                    'success': result.success,
+                    'fps': result.fps,
+                    'latency': result.latency,
+                    'npu_processing_time': result.npu_processing_time,
+                    'run_time': result.run_time,
+                    'cooling_time': result.cooling_time,
+                    'pre_test_temp': result.pre_test_temp,
+                    'post_test_temp': result.post_test_temp,
+                    'temp_change': temp_change,
+                    'pre_test_voltage': result.pre_test_voltage,
+                    'post_test_voltage': result.post_test_voltage,
+                    'voltage_change': voltage_change,
+                    'error': result.error
+                }
+
+                # Add parameter values
+                if result.env_vars:
+                    for param in param_names:
+                        row[param] = result.env_vars.get(param)
+
+                writer.writerow(row)
+
+    def _find_best_configuration(self, results: List[TestResult]) -> Tuple[Optional[TestResult], Dict[str, Any]]:
+        """Find the best configuration based on FPS."""
+        successful_results = [r for r in results if r.success and r.fps is not None]
+
+        if not successful_results:
+            return None, {
+                'total_tests': len(results),
+                'successful_tests': 0,
+                'success_rate': 0.0,
+                'best_fps': None,
+                'avg_fps': None,
+                'min_fps': None,
+                'max_fps': None,
+                'fps_std': None,
+                'avg_latency': None,
+                'total_time': sum(r.run_time for r in results),
+                'total_cooling_time': sum(r.cooling_time for r in results)
+            }
+
+        # Find best by FPS (highest)
+        best_result = max(successful_results, key=lambda r: r.fps)
+
+        # Calculate statistics
+        fps_values = [r.fps for r in successful_results]
+        latency_values = [r.latency for r in successful_results if r.latency]
+
+        stats = {
+            'total_tests': len(results),
+            'successful_tests': len(successful_results),
+            'success_rate': len(successful_results) / len(results) * 100,
+            'best_fps': best_result.fps,
+            'avg_fps': sum(fps_values) / len(fps_values),
+            'min_fps': min(fps_values),
+            'max_fps': max(fps_values),
+            'fps_std': (sum((x - sum(fps_values)/len(fps_values))**2 for x in fps_values) / len(fps_values))**0.5 if fps_values else 0,
+            'avg_latency': sum(latency_values) / len(latency_values) if latency_values else None,
+            'total_time': sum(r.run_time for r in results),
+            'total_cooling_time': sum(r.cooling_time for r in results)
+        }
+
+        return best_result, stats
+
+    def _save_best_config(self, best_result: TestResult):
+        """Save best configuration to JSON file."""
+        if best_result and best_result.env_vars:
+            config = {
+                'fps': best_result.fps,
+                'latency': best_result.latency,
+                'npu_time': best_result.npu_processing_time,
+                'parameters': best_result.env_vars,
+                'thermal_data': {
+                    'pre_test_temp': float(best_result.pre_test_temp) if best_result.pre_test_temp is not None else None,
+                    'post_test_temp': float(best_result.post_test_temp) if best_result.post_test_temp is not None else None,
+                    'pre_test_voltage': float(best_result.pre_test_voltage) if best_result.pre_test_voltage is not None else None,
+                    'post_test_voltage': float(best_result.post_test_voltage) if best_result.post_test_voltage is not None else None,
+                    'cooling_time': float(best_result.cooling_time)
+                },
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            # Convert numpy types to Python native types
+            def convert_numpy_types(obj):
+                """Recursively convert numpy types to Python native types."""
+                if isinstance(obj, dict):
+                    return {k: convert_numpy_types(v) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    return [convert_numpy_types(v) for v in obj]
+                elif hasattr(obj, 'item'):  # numpy scalar
+                    return obj.item()
+                else:
+                    return obj
+            
+            config = convert_numpy_types(config)
+
+            with open(self.best_config_json, 'w') as f:
+                json.dump(config, f, indent=2)
+
+    def _generate_report(self, best_result: Optional[TestResult], stats: Dict[str, Any]):
+        """Generate a text report of the tuning results."""
+        with open(self.report_txt, 'w') as f:
+            f.write("=== DX-RT Parameter Fitting Results ===\n\n")
+
+            f.write("Configuration:\n")
+            f.write(f"  Model: {self.model_path}\n")
+            f.write(f"  Loop count: {self.loop_count}\n")
+            if self.loop_selection_method == "loop-selector":
+                f.write(f"  Loop selection: Dynamic (target duration: {self.target_duration}s)\n")
+            elif self.loop_selection_method == "config_loop_count":
+                f.write(f"  Loop selection: Static (config loop_count)\n")
+            else:
+                f.write(f"  Loop selection: Default\n")
+            f.write(f"  Strategy: {self.strategy}\n")
+            f.write(f"  Use ORT: {self.use_ort}\n")
+            f.write(f"  Timeout: {self.timeout}s\n")
+            
+            # Thermal management info
+            if self.thermal_manager.enabled:
+                f.write(f"  Thermal Management: Enabled\n")
+                f.write(f"    Max temperature: {self.thermal_manager.max_temp}°C\n")
+                f.write(f"    Target temperature: {self.thermal_manager.target_temp}°C\n")
+                f.write(f"    Check interval: {self.thermal_manager.check_interval}s\n")
+                f.write(f"    Max cooling time: {self.thermal_manager.max_cooling_time}s\n")
+            else:
+                f.write(f"  Thermal Management: Disabled\n")
+                if self.thermal_manager.fixed_cooldown > 0:
+                    f.write(f"    Fixed cooldown: {self.thermal_manager.fixed_cooldown}s\n")
+            f.write("\n")
+
+            f.write("Test Statistics:\n")
+            f.write(f"  Total tests: {stats['total_tests']}\n")
+            f.write(f"  Successful tests: {stats['successful_tests']}\n")
+            f.write(f"  Success rate: {stats['success_rate']:.1f}%\n")
+            if stats['best_fps'] is not None:
+                f.write(f"  Best FPS: {stats['best_fps']:.2f}\n")
+                f.write(f"  Average FPS: {stats['avg_fps']:.2f} ± {stats['fps_std']:.2f}\n")
+            f.write(f"  Total execution time: {stats['total_time']:.1f}s\n")
+            f.write(f"  Total cooling time: {stats['total_cooling_time']:.1f}s\n")
+            f.write(f"  Actual test time: {stats['total_time'] - stats['total_cooling_time']:.1f}s\n")
+            if stats['total_time'] > 0:
+                f.write(f"  Cooling overhead: {stats['total_cooling_time'] / stats['total_time'] * 100:.1f}%\n")
+            f.write("\n")
+
+            if best_result:
+                f.write("Best Configuration:\n")
+                for param, value in best_result.env_vars.items():
+                    f.write(f"  {param}: {value}\n")
+                f.write("\n")
+
+                f.write("Performance Metrics:\n")
+                f.write(f"  FPS: {best_result.fps:.2f}\n")
+                if best_result.latency:
+                    f.write(f"  Latency: {best_result.latency:.2f}ms\n")
+                if best_result.npu_processing_time:
+                    f.write(f"  NPU Processing Time: {best_result.npu_processing_time:.2f}ms\n")
+                f.write("\n")
+
+                # Thermal data for best result
+                f.write("Thermal Data (Best Configuration):\n")
+                if best_result.pre_test_temp is not None:
+                    f.write(f"  Pre-test temperature: {best_result.pre_test_temp:.1f}°C\n")
+                if best_result.post_test_temp is not None:
+                    f.write(f"  Post-test temperature: {best_result.post_test_temp:.1f}°C\n")
+                    if best_result.pre_test_temp is not None:
+                        temp_change = best_result.post_test_temp - best_result.pre_test_temp
+                        f.write(f"  Temperature change: {temp_change:+.1f}°C\n")
+                if best_result.pre_test_voltage is not None:
+                    f.write(f"  Pre-test voltage: {best_result.pre_test_voltage:.1f}mV\n")
+                if best_result.post_test_voltage is not None:
+                    f.write(f"  Post-test voltage: {best_result.post_test_voltage:.1f}mV\n")
+                    if best_result.pre_test_voltage is not None:
+                        voltage_change = best_result.post_test_voltage - best_result.pre_test_voltage
+                        f.write(f"  Voltage change: {voltage_change:+.1f}mV\n")
+                if best_result.cooling_time > 0:
+                    f.write(f"  Cooling time: {best_result.cooling_time:.1f}s\n")
+                f.write("\n")
+
+            f.write("Parameter Search Space:\n")
+            for param, values in self.parameters.items():
+                f.write(f"  {param}: {values}\n")
+
+            f.write(f"\nTotal execution time: {stats['total_time']:.1f} seconds\n")
+            f.write(f"Results saved to: {self.results_csv}\n")
+            f.write(f"Best config saved to: {self.best_config_json}\n")
+            f.write(f"Report saved to: {self.report_txt}\n")
+            f.write(f"\nNote: Run 'dx-fit-analyze {self.results_csv}' to generate plots\n")
+
+    def run_tuning(self):
+        """Run the complete parameter tuning process."""
+        print("Starting parameter tuning...\n")
+
+        results = []
+        start_time = time.time()
+
+        if self.strategy == 'bayesian':
+            # Run Bayesian optimization
+            results = self._run_bayesian_optimization()
+        else:
+            # Generate parameter combinations for grid/random
+            combinations = self._generate_parameter_combinations()
+            print(f"Testing {len(combinations)} parameter combinations...\n")
+
+            for i, params in enumerate(combinations, 1):
+                if not self.running:
+                    print("\nTuning interrupted by user.")
+                    break
+
+                result = self._run_single_test(params, i)
+                results.append(result)
+
+                # Progress update
+                elapsed = time.time() - start_time
+                eta = (elapsed / i) * (len(combinations) - i)
+                print(f"Progress: {i}/{len(combinations)} ({i/len(combinations)*100:.1f}%) - "
+                      f"Elapsed: {elapsed:.1f}s, ETA: {eta:.1f}s")
+        
+        total_time = time.time() - start_time
+        print(f"\nTotal execution time: {total_time:.1f} seconds")
+        # Find best configuration and generate outputs
+        best_result, stats = self._find_best_configuration(results)
+
+        self._save_results_to_csv(results)
+        self._save_best_config(best_result)
+        self._generate_report(best_result, stats)
+
+        # Print summary
+        print("\n" + "="*50)
+        print("TUNING COMPLETE")
+        print("="*50)
+
+        if best_result:
+            print("\nBest Configuration:")
+            for param, value in best_result.env_vars.items():
+                print(f"  {param}: {value}")
+            print("\nPerformance:")
+            print(f"  FPS: {best_result.fps:.2f}")
+            if best_result.latency:
+                print(f"  Latency: {best_result.latency:.2f}ms")
+            
+            # Thermal summary
+            if best_result.pre_test_temp is not None and best_result.post_test_temp is not None:
+                temp_change = best_result.post_test_temp - best_result.pre_test_temp
+                print(f"  Temperature: {best_result.pre_test_temp:.1f}°C → {best_result.post_test_temp:.1f}°C ({temp_change:+.1f}°C)")
+        else:
+            print("\nNo successful configurations found.")
+
+        print(f"\nResults saved to: {self.output_dir}/")
+        print(f"  ├── results.csv          # Raw test data")
+        print(f"  ├── best_config.json     # Optimal configuration")
+        print(f"  └── tuning_report.txt    # Summary report")
+        print(f"\nTo generate analysis plots, run:")
+        print(f"  dx-fit-analyze {self.results_csv}")
+
+        # Thermal management summary
+        total_cooling_time = stats.get('total_cooling_time', 0)
+        if total_cooling_time > 0:
+            cooling_overhead = total_cooling_time / total_time * 100
+            print(f"\nThermal Management Summary:")
+            print(f"  Total cooling time: {total_cooling_time:.1f}s")
+            print(f"  Cooling overhead: {cooling_overhead:.1f}%")
+
+        print(f"\nTotal execution time: {total_time:.1f} seconds")
+
+def main():
+    if len(sys.argv) != 2:
+        print("Usage: dx-fit <config.yaml>")
+        print("Examples:")
+        print("  dx-fit fit_quick.yaml    # Quick test")
+        print("  dx-fit fit_full.yaml     # Full parameter search")
+        sys.exit(1)
+
+    config_file = sys.argv[1]
+    if not os.path.exists(config_file):
+        print(f"Error: Configuration file '{config_file}' not found.")
+        sys.exit(1)
+
+    try:
+        tuner = DxFitTuner(config_file)
+        tuner.run_tuning()
+    except KeyboardInterrupt:
+        print("\nTuning interrupted by user.")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

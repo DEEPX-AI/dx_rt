@@ -48,7 +48,7 @@ public:
     int _processedId;
 
     void BuildEncodedInputPtrs(const std::vector<uint64_t>& offsets) {
-        encoded_input_ptrs.clear(); 
+        encoded_input_ptrs.clear();
         if (encoded_inputs_ptr) {
             for (uint64_t offset : offsets) {
                 encoded_input_ptrs.push_back(static_cast<uint8_t*>(encoded_inputs_ptr) + offset);
@@ -57,13 +57,14 @@ public:
     }
 
     void BuildEncodedOutputPtrs(const std::vector<uint64_t>& offsets) {
-        encoded_output_ptrs.clear(); 
+        encoded_output_ptrs.clear();
         if (encoded_outputs_ptr) {
             for (uint64_t offset : offsets) {
                 encoded_output_ptrs.push_back(static_cast<uint8_t*>(encoded_outputs_ptr) + offset);
             }
         }
     }
+    int16_t model_type() { return taskData->_npuModel.type; }
 };
 
 }   // namespace dxrt

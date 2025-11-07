@@ -38,7 +38,7 @@ namespace dxrt
     }
 
     enum class MEMORY_REQUEST_CODE : int {
-        REGISTESR_PROCESS = 0,      //set msg to pid
+        REGISTER_PROCESS = 0,      // set msg to pid
         GET_MEMORY = 1,             //set msg to size
         FREE_MEMORY = 2,            //set msg to value returned by GET_MEMORY
 
@@ -51,7 +51,7 @@ namespace dxrt
     };
 
     enum class REQUEST_CODE : uint32_t {
-        REGISTESR_PROCESS = 0,      //set msg to pid
+        REGISTER_PROCESS = 0,       // set msg to pid
         GET_MEMORY = 1,             //set msg to size
         FREE_MEMORY = 2,            //set msg to value returned by GET_MEMORY
         GET_MEMORY_FOR_MODEL = 3, //memory from backwards;
@@ -72,7 +72,7 @@ namespace dxrt
         MEMORY_ALLOCATION_INPUT_AND_OUTPUT = 102,
         TRANSFER_INPUT_AND_RUN = 103,
         COMPLETE_TRANSFER_AND_RUN = 104,
-        COMPLETE_TRNASFER_OUTPUT = 105,
+        COMPLETE_TRANSFER_OUTPUT = 105,
         REQUEST_SCHEDULE_INFERENCE = 301,
         INFERENCE_COMPLETED = 302,
         CLOSE = 1001
@@ -113,7 +113,7 @@ namespace dxrt
         uint64_t modelMemorySize;
         
         IPCClientMessage()
-        : code(REQUEST_CODE::REGISTESR_PROCESS), deviceId(0), data(0), pid(0), msgType(0), seqId(0), taskId(-1), modelMemorySize(0)
+        : code(REQUEST_CODE::REGISTER_PROCESS), deviceId(0), data(0), pid(0), msgType(0), seqId(0), taskId(-1), modelMemorySize(0)
         {
             npu_acc = dxrt::dxrt_request_acc_t{};
         }
@@ -184,7 +184,7 @@ namespace dxrt
     {
         static std::map<dxrt::REQUEST_CODE, std::string> m;
         if (m.size() == 0) {
-            m[dxrt::REQUEST_CODE::REGISTESR_PROCESS] = "REGISTESR_PROCESS";
+            m[dxrt::REQUEST_CODE::REGISTER_PROCESS] = "REGISTER_PROCESS";
             m[dxrt::REQUEST_CODE::GET_MEMORY] = "GET_MEMORY";
             m[dxrt::REQUEST_CODE::FREE_MEMORY] = "FREE_MEMORY";
             m[dxrt::REQUEST_CODE::GET_MEMORY_FOR_MODEL] = "GET_MEMORY_FOR_MODEL";
@@ -207,7 +207,7 @@ namespace dxrt
             m[dxrt::REQUEST_CODE::MEMORY_ALLOCATION_INPUT_AND_OUTPUT] = "MEMORY_ALLOCATION_INPUT_AND_OUTPUT";
             m[dxrt::REQUEST_CODE::TRANSFER_INPUT_AND_RUN] = "TRANSFER_INPUT_AND_RUN";
             m[dxrt::REQUEST_CODE::COMPLETE_TRANSFER_AND_RUN] = "COMPLETE_TRANSFER_AND_RUN";
-            m[dxrt::REQUEST_CODE::COMPLETE_TRNASFER_OUTPUT] = "COMPLETE_TRNASFER_OUTPUT";
+            m[dxrt::REQUEST_CODE::COMPLETE_TRANSFER_OUTPUT] = "COMPLETE_TRANSFER_OUTPUT";
             m[dxrt::REQUEST_CODE::REQUEST_SCHEDULE_INFERENCE] = "REQUEST_SCHEDULE_INFERENCE";
             m[dxrt::REQUEST_CODE::INFERENCE_COMPLETED] = "INFERENCE_COMPLETED";
             m[dxrt::REQUEST_CODE::CLOSE] = "CLOSE";

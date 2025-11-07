@@ -2,11 +2,11 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
- 
+
 #include "dxrt/npu_format_handler.h"
 #include <vector>
 #include <numeric>
@@ -17,7 +17,14 @@
 #include <cstring>
 #include <cstdint>
 #include <cstddef>
-#include <limits> 
+#include <limits>
+// High-level NFH function dependencies
+#include "dxrt/request_data.h"
+#include "dxrt/request.h"
+#include "dxrt/device.h"
+#include "dxrt/profiler.h"
+#include "dxrt/util.h"
+#include "dxrt/driver.h"
 
 namespace npu_format_handler {
 
@@ -111,8 +118,7 @@ int NpuFormatHandler::encode(Bytes& input, Bytes& output, int col, int unit) {
 }
 
 // --- Existing encode_preformatter (no changes needed other than calling updated encode) ---
-int NpuFormatHandler::encode_preformatter(Bytes& input, Bytes& output) {
-    const int unit = 64;
+int NpuFormatHandler::encode_preformatter(Bytes& input, Bytes& output, int align_unit) {
     int col = input.size; // Assumes input is a flat vector, col = total size
     if (col == 0 && input.data == nullptr) { // Handle empty input case gracefully
         output.size = 0;
@@ -125,27 +131,25 @@ int NpuFormatHandler::encode_preformatter(Bytes& input, Bytes& output) {
          LOG_DXRT_ERR("[encode_preformatter] Error: Input size must be positive.");
          return -1;
      }
-    return encode(input, output, col, unit);
+    return encode(input, output, col, align_unit);
 }
 
 // --- Existing encode_preim2col (no changes needed other than calling updated encode) ---
-int NpuFormatHandler::encode_preim2col(Bytes& input, Bytes& output, int width, int channel) {
-    const int unit = 64;
+int NpuFormatHandler::encode_preim2col(Bytes& input, Bytes& output, int width, int channel, int align_unit) {
      if (width <= 0 || channel <= 0) {
          LOG_DXRT_ERR("[encode_preim2col] Error: Width (" << width << ") and channel (" << channel << ") must be positive.");
          return -1;
      }
     int col = width * channel;
-    return encode(input, output, col, unit);
+    return encode(input, output, col, align_unit);
 }
 
 // --- Existing encode_formatted (modified error handling) ---
-int NpuFormatHandler::encode_formatted(Bytes& input, Bytes& output, int channel) {
-    const int unit = 64;
+int NpuFormatHandler::encode_formatted(Bytes& input, Bytes& output, int channel, int align_unit) {
     int col = channel; // In this context, col is the channel count
 
-    if (col <= 0 || unit <= 0) {
-         LOG_DXRT_ERR("[encode_formatted] Error: Channel size (" << col << ") and unit size (" << unit << ") must be positive.");
+    if (col <= 0 || align_unit <= 0) {
+         LOG_DXRT_ERR("[encode_formatted] Error: Channel size (" << col << ") and unit size (" << align_unit << ") must be positive.");
          return -1;
     }
      if (input.data == nullptr) {
@@ -162,8 +166,8 @@ int NpuFormatHandler::encode_formatted(Bytes& input, Bytes& output, int channel)
     }
 
     int row = input.size / col; // Number of elements per channel? Or number of 'rows' in the logical view
-    int col_group = cdiv(col, unit); // How many unit-sized groups fit in the columns (channels)
-    int aligned_col = col_group * unit; // Total width after aligning channels to unit boundary
+    int col_group = cdiv(col, align_unit); // How many unit-sized groups fit in the columns (channels)
+    int aligned_col = col_group * align_unit; // Total width after aligning channels to unit boundary
     uint32_t expected_size = (uint32_t)row * aligned_col; // Expected output size in bytes
 
     if (output.data == nullptr) {
@@ -190,12 +194,12 @@ int NpuFormatHandler::encode_formatted(Bytes& input, Bytes& output, int channel)
              for (int g = 0; g < col_group; ++g) {
                  for (int i = 0; i < row; ++i) {
                      // Calculate addresses relative to the start of the buffers
-                     size_t src_addr = (size_t)i * col + (size_t)g * unit;
-                     size_t dst_addr = (size_t)g * row * unit + (size_t)i * unit;
+                     size_t src_addr = (size_t)i * col + (size_t)g * align_unit;
+                     size_t dst_addr = (size_t)g * row * align_unit + (size_t)i * align_unit;
 
                      // Calculate how many bytes to copy for this chunk
-                     int remaining_cols = col - g * unit;
-                     int copy_size = (remaining_cols < unit) ? remaining_cols : unit;
+                     int remaining_cols = col - g * align_unit;
+                     int copy_size = (remaining_cols < align_unit) ? remaining_cols : align_unit;
 
                      // Ensure copy_size is not negative if col < g*unit (shouldn't happen with cdiv)
                      if (copy_size > 0) {
@@ -221,10 +225,10 @@ int NpuFormatHandler::encode_formatted(Bytes& input, Bytes& output, int channel)
     } else { // Out-of-place
         for (int g = 0; g < col_group; ++g) {
             for (int i = 0; i < row; ++i) {
-                size_t src_addr = (size_t)i * col + (size_t)g * unit;
-                size_t dst_addr = (size_t)g * row * unit + (size_t)i * unit;
-                int remaining_cols = col - g * unit;
-                int copy_size = (remaining_cols < unit) ? remaining_cols : unit;
+                size_t src_addr = (size_t)i * col + (size_t)g * align_unit;
+                size_t dst_addr = (size_t)g * row * align_unit + (size_t)i * align_unit;
+                int remaining_cols = col - g * align_unit;
+                int copy_size = (remaining_cols < align_unit) ? remaining_cols : align_unit;
 
                 if (copy_size > 0) {
                      // Check bounds before memcpy
@@ -327,16 +331,12 @@ int NpuFormatHandler::decode(Bytes& input, Bytes& output, int col, int unit) {
 }
 
 // --- Existing decode_aligned (no changes needed other than calling updated decode) ---
-int NpuFormatHandler::decode_aligned(Bytes& input, Bytes& output, int channel, deepx_rmapinfo::DataType dtype) {
-    int unit = 64; // Base unit size in elements
+int NpuFormatHandler::decode_aligned(Bytes& input, Bytes& output, int channel, deepx_rmapinfo::DataType dtype, int align_unit) {
+    int unit = align_unit; // Use align_unit from tensor info
     int col = channel; // Number of columns in elements
 
-     // Adjust unit and calculate byte-based col/unit for FLOAT32 if needed
+     // Scale unit and col to bytes for FLOAT32 if needed
     if (dtype == deepx_rmapinfo::DataType::FLOAT32) {
-        // Check if channel count (elements) is less than 16
-        if (col < unit) {
-            unit = 16; // Use smaller unit for narrow float cases
-        }
         // Scale unit and col to bytes for the underlying decode function
         unit *= 4;
         col *= 4;
@@ -607,7 +607,8 @@ int NpuFormatHandler::decode_aligned_transposed(
     int channel_for_decode,
     deepx_rmapinfo::DataType dtype,
     std::vector<int64_t> shape_encoded,
-    int transpose_type)
+    int transpose_type,
+    int align_unit)
 {
     // --- 1. Input Validation ---
     if (input.data == nullptr) {
@@ -643,15 +644,7 @@ int NpuFormatHandler::decode_aligned_transposed(
     size_t element_size = dxrt::GetDataSize_rmapinfo_datatype(dtype);
 
     // --- 3. Calculate Decoding Parameters ---
-    int decode_unit_elements = 64; // Base unit (element count)
-    if (dtype == deepx_rmapinfo::DataType::FLOAT32) {
-        // Use a smaller unit for float if the channel count is below a threshold (e.g., 16)
-        if (channel_for_decode < decode_unit_elements) {
-            decode_unit_elements = 16;
-        }
-    }
-    // Ensure unit size is at least 1
-    if (decode_unit_elements <= 0) decode_unit_elements = 1;
+    int decode_unit_elements = align_unit; // Use align_unit from tensor info
 
     // Calculate byte-based parameters
     int decode_byte_col = channel_for_decode * element_size;
@@ -851,6 +844,374 @@ int NpuFormatHandler::decode_aligned_transposed(
     }
 
     // --- 9. Return Success ---
+    return 0;
+}
+
+// --- High-level NFH Processing Functions Implementation ---
+
+
+int NpuFormatHandler::EncodeInputs(void* reqDataPtr, int threadIdForProfiling)
+{
+    using namespace dxrt;
+
+    RequestData* reqData = static_cast<RequestData*>(reqDataPtr);
+    if (!reqData || !reqData->taskData)
+    {
+        LOG_DXRT_ERR("EncodeInputs: invalid reqData");
+        return -1;
+    }
+
+    if (!Configuration::_sNpuValidateOpt)
+    {
+        size_t input_count = reqData->inputs.size();
+        size_t tensor_info_count = reqData->taskData->_npuInputTensorInfos.size();
+        size_t encoded_sizes_count = reqData->taskData->_encodedInputSizes.size();
+
+        if (input_count == 0)
+        {
+            return 0;
+        }
+        if (input_count > tensor_info_count || input_count > encoded_sizes_count)
+        {
+            LOG_DXRT_ERR("EncodeInputs: array size mismatch");
+            return -1;
+        }
+        if (DEBUG_DATA > 0)
+        {
+            DataDumpBin(reqData->taskData->name() + "_encoder_input.bin", reqData->inputs);
+        }
+
+#ifdef USE_PROFILER
+        auto& profiler = dxrt::Profiler::GetInstance();
+        std::string profile_name = "NPU Input Format Handler[Job_" + std::to_string(reqData->jobId) +
+                                   "][" + reqData->taskData->name() +
+                                   "][Req_" + std::to_string(reqData->requestId) + "]" +
+                                   (threadIdForProfiling >= 0 ? "(" + std::to_string(threadIdForProfiling) + ")" : "");
+        profiler.Start(profile_name);
+#endif
+
+        for (size_t i = 0; i < input_count; i++)
+        {
+            if (reqData->encoded_input_ptrs.size() <= i || reqData->encoded_input_ptrs[i] == nullptr)
+            {
+                LOG_DXRT_ERR("EncodeInputs: encoded_input_ptrs[" << i << "] is nullptr or out of range");
+                return -1;
+            }
+
+            Tensor& input_tensor = reqData->inputs[i];
+            deepx_rmapinfo::TensorInfo tensor_info = reqData->taskData->_npuInputTensorInfos[i];
+            int shape_dims = tensor_info.shape_encoded().size();
+
+            Bytes original_input = {
+                static_cast<uint32_t>(input_tensor.size_in_bytes()),
+                static_cast<uint8_t*>(input_tensor.data())
+            };
+            Bytes encoded_input = {
+                static_cast<uint32_t>(reqData->taskData->_encodedInputSizes[i]),
+                static_cast<uint8_t*>(reqData->encoded_input_ptrs[i])
+            };
+
+            if (original_input.data == nullptr || encoded_input.data == nullptr)
+            {
+                LOG_DXRT_ERR("EncodeInputs: null data pointer at input " << i);
+                return -1;
+            }
+
+            if (static_cast<deepx_rmapinfo::Layout>(tensor_info.layout()) == deepx_rmapinfo::Layout::PRE_FORMATTER)
+            {
+                NpuFormatHandler::encode_preformatter(original_input, encoded_input, tensor_info.align_unit());
+            }
+            else if (static_cast<deepx_rmapinfo::Layout>(tensor_info.layout()) == deepx_rmapinfo::Layout::PRE_IM2COL)
+            {
+                NpuFormatHandler::encode_preim2col(
+                    original_input, encoded_input,
+                    tensor_info.shape_encoded()[shape_dims - 2],
+                    tensor_info.shape_encoded()[shape_dims - 1],
+                    tensor_info.align_unit()
+                );
+            }
+            else if (static_cast<deepx_rmapinfo::Layout>(tensor_info.layout()) == deepx_rmapinfo::Layout::FORMATTED)
+            {
+                if (tensor_info.transpose() == deepx_rmapinfo::Transpose::TRANSPOSE_NONE)
+                {
+                    NpuFormatHandler::encode_formatted(
+                        original_input, encoded_input,
+                        tensor_info.shape_encoded()[shape_dims - 1],
+                        tensor_info.align_unit()
+                    );
+                }
+                else if (tensor_info.transpose() == deepx_rmapinfo::Transpose::CHANNEL_FIRST_TO_LAST)
+                {
+                    NpuFormatHandler::encode_formatted(
+                        original_input, encoded_input,
+                        tensor_info.shape_encoded()[shape_dims - 1],
+                        tensor_info.align_unit()
+                    );
+
+                    Bytes temp_input = {original_input.size, encoded_input.data};
+                    int row = tensor_info.shape_encoded()[shape_dims - 1];
+                    int col = 1;
+                    for (int j = 0; j < shape_dims - 1; j++) col *= tensor_info.shape_encoded()[j];
+                    int elem_size = dxrt::GetDataSize_rmapinfo_datatype(static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded()));
+                    NpuFormatHandler::bidirectional_transpose(temp_input.data, encoded_input.data, row, col, elem_size);
+                }
+                else
+                {
+                    memcpy(static_cast<void*>(encoded_input.data), static_cast<const void*>(original_input.data), original_input.size);
+                }
+            }
+            else if (static_cast<deepx_rmapinfo::Layout>(tensor_info.layout()) == deepx_rmapinfo::Layout::ALIGNED)
+            {
+                // Handle ALIGNED layout with transpose options
+                if (tensor_info.transpose() == deepx_rmapinfo::Transpose::TRANSPOSE_NONE)
+                {
+                    // Use encode function with channel parameter (same as decode_aligned uses)
+                    int channel = tensor_info.shape_encoded()[shape_dims - 1];
+                    int unit = tensor_info.align_unit(); // Use align_unit from tensor info
+                    int col = channel; // Number of columns in elements
+
+                    // Scale unit and col to bytes for FLOAT32 if needed
+                    if (static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded()) == deepx_rmapinfo::DataType::FLOAT32) {
+                        // Scale unit and col to bytes for the underlying encode function
+                        unit *= 4;
+                        col *= 4;
+                    }
+
+                    NpuFormatHandler::encode(original_input, encoded_input, col, unit);
+                }
+                else if (tensor_info.transpose() == deepx_rmapinfo::Transpose::CHANNEL_FIRST_TO_LAST)
+                {
+                    // First apply transpose, then encode with aligned format
+                    int row = tensor_info.shape_encoded()[shape_dims - 1];
+                    int transpose_col = 1;
+                    for (int j = 0; j < shape_dims - 1; j++)
+                    {
+                        transpose_col *= tensor_info.shape_encoded()[j];
+                    }
+                    int elem_size = dxrt::GetDataSize_rmapinfo_datatype(static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded()));
+
+                    // Apply transpose first (from original_input to encoded_input buffer)
+                    NpuFormatHandler::bidirectional_transpose(original_input.data, encoded_input.data, row, transpose_col, elem_size);
+
+                    // Then encode with aligned format (in-place on encoded_input buffer)
+                    Bytes temp_transposed = {original_input.size, encoded_input.data};
+                    int channel = tensor_info.shape_encoded()[shape_dims - 1];
+                    int unit = tensor_info.align_unit(); // Use align_unit from tensor info
+                    int col = channel; // Number of columns in elements
+
+                    // Scale unit and col to bytes for FLOAT32 if needed
+                    if (static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded()) == deepx_rmapinfo::DataType::FLOAT32) {
+                        // Scale unit and col to bytes for the underlying encode function
+                        unit *= 4;
+                        col *= 4;
+                    }
+
+                    NpuFormatHandler::encode(temp_transposed, encoded_input, col, unit);
+                }
+                else
+                {
+                    LOG_DXRT_ERR("Invalid transpose type for ALIGNED layout");
+                    memcpy(static_cast<void*>(encoded_input.data),
+                            static_cast<const void*>(original_input.data),
+                            original_input.size);
+                }
+            }
+            else
+            {
+                memcpy(static_cast<void*>(encoded_input.data), static_cast<const void*>(original_input.data), original_input.size);
+            }
+        }
+
+#ifdef USE_PROFILER
+        profiler.End(profile_name);
+#endif
+    }
+    else
+    {
+        for (size_t i = 0; i < reqData->outputs.size(); i++)
+        {
+            reqData->encoded_input_ptrs[i] = reqData->inputs[i].data();
+        }
+    }
+
+    return 0;
+}
+
+
+int NpuFormatHandler::DecodeOutputs(const void* reqPtr, const void* responsePtr, int threadIdForProfiling)
+{
+    using namespace dxrt;
+
+    // Cast from const void* to const std::shared_ptr<Request>*
+    const std::shared_ptr<Request>* req_ptr = static_cast<const std::shared_ptr<Request>*>(reqPtr);
+    const dxrt_response_t* response = static_cast<const dxrt_response_t*>(responsePtr);
+
+    if (!req_ptr || !(*req_ptr)) return -1;
+    std::shared_ptr<Request> req = *req_ptr;
+
+    if (req->model_type() == 0 || (req->model_type() == 1 && !(req->taskData()->_isArgMax)))
+    {
+        RequestData* req_data = req->getData();
+        if (!Configuration::_sNpuValidateOpt)
+        {
+#ifdef USE_PROFILER
+            auto& profiler = dxrt::Profiler::GetInstance();
+            std::string profile_name = "NPU Output Format Handler[Job_" + std::to_string(req->job_id()) +
+                                       "][" + req->taskData()->name() +
+                                       "][Req_" + std::to_string(req->id()) + "]" +
+                                       (threadIdForProfiling >= 0 ? "(" + std::to_string(threadIdForProfiling) + ")" : "");
+            profiler.Start(profile_name);
+#endif
+            for (size_t i = 0; i < req_data->outputs.size(); i++)
+            {
+                Tensor& output_tensor = req_data->outputs[i];
+             
+                LOG_DXRT_DBG << "output_tensor[" << i << "] name: " << output_tensor.name() << std::endl;
+                LOG_DXRT_DBG << "output_tensor[" << i << "] memory_type: " << output_tensor.memory_type() << std::endl;
+                LOG_DXRT_DBG << "output_tensor[" << i << "] data(): " << output_tensor.data() << std::endl;
+                LOG_DXRT_DBG << "output_tensor[" << i << "] size_in_bytes: " << output_tensor.size_in_bytes() << std::endl;
+                LOG_DXRT_DBG << "encoded_output_ptrs.size(): " << req_data->encoded_output_ptrs.size() << std::endl;
+                if (i < req_data->encoded_output_ptrs.size()) {
+                    LOG_DXRT_DBG << "encoded_output_ptrs[" << i << "]: " << (void*)req_data->encoded_output_ptrs[i] << std::endl;
+                }
+
+                if (output_tensor.memory_type() == static_cast<int>(deepx_rmapinfo::MemoryType::ARGMAX))
+                {
+                    LOG_DXRT_DBG << "Processing ARGMAX tensor: " << output_tensor.name() << std::endl;
+                    if (output_tensor.data() == nullptr) {
+                        LOG_DXRT_ERR("ARGMAX output tensor data is nullptr for tensor: " << output_tensor.name());
+                        continue;
+                    }
+                    LOG_DXRT_DBG << "Writing argmax value " << response->argmax << " to output_tensor.data(): " << output_tensor.data() << std::endl;
+                    *(static_cast<uint16_t *>(output_tensor.data())) = response->argmax;
+                    
+                    // ARGMAX tensors don't use encoded_output_ptrs, so we skip that write
+                    LOG_DXRT_DBG << "ARGMAX tensor written successfully" << std::endl;
+                    if (DEBUG_DATA > 0)
+                    {
+                        DataDumpBin(req->taskData()->name() + "_output.argmax.bin", output_tensor.data(), static_cast<unsigned int>(output_tensor.size_in_bytes()));
+                    }
+                    continue;
+                }
+                
+                deepx_rmapinfo::TensorInfo tensor_info = req_data->taskData->_npuOutputTensorInfos[i];
+                int shape_dims = tensor_info.shape_encoded().size();
+                
+                // Validate array bounds first
+                if (i >= req_data->encoded_output_ptrs.size()) {
+                    LOG_DXRT_ERR("Encoded output pointer index out of bounds for tensor: " << output_tensor.name());
+                    continue;
+                }
+                
+                Bytes encoded_output = {static_cast<uint32_t>(req_data->taskData->_encodedOutputSizes[i]), static_cast<uint8_t*>(req_data->encoded_output_ptrs[i])};
+                Bytes decoded_output = {static_cast<uint32_t>(output_tensor.size_in_bytes()), static_cast<uint8_t*>(output_tensor.data())};
+
+                // Validate pointers before processing
+                if (encoded_output.data == nullptr) {
+                    LOG_DXRT_ERR("Encoded output pointer is nullptr for tensor: " << output_tensor.name());
+                    continue;
+                }
+                if (decoded_output.data == nullptr) {
+                    LOG_DXRT_ERR("Decoded output pointer is nullptr for tensor: " << output_tensor.name());
+                    continue;
+                }
+
+                if (tensor_info.layout() == deepx_rmapinfo::Layout::ALIGNED)
+                {
+                    if (tensor_info.transpose() == deepx_rmapinfo::Transpose::TRANSPOSE_NONE)
+                    {
+                        NpuFormatHandler::decode_aligned(encoded_output, decoded_output, tensor_info.shape_encoded()[shape_dims - 1], static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded()), tensor_info.align_unit());
+                    }
+                    else if (tensor_info.transpose() == deepx_rmapinfo::Transpose::CHANNEL_LAST_TO_FIRST)
+                    {
+                        NpuFormatHandler::decode_aligned(encoded_output, decoded_output, tensor_info.shape_encoded()[shape_dims - 1], static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded()), tensor_info.align_unit());
+                        Bytes transposed_output = {encoded_output.size, decoded_output.data};
+                        int col = tensor_info.shape_encoded()[shape_dims - 1];
+                        int row = 1; for (int j = 0; j < shape_dims - 1; j++) row *= tensor_info.shape_encoded()[j];
+                        int elem_size = dxrt::GetDataSize_rmapinfo_datatype(static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded()));
+                        NpuFormatHandler::bidirectional_transpose(transposed_output.data, decoded_output.data, row, col, elem_size);
+                    }
+                    else
+                    {
+                        memcpy(static_cast<void*>(decoded_output.data), static_cast<const void*>(encoded_output.data), encoded_output.size);
+                    }
+                }
+                else
+                {
+                    memcpy(static_cast<void*>(decoded_output.data), static_cast<const void*>(encoded_output.data), encoded_output.size);
+                }
+            }
+#ifdef USE_PROFILER
+            profiler.End(profile_name);
+#endif
+        }
+        else
+        {
+            for (size_t i = 0; i < req_data->outputs.size(); i++)
+                req_data->outputs[i].data() = req_data->encoded_output_ptrs[i];
+        }
+        if (DEBUG_DATA > 0)
+        {
+            DataDumpBin(req->taskData()->name() + "_decoder_output.bin", req->outputs());
+        }
+    }
+    else if (req->model_type() == 1 && req->taskData()->_isArgMax)
+    {
+        *(static_cast<uint16_t *>(req->outputs().front().data())) = response->argmax;
+        
+        if (DEBUG_DATA > 0)
+        {
+            DataDumpBin(req->taskData()->name() + "_output.argmax.bin", req->outputs());
+        }
+    }
+    else if (req->model_type() == 2)
+    {
+        RequestData* req_data = req->getData();
+        if (!req_data->outputs.empty())
+        {
+            memcpy(static_cast<void*>(req_data->outputs[0].data()), static_cast<const void*>(req_data->encoded_output_ptrs[0]), 128 * 1024);
+            req_data->outputs[0].shape() = std::vector<int64_t>{1, static_cast<int64_t>(response->ppu_filter_num)};
+        }
+        
+        if (DEBUG_DATA > 0)
+        {
+            DataDumpBin(req->taskData()->name() + "_output.ppu.bin", req->outputs());
+        }
+    }
+    else if (req->model_type() == 3)
+    {
+        // PPCPU: Output data is already in encoded_output_ptrs[0]
+        // Just set the dynamic shape
+        RequestData* req_data = req->getData();
+        if (!req_data->outputs.empty() && response->ppu_filter_num > 0)
+        {
+            DataType dtype = req_data->outputs[0].type();
+            size_t unit_size = GetDataSize_Datatype(dtype);
+            req_data->outputs[0].shape() = std::vector<int64_t>{static_cast<int64_t>(response->ppu_filter_num), 
+                                                                 static_cast<int64_t>(unit_size)};
+            LOG_DXRT_DBG << "PPCPU output shape set to [" << response->ppu_filter_num 
+                         << ", " << unit_size << "]" << std::endl;
+        }
+        else
+        {
+            LOG_DXRT_WARN("PPCPU output is empty or ppu_filter_num is 0");
+            if (!req_data->outputs.empty())
+            {
+                req_data->outputs[0].shape() = std::vector<int64_t>{0, 0};
+            }
+        }
+        
+        if (DEBUG_DATA > 0)
+        {
+            DataDumpBin(req->taskData()->name() + "_output.ppcpu.bin", req->outputs());
+        }
+    }
+    else
+    {
+        LOG_DXRT_ERR("Invalid model type (normal, argmax, ppu, ppcpu)");
+        return -1;
+    }
+
     return 0;
 }
 

@@ -65,9 +65,9 @@ vector<string> StringSplit(string s, string divid)
 
     if (!s.empty())
     {
-        char* temp = new char[s.length()];
-        strncpy(temp, s.c_str(), s.length());
-        char* save_pointer;
+        char* temp = new char[s.length()+1];
+        strncpy(temp, s.c_str(), s.length()-1);
+        char* save_pointer = nullptr;
         char* c = STRTOK_DEFINE(temp, divid.c_str(), &save_pointer);
         while (c) {
             v.push_back(c);
@@ -87,6 +87,7 @@ std::string format_number_with_commas(int64_t num) {
     try {
         oss.imbue(std::locale(""));
     } catch (const std::exception& e) {
+        LOG_DXRT_DBG << e.what() << std::endl;
     }
     oss << num;
     return oss.str();
@@ -252,6 +253,16 @@ uint64_t GetAlign(uint64_t size)
         return size;
     }
 
+}
+uint64_t GetAlign(uint64_t size, int align)
+{
+    if (align <= 0) 
+        return GetAlign(size);
+    int remainder = size % align;
+    if (remainder != 0) {
+        size += align - remainder;
+    }
+    return size;
 }
 
 template<typename T>

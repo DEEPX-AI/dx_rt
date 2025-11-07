@@ -25,11 +25,11 @@ end_time = 0
 def parse_args():
     parser = argparse.ArgumentParser(description="Inference Engine Arguments")
     parser.add_argument("--model", "-m", type=str, required=True, help="Path to model file (.dxnn)")
+    parser.add_argument("--loops", "-l", type=int, default=1, help="Number of inference loops")
+    parser.add_argument("--verbose", "-v", action="store_true", default=False, help="Enable debug logging")
     parser.add_argument("--input", "-i", type=str, default="", help="Path to input data file")
     parser.add_argument("--output", "-o", type=str, default="output.bin.pyrt", help="Path to output data file")
     parser.add_argument("--benchmark", "-b", action="store_true", default=False, help="Run benchmark test")
-    parser.add_argument("--loops", "-l", type=int, default=1, help="Number of inference loops")
-    parser.add_argument("--verbose", "-v", action="store_true", default=False, help="Enable debug logging")
     args = parser.parse_args()
 
     if not os.path.exists(args.model):

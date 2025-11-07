@@ -1,0 +1,16 @@
+model_path: /mnt/regression_storage/dxnn_regr_data/M1B/RELEASE/AlexNet_5-AlexNet-6/AlexNet_5.dxnn
+
+loop_count: 20
+warmup_runs: 2
+timeout: 120
+use_ort: true
+
+strategy: bayesian
+max_random_samples: 3
+
+parameters:
+  DXRT_TASK_MAX_LOAD: [6, 12]
+  CUSTOM_INTRA_OP_THREADS_COUNT: [1, 2]
+
+thermal_management:
+  enabled: false

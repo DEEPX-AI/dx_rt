@@ -2,10 +2,10 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
- * 
+ *
  * This file uses cxxopts (MIT License) - Copyright (c) 2014 Jarryd Beck.
  */
 
@@ -27,6 +27,8 @@
 #include "dxrt/device_version.h"
 #include "dxrt/device_struct.h"
 #include "dxrt/device_struct_operators.h"
+#include "dxrt/device_pool.h"
+#include "dxrt/cli_support.h"
 
 using std::string;
 using std::vector;
@@ -34,6 +36,13 @@ using std::shared_ptr;
 
 
 namespace dxrt {
+
+
+
+static DevicePool* poolForTest = nullptr;
+void SetTestDevicePool(DevicePool* p) {
+    poolForTest = p;
+}
 
 static string ParseFwUpdateSubCmd(string cmd, uint32_t* subCmd)
 {
@@ -83,6 +92,10 @@ CLICommand::CLICommand(cxxopts::ParseResult &cmd)
     {
         _deviceId = _cmd["device"].as<int>();
     }
+    if (poolForTest == nullptr)
+    {
+        DevicePool::GetInstance().InitCores();
+    }
 }
 
 CLICommand::~CLICommand(void)
@@ -91,22 +104,37 @@ CLICommand::~CLICommand(void)
 
 void CLICommand::Run(void)
 {
-    vector<shared_ptr<Device> > devices;
+    std::vector<int> deviceIds;
 
     if (_withDevice)
     {
-        auto& devicesAll = CheckDevices(_checkDeviceSkip, _subCmd);
+        int device_total_count = 1;
+        if (poolForTest == nullptr)
+            device_total_count = DevicePool::GetInstance().GetDeviceCount();
+        else
+            device_total_count = poolForTest->GetDeviceCount();
         if (_deviceId == -1)
         {
-            devices = devicesAll;
+            for (int i = 0; i < device_total_count; i++)
+            {
+                deviceIds.push_back(i);
+            }
         }
         else
         {
-            devices = {devicesAll[_deviceId]};
+            if (_deviceId >= device_total_count)
+            {
+               throw dxrt::DeviceIOException(EXCEPTION_MESSAGE("Invalid device id: " + std::to_string(_deviceId)));
+            }
+            deviceIds.push_back(_deviceId);
         }
-        for (auto &device : devices)
+
+        for (int deviceId : deviceIds)
         {
-            doCommand(device);
+            if (poolForTest == nullptr)
+                doCommand(DevicePool::GetInstance().GetDeviceCores(deviceId));
+            else
+                doCommand(poolForTest->GetDeviceCores(deviceId));
         }
     }
     else
@@ -122,7 +150,7 @@ DeviceStatusCLICommand::DeviceStatusCLICommand(cxxopts::ParseResult &cmd)
 {
     _withDevice = true;
 }
-void DeviceStatusCLICommand::doCommand(DevicePtr devicePtr)
+void DeviceStatusCLICommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 {
     std::cout << DeviceStatus::GetCurrentStatus(devicePtr);
 }
@@ -132,10 +160,16 @@ DeviceStatusMonitor::DeviceStatusMonitor(cxxopts::ParseResult &cmd)
 {
     _withDevice = true;
 }
-void DeviceStatusMonitor::doCommand(DevicePtr devicePtr)
+void DeviceStatusMonitor::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 {
     uint32_t delay = _cmd["monitor"].as<uint32_t>();
     if ( delay < 1 ) delay = 1;
+
+    // Test/diagnostic mode: run only one iteration when monitor_once flag present
+    if (_cmd.count("monitor_once")) {
+        DeviceStatus::GetCurrentStatus(devicePtr).StatusToStream(std::cout);
+        return;
+    }
 
     while (true) {
         DeviceStatus::GetCurrentStatus(devicePtr).StatusToStream(std::cout);
@@ -149,7 +183,7 @@ DeviceInfoCLICommand::DeviceInfoCLICommand(cxxopts::ParseResult &cmd)
 {
     _withDevice = true;
 }
-void DeviceInfoCLICommand::doCommand(DevicePtr devicePtr)
+void DeviceInfoCLICommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 {
     DeviceStatus::GetCurrentStatus(devicePtr).InfoToStream(std::cout);
 }
@@ -159,7 +193,7 @@ FWVersionCommand::FWVersionCommand(cxxopts::ParseResult &cmd)
 {
     _withDevice = false;
 }
-void FWVersionCommand::doCommand(DevicePtr devicePtr)
+void FWVersionCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 {
     using std::cout;
     using std::endl;
@@ -175,9 +209,9 @@ DeviceResetCommand::DeviceResetCommand(cxxopts::ParseResult &cmd)
 : CLICommand(cmd)
 {
     _withDevice = true;
-    _checkDeviceSkip = SkipMode::IDENTIFY_SKIP;
+    //_checkDeviceSkip = SkipMode::IDENTIFY_SKIP;
 }
-void DeviceResetCommand::doCommand(DevicePtr devicePtr)
+void DeviceResetCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 {
     using std::cout;
     using std::endl;
@@ -186,6 +220,11 @@ void DeviceResetCommand::doCommand(DevicePtr devicePtr)
     cout << "    Device " << devicePtr->id() << " reset by option " << resetOpt << endl;
     devicePtr->Reset(resetOpt);
 }
+
+
+
+
+
 
 FWUpdateCommand::FWUpdateCommand(cxxopts::ParseResult &cmd)
 : CLICommand(cmd), _fwUpdateSubCmd(0), _showLogOnce(false), _showDonotTunrOff(false)
@@ -198,7 +237,7 @@ FWUpdateCommand::FWUpdateCommand(cxxopts::ParseResult &cmd)
         if ((path = ParseFwUpdateSubCmd(cmd, &_fwUpdateSubCmd)) != "")
             _fwUpdateFile = path;
     }
-    _checkDeviceSkip = SkipMode::VERSION_CHECK;
+    //_checkDeviceSkip = SkipMode::VERSION_CHECK;
 }
 
 std::string FWUpdateCommand::getSubCmdString()
@@ -211,17 +250,22 @@ std::string FWUpdateCommand::getSubCmdString()
     return "none";
 }
 
-void FWUpdateCommand::doCommand(DevicePtr devicePtr)
+void FWUpdateCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 {
     using std::cout;
     using std::endl;
 
-    
+    // chieck exist firmware file
+    if ( fileExists(_fwUpdateFile) == false ) {
+        std::cout << "Please check the firmware file: " << _fwUpdateFile << std::endl;
+        exit(-1);
+    }
+
     Fw fw(_fwUpdateFile);
 
     if (fw.IsMatchSignature()) {
 
-        if (!_showLogOnce) 
+        if (!_showLogOnce)
         {
             std::cout << dxrt::LogMessages::CLI_UpdatingFirmware(fw.GetBoardTypeString(), fw.GetFwBinVersion()) << std::endl;
             _showLogOnce = true;
@@ -236,7 +280,7 @@ void FWUpdateCommand::doCommand(DevicePtr devicePtr)
         int patch = deviceInfo.fw_ver % 10;
 
         // integer version to string
-        std::string device_fw_version = 
+        std::string device_fw_version =
                         std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(patch);
 
         if ( major >= 2 )
@@ -254,8 +298,8 @@ void FWUpdateCommand::doCommand(DevicePtr devicePtr)
                     }
 
                     // update firmware
-                    int ret = devicePtr->UpdateFw(_fwUpdateFile, _fwUpdateSubCmd);
-                    
+                    int ret = UpdateFw(devicePtr, _fwUpdateFile, _fwUpdateSubCmd);
+
                     std::cout << "    Device " << devicePtr->id() << ": Update firmware[" << fw.GetFwBinVersion() <<
                                 "] by " << _fwUpdateFile << ", SubCmd:" << getSubCmdString();
                     if (ret == 0) {
@@ -266,9 +310,9 @@ void FWUpdateCommand::doCommand(DevicePtr devicePtr)
                         cout << fw.GetFwUpdateResult(ret) << endl;
                     }
                 } // update firmware (firmware version is higher then device-fw-version)
-                else 
+                else
                 {
-                    std::cout << "    Device " << devicePtr->id() << 
+                    std::cout << "    Device " << devicePtr->id() <<
                                 ": " << LogMessages::CLI_UpdateFirmwareSkip() << std::endl;
                 }
 
@@ -280,17 +324,17 @@ void FWUpdateCommand::doCommand(DevicePtr devicePtr)
             std::cout << "    Device " << devicePtr->id() << ": " << LogMessages::CLI_UpdateCondition(device_fw_version) << std::endl;
         } // < 2.0.0
     }
-    else 
+    else
     {
         std::cout << "    Device " << devicePtr->id() << ": " << LogMessages::CLI_InvalidFirmwareFile(_fwUpdateFile) << std::endl;
     }
 
-       
+
 }
 
 void FWUpdateCommand::finish()
 {
-    if (_updateDeviceCount == 0) 
+    if (_updateDeviceCount == 0)
     {
         std::cout << LogMessages::CLI_NoUpdateDeviceFound() << std::endl;
     }
@@ -303,7 +347,7 @@ FWUploadCommand::FWUploadCommand(cxxopts::ParseResult &cmd)
     _subCmd = dxrt::dxrt_ident_sub_cmd_t::DX_IDENTIFY_FWUPLOAD;
 }
 
-void FWUploadCommand::doCommand(DevicePtr devicePtr)
+void FWUploadCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 {
     using std::cout;
     using std::endl;
@@ -316,31 +360,13 @@ void FWUploadCommand::doCommand(DevicePtr devicePtr)
     } else {
         for (auto f : fwUploadFiles) {
             cout << "    Device " << devicePtr->id() << " upload firmware by " << f << endl;
-            devicePtr->UploadFw(f);
+            UploadFw(devicePtr, f, 0);
         }
     }
 }
 
 
-// function for cmds
-vector<uint32_t> Dump(DevicePtr devicePtr)
-{
-    vector<uint32_t> dump(1000, 0);
-    devicePtr->Process(dxrt::dxrt_cmd_t::DXRT_CMD_DUMP, dump.data());
-    return dump;
-}
-void UpdateFwConfig(DevicePtr devicePtr, vector<uint32_t> cfg)
-{
-    int size = sizeof(uint32_t)*cfg.size();
-    devicePtr->Process(dxrt::dxrt_cmd_t::DXRT_CMD_UPDATE_CONFIG, cfg.data(), size);
-}
-shared_ptr<FwLog> GetFwLog(DevicePtr devicePtr)
-{
-    vector<dxrt_device_log_t> logBuf(static_cast<int>(16 * 1024 / sizeof(dxrt_device_log_t)), {0, 0, {0, }});
-    devicePtr ->Process(dxrt::dxrt_cmd_t::DXRT_CMD_GET_LOG, logBuf.data());
-    auto fwlog = std::make_shared<FwLog>(logBuf);
-    return fwlog;
-}
+
 
 
 DeviceDumpCommand::DeviceDumpCommand(cxxopts::ParseResult &cmd)
@@ -348,7 +374,7 @@ DeviceDumpCommand::DeviceDumpCommand(cxxopts::ParseResult &cmd)
 {
     _withDevice = true;
 }
-void DeviceDumpCommand::doCommand(DevicePtr devicePtr)
+void DeviceDumpCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 {
     using std::cout;
     using std::endl;
@@ -371,7 +397,7 @@ FWConfigCommand::FWConfigCommand(cxxopts::ParseResult &cmd)
 {
     _withDevice = true;
 }
-void FWConfigCommand::doCommand(DevicePtr devicePtr)
+void FWConfigCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 {
     using std::cout;
     using std::endl;
@@ -386,14 +412,14 @@ FWConfigCommandJson::FWConfigCommandJson(cxxopts::ParseResult &cmd)
 {
     _withDevice = true;
 }
-void FWConfigCommandJson::doCommand(DevicePtr devicePtr)
+void FWConfigCommandJson::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 {
     using std::cout;
     using std::endl;
 
-    string fwConfigJson = _cmd["fwconfig_json"].as<string>();
+    std::string fwConfigJson = _cmd["fwconfig_json"].as<string>();
     cout << "    Device " << devicePtr->id() << " update firmware config by " << fwConfigJson;
-    int ret = devicePtr->UpdateFwConfig(fwConfigJson);
+    int ret = UpdateFwConfig(devicePtr, fwConfigJson);
 
     if (ret == 0) {
         cout << " : SUCCESS" << endl;
@@ -418,7 +444,7 @@ FWLogCommand::FWLogCommand(cxxopts::ParseResult &cmd)
         outputFile.close();
     }
 }
-void FWLogCommand::doCommand(DevicePtr devicePtr)
+void FWLogCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 {
     using std::cout;
     using std::endl;
@@ -438,7 +464,7 @@ ShowVersionCommand::ShowVersionCommand(cxxopts::ParseResult &cmd)
 {
     _withDevice = false;
 }
-void ShowVersionCommand::doCommand(DevicePtr devicePtr)
+void ShowVersionCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 {
     using std::cout;
     using std::endl;
@@ -460,7 +486,7 @@ PcieStatusCLICommand::PcieStatusCLICommand(cxxopts::ParseResult &cmd)
 {
     _withDevice = true;
 }
-void PcieStatusCLICommand::doCommand(DevicePtr devicePtr)
+void PcieStatusCLICommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 {
     std::cout << std::endl;
     devicePtr->ShowPCIEDetails();
@@ -470,7 +496,7 @@ DDRErrorCLICommand::DDRErrorCLICommand(cxxopts::ParseResult &cmd)
 {
     _withDevice = true;
 }
-void DDRErrorCLICommand::doCommand(DevicePtr devicePtr)
+void DDRErrorCLICommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 {
     using std::cout;
     using std::endl;

@@ -243,4 +243,9 @@ namespace dxrt {
         return "Profiler warning: Using over " + std::to_string(current_memory/1024/1024) + "MB for profiling data"; 
     }
 
+    std::string LogMessages::Device_FailToInitialize(int id)
+    {
+        return "Fail to initialize device " + std::to_string(id);
+    }
+
 } // namespace dxrt

@@ -34,11 +34,11 @@ namespace npu_format_handler {
     public:
         // --- Existing Methods ---
         static int encode(Bytes& input, Bytes& output, int col, int unit);
-        static int encode_preformatter(Bytes& input, Bytes& output);
-        static int encode_preim2col(Bytes& input, Bytes& output, int width, int channel);
-        static int encode_formatted(Bytes& input, Bytes& output, int channel);
+        static int encode_preformatter(Bytes& input, Bytes& output, int align_unit = 64);
+        static int encode_preim2col(Bytes& input, Bytes& output, int width, int channel, int align_unit = 64);
+        static int encode_formatted(Bytes& input, Bytes& output, int channel, int align_unit = 64);
         static int decode(Bytes& input, Bytes& output, int col, int unit);
-        static int decode_aligned(Bytes& input, Bytes& output, int channel, deepx_rmapinfo::DataType dtype);
+        static int decode_aligned(Bytes& input, Bytes& output, int channel, deepx_rmapinfo::DataType dtype, int align_unit = 64);
         static void bidirectional_transpose(void* src, void* dst, int row, int col, size_t element_size);
         static void bidirectional_transpose_inplace(void* src, int row, int col, size_t element_size);
 
@@ -76,7 +76,28 @@ namespace npu_format_handler {
         static int decode_aligned_transposed(
             Bytes& input, Bytes& output, int channel_for_decode, deepx_rmapinfo::DataType dtype,
             std::vector<int64_t> shape_encoded,
-            int transpose_type);
+            int transpose_type, int align_unit = 64);
+
+        // --- High-level NFH Processing Functions ---
+        
+        /**
+         * @brief High-level input encoding function for NPU inference requests.
+         * Performs appropriate format encoding based on tensor layout and transpose settings.
+         * @param reqData Request data containing input tensors and task metadata.
+         * @param threadIdForProfiling Thread ID for profiling tags (use -1 if not applicable).
+         * @return 0 on success, -1 on error.
+         */
+        static int EncodeInputs(void* reqData, int threadIdForProfiling = -1);
+
+        /**
+         * @brief High-level output decoding function for NPU inference responses.
+         * Performs appropriate format decoding and handles different model types (normal, argmax, ppu).
+         * @param req Shared pointer to the request object (passed as const void*).
+         * @param response NPU response structure.
+         * @param threadIdForProfiling Thread ID for profiling tags (use -1 if not applicable).
+         * @return 0 on success, -1 on error.
+         */
+        static int DecodeOutputs(const void* req, const void* response, int threadIdForProfiling = -1);
 
     private:
         NpuFormatHandler() = default; // Prevent instantiation

@@ -2,14 +2,17 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
 #pragma once
 
+#include "dxrt/common.h"
 #include <cstdint>
+
+
 
 typedef struct DXRT_API device_status
 {
@@ -17,31 +20,30 @@ typedef struct DXRT_API device_status
     uint32_t clock[4];
     uint32_t temperature[4];
     uint32_t ddr_status[4];
-    uint32_t dvfs_enable;
-    uint32_t dvfs_maxfreq;
+    uint32_t reserved_0[2];
     uint32_t count[4];
-    uint32_t boot_state;
+    uint8_t reserved_1[4];
     uint32_t ddr_sbe_cnt[4];
     uint32_t ddr_dbe_cnt[4];
 } dxrt_device_status_t;
 
 typedef struct {
-    uint32_t rx_err_status; 
-    uint32_t bad_tlp_status; 
-    uint32_t bad_dllp_status; 
-    uint32_t replay_no_roleover_status; 
-    uint32_t rpl_timer_timeout_status; 
-    uint32_t advisory_non_fatal_err_status; 
-    uint32_t corrected_int_err_status; 
-    uint32_t header_log_overflow_status; 
+    uint32_t rx_err_status;
+    uint32_t bad_tlp_status;
+    uint32_t bad_dllp_status;
+    uint32_t replay_no_roleover_status;
+    uint32_t rpl_timer_timeout_status;
+    uint32_t advisory_non_fatal_err_status;
+    uint32_t corrected_int_err_status;
+    uint32_t header_log_overflow_status;
 } p_corr_err_t;
 
 typedef struct {
-    uint32_t dl_protocol_err_status; 
-    uint32_t surprise_down_err_status; 
-    uint32_t fc_protocol_err_status; 
-    uint32_t rec_overflow_err_status; 
-    uint32_t malf_tlp_err_status; 
+    uint32_t dl_protocol_err_status;
+    uint32_t surprise_down_err_status;
+    uint32_t fc_protocol_err_status;
+    uint32_t rec_overflow_err_status;
+    uint32_t malf_tlp_err_status;
     uint32_t internal_err_status;
 } p_fatal_err_t;
 
@@ -151,18 +153,26 @@ struct DXRT_API deepx_pcie_info {
 
 typedef struct DXRT_API
 {
-    uint32_t        rt_drv_ver;
+    unsigned int driver_version;
+    char driver_version_suffix[16];
+    unsigned int reserved[16];
+} dxrt_rt_drv_version_t;
+
+typedef struct DXRT_API
+{
+    dxrt_rt_drv_version_t rt_drv_ver;
     deepx_pcie_info pcie;
 } dxrt_dev_info_t;
 
-#pragma pack(push, 4) 
+
+#pragma pack(push, 4)
 typedef struct DXRT_API
 {
     uint64_t timestamp;
     uint32_t cmd;
     uint32_t args[6];
 } dxrt_device_log_t;
-#pragma pack(pop) 
+#pragma pack(pop)
 
 
 enum class DeviceType : uint32_t

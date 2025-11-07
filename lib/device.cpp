@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -20,6 +20,7 @@
 #include "dxrt/device_version.h"
 #include "dxrt/fw.h"
 #include "dxrt/multiprocess_memory.h"
+#include "dxrt/npu_format_handler.h"
 #ifdef __linux__
 #include "dxrt/driver_adapter/linux_driver_adapter.h"
 #include "dxrt/driver_adapter/network_driver_adapter.h"
@@ -69,13 +70,6 @@ using std::make_shared;
 using std::unique_lock;
 using std::mutex;
 
-// #define DEVICE_FILE "dxrt_dsp"
-// #define DEVICE_POLL_LIMIT_MS 1000
-// #define DEVICE_POLL_LIMIT_MS 3*1000
-#define DEVICE_POLL_LIMIT_MS 3*1000*1000
-// #define DEVICE_NUM_BUF 2
-// #define ACC_DEVICE_BUFFER_SIZE 128*1024*1024
-// #define ACC_DEVICE_BUFFER_SIZE 64*1024*1024
 
 namespace dxrt {
 
@@ -114,6 +108,11 @@ Device::~Device(void)
             _outputWorker->Stop();
         if (_eventWorker)
             _eventWorker->Stop();
+        // NFH workers cleanup
+        if (_nfhInputWorker)
+            _nfhInputWorker->Stop();
+        if (_nfhOutputWorker)
+            _nfhOutputWorker->Stop();
         Terminate();  // To wake up the event thread waiting in the kernel.
     }
     if (( _type == DeviceType::STD_TYPE) && (_skip == SkipMode::NONE))
@@ -195,133 +194,32 @@ int Device::InferenceRequest(RequestData* req, npu_bound_op boundOp)
 
     if (_type == DeviceType::ACC_TYPE)
     {
-        // Input Format Encoding
-        if (!Device::_sNpuValidateOpt)
+        // NFH Input Worker async processing (step-by-step testing)
+        if (ENABLE_ASYNC_NFH_INPUT && _nfhInputWorker && req)
         {
-            if (req->taskData == nullptr) {
-                LOG_DXRT_ERR("Device::InferenceRequest - req->taskData is nullptr");
-                return -1;
-            }
-
-            size_t input_count = req->inputs.size();
-            size_t tensor_info_count = req->taskData->_npuInputTensorInfos.size();
-            size_t encoded_sizes_count = req->taskData->_encodedInputSizes.size();
-
-            LOG_DXRT_DBG << "Device::InferenceRequest - input_count: " << input_count
-                         << ", tensor_info_count: " << tensor_info_count
-                         << ", encoded_sizes_count: " << encoded_sizes_count << std::endl;
-
-            if (input_count == 0) {
-                LOG_DXRT_DBG << "Device::InferenceRequest - No inputs to process" << std::endl;
-            } else if (input_count > tensor_info_count || input_count > encoded_sizes_count) {
-                LOG_DXRT_ERR("Device::InferenceRequest - Array size mismatch: inputs=" << input_count
-                             << ", tensor_infos=" << tensor_info_count
-                             << ", encoded_sizes=" << encoded_sizes_count);
-                return -1;
-            }
-
-            for (size_t i = 0; i < input_count; i++)
+            auto request = Request::GetById(req->requestId);
+            if (request)
             {
-                if (req->encoded_input_ptrs.size() <= i || req->encoded_input_ptrs[i] == nullptr) {
-                    LOG_DXRT_ERR("Device::InferenceRequest - encoded_input_ptrs[" << i << "] is nullptr or out of range");
-                    return -1;
-                }
-
-                Tensor& input_tensor = req->inputs[i];
-                deepx_rmapinfo::TensorInfo tensor_info = req->taskData->_npuInputTensorInfos[i];
-                int shape_dims = tensor_info.shape_encoded().size();
-                // uint64_t input_size = input_tensor.size_in_bytes();
-
-                npu_format_handler::Bytes original_input = {static_cast<uint32_t>(input_tensor.size_in_bytes()),
-                                                            static_cast<uint8_t*>(input_tensor.data())};
-                npu_format_handler::Bytes encoded_input = {static_cast<uint32_t>(req->taskData->_encodedInputSizes[i]),
-                                                            static_cast<uint8_t*>(req->encoded_input_ptrs[i])};
-
-                // Null pointer check
-                if (original_input.data == nullptr || encoded_input.data == nullptr) {
-                    LOG_DXRT_ERR("Device::InferenceRequest - Input data pointer is nullptr for input " << i);
-                    return -1;
-                }
-
-#ifdef USE_PROFILER
+                // NFH processing enqueued asynchronously (delegate entire processing)
+                NfhInputWork nfhWork(req->requestId, request, 0, boundOp);
+                int result = _nfhInputWorker->EnqueueWork(nfhWork);
+                if (result != 0)
                 {
-                    auto& profiler = dxrt::Profiler::GetInstance();
-                    std::string profile_name = "NPU Input Format Handler[Job_" + std::to_string(req->jobId) + "][" + req->taskData->name() + "][Req_" + std::to_string(req->requestId) + "]";
-                    profiler.Start(profile_name);
-                }
-#endif
-                // dummy encoder
-                if (static_cast<deepx_rmapinfo::Layout>(tensor_info.layout()) == deepx_rmapinfo::Layout::PRE_FORMATTER)
-                {
-                    LOG_DXRT_DBG <<"Input Format Encoding (PRE_FORMATTER) ["<<i<<"] original_input size : "<<original_input.size<< " encoded_input size : "<<encoded_input.size<< endl;
-                    npu_format_handler::NpuFormatHandler::encode_preformatter(original_input, encoded_input);
-                }
-                else if (static_cast<deepx_rmapinfo::Layout>(tensor_info.layout()) == deepx_rmapinfo::Layout::PRE_IM2COL)
-                {
-                    LOG_DXRT_DBG <<"Input Format Encoding (PRE_IM2COL) ["<<i<<"] original_input size : "<<original_input.size<< " encoded_input size : "<<encoded_input.size<< endl;
-                    npu_format_handler::NpuFormatHandler::encode_preim2col(original_input, encoded_input,
-                                                                         tensor_info.shape_encoded()[shape_dims - 2],
-                                                                         tensor_info.shape_encoded()[shape_dims - 1]);
-                }
-                else if (static_cast<deepx_rmapinfo::Layout>(tensor_info.layout()) == deepx_rmapinfo::Layout::FORMATTED)
-                {
-                    // transpose
-                    if (tensor_info.transpose() == deepx_rmapinfo::Transpose::TRANSPOSE_NONE)
-                    {
-                        LOG_DXRT_DBG <<"Input Format Encoding (FORMATTED) ["<<i<<"] original_input size : "<<original_input.size<< " encoded_input size : "<<encoded_input.size<< endl;
-                        npu_format_handler::NpuFormatHandler::encode_formatted(original_input, encoded_input,
-                                                                                tensor_info.shape_encoded()[shape_dims - 1]);
-                    }
-                    else if (tensor_info.transpose() == deepx_rmapinfo::Transpose::CHANNEL_FIRST_TO_LAST)
-                    {
-
-                        LOG_DXRT_DBG <<"Input Format Encoding (FORMATTED) ["<<i<<"] original_input size : "<<original_input.size<< " encoded_input size : "<<encoded_input.size<< endl;
-                        npu_format_handler::NpuFormatHandler::encode_formatted(original_input, encoded_input,
-                                                                                tensor_info.shape_encoded()[shape_dims - 1]);
-                        npu_format_handler::Bytes temp_input = {original_input.size, encoded_input.data};
-                        LOG_DXRT_DBG <<"Input Format Encoding (CHANNEL_FIRST_TO_LAST) ["<<i<<"] temp_input size : "<<temp_input.size<< " encoded_input size : "<<encoded_input.size<< endl;
-                        int row = tensor_info.shape_encoded()[shape_dims - 1];
-                        int col = 1;
-                        for (int j = 0; j < shape_dims - 1; j++)
-                        {
-                            col *= tensor_info.shape_encoded()[j];
-                        }
-                        int elem_size = GetDataSize_rmapinfo_datatype(static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded()));
-                        npu_format_handler::NpuFormatHandler::bidirectional_transpose(temp_input.data, encoded_input.data, row, col, elem_size);
-                        /*
-                        npu_format_handler::NpuFormatHandler::encode_formatted_transposed(original_input, encoded_input,
-                                                                                          row, col, elem_size);
-                        */
-                    }
-                    else
-                    {
-                        LOG_DXRT_ERR("Invalid transpose type");
-                        memcpy(static_cast<void*>(encoded_input.data),
-                                static_cast<const void*>(original_input.data),
-                                original_input.size);
-                    }
+                    LOG_DXRT_ERR("Failed to enqueue NFH input work for request " << req->requestId << ", falling back to sync");
+                    // Fallback: proceed to synchronous processing below
                 }
                 else
                 {
-                    LOG_DXRT_DBG <<"Input Format Encoding (NORMAL)"<<endl;
-                    memcpy(static_cast<void*>(encoded_input.data), 
-                           static_cast<const void*>(original_input.data), 
-                           original_input.size);
+                    // NFH Worker will process, so we can exit here (prevent circular calls)
+                    LOG_DXRT_DBG << "NFH Input work successfully enqueued for request " << req->requestId << endl;
+                    return 0;
                 }
-#ifdef USE_PROFILER
-                {
-                    auto& profiler = dxrt::Profiler::GetInstance();
-                    std::string profile_name = "NPU Input Format Handler[Job_" + std::to_string(req->jobId) + "][" + req->taskData->name() + "][Req_" + std::to_string(req->requestId) + "]";
-                    profiler.End(profile_name);
-                }
-#endif
             }
         }
-        else
-        {
-            for (size_t i = 0; i < req->outputs.size(); i++)
-                req->encoded_input_ptrs[i] = req->inputs[i].data();
-        }
+
+        // Input Format Encoding (synchronous path also uses common utility)
+        int enc = npu_format_handler::NpuFormatHandler::EncodeInputs(req, -1);
+        if (enc != 0) return enc;
         return InferenceRequest_ACC(req, boundOp);
     }
     else if (_type == DeviceType::STD_TYPE)
@@ -376,8 +274,20 @@ int Device::InferenceRequest_STD(RequestData* req, npu_bound_op boundOp)
             else
             {
                 LOG_DXRT_DBG << hex << "memcpy " << reqInputPtr << "-> " << dest << dec << endl;
+#ifdef USE_PROFILER
+
+                // Start profiling for overall NPU task (input preprocess + PCIe + NPU execution + output postprocess)
+                auto& profiler = dxrt::Profiler::GetInstance();
+                std::string profile_name = "STD Memcpy[device "+std::to_string(id())+" pick" + std::to_string(pick) + "]";
+                profiler.Start(profile_name);
+#endif
                 memcpy(dest, reqInputPtr, task->_encodedInputSize);
-                Process(dxrt::dxrt_cmd_t::DXRT_CMD_CPU_CACHE_FLUSH, reinterpret_cast<void*>(&inferences[pick].input));
+                //Process(dxrt::dxrt_cmd_t::DXRT_CMD_CPU_CACHE_FLUSH, reinterpret_cast<void*>(&inferences[pick].input));
+#ifdef USE_PROFILER
+
+                profiler.End(profile_name);
+
+#endif
             }
             req->outputs = _outputTensors[taskId][pick];
         }
@@ -389,11 +299,21 @@ int Device::InferenceRequest_STD(RequestData* req, npu_bound_op boundOp)
             _ongoingRequestsStd[req->requestId] = npu_inference;
         }
         LOG_DXRT_DBG << "Device " << _id << " Request : " << inferences[pick] << endl;
+#ifdef USE_PROFILER
+
+        // Start profiling for overall NPU task (input preprocess + PCIe + NPU execution + output postprocess)
+        auto& profiler = dxrt::Profiler::GetInstance();
+        std::string profile_name_write = "STD Write[device "+std::to_string(id())+" pick" + std::to_string(pick) + "]";
+        profiler.Start(profile_name_write);
+#endif
 #ifdef __linux__
         // ret = write(_devFd, inference, sizeof(dxrt_request_t));
         ret = _driverAdapter->Write(&npu_inference, sizeof(dxrt_request_t));
 #elif _WIN32
         ret = _driverAdapter->Write(&npu_inference, sizeof(dxrt_request_t));
+#endif
+#ifdef USE_PROFILER
+        profiler.End(profile_name_write);
 #endif
         LOG_DXRT_DBG << "written " << ret << endl;
     }
@@ -464,7 +384,6 @@ int Device::InferenceRequest_ACC(RequestData* req, npu_bound_op boundOp)
         else outputOffset += model.output_all_offset;
 
         npu_inference_acc.output.offset = outputOffset + model.last_output_offset;
-        npu_inference_acc.status = 0;
         npu_inference_acc.proc_id = getpid();
         npu_inference_acc.bound = boundOp;
         {
@@ -781,14 +700,15 @@ void Device::Identify(int id_, SkipMode skip, uint32_t subCmd)
 #else
     ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_IDENTIFY_DEVICE, reinterpret_cast<void*>(&_info), sizeof(_info), subCmd, true);
 #endif
-    //DXRT_ASSERT(ret == 0, "failed to identify device "+ to_string(id_));
+
     if (ret != 0)
     {
         LOG_DXRT << "failed to identify device " << id_ << endl;
         _isBlocked = true;
-        return;
+        //return;
+        throw InvalidOperationException(EXCEPTION_MESSAGE(LogMessages::Device_FailToInitialize(id_)));
     }
-
+/*
 #if DXRT_USB_NETWORK_DRIVER == 0
     {
 #ifdef __linux__
@@ -803,7 +723,7 @@ void Device::Identify(int id_, SkipMode skip, uint32_t subCmd)
         }
     }
 #endif
-
+*/
     LOG_DXRT_DBG << _name << ": device info : type " << _info.type
         << hex << ", variant " << _info.variant
         << ", mem_addr " << _info.mem_addr
@@ -852,6 +772,22 @@ void Device::Identify(int id_, SkipMode skip, uint32_t subCmd)
 #endif
                 _inputWorker = DeviceInputWorker::Create(_name + "_input", num_ch, this);
                 _outputWorker = DeviceOutputWorker::Create(_name + "_output", output_worker_count, this);
+
+                // NFH workers created (only if enabled)
+                if (ENABLE_ASYNC_NFH_INPUT)
+                {
+                    int nfh_input_worker_threads=GetNfhInputWorkerThreads();
+                    _nfhInputWorker = NfhInputWorker::Create(_name + "_nfh_input", nfh_input_worker_threads, this);
+                    LOG_DXRT_DBG << "NFH Input Worker created with " << nfh_input_worker_threads << " threads" << endl;
+                }
+
+                // NFH Output Worker enabled (prevent circular calls)
+                if (ENABLE_ASYNC_NFH_OUTPUT)
+                {
+                    int nfh_output_worker_threads=GetNfhOutputWorkerThreads();
+                    _nfhOutputWorker = NfhOutputWorker::Create(_name + "_nfh_output", nfh_output_worker_threads, this);
+                    LOG_DXRT_DBG << "NFH Output Worker created with " << nfh_output_worker_threads << " threads" << endl;
+                }
             }
 #if DXRT_USB_NETWORK_DRIVER == 0
   #ifdef __linux__
@@ -883,7 +819,7 @@ void Device::Terminate()
     uint32_t i;
     if (_type == DeviceType::ACC_TYPE)
     {
-        if (_eventWorker == nullptr) 
+        if (_eventWorker == nullptr)
         {
             return;
         }
@@ -899,8 +835,12 @@ void Device::Terminate()
             }
             std::this_thread::sleep_for(std::chrono::microseconds(1));
         }
+#ifdef __linux__
         while (_eventWorker->isStopped() == false);
-        
+#elif _WIN32
+        while (false);
+#endif
+
     }
     else
     {
@@ -1081,6 +1021,24 @@ void Device::DoCustomCommand(void *data, uint32_t subCmd, uint32_t size)
                     sCmd);
             break;
         }
+        //GET FCT RESULT
+        case DX_GET_FCT_TESTCASE_RESULT:
+        {
+            Process(dxrt::dxrt_cmd_t::DXRT_CMD_CUSTOM,
+                    data,
+                    size,
+                    sCmd);
+            break;
+        }
+        case DX_RUN_FCT_TESTCASE:
+        {
+            uint32_t type = *static_cast<uint32_t *>(data);
+            Process(dxrt::dxrt_cmd_t::DXRT_CMD_CUSTOM,
+                    &type,
+                    sizeof(uint32_t),
+                    sCmd);
+            break;
+        }
         default:
             LOG_DXRT_ERR("Unknown sub command: " << sCmd);
             break;
@@ -1169,7 +1127,15 @@ void Device::ThreadImpl(void)
         dxrt_response_t response;
         response.req_id = 0;
         LOG_DXRT_DBG << "Device " << _id << " wait. " << endl;
+#ifdef USE_PROFILER
+        auto& profiler = dxrt::Profiler::GetInstance();
+        std::string profile_name_wait = "ThreadImpl Wait[device "+std::to_string(id())+"]";
+        profiler.Start(profile_name_wait);
+#endif
         ret = Wait();
+#ifdef USE_PROFILER
+        profiler.End(profile_name_wait);
+#endif
         // cout << "Device " << _id << " wakeup : " << ret << endl;
         if (_stop.load()) break;
         // LOG_VALUE(ret);
@@ -1177,7 +1143,7 @@ void Device::ThreadImpl(void)
         ret = Response(response);
         if (_stop.load()) break;
         LOG_DXRT_DBG << "Device " << _id << " got response " << response.req_id << endl;
-		if (ret == 0)  // && response.req_id >= 0)
+		if ((ret == 0) & (response.req_id != 0xFFFFFFFF)) // 0xFFFFFFFF: clear value
         {
             // cout << "response " << response.req_id << ", inf time " << response.inf_time << ", load " << load() << endl;
             auto req = Request::GetById(response.req_id);
@@ -1230,17 +1196,7 @@ int Device::RegisterTask(TaskData* task)
     }
     else if (_type == DeviceType::STD_TYPE)
     {
-        int ret_val = 0;
-
-        if (_isDsp)
-        {
-            ret_val = DSP_RegisterTask_STD(task);
-        }
-        else
-        {
-            ret_val = RegisterTask_STD(task);
-        }
-        return ret_val;
+        return RegisterTask_STD(task);
     }
     DXRT_ASSERT(false, "Invalid Device Type");
     return -1;
@@ -1307,6 +1263,7 @@ int Device::RegisterTask_STD(TaskData* task)
         inference.model_cmds = static_cast<uint32_t>(model.cmds);
         inference.cmd_offset = model.rmap.offset;
         inference.weight_offset = model.weight.offset;
+        
         inference.last_output_offset = model.last_output_offset;
 
         if (_memory->data() == 0)
@@ -1325,15 +1282,51 @@ int Device::RegisterTask_STD(TaskData* task)
             // LOG_VALUE_HEX(start);
             // LOG_VALUE_HEX(end);
             // _outputValidateBuffers[id] = vector<uint8_t>((uint8_t*)(_memory->data()) + inference.output.offset, (uint8_t*)(_memory->data()) + model.output_all_size);
-            _outputValidateBuffers[id] = vector<uint8_t>(static_cast<uint8_t*>(start), static_cast<uint8_t*>(end));
+            if (model.output_all_size == 0) {
+                LOG_DXRT_WARN << "Task " << id << " output_all_size is 0, allocating minimum buffer" << endl;
+                _outputValidateBuffers[id] = vector<uint8_t>(1);  // Prevent empty vector
+            } else {
+                _outputValidateBuffers[id] = vector<uint8_t>(static_cast<uint8_t*>(start), static_cast<uint8_t*>(end));
+            }
             // LOG_VALUE_HEX(inference.last_output_offset);
         }
 
-        _npuInference[id].emplace_back(inference);
+        // Write RMAP (with PPU if PPCPU type)
+        if (task->_isPPCPU && task->_data != nullptr && task->_data->size() >= 3) {
+            // PPCPU type: combine RMAP + PPU with alignment
+            uint64_t alignedRmapSize = GetAlign(model.rmap.size);
+            size_t paddingSize = alignedRmapSize - model.rmap.size;
+            size_t ppuSize = (*task->_data)[2].size();
+            
+            std::vector<uint8_t> combinedBuffer(alignedRmapSize + ppuSize, 0);
+            memcpy(combinedBuffer.data(), reinterpret_cast<void*>(model.rmap.data), model.rmap.size);
+            // padding is already zero-filled by vector initialization
+            memcpy(combinedBuffer.data() + alignedRmapSize, (*task->_data)[2].data(), ppuSize);
+            
+            dxrt_meminfo_t combinedMemInfo;
+            combinedMemInfo.data = reinterpret_cast<uint64_t>(combinedBuffer.data());
+            combinedMemInfo.base = model.rmap.base;
+            combinedMemInfo.offset = model.rmap.offset;
+            combinedMemInfo.size = static_cast<uint32_t>(combinedBuffer.size());
+            
+            LOG_DXRT_DBG << "PPCPU: Writing combined RMAP+PPU - RMAP: " << model.rmap.size 
+                         << ", padding: " << paddingSize << ", PPU: " << ppuSize 
+                         << ", total: " << combinedBuffer.size() << std::endl;
+            
+            DXRT_ASSERT(Write(combinedMemInfo) == 0, "failed to write PPCPU combined RMAP+PPU");
 
-        DXRT_ASSERT(Write(model.rmap) == 0, "failed to write model parameters(rmap)");
+            //inference.custom_offset = alignedRmapSize; // [TO DO] custom offset for V8 PPCPU
+        } else {
+            // Normal type or legacy PPU: write RMAP only
+            DXRT_ASSERT(Write(model.rmap) == 0, "failed to write model parameters(rmap)");
+            //inference.custom_offset = 0; // [TO DO] custom offset for V8 PPCPU
+        }
+        
         DXRT_ASSERT(Write(model.weight) == 0, "failed to write model parameters(weight)");
         // cout << "write done" << endl;
+        
+        _npuInference[id].emplace_back(inference);
+
     }
 
     /* Write model parameters to device */
@@ -1494,7 +1487,12 @@ int Device::RegisterTask_ACC(TaskData* task)
             // LOG_VALUE_HEX(start);
             // LOG_VALUE_HEX(end);
             // _outputValidateBuffers[id] = vector<uint8_t>((uint8_t*)(_memory->data()) + inference.output.offset, (uint8_t*)(_memory->data()) + model.output_all_size);
-            _outputValidateBuffers[id] = vector<uint8_t>(static_cast<uint8_t*>(start), static_cast<uint8_t*>(end));
+            if (model.output_all_size == 0) {
+                LOG_DXRT_WARN << "Task " << id << " output_all_size is 0, allocating minimum buffer" << endl;
+                _outputValidateBuffers[id] = vector<uint8_t>(1);  // Prevent empty vector
+            } else {
+                _outputValidateBuffers[id] = vector<uint8_t>(static_cast<uint8_t*>(start), static_cast<uint8_t*>(end));
+            }
             // LOG_VALUE_HEX(inference.last_output_offset);
         }
         inferenceAcc.op_mode = model.op_mode;
@@ -1505,8 +1503,47 @@ int Device::RegisterTask_ACC(TaskData* task)
             _npuInferenceAcc[id].emplace_back(inferenceAcc);
         }
     }
-    ret = Write(model.rmap);
-    DXRT_ASSERT(ret == 0, "failed to write model rmap parameters"+ std::to_string(ret));
+    
+    // Write RMAP (with PPU if PPCPU type) - ACC Type
+    if (task->_isPPCPU && task->_data != nullptr && task->_data->size() >= 3) {
+        // PPCPU type: combine RMAP + PPU with alignment
+        uint64_t alignedRmapSize = GetAlign(model.rmap.size);
+        size_t paddingSize = alignedRmapSize - model.rmap.size;
+        size_t ppuSize = (*task->_data)[2].size();
+        
+        std::vector<uint8_t> combinedBuffer(alignedRmapSize + ppuSize, 0);
+        memcpy(combinedBuffer.data(), reinterpret_cast<void*>(model.rmap.data), model.rmap.size);
+        // padding is already zero-filled by vector initialization
+        memcpy(combinedBuffer.data() + alignedRmapSize, (*task->_data)[2].data(), ppuSize);
+        
+        dxrt_meminfo_t combinedMemInfo;
+        combinedMemInfo.data = reinterpret_cast<uint64_t>(combinedBuffer.data());
+        combinedMemInfo.base = model.rmap.base;
+        combinedMemInfo.offset = model.rmap.offset;
+        combinedMemInfo.size = static_cast<uint32_t>(combinedBuffer.size());
+        
+        LOG_DXRT_DBG << "PPCPU ACC: Writing combined RMAP+PPU - RMAP: " << model.rmap.size 
+                     << ", padding: " << paddingSize << ", PPU: " << ppuSize 
+                     << ", total: " << combinedBuffer.size() << std::endl;
+        
+        ret = Write(combinedMemInfo);
+        DXRT_ASSERT(ret == 0, "failed to write PPCPU combined RMAP+PPU"+ std::to_string(ret));
+        
+        // Set custom_offset for all buffers (PPCPU type)
+        for (auto& inferenceAcc : _npuInferenceAcc[task->id()]) {
+            inferenceAcc.custom_offset = alignedRmapSize;
+        }
+    } else {
+        // Normal type or legacy PPU: write RMAP only
+        ret = Write(model.rmap);
+        DXRT_ASSERT(ret == 0, "failed to write model rmap parameters"+ std::to_string(ret));
+        
+        // Set custom_offset to 0 for all buffers (non-PPCPU type)
+        for (auto& inferenceAcc : _npuInferenceAcc[task->id()]) {
+            inferenceAcc.custom_offset = 0;
+        }
+    }
+    
     ret = Write(model.weight);
     DXRT_ASSERT(ret== 0, "failed to write model weight parameters"+ std::to_string(ret));
     // cout << "write done" << endl;
@@ -1664,9 +1701,7 @@ std::ostream& operator<<(std::ostream& os, const dxrt_device_status_t& status)
         << "voltage [" << status.voltage[0] << ", " << status.voltage[1] << ", " << status.voltage[2] << ", " << status.voltage[3] << "], "
         << "clock [" << status.clock[0] << ", " << status.clock[1] << ", " << status.clock[2] << ", " << status.clock[3] << "], "
         << "temperature [" << status.temperature[0] << ", " << status.temperature[1] << ", " << status.temperature[2] << ", " << status.temperature[3] << "], "
-        << "dvfs [" << status.dvfs_enable << ", " << status.dvfs_maxfreq << "], "
-        << "cnt [" << status.count[0] << ", " << status.count[1] << ", " << status.count[2] << ", " << status.count[3] << "], "
-        << "boot_state " << status.boot_state ;
+        << "cnt [" << status.count[0] << ", " << status.count[1] << ", " << status.count[2] << ", " << status.count[3] << "], ";
     return os;
 }
 
@@ -1743,10 +1778,10 @@ void Device::ShowPCIEDetails(std::ostream& os)
     static constexpr int MIN_PCIE_VERSION = 1700;
     static constexpr int MIN_FW_VERSION = 211;
     bool unsupportedVersion = false;
-    if (_devInfo.rt_drv_ver < MIN_PCIE_VERSION)
+    if (_devInfo.rt_drv_ver.driver_version < MIN_PCIE_VERSION)
     {
         os << "Device " << id() << ":PCIE status is not supported due to low RT driver version "<< endl
-         << LogMessages::NotSupported_DeviceDriverVersion(_devInfo.rt_drv_ver, MIN_PCIE_VERSION) << endl;
+         << LogMessages::NotSupported_DeviceDriverVersion(_devInfo.rt_drv_ver.driver_version, MIN_PCIE_VERSION) << endl;
         unsupportedVersion = true;
     }
     if (_info.fw_ver < MIN_FW_VERSION)
@@ -1792,282 +1827,5 @@ void Device::ShowPCIEDetails()
 {
     ShowPCIEDetails(cout);
 }
-
-
-// DSP code //////////////////////////////////////////////////////////////////////////////////////////////////////////
-int Device::DSP_FlushCache(uint64_t targetAddr, uint32_t sizeInByte)
-{
-    dxrt_meminfo_t cacheAddrInfo;
-    cacheAddrInfo.base = 0;
-    cacheAddrInfo.data = (uint64_t)targetAddr;
-    cacheAddrInfo.offset = 0;
-    cacheAddrInfo.size = sizeInByte;
-    Process(dxrt::dxrt_cmd_t::DXRT_CMD_CPU_CACHE_FLUSH, reinterpret_cast<void*>(&cacheAddrInfo));
-
-    return 0;
-}
-
-int Device::DSP_GetBufferPtrFromMem(uint64_t *inputPtr, uint64_t *outputPtr)
-{
-    int ret = 0;
-
-    *inputPtr  = _dspInData.data;
-    *outputPtr = _dspOutData.data;
-
-    uint64_t inPtr, outPtr;
-    inPtr  = (uint64_t)(*inputPtr );
-    outPtr = (uint64_t)(*outputPtr);
-
-    LOG_DXRT_DBG << "inPtr "  << std::hex << inPtr  << endl;
-    LOG_DXRT_DBG << "outPtr " << std::hex << outPtr << endl;
-
-    return ret;
-}
-
-int DSP_GetBufferPtrFromObjPools(uint64_t *inputPtr, uint64_t *outputPtr)
-{
-    int ret = 0;
-
-    LOG_DXRT_DBG << endl;
-    auto& inst = ObjectsPool::GetInstance();
-    inst.DSP_GetBufferPtrFromDevices(inputPtr, outputPtr);
-
-    return ret;
-}
-
-void Device::DSP_Identify(int id_, SkipMode skip, uint32_t subCmd)
-{
-    LOG_DXRT_DBG << "Device " << _id << " Identify" << endl;
-    int ret;
-    _id = id_;
-#ifdef __linux__
-    _driverAdapter = make_shared<LinuxDriverAdapter>(_file.c_str());
-    _devFd = _driverAdapter->GetFd();
-
-#elif _WIN32
-    _driverAdapter = make_shared<WindowsDriverAdapter>(_file.c_str());
-    _devHandle = (HANDLE)_driverAdapter->GetFd();
-    if (_devHandle == INVALID_HANDLE_VALUE) {
-        LOG_DXRT << "Error: Can't open " << _file << endl;
-        return;
-    }
-#endif
-
-    _info = dxrt_device_info_t{};
-    _info.type = 0;
-    _skip = skip;
-    if (skip == SkipMode::IDENTIFY_SKIP) return;
-    ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_IDENTIFY_DEVICE, reinterpret_cast<void*>(&_info), 0, subCmd);
-    // DXRT_ASSERT(ret == 0, "failed to identify device "+ to_string(id_));
-    if (ret != 0)
-    {
-        LOG_DXRT << "failed to identify device " << id_ << endl;
-        _isBlocked = true;
-        return;
-    }
-
-    {
-#ifdef __linux__
-        DxDeviceVersion dxVer(this, _info.fw_ver, _info.type, _info.interface, _info.variant);
-#elif _WIN32
-        DxDeviceVersion dxVer(this, _info.fw_ver, _info.type, _info.interface_value, _info.variant);
-#endif
-        _devInfo = dxVer.GetVersion();
-        if ((_skip != VERSION_CHECK) && (_skip !=COMMON_SKIP))
-        {
-            dxVer.CheckVersion();
-        }
-    }
-
-    LOG_DXRT_DBG << _name << ": device info : type " << _info.type
-        << hex << ", variant " << _info.variant
-        << ", mem_addr " << _info.mem_addr
-        << ", mem_size " << _info.mem_size
-        << dec << ", num_dma_ch " << _info.num_dma_ch << endl;
-    DXRT_ASSERT(_info.mem_size > 0, "invalid device memory size");
-    _type = static_cast<DeviceType>(_info.type);
-    _variant = _info.variant;
-#ifdef __linux__
-    void *_mem;
-    // void *_memDspSram;
-    off_t offset = 0;
-
-    _mem = _driverAdapter->MemoryMap(0, _info.mem_size, offset);
-    if (reinterpret_cast<int64_t>(_mem) == -1)
-    {
-        _mem = nullptr;
-    }
-
-    // offset = 4096;
-    // _memDspSram = _driverAdapter->MemoryMap(0, DSP_SRAM_SIZE, offset);
-    // if (reinterpret_cast<int64_t>(_memDspSram) == -1)
-    // {
-    //    _memDspSram = nullptr;
-    // }
-
-#elif _WIN32
-    void* _mem = nullptr;    // unused in windows
-#endif
-    // _dspSramPtr = reinterpret_cast<uint64_t>(_memDspSram);
-
-    _memory = std::make_shared<Memory>(_info, _mem);
-
-    LOG_DXRT_DBG << "    Device " << _id << "_info " << _info << endl;
-    LOG_DXRT_DBG << "    Device " << _id << "_memory " << _memory << endl;
-
-    if (_skip == SkipMode::NONE)
-    {
-        _thread = std::thread(&Device::DSP_ThreadImpl, this);
-    }
-}
-
-void Device::DSP_ThreadImpl(void)
-{
-    int ret = 0;
-    LOG_DXRT_DBG << "Device " << _id << " thread start. " << endl;
-    while (true)
-    {
-        if (_stop.load()) break;
-        dxrt_response_t response;
-        response.req_id = 0;
-        LOG_DXRT_DBG << "Device " << _id << " wait. " << endl;
-        ret = Wait();
-        // cout << "Device " << _id << " wakeup : " << ret << endl;
-        if (_stop.load()) break;
-        // LOG_VALUE(ret);
-        _profiler.End(_name);
-        ret = Response(response);
-        if (_stop.load()) break;
-        LOG_DXRT_DBG << "Device " << _id << " got response " << response.req_id << endl;
-        if (ret == 0)  // && response.req_id >= 0)
-        {
-            // cout << "response " << response.req_id << ", inf time " << response.inf_time << ", load " << load() << endl;
-            auto req = Request::GetById(response.req_id);
-            // LOG_VALUE(req.use_count());
-            if (req != nullptr)
-            {
-                DSP_ProcessResponse(req);
-                CallBack();
-            }
-        }
-    }
-    LOG_DXRT_DBG << "Device " << _id << " thread end. ret:" << ret << endl;
-}
-
-int Device::DSP_RegisterTask_STD(TaskData* task)
-{
-    LOG_DXRT_DBG << "Device " << _id << endl;
-    int ret = 0;
-    int id = task->id();
-    _bufIdx[id] = 0;
-
-    _dspInData.base   = _memory->start();  // physical address
-    _dspOutData.base  = _memory->start();  // physical address
-
-    _dspInData.offset = Allocate(DSP_IN_MEM_SIZE);
-    _dspOutData.offset = Allocate(DSP_OUT_MEM_SIZE);
-
-    _dspInData.data  = _memory->data() + _dspInData.offset;  // virtual address
-    _dspOutData.data = _memory->data() + _dspOutData.offset;  // virtual address
-
-    _dspInData.size = DSP_INPUT_SIZE;
-    _dspOutData.size = DSP_OUTPUT_SIZE;
-
-    LOG_DXRT_DBG << "_dspInData " << _dspInData << endl;
-    LOG_DXRT_DBG << "_dspOutData " << _dspOutData << endl;
-    LOG_DXRT_DBG << "_memory " << _memory << endl;
-
-    _dspProcRequests[id] = vector<dxrt_request_t>();
-
-    for (int j = 0; j < DEVICE_NUM_BUF; j++)
-    {
-        dxrt_request_t dspProcReq;
-        dspProcReq.req_id = 0;
-        dspProcReq.input.data = 0;
-        dspProcReq.input.base = _dspInData.base;
-        dspProcReq.input.offset = _dspInData.offset + DSP_INPUT_SIZE*j;
-        dspProcReq.input.size = 640*480*3/2;
-
-        dspProcReq.output.data = 0;
-        dspProcReq.output.base = _dspOutData.base;
-        dspProcReq.output.offset = _dspOutData.offset + DSP_OUTPUT_SIZE*j;
-        dspProcReq.output.size = 640*640*3;
-
-        dspProcReq.input.data = _memory->data() + dspProcReq.input.offset;
-        dspProcReq.output.data = _memory->data() + dspProcReq.output.offset;
-
-        LOG_DXRT_DBG << "dspProcReq.input " << dspProcReq.input << endl;
-        LOG_DXRT_DBG << "dspProcReq.output " << dspProcReq.output << endl;
-
-        _dspProcRequests[id].emplace_back(dspProcReq);
-    }
-
-    return ret;
-}
-
-int Device::DSP_SetCommand(dxrt_dspcvmat_t *dspCvMatInPtr, dxrt_dspcvmat_t *dspCvMatOutPtr, dxrt_dsp_request_t *dsp_req_command)
-{
-    LOG_DXRT_DBG << "Device " << _id << endl;
-    int ret = 0;
-
-    dxrt_dsp_message_type000_t cpuMsgBufData;
-
-    dsp_req_command->msg_header.func_id = FUNC_ID_YUV420_TO_RGB_LETTER_PAD;
-    dsp_req_command->msg_header.message_size = sizeof(dxrt_dsp_message_type000_t);
-    dsp_req_command->msg_header.cpu_written_flag = 1;
-    dsp_req_command->msg_header.dsp_read_flag = 0;
-    dsp_req_command->msg_header.reserved = 0;
-
-    cpuMsgBufData.src_addr_offset = static_cast<uint32_t>(reinterpret_cast<uint64_t>(dspCvMatInPtr->data  - _dspInData.data));  // 0x00000000, 4B
-    cpuMsgBufData.dst_addr_offset = static_cast<uint32_t>(reinterpret_cast<uint64_t>(dspCvMatOutPtr->data - _dspInData.data));  // 0x03000000, 4B
-    cpuMsgBufData.src_w = dspCvMatInPtr->cols;  // 2B
-    cpuMsgBufData.src_h = dspCvMatInPtr->rows;  // 2B
-    cpuMsgBufData.dst_w = dspCvMatOutPtr->cols;  // 2B
-    cpuMsgBufData.dst_h = dspCvMatOutPtr->rows;  // 2B
-    cpuMsgBufData.src_stride = dspCvMatInPtr->step[0];  // 2B
-    cpuMsgBufData.dst_stride = dspCvMatOutPtr->step[0];  // 2B
-    cpuMsgBufData.reserved = 0;  // 4B
-
-    memcpy(&dsp_req_command->msg_data[0], &cpuMsgBufData, 24);
-
-    return ret;
-}
-
-int Device::DSP_ProcessRequest(RequestData* req, dxrt_dspcvmat_t *dspCvMatInPtr, dxrt_dspcvmat_t *dspCvMatOutPtr)
-{
-    LOG_DXRT_DBG << "Device " << _id << " dspProcReq request" << endl;
-    int ret = 0;
-    int bufId = 0;
-    auto task = req->taskData;
-    int taskId = task->id();
-    std::unique_lock<std::mutex> lk(_lock);
-    bufId = _bufIdx[taskId];
-    (++_bufIdx[taskId]) %= DEVICE_NUM_BUF;
-
-    auto &dspProcReq = _dspProcRequests[taskId];
-    int pick = bufId;
-
-    // 1. Input data copy (The app already performed the copy, this part only flushes the cache.)
-    Process(dxrt::dxrt_cmd_t::DXRT_CMD_CPU_CACHE_FLUSH, reinterpret_cast<void*>(&dspProcReq[pick].input));
-
-    // 2. output setting
-    req->output_buffer_base = reinterpret_cast<void *>(_dspOutData.data);  // virtual address
-
-    // 3. make DSP command
-    dxrt_dsp_request_t dsp_req_command;
-    dsp_req_command.req_id = req->requestId;
-    DSP_SetCommand(dspCvMatInPtr, dspCvMatOutPtr, &dsp_req_command);
-
-    // 4. DSP process start : setting request info to dsp (req.id & meta info)
-#ifdef __linux__
-    ret = _driverAdapter->Write(&dsp_req_command, sizeof(dxrt_dsp_request_t));
-#elif _WIN32
-    ret = _driverAdapter->Write(&dsp_req_command, sizeof(dxrt_dsp_request_t));
-#endif
-
-    return ret;
-}
-// ~DSP code //////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 
 }  // namespace dxrt

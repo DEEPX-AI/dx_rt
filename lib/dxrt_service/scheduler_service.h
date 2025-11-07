@@ -42,7 +42,7 @@ class SchedulerService
     void cleanDiedProcess(int pid);
     void StopScheduler(int procId);
     void StartScheduler(int procId);
-    int GetProcLoad(int procId);
+   //  int GetProcLoad(int procId);
     void ClearAllLoad();
     void ClearProcLoad(int procId);
     
@@ -53,6 +53,13 @@ class SchedulerService
     void StopTaskInference(pid_t pid, int deviceId, int taskId);
     void StopAllInferenceForProcess(pid_t pid, int deviceId);
 
+    int GetRunningRequestCount(pid_t pid, int deviceId);
+    bool IsRequestRunning(pid_t pid, int deviceId, int reqId); 
+    void AddRunningRequest(pid_t pid, int deviceId, int reqId);
+    void RemoveRunningRequest(pid_t pid, int deviceId, int reqId);
+    void ClearRunningRequests(pid_t pid, int deviceId);
+    std::vector<int> GetRunningRequestIds(pid_t pid, int deviceId);
+
  protected:
     virtual void schedule(int deviceId) = 0;
     virtual void pushRequest(int deviceId, int procId, int reqId, int taskId) = 0;
@@ -60,7 +67,6 @@ class SchedulerService
     virtual uint32_t getTaskInferenceTime(int procId, int taskId);
     virtual void cleanTaskInferenceTime(int procId);
     void doInference(int deviceId, int procId, int reqId);
-    std::vector<int> _procId;
 
     std::vector<std::atomic<int> > _loads;
     std::map<int,std::atomic<int>> _loadsProc;
@@ -69,6 +75,10 @@ class SchedulerService
     std::vector<std::shared_ptr<dxrt::ServiceDevice>> _devices;
     std::function<void(const dxrt::dxrt_response_t&, int)> _callBack;
     std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)> _errCallBack;
+
+    // Tracking running requests per (pid, deviceId)
+    std::map<std::pair<pid_t, int>, std::set<int>> _runningRequests;
+    std::mutex _runningRequestsMutex;
     
     // Task validity verification callback
     std::function<bool(pid_t, int, int)> _taskValidator;

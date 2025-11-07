@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -12,7 +12,7 @@
 #include <stdint.h>
 
 #include "dxrt/common.h"
-#include "dxrt/device.h"
+#include "dxrt/device_core.h"
 
 #if _WIN32
 #define RT_DRV_VERSION_CHECK (1301) // 1.3.1 for windows signed driver
@@ -31,12 +31,12 @@ class Device;
 class DXRT_API DxDeviceVersion
 {
 public:
-    DxDeviceVersion(Device *device, uint16_t fw_ver, int type, int interface_value, uint32_t variant);
+    DxDeviceVersion(DeviceCore* device, uint16_t fw_ver, int type, int interface_value, uint32_t variant);
     dxrt_dev_info_t GetVersion(void);
     void CheckVersion(void);
 
 protected:
-    Device                 *_dev;
+    DeviceCore* _dev;
     dxrt_dev_info_t         devInfo;
     uint16_t                _fw_ver;
     dxrt_device_type_t      _type;

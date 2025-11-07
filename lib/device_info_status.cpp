@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -12,6 +12,10 @@
 #include "dxrt/device_util.h"
 #include "dxrt/exception/exception.h"
 #include "dxrt/map_lookup_template.h"
+#include "dxrt/device_pool.h"
+#include "dxrt/device_core.h"
+#include "dxrt/device_task_layer.h"
+#include "dxrt/common.h"
 #include<map>
 #include<iostream>
 #include<iomanip>
@@ -29,8 +33,10 @@ constexpr std::array<pair_type, 2> device_types = {{{0, "ACC"}, {1, "STD"}}};
 constexpr std::array<pair_type, 2> device_type_words = {{{0, "Accelerator"}, {1, "Standalone"}}};
 constexpr std::array<pair_type, 7> device_variants = {{{100, "L1"}, {101, "L2"}, {102, "L3"}, {103, "L4"}, {104, "V3"},
     {200, "M1"}, {202, "M1"}}};
+constexpr std::array<pair_type, 3> memory_types{{{1, "LPDDR4"}, {2, "LPDDR5"}, {3, "LPDDR5x"}}};
+constexpr std::array<pair_type, 5> memory_vendors{{{0x0, "NOT SUPPORTED"}, {0x4, "SS"}, {6, "HY"}, {0x08, "WB"}, {0xFF, "MI"}}};
 constexpr std::array<pair_type, 3> board_types = {{{1, "SOM"}, {2, "M.2"}, {3, "H1"}}};
-constexpr std::array<pair_type, 2> memory_types{{{1, "LPDDR4"}, {2, "LPDDR5"}}};
+
 
 string convert_capacity(uint64_t n)
 {
@@ -85,43 +91,35 @@ DeviceStatus::DeviceStatus(int id, dxrt_device_info_t info, dxrt_device_status_t
 :_id(id), _info(info), _status(status), _devInfo(devInfo)
 {
 }
-
-DeviceStatus DeviceStatus::GetCurrentStatus(DevicePtr& device)
+DeviceStatus DeviceStatus::GetCurrentStatus(std::shared_ptr<DeviceTaskLayer> device)
+{
+    return GetCurrentStatus(device->core());
+}
+DeviceStatus DeviceStatus::GetCurrentStatus(std::shared_ptr<DeviceCore> device)
 {
     int deviceId = device->id();
     auto info = device->info();
-    auto status = device->status();
+    auto status = device->Status();
     auto devInfo = device->devInfo();
     return DeviceStatus(deviceId, info, status, devInfo);
 }
+DeviceStatus DeviceStatus::GetCurrentStatus(std::shared_ptr<Device> device)
+{
+    return device->GetCurrentStatus();
+}
 DeviceStatus DeviceStatus::GetCurrentStatus(int id)
 {
-    auto& devices = CheckDevices(dxrt::SkipMode::COMMON_SKIP);
-    if (devices.size() <= static_cast<unsigned int>(id))
+
+    if (GetDeviceCount() <= id)
     {
         throw dxrt::InvalidArgumentException("Not exist device id:"+ std::to_string(id));
     }
-    return GetCurrentStatus(devices[id]);
+    return GetCurrentStatus(DevicePool::GetInstance().GetDeviceCores(id));
 }
 
 int DeviceStatus::GetDeviceCount()
 {
-    return CheckDevices(dxrt::SkipMode::COMMON_SKIP).size();
-}
-
-
-string DeviceStatus::DvfsStateInfoStr() const
-{
-    char buf[CHARBUFFER_SIZE];
-    if (_status.dvfs_enable == 1)
-    {
-        snprintf(buf, CHARBUFFER_SIZE, "dvfs Enabled(Max Frequency:%ud)", _status.dvfs_maxfreq);
-    }
-    else
-    {
-        snprintf(buf, CHARBUFFER_SIZE, "dvfs Disabled");
-    }
-    return string(buf);
+    return DevicePool::GetInstance().GetDeviceCount();
 }
 
 string DeviceStatus::DdrStatusStr(int ch) const
@@ -193,7 +191,6 @@ string DeviceStatus::MemorySizeStrBinaryPrefix() const
 {
     return convert_capacity(_info.mem_size);
 }
-
 string DeviceStatus::MemorySizeStrWithComma() const
 {
     return insert_comma(std::to_string(_info.mem_size))+"Byte";
@@ -215,21 +212,27 @@ string DeviceStatus::PcieInfoStr(int spd, int wd, int bus, int dev, int func) co
     return string(buf);
 }
 
+#define FW_VERSION_SUPPORT_SUFFIX 230
+
 std::ostream& DeviceStatus::InfoToStream(std::ostream& os) const
 {
     os << "=======================================================" << endl;
     os << std::showbase << std::dec << " * Device " << GetId()
       << ": " << DeviceVariantStr()<< ", "<< DeviceTypeWord() <<" type" << endl;
     os << "---------------------   Version   ---------------------" << endl;
-    os << " * RT Driver version   : v" << GetDrvVersionWithDot(_devInfo.rt_drv_ver) << endl;
+    os << " * RT Driver version   : v" << GetDrvVersionFromRT(_devInfo.rt_drv_ver) << endl;
     if (_info.type == static_cast<uint32_t>(DeviceType::ACC_TYPE))
     {
         os << " * PCIe Driver version : v" << GetDrvVersionWithDot(_devInfo.pcie.driver_version) << endl;
     }
     os << "-------------------------------------------------------" << endl;
-    os << " * FW version          : v"<< GetFwVersionWithDot(_info.fw_ver) << endl;
+    if (_info.fw_ver >= FW_VERSION_SUPPORT_SUFFIX || _info.fw_ver == 216) {
+        os << " * FW version          : v"<< GetFWVersionFromDeviceInfo(_info.fw_ver, _info.fw_ver_suffix) << endl;
+    } else {
+        os << " * FW version          : v"<< GetFwVersionWithDot(_info.fw_ver) << endl;
+    }
     os << "--------------------- Device Info ---------------------" << endl;
-    os << " * Memory : " << MemoryTypeStr() << " " << _info.ddr_freq <<" MHz, "
+    os << " * Memory : " << MemoryTypeStr() << " " << _info.ddr_freq <<" Mbps, "
       << MemorySizeStrBinaryPrefix() << endl;
     os << " * Board  : "<< BoardTypeStr();
     os << std::fixed << std::setprecision(1) << ", Rev " << static_cast<double>(Info().bd_rev)/10.0 << endl;
@@ -260,10 +263,10 @@ std::ostream&DeviceStatus::StatusToStream(std::ostream& os) const
     {
         os << NpuStatusStr(i)<< endl;
     }
-    os << DvfsStateInfoStr() << endl;
     os << "=======================================================" << endl;
     return os;
 }
+
 
 std::ostream&DeviceStatus::DebugStatusToStream(std::ostream& os) const
 {
