@@ -3,11 +3,11 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
- 
+
 #ifdef __linux__ // all or nothing
 
 #include "ipc_mq_linux.h"
@@ -22,6 +22,11 @@ using namespace dxrt;
 
 const int IPCMessageQueueLinux::QUEUE_KEY = 63;
 const long IPCMessageQueueLinux::SERVER_MSG_TYPE = 101;
+
+
+std::string getErrorString(int error_code);
+std::string getErrorString();
+
 
 IPCMessageQueueLinux::IPCMessageQueueLinux()
 {
@@ -50,14 +55,14 @@ int32_t IPCMessageQueueLinux::Initialize(long msgType, IPCMessageQueueDirection 
     }
     if (errno != 0)
     {
-        LOG_DXRT_I_ERR("error ftok" << errno);
+        LOG_DXRT_I_ERR("error ftok " + getErrorString(errno));
         return -1;
     }
-    // connect 
+    // connect
     //_msgId = msgget(QUEUE_KEY, IPC_CREAT | 0666);
     _msgId = msgget(key, IPC_CREAT | 0666);
     if (_msgId == -1) {
-        LOG_DXRT_I_ERR("[IPCMessageQueueLinux] msgget failed" << errno);
+        LOG_DXRT_I_ERR("[IPCMessageQueueLinux] msgget failed" + getErrorString(errno));
         return -1;
     }
 
@@ -76,13 +81,13 @@ int32_t IPCMessageQueueLinux::Initialize(long msgType, IPCMessageQueueDirection 
                 LOG_DXRT_I_DBG << "[IPCMessageQueueLinux] no remained message(s) msgType=" << msgType << std::endl;
                 break;
             }
-            else 
+            else
             {
-                LOG_DXRT_I_ERR("[IPCMessageQueueLinux] msgrcv failed" << errno);
+                LOG_DXRT_I_ERR("[IPCMessageQueueLinux] msgrcv(init) failed" + getErrorString(errno));
                 return -1;
             }
         }
-        else 
+        else
         {
             LOG_DXRT_I_DBG << "[IPCMessageQueueLinux] dequeue remained message(s) msgType=" << msgType << std::endl;
 
@@ -103,11 +108,11 @@ int32_t IPCMessageQueueLinux::Send(const Message& message, size_t size)
         // send except message type
         if ( msgsnd(_msgId, &message, size, 0) == -1 )
         {
-            LOG_DXRT_I_ERR("[IPCMessageQueueLinux] msgsnd failed");
+            LOG_DXRT_I_ERR("[IPCMessageQueueLinux] msgsnd failed" + getErrorString(errno));
             return -1;
         }
     }
-    else 
+    else
     {
         return -1;
     }
@@ -125,11 +130,11 @@ int32_t IPCMessageQueueLinux::Receive(Message& message, size_t size, long msgTyp
         //if (msgrcv(_msgId, &message, sizeof(Message) - sizeof(long), msgType, 0) == -1)
         if ( msgrcv(_msgId, &message, size, msgType, 0) == -1 )
         {
-            LOG_DXRT_I_ERR("[IPCMessageQueueLinux] msgrcv 1 failed" << errno);
+            LOG_DXRT_I_ERR("[IPCMessageQueueLinux] msgrcv(receive) failed" + getErrorString(errno));
             return -1;
         }
     }
-    else 
+    else
     {
         return -1;
     }
@@ -141,7 +146,7 @@ int32_t IPCMessageQueueLinux::Delete()
     if ( _msgId >= 0 )
     {
         if (msgctl(_msgId, IPC_RMID, NULL) == -1) {
-            LOG_DXRT_I_ERR("[IPCMessageQueueLinux] fail to delete");
+            LOG_DXRT_I_ERR("[IPCMessageQueueLinux] fail to delete"  + getErrorString(errno));
             return -1;
         }
         _msgId = -1;

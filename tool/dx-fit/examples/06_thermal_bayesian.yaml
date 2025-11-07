@@ -1,0 +1,38 @@
+# ============================================================================
+# Bayesian Optimization with Thermal Management
+# ============================================================================
+# Smart optimization with NPU temperature control
+# Execution focus: Long-running tests or thermal-sensitive scenarios
+
+model_path: /path/to/your/model.dxnn  # ⚠️ CHANGE THIS to your model path
+
+# Execution Settings
+target_duration: 3.0    # Auto loop selection (RECOMMENDED)
+# loop_count: 50        # Or use fixed loop count for stability
+warmup_runs: 5          # Warmup iterations before measurement
+timeout: 60             # Timeout per trial (seconds)
+use_ort: true           # Enable ONNX Runtime (recommended)
+
+# Strategy: Bayesian Optimization
+strategy: bayesian
+max_random_samples: 30  # Number of iterations for Bayesian search
+
+# Parameter Search Space
+parameters:
+  DXRT_TASK_MAX_LOAD: [2, 4, 6, 8, 10, 12, 14, 16]
+  DXRT_DYNAMIC_CPU_THREAD: [0, 1]
+  CUSTOM_INTRA_OP_THREADS_COUNT: [1, 2, 3, 4]
+  CUSTOM_INTER_OP_THREADS_COUNT: [1, 2]
+  NFH_INPUT_WORKER_THREADS: [1, 2]
+  NFH_OUTPUT_WORKER_THREADS: [1, 2, 3, 4]
+
+# Thermal Management Configuration
+thermal_management:
+  enabled: true
+  target_temperature: 65.0      # Cool down if above this
+  max_temperature: 80.0          # Safety limit
+  cooldown_duration: 10          # Wait 10s between tests
+  check_interval: 2              # Check temp every 2s
+  max_cooling_time: 600          # Max cooling duration in seconds
+
+# Note: If dxrt-cli is not available, falls back to fixed cooldown

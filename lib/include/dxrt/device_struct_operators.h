@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -11,6 +11,7 @@
 
 #include <ostream>
 #include "dxrt/device_struct.h"
+#include "dxrt/driver.h"
 
 namespace dxrt {
 
@@ -24,6 +25,9 @@ std::ostream& operator<<(std::ostream& os, const dxrt_pcie_evt_stat_t& e);
 std::ostream& operator<<(std::ostream& os, const dxrt_pcie_power_stat_t& e);
 std::ostream& operator<<(std::ostream& os, const dma_ch& c);
 std::ostream& operator<<(std::ostream& os, const dxrt_pcie_info_t& e);
+std::ostream& operator<<(std::ostream&, const dxrt_device_status_t&);
+std::ostream& operator<<(std::ostream& os, const dxrt_device_info_t& info);
+std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_ntfy_throt_t& notify);
 
 
 }  // namespace dxrt

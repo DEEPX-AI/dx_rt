@@ -1,0 +1,33 @@
+# ============================================================================
+# Bayesian Optimization - Standard (⭐ RECOMMENDED)
+# ============================================================================
+# Balanced optimization with good accuracy
+# Execution focus: Recommended baseline optimization
+
+model_path: /path/to/your/model.dxnn  # ⚠️ CHANGE THIS to your model path
+
+# Execution Settings
+target_duration: 3.0    # Auto loop selection (RECOMMENDED)
+# loop_count: 50        # Or use fixed loop count for higher accuracy
+warmup_runs: 5          # Warmup iterations before measurement
+timeout: 60             # Timeout per trial (seconds)
+use_ort: true           # Enable ONNX Runtime (recommended)
+
+# Strategy: Bayesian Optimization
+strategy: bayesian
+max_random_samples: 30  # Number of iterations for Bayesian search
+
+# Parameter Search Space (comprehensive)
+parameters:
+  DXRT_TASK_MAX_LOAD: [2, 4, 6, 8, 10, 12, 14, 16]
+  DXRT_DYNAMIC_CPU_THREAD: [0, 1]
+  CUSTOM_INTRA_OP_THREADS_COUNT: [1, 2, 3, 4]
+  CUSTOM_INTER_OP_THREADS_COUNT: [1, 2]
+  NFH_INPUT_WORKER_THREADS: [1, 2]
+  NFH_OUTPUT_WORKER_THREADS: [1, 2, 3, 4]
+
+# Optional: Enable for sustained testing
+# thermal_management:
+#   enabled: true
+#   target_temperature: 45.0
+#   cooldown_duration: 10

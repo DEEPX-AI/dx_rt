@@ -21,7 +21,6 @@ help() {
     echo -e "  ${COLOR_GREEN}--uninstall${COLOR_RESET}       Remove previously installed dx-rt files."
     echo -e "  ${COLOR_GREEN}--docker${COLOR_RESET}          Build the project within a Docker environment."
     echo -e "  ${COLOR_GREEN}--clang${COLOR_RESET}           Use Clang as the compiler for the build."
-    echo -e "  ${COLOR_GREEN}--coverage${COLOR_RESET}        Enable code coverage collection (automatically enabled for Debug builds)."
     echo -e ""
     echo -e "  ${COLOR_GREEN}--python_exec <PATH>${COLOR_RESET} Specify the Python executable to use for the build."
     echo -e "                            If omitted, the default system 'python3' will be used."
@@ -32,7 +31,6 @@ help() {
     echo -e "  ${COLOR_YELLOW}$0 --type Release --arch x86_64${COLOR_RESET}"
     echo -e "  ${COLOR_YELLOW}$0 --clean --install /opt/dx-rt${COLOR_RESET}"
     echo -e "  ${COLOR_YELLOW}$0 --docker --verbose${COLOR_RESET}"
-    echo -e "  ${COLOR_YELLOW}$0 --type Debug --coverage${COLOR_RESET}"
     echo -e ""
     echo -e "  ${COLOR_YELLOW}$0 --python_exec /usr/local/bin/python3.8${COLOR_RESET}"
     echo -e "  ${COLOR_YELLOW}$0 --venv_path ./venv-dxnn${COLOR_RESET}"
@@ -63,6 +61,9 @@ check_cross_compile() {
     else
         CROSS_COMPILE=$target_arch
     fi
+
+    build_dir=build_"$target_arch"
+    out_dir=bin
 }
 
 setup_env() {
@@ -82,10 +83,7 @@ setup_env() {
     build_in_docker=false
     python_exec="python3"
     venv_path=""
-    enable_coverage=false
 
-    build_dir=build_"$target_arch"
-    out_dir=bin
 
     # parsing dxrt.cfg.cmake
     CMAKE_USE_ORT=false
@@ -159,26 +157,6 @@ build_dxrt() {
         cmd+=(-DCMAKE_BUILD_TYPE=release);
     fi
 
-    # Enable coverage for Debug builds or when explicitly requested
-    if [ $enable_coverage == "true" ]; then
-        print_colored_v2 "INFO" "Enabling code coverage collection..."
-        cmd+=(-DENABLE_COVERAGE=ON)
-        
-        if [ $clang == "true" ]; then
-            # Clang coverage flags
-            export CXXFLAGS="--coverage -fprofile-instr-generate -fcoverage-mapping -g $CXXFLAGS"
-            export CFLAGS="--coverage -fprofile-instr-generate -fcoverage-mapping -g $CFLAGS"
-            export LDFLAGS="--coverage $LDFLAGS"
-        else
-            # GCC coverage flags
-            export CXXFLAGS="--coverage -fprofile-arcs -ftest-coverage -g -O0 $CXXFLAGS"
-            export CFLAGS="--coverage -fprofile-arcs -ftest-coverage -g -O0 $CFLAGS"
-            export LDFLAGS="--coverage $LDFLAGS"
-        fi
-    else
-        cmd+=(-DENABLE_COVERAGE=OFF)
-    fi
-
     cmd+=(-DCMAKE_GENERATOR=Ninja)
 
     if [ ! -z $install ]; then
@@ -205,13 +183,6 @@ build_dxrt() {
     # Proactively remove stale Python extension modules before (re)build
     print_colored_v2 "INFO" "[PREP] Removing stale Python extension modules (_pydxrt*.so)"
     rm -f "${SCRIPT_DIR}/python_package/src/dx_engine/capi/_pydxrt"*.so || true
-    
-    # Clean coverage data from previous runs if coverage is enabled
-    if [ $enable_coverage == "true" ]; then
-        print_colored_v2 "INFO" "Cleaning previous coverage data..."
-        find . -name "*.gcda" -delete 2>/dev/null || true
-        find . -name "*.gcno" -delete 2>/dev/null || true
-    fi
     
     pushd $build_dir >/dev/null
     # Prefer system CMake to avoid Python-venv cmake shim issues
@@ -289,8 +260,8 @@ install_python_package() {
             
             pushd ${SCRIPT_DIR}/python_package >/dev/null
             
-            # Attempt to install the package
-            install_result=$(pip install . 2>&1)
+            # Attempt to install the package using python3 -m pip (more reliable than pip3)
+            install_result=$(python3 -m pip install . 2>&1)
             local exit_code=$?
             
             # Check for PEP 668 specific error
@@ -304,13 +275,13 @@ install_python_package() {
             fi
             
             if [ $exit_code -eq 0 ]; then
-                pip list | grep dx-engine
+                python3 -m pip list | grep dx-engine
                 print_colored_v2 "INFO" "The Python package has been installed in the following Python version folder."
-                echo -e "${COLOR_BRIGHT_YELLOW_ON_BLACK}  : $(pip --version)${COLOR_RESET}"
+                echo -e "${COLOR_BRIGHT_YELLOW_ON_BLACK}  : $(python3 -m pip --version)${COLOR_RESET}"
                 if [ ! -n "$VIRTUAL_ENV" ]; then
                     print_colored_v2 "HINT" "To install it in a Python virtual environment,"
                     print_colored_v2 "HINT" "you need to activate the virtual environment and then"
-                    print_colored_v2 "HINT" "reinstall it by running 'pip install .' from the python_package folder."
+                    print_colored_v2 "HINT" "reinstall it by running 'python3 -m pip install .' from the python_package folder."
                 fi
                 print_colored_v2 "SUCCESS" "[Installed python package]"
                 if [ -n "$venv_path" ]; then
@@ -450,8 +421,8 @@ uninstall_dxrt() {
 uninstall_python_package() {
     print_colored_v2 "INFO" "[Uninstall python package ...]"
 
-    # Attempt to install the package
-    uninstall_result=$(pip uninstall -y dx-engine 2>&1)
+    # Attempt to uninstall the package using python3 -m pip (more reliable than pip3)
+    uninstall_result=$(python3 -m pip uninstall -y dx-engine 2>&1)
     local exit_code=$?
     
     # Check for PEP 668 specific error
@@ -516,19 +487,6 @@ uninstall_dxrt_service() {
     fi
 }
 
-print_coverage_info() {
-    # Coverage information
-    if [ $enable_coverage == "true" ]; then
-        echo -e "${COLOR_GREEN}========================================${COLOR_RESET}"
-        echo -e "${COLOR_GREEN}Coverage collection is ENABLED${COLOR_RESET}"
-        echo -e "${COLOR_GREEN}========================================${COLOR_RESET}"
-        echo -e "${COLOR_YELLOW}After running tests, you can generate coverage reports with:${COLOR_RESET}"
-        echo -e "${COLOR_CYAN}  gcovr --root . --filter \"lib/.*\" --filter \"examples/.*\" --exclude \".*test.*\" --exclude \".*3rdparty.*\" --exclude \".*build.*\" --html-details coverage_report.html${COLOR_RESET}"
-        echo -e "${COLOR_CYAN}  gcovr --root . --filter \"lib/.*\" --filter \"examples/.*\" --exclude \".*test.*\" --exclude \".*3rdparty.*\" --exclude \".*build.*\" --sonarqube coverage.xml${COLOR_RESET}"
-        echo -e "${COLOR_GREEN}========================================${COLOR_RESET}"
-    fi
-}
-
 activate_venv() {
     # Activate virtual environment if specified
     if [ -n "$venv_path" ]; then
@@ -556,8 +514,6 @@ build_mode() {
     build_dxrt
     install_python_package
     manage_dxrt_service
-
-    print_coverage_info
 
     print_colored_v2 "SUCCESS" "Build mode completed"
 }
@@ -615,7 +571,6 @@ while (( $# )); do
         --uninstall) uninstall=true; shift;;
         --clang) clang=true; shift;;
         --docker) build_in_docker=true; shift;;
-        --coverage) enable_coverage=true; shift;;
         *)
             help "error" "Invalid argument : $1"
             exit 1;;

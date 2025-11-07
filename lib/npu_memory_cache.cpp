@@ -2,11 +2,11 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
- 
+
 #include <cstdint>
 #include <unordered_map>
 #include <vector>
@@ -14,7 +14,7 @@
 #include <iostream>
 #include "dxrt/common.h"
 #include "dxrt/npu_memory_cache.h"
-#include "dxrt/device.h"
+#include "dxrt/device_task_layer.h"
 
 
 using std::endl;
@@ -47,7 +47,7 @@ void TaskNpuMemoryCacheManager::returnNpuMemoryCache(int64_t addr)
 {
     std::unique_lock<std::mutex> lock(_lock);
     _npuMemoryCaches.push_back(addr);
-    _cv.notify_one(); 
+    _cv.notify_one();
 }
 int64_t TaskNpuMemoryCacheManager::getNpuMemoryCache()
 {
@@ -62,7 +62,7 @@ int64_t TaskNpuMemoryCacheManager::getNpuMemoryCache()
     return retval;
 }
 
-NpuMemoryCacheManager::NpuMemoryCacheManager(Device* device_)
+NpuMemoryCacheManager::NpuMemoryCacheManager(DeviceTaskLayer* device_)
 : _device(device_)
 {
 }

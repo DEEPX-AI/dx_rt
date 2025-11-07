@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -90,7 +90,7 @@ int32_t IPCMessageQueueServerLinux::Listen()
 int32_t IPCMessageQueueServerLinux::Select(int64_t& connectedFd)
 {
     (void)connectedFd;
-    
+
     return 0;
 }
 
@@ -100,16 +100,16 @@ int32_t IPCMessageQueueServerLinux::Select(int64_t& connectedFd)
 int32_t IPCMessageQueueServerLinux::ReceiveFromClient(IPCClientMessage& clientMessage)
 {
     IPCMessageQueueLinux::Message mq_message;
-    
+
     if ( _messageQueueToServer.Receive(mq_message, sizeof(clientMessage), IPCMessageQueueLinux::SERVER_MSG_TYPE) == 0 )
     {
         memcpy(&clientMessage, mq_message.data, sizeof(clientMessage));
     }
-    else 
+    else
     {
         return -1;
     }
-    
+
     return 0;
 }
 
@@ -126,7 +126,7 @@ int32_t IPCMessageQueueServerLinux::SendToClient(IPCServerMessage& serverMessage
 int32_t IPCMessageQueueServerLinux::RegisterReceiveCB(std::function<int32_t(IPCClientMessage&,void*,int32_t)> receiveCB, void* usrData)
 {
 
-    
+
     if ( _threadRunning.load() )
     {
         _threadRunning.store(false);
@@ -146,14 +146,14 @@ int32_t IPCMessageQueueServerLinux::RegisterReceiveCB(std::function<int32_t(IPCC
         _receiveCB = receiveCB;
         _usrData = usrData;
 
-        if ( _receiveCB != nullptr ) 
+        if ( _receiveCB != nullptr )
         {
             _threadRunning.store(true);
             _thread = std::thread(IPCMessageQueueServerLinux::ThreadFunc, this);
             LOG_DXRT_I_DBG << "IPCMessageQueueServerLinux: Created Callback Thread" << std::endl;
         }
     }
-    
+
     return 0;
 }
 
@@ -188,7 +188,7 @@ void IPCMessageQueueServerLinux::ThreadFunc(IPCMessageQueueServerLinux* mqServer
 
     while(mqServer->_threadRunning.load())
     {
-        
+
         IPCClientMessage clientMessage;
         int32_t result = mqServer->ReceiveFromClient(clientMessage);
         mqServer->_receiveCB(clientMessage, mqServer->_usrData, result);

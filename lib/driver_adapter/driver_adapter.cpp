@@ -19,4 +19,12 @@ dxrt_device_status_t DriverAdapter::getDeviceStatus()
     return status;
 }
 
+DeviceType DriverAdapter::getDeviceType()
+{
+    dxrt_device_info_t type;
+    IOControl(dxrt::dxrt_cmd_t::DXRT_CMD_IDENTIFY_DEVICE, &type, 0, 0);
+
+    return static_cast<DeviceType>(type.type);
+}
+
 }  // namespace dxrt

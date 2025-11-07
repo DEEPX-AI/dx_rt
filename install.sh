@@ -18,6 +18,10 @@ function help() {
     echo -e "Usage: ${COLOR_CYAN}$0 [OPTIONS]${COLOR_RESET}"
     echo -e "Install necessary components and libraries for the project."
     echo -e ""
+    echo -e "${COLOR_BOLD}System Requirements:${COLOR_RESET}"
+    echo -e "  • Architecture: x86_64 or aarch64"
+    echo -e "  • RAM: 8GB or more"
+    echo -e ""
     echo -e "${COLOR_BOLD}Options:${COLOR_RESET}"
     echo -e "  ${COLOR_GREEN}--help${COLOR_RESET}                       Display this help message and exit."
     echo -e "  ${COLOR_GREEN}--arch <ARCH>${COLOR_RESET}                Specify the target CPU architecture. Valid options: [x86_64, aarch64]."
@@ -61,6 +65,46 @@ function help() {
 function compare_version() 
 {
     awk -v n1="$1" -v n2="$2" 'BEGIN { if (n1 >= n2) exit 0; else exit 1; }'
+}
+
+function check_system_requirements()
+{
+    echo -e "${COLOR_BOLD}Checking system requirements...${COLOR_RESET}"
+    
+    # Check architecture
+    local host_arch=$(uname -m)
+    echo -e "  Host architecture: ${COLOR_CYAN}${host_arch}${COLOR_RESET}"
+    
+    if [ "$host_arch" != "x86_64" ] && [ "$host_arch" != "aarch64" ]; then
+        echo -e "${TAG_ERROR} Unsupported architecture: ${host_arch}"
+        echo -e "${TAG_ERROR} Only x86_64 and aarch64 are supported."
+        exit 1
+    fi
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} Architecture check passed"
+    
+    # Check RAM (in GB)
+    local total_ram_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+    local total_ram_gb=$((total_ram_kb / 1024 / 1024))
+    echo -e "  Total RAM: ${COLOR_CYAN}${total_ram_gb}GB${COLOR_RESET}"
+    
+    if [ "$total_ram_gb" -lt 4 ]; then
+        echo -e "${TAG_ERROR} Insufficient RAM: ${total_ram_gb}GB"
+        echo -e "${TAG_ERROR} At least 4GB of RAM is required for toolchain installation."
+        exit 1
+    fi
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} RAM check passed (${total_ram_gb}GB >= 4GB)"
+    
+    # Check target architecture compatibility
+    if [ "$target_arch" != "x86_64" ] && [ "$target_arch" != "aarch64" ]; then
+        echo -e "${TAG_ERROR} Unsupported target architecture: ${target_arch}"
+        echo -e "${TAG_ERROR} Only x86_64 and aarch64 are supported as target architectures."
+        exit 1
+    fi
+    echo -e "  Target architecture: ${COLOR_CYAN}${target_arch}${COLOR_RESET}"
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} Target architecture check passed"
+    
+    echo -e "${COLOR_GREEN}All system requirements satisfied.${COLOR_RESET}"
+    echo ""
 }
 
 function install_dep()
@@ -216,6 +260,9 @@ done
 if [ $target_arch == "arm64" ]; then
     target_arch=aarch64
 fi
+
+# Check system requirements before proceeding with installation
+check_system_requirements
 
 install_dep
 install_onnx

@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -18,9 +18,6 @@
 
 #ifndef DEVICE_FILE
 #define DEVICE_FILE "dxrt"
-#endif
-#ifndef DEVICE_FILE_DSP
-#define DEVICE_FILE_DSP "dxrt_dsp"
 #endif
 
 namespace dxrt {
@@ -145,6 +142,11 @@ typedef struct _dx_pcie_dev_err {
     uint16_t ddr_type;
     uint32_t dbe_cnt[4];
     uint32_t reserved_ddr[5];
+
+    /* Extra Version information */
+    char rt_driver_version_suffix[16];
+    char fw_version_suffix[16];
+
 } dx_pcie_dev_err_t;
 
 typedef struct _dx_pcie_dev_ntfy_throt {
@@ -186,6 +188,18 @@ typedef struct otp_info {
 } otp_info_t;
 #pragma pack(pop)
 
+typedef struct fct_result
+{
+    uint32_t wr_margin[4];
+	uint32_t rd_margin[4];
+    uint8_t ddr_margin;
+    uint8_t ddr_mf;
+    uint8_t i2c_fail;
+    uint8_t test_done;
+    uint32_t reserved;
+    uint32_t reserved32[15];
+} dxrt_fct_result_t;
+
 typedef struct _dx_pcie_dev_event {
     uint32_t event_type;
     union {
@@ -212,7 +226,8 @@ typedef struct device_info {
 #elif _WIN32
     uint16_t interface_value = 0;
 #endif
-    char     fw_info[64] = "";
+    char     fw_ver_suffix[16];
+    uint8_t  reserved[48];
     uint16_t chip_offset = 0;
 } dxrt_device_info_t;
 
@@ -242,6 +257,7 @@ typedef struct _dxrt_request_t {
     uint32_t  cmd_offset = 0;
     uint32_t  weight_offset = 0;
     uint32_t  last_output_offset = 0;
+    //uint32_t  custom_offset = 0; // [TODO] necessary for V8 PPCPU on STD
 } dxrt_request_t;
 
 typedef struct _dxrt_request_acc_t {
@@ -255,16 +271,16 @@ typedef struct _dxrt_request_acc_t {
     uint32_t  model_cmds = 0;
     uint32_t  cmd_offset = 0;
     uint32_t  weight_offset = 0;
-    uint32_t  datas[MAX_CHECKPOINT_COUNT];
+    uint32_t  datas[MAX_CHECKPOINT_COUNT] = { 0, };
     int32_t   dma_ch = 0;
     uint32_t  op_mode = 0;   /* operation mode - 1:large model */
-    uint32_t  status = 0;
+    uint32_t  custom_offset = 0;
     uint32_t  proc_id = 0;
-    uint32_t  prior;        /* scheduler option - priority(npu_priority_op) */
-    uint32_t  prior_level;  /* scheduler option - priority level */
-    uint32_t  bandwidth;    /* scheduler option - bandwith(npu_bandwidth_op) */
-    uint32_t  bound;        /* scheduler option - bound   (npu_bound_op) */
-    uint32_t  queue;
+    uint32_t  prior = 0;        /* scheduler option - priority(npu_priority_op) */
+    uint32_t  prior_level = 0;  /* scheduler option - priority level */
+    uint32_t  bandwidth = 0;    /* scheduler option - bandwith(npu_bandwidth_op) */
+    uint32_t  bound = 0;        /* scheduler option - bound   (npu_bound_op) */
+    uint32_t  queue = 0;
 } dxrt_request_acc_t;
 
 typedef struct _dxrt_response_t {
@@ -345,6 +361,7 @@ typedef enum {
 typedef enum {
     DRVINFO_CMD_GET_RT_INFO   = 0,
     DRVINFO_CMD_GET_PCIE_INFO = 1,
+    DRVINFO_CMD_GET_RT_INFO_V2   = 2,
 } dxrt_drvinfo_sub_cmd_t;
 
 typedef enum {
@@ -354,8 +371,12 @@ typedef enum {
     DX_SET_LED              = 4,
     DX_ADD_WEIGHT_INFO      = 5,
     DX_DEL_WEIGHT_INFO      = 6,
+    DX_INIT_PPCPU           = 10,
     DX_UPLOAD_MODEL         = 100,
     DX_INTERNAL_TESTCASE    = 200,
+    DX_GET_FCT_TESTCASE_RESULT   = 201,
+    DX_RUN_FCT_TESTCASE     = 202,
+    DX_INTERNAL_GET_SOC_ID  = 300,
 } dxrt_custom_sub_cmt_t;
 
 typedef enum device_type
@@ -428,59 +449,6 @@ typedef struct _dxrt_model
     uint32_t  op_mode = 0;   /* operation mode - 1:large model */
 } dxrt_model_t;
 
-typedef struct _dxrt_dsp_message_header
-{
-	unsigned short func_id;
-	unsigned short message_size;
-	unsigned char cpu_written_flag;
-	unsigned char dsp_read_flag;
-	unsigned short reserved;
-} dxrt_dsp_message_header_t;
-
-typedef struct _dxrt_dsp_message_type000
-{
-	unsigned int src_addr_offset;
-	unsigned int dst_addr_offset;	
-	unsigned short src_w;
-	unsigned short src_h;
-	unsigned short dst_w;
-	unsigned short dst_h;
-	unsigned short src_stride;
-	unsigned short dst_stride;
-	unsigned int reserved;
-} dxrt_dsp_message_type000_t;
-
-typedef struct _dxrt_dsp_message_type200
-{
-	unsigned int npu_out_addr_offset;//Input
-	unsigned int display_addr_offset;//Output
-	int num_objects;
-	unsigned short thresh_score;
-	unsigned short thresh_iou;
-	int reserved0;//TODO
-} dxrt_dsp_message_type200_t;
-
-typedef struct _dxrt_dsp_request_t {
-    uint32_t  req_id;                    //4B
-    dxrt_dsp_message_header_t msg_header;//8B    
-    uint32_t  msg_data[8];               //32B
-    uint32_t  reserved;                  //4B
-} dxrt_dsp_request_t;//48B
-
-#define DSPCV_MAX_DIM 8
-typedef struct _dxrt_dspcvmat
-{
-    int flags;          // Type information (depth, channels, etc.)
-    int dims;           // Number of dimensions (2 for 2D matrix)
-    int rows;           // Number of rows
-    int cols;           // Number of columns
-    uint8_t* datastart; // Pointer to the beginning of data
-    uint8_t* datalimit; // Pointer to the end of allocated buffer
-    uint8_t* data;      // Pointer to the actual data    
-    uint8_t* dataend;   // Pointer to the end of actual data    
-    int step[DSPCV_MAX_DIM]; // Steps per dimension (row stride, etc.)
-} dxrt_dspcvmat_t;
-
 extern DXRT_API std::vector<std::pair<int, std::string>> ioctlTable;
 extern DXRT_API std::string ErrTable(dxrt_error_t error);
 DXRT_API std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_err_t& error);
@@ -492,6 +460,7 @@ DXRT_API std::ostream& operator<<(std::ostream&, const dxrt_response_t&);
 DXRT_API std::ostream& operator<<(std::ostream&, const dxrt_model_t&);
 DXRT_API std::ostream& operator<<(std::ostream&, const dxrt_device_info_t&);
 DXRT_API std::ostream& operator<<(std::ostream&, const otp_info_t&);
+DXRT_API std::ostream& operator<<(std::ostream&, const fct_result&);
 
 DXRT_API std::string dxrt_cmd_t_str(dxrt::dxrt_cmd_t c);
 

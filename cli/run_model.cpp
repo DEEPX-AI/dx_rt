@@ -2,10 +2,10 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
- * 
+ *
  * This file uses cxxopts (MIT License) - Copyright (c) 2014 Jarryd Beck.
  */
 #include <string>
@@ -121,7 +121,7 @@ void printMemoryInfo() {
         std::cout << std::endl;
 
     } else {
-        //perror("sysinfo"); // 오류 발생 시 오류 메시지 출력
+        //perror("sysinfo");
         //std::cerr << "Error: Could not get system memory info." << std::endl;
         std::cerr << "No System Memory Info." << std::endl;
     }
@@ -154,7 +154,7 @@ void PrintInfResult(const std::string& inputFile, const std::string& outputFile,
         verbose = true;
 
     const std::string desc_npu_time = "Actual NPU core computation time for a single request";
-    const std::string desc_latency = "End-to-end time measured individually for each specific request within the engine, including data transfer and system overheads";
+    const std::string desc_latency = "End-to-end time per request including data transfer and overheads";
     const std::string desc_fps = "Overall user-observed inference throughput (inputs/second), reflecting perceived speed";
 
     const int description_parenthesis_start_column = 45;
@@ -243,7 +243,7 @@ void SetRunModelMode(bool single, int targetFps)
 static float runBenchmarkByTime(int64_t& outLoops, dxrt::InferenceEngine& ie, void* inputBuffer, int64_t targetDurationSec)
 {
     float fps = 0;
-    
+
     int64_t target_duration_ms = targetDurationSec * 1000;
     int64_t run_count = 0; // run async count
     int64_t cb_count = 0; // callback count
@@ -265,7 +265,7 @@ static float runBenchmarkByTime(int64_t& outLoops, dxrt::InferenceEngine& ie, vo
 
         return 0;
     });
-    
+
     auto start = std::chrono::steady_clock::now();
     for(;;) // no limit
     {
@@ -275,7 +275,7 @@ static float runBenchmarkByTime(int64_t& outLoops, dxrt::InferenceEngine& ie, vo
             std::unique_lock<std::mutex> lock(cb_mutex);
             run_count++;
         }
-        
+
         auto current = std::chrono::steady_clock::now();
         std::chrono::duration<double, std::milli> duration = current - start;
 
@@ -294,7 +294,7 @@ static float runBenchmarkByTime(int64_t& outLoops, dxrt::InferenceEngine& ie, vo
     auto current = std::chrono::steady_clock::now();
     uint64_t infTime = std::chrono::duration_cast<std::chrono::microseconds>(current - start).count();
     fps = static_cast<float>(1000000.0 * run_count/infTime);
-    
+
     ie.RegisterCallback(nullptr);
 
     outLoops = run_count;
@@ -306,7 +306,7 @@ static float runBenchmarkByTime(int64_t& outLoops, dxrt::InferenceEngine& ie, vo
 static float runAsyncTargetFPS(int64_t& outLoops, dxrt::InferenceEngine& ie, int targetFps, void* inputBuffer, int64_t targetDurationSec)
 {
 
-    #ifdef TARGET_FPS_DEBUG
+#ifdef TARGET_FPS_DEBUG
     vector<string> results;  // Company and time storage
 #endif
     uint64_t infTime = 0;
@@ -341,7 +341,7 @@ static float runAsyncTargetFPS(int64_t& outLoops, dxrt::InferenceEngine& ie, int
 #ifdef TARGET_FPS_DEBUG
         auto loopStartTime = std::chrono::steady_clock::now();  // Start time for this loop
 #endif
-        
+
         (void)ie.RunAsync(inputBuffer, 0);
         run_count ++;
 
@@ -376,7 +376,7 @@ static float runAsyncTargetFPS(int64_t& outLoops, dxrt::InferenceEngine& ie, int
                 break;
             }
         } //
-        else if ( i == (outLoops - 1) ) // inference by loops 
+        else if ( i == (outLoops - 1) ) // inference by loops
         {
             break;
         }
@@ -386,9 +386,9 @@ static float runAsyncTargetFPS(int64_t& outLoops, dxrt::InferenceEngine& ie, int
     cv.wait(lock, [&cb_count, &run_count]{
         return cb_count == run_count;
     });
-    
+
     infTime = std::chrono::duration_cast<std::chrono::microseconds>(end_clock - start_clock).count();
-    if ( targetDurationSec > 0 ) 
+    if ( targetDurationSec > 0 )
     {
         outLoops = run_count;
         std::cout << "Inference by time: total-inference-time=" << infTime / 1000000.0 << "(s)" << " total-loops=" << outLoops << std::endl;
@@ -407,26 +407,7 @@ static float runAsyncTargetFPS(int64_t& outLoops, dxrt::InferenceEngine& ie, int
 
 int main(int argc, char *argv[])
 {
-    // always showing the model information
-    dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::SHOW_MODEL_INFO, true);
 
-    try
-    {
-        // print version
-        std::cout << "Runtime Framework Version: v" << dxrt::Configuration::GetInstance().GetVersion() << std::endl; 
-
-        // print device driver version
-        std::cout << "Device Driver Version: v" << dxrt::Configuration::GetInstance().GetDriverVersion() << std::endl; 
-
-        // print pcie driver version
-        std::cout << "PCIe Driver Version: v" << dxrt::Configuration::GetInstance().GetPCIeDriverVersion() << std::endl; 
-
-        std::cout << std::endl;
-    } 
-    catch (const dxrt::Exception &e)
-    {
-        std::cout << e.what() << std::endl;
-    }
 
     string modelFile, inputFile, outputFile;
     bool benchmark = false;
@@ -438,12 +419,14 @@ int main(int argc, char *argv[])
     bool use_ort = false;
     bool verbose = false;
     int64_t duration = 0;
-    int num_devices = dxrt::DeviceStatus::GetDeviceCount();
+    int num_devices = 0;
+    int64_t warmup_runs = 0;  // Added warmup runs
     cxxopts::Options options("run_model", APP_NAME);
     options.add_options()
         ("m, model", "Model file (.dxnn)" , cxxopts::value<string>(modelFile))
-        ("i, input", "Input data file", cxxopts::value<string>(inputFile))
-        ("o, output", "Output data file", cxxopts::value<string>(outputFile)->default_value("output.bin"))
+        // Disable until dx_sim support is ready
+        //("i, input", "Input data file", cxxopts::value<string>(inputFile))
+        //("o, output", "Output data file", cxxopts::value<string>(outputFile)->default_value("output.bin"))
         ("b, benchmark", "Perform a benchmark test (Maximum throughput)\n(This is the default mode,\n if --single or --fps > 0 are not specified)", cxxopts::value<bool>(benchmark)->default_value("false"))
         ("s, single", "Perform a single run test\n(Sequential single-input inference on a single-core)", cxxopts::value<bool>(single)->default_value("false"))
         ("v, verbose", "Shows NPU Processing Time and Latency", cxxopts::value<bool>(verbose)->default_value("false"))
@@ -453,6 +436,7 @@ int main(int argc, char *argv[])
             "  4: NPU_0/1\n  5: NPU_1/2\n  6: NPU_0/2", cxxopts::value<int>(bounding) )
         ("l, loops", "Number of inference loops to perform", cxxopts::value<int64_t>(loops)->default_value("30") )
         ("t, time", "Duration of inference in seconds (benchmark and target-fps mode, overrides --loops)", cxxopts::value<int64_t>(duration)->default_value("0") )
+        ("w, warmup-runs", "Number of warmup runs before actual measurement", cxxopts::value<int64_t>(warmup_runs)->default_value("0") )
         ("d, devices",
             "Specify target NPU devices.\nExamples:\n"
             "  'all' (default): Use all available/bound NPUs\n"
@@ -461,26 +445,57 @@ int main(int argc, char *argv[])
             "  'count:N': Use the first N NPUs\n  (e.g., 'count:2' for NPU0, NPU1)",
             cxxopts::value<std::string>(devices_spec)->default_value("all"))
         ("f, fps", "Target FPS for TARGET_FPS_MODE (default: 0)\n(enables this mode if > 0 and --single is not set)", cxxopts::value<int>(targetFps) )
-        ("skip-io", "Attempt to skip Inference I/O (Benchmark mode only)", cxxopts::value<bool>(skip_inference_io)->default_value("false"))
+
 #ifdef USE_ORT
         ("use-ort", "Enable ONNX Runtime for CPU tasks in the model graph\nIf disabled, only NPU tasks operate", cxxopts::value<bool>(use_ort)->default_value("false"))
 #endif
         ("h, help", "Print usage" );
 
+    options.add_options("internal")
+        ("i, input", "Input data file", cxxopts::value<string>(inputFile))
+        ("o, output", "Output data file", cxxopts::value<string>(outputFile)->default_value("output.bin"))
+        ("skip-io", "Attempt to skip Inference I/O (Benchmark mode only)", cxxopts::value<bool>(skip_inference_io)->default_value("false"));
+
     try
     {
+        if (argc == 1)
+        {
+            cout << options.help({""}) << endl;
+            exit(1);
+        }
         auto cmd = options.parse(argc, argv);
         if (cmd.count("help"))
         {
-            cout << options.help() << endl;
+            cout << options.help({""}) << endl;
             exit(0);
         }
     }
     catch (std::exception& e)
     {
         std::cerr << "Error: " << e.what() << std::endl;
-        cout << options.help() << endl;
-        exit(0);
+        cout << options.help({""}) << endl;
+        exit(1);
+    }
+
+    // always showing the model information
+    dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::SHOW_MODEL_INFO, true);
+
+    try
+    {
+        // print version
+        std::cout << "Runtime Framework Version: v" << dxrt::Configuration::GetInstance().GetVersion() << std::endl;
+
+        // print device driver version
+        std::cout << "Device Driver Version: v" << dxrt::Configuration::GetInstance().GetDriverVersion() << std::endl;
+
+        // print pcie driver version
+        std::cout << "PCIe Driver Version: v" << dxrt::Configuration::GetInstance().GetPCIeDriverVersion() << std::endl;
+
+        std::cout << std::endl;
+    }
+    catch (const dxrt::Exception &e)
+    {
+        std::cout << e.what() << std::endl;
     }
 
     if ( modelFile.length() == 0)
@@ -510,6 +525,21 @@ int main(int argc, char *argv[])
     LOG_VALUE(benchmark);
     LOG_VALUE(loops);
     dxrt::InferenceOption op;
+
+    try
+    {
+        num_devices = dxrt::DeviceStatus::GetDeviceCount();
+    }
+    catch (const dxrt::Exception& e)
+    {
+        std::cerr << "[ERR] Failed to get device count: " << e.what() << std::endl;
+        return -1;
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << "[ERR] Failed to get device count: " << e.what() << std::endl;
+        return -1;
+    }
 
     if (devices_spec.empty() || devices_spec == "all")
     {
@@ -550,11 +580,13 @@ int main(int argc, char *argv[])
         catch (const std::invalid_argument& ia)
         {
             std::cerr << "[ERR] Invalid number in '" << devices_spec << "' for 'count:N' format." << std::endl;
+            std::cerr << ia.what() << std::endl;
             return -1;
         }
         catch (const std::out_of_range& oor)
         {
             std::cerr << "[ERR] Number out of range in '" << devices_spec << "' for 'count:N' format." << std::endl;
+            std::cerr << oor.what() << std::endl;
             return -1;
         }
     }
@@ -594,11 +626,13 @@ int main(int argc, char *argv[])
             catch (const std::invalid_argument& ia)
             {
                 std::cerr << "[ERR] Invalid device ID '" << segment << "' in --devices list." << std::endl;
+                std::cerr << ia.what() << std::endl;
                 return -1;
             }
             catch (const std::out_of_range& oor)
             {
                 std::cerr << "[ERR] Device ID '" << segment << "' out of range in --devices list." << std::endl;
+                std::cerr << oor.what() << std::endl;
                 return -1;
             }
         }
@@ -622,16 +656,16 @@ int main(int argc, char *argv[])
 
     try{
 
-        dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::PROFILER, false);
+        //dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::PROFILER, false);
 
         SetRunModelMode(single, targetFps);
 
-        // duration 
+        // duration
         if ( duration > 0 && mode != SINGLE_MODE)
         {
             std::cout << "Inference by time: duration=" << duration << "(s)" << std::endl;
         }
-        else 
+        else
         {
             std::cout << "Inference by loops: count=" << loops << std::endl;
         }
@@ -644,19 +678,18 @@ int main(int argc, char *argv[])
             dxrt::DataFromFile(inputFile, inputBuf.data());
         }
 
-        
+        // Perform warmup runs if specified
+        if (warmup_runs > 0) {
+            std::cout << "Performing " << warmup_runs << " warmup run(s)..." << std::endl;
+            for (int64_t i = 0; i < warmup_runs; ++i) {
+                ie.Run(inputBuf.data());
+            }
+            std::cout << "Warmup completed." << std::endl;
+        }
+
+
         if (skip_inference_io)
         {
-            if (benchmark == false)
-            {
-                cout << "[ERR] Skip-inference option only for benchmark mode" << endl;
-                return -1;
-            }
-            if (mode != BENCHMARK_MODE)
-            {
-                cout << "[ERR] Skip-inference option only for benchmark mode" << endl;
-                return -1;
-            }
             dxrt::SKIP_INFERENCE_IO = 1;
         }
 
@@ -691,7 +724,7 @@ int main(int argc, char *argv[])
                 {
                     fps = runBenchmarkByTime(loops, ie, inputBuf.data(), duration);
                 }
-                else 
+                else
                 {
                     fps = ie.RunBenchmark(loops, inputBuf.data());
                     if (!inputFile.empty())
@@ -724,6 +757,6 @@ int main(int argc, char *argv[])
         std::cerr << "Exception" << std::endl;
         return -1;
     }
-    
+
     return 0;
 }

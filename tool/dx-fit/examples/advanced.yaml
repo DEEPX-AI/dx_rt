@@ -1,0 +1,56 @@
+# ============================================================================
+# Advanced Configuration - Maximum Optimization
+# ============================================================================
+# Comprehensive search for best possible performance
+# Best for: Critical applications, performance benchmarking
+# ⚠️  WARNING: Long execution time
+
+model_path: /path/to/your/model.dxnn  # ⚠️ CHANGE THIS to your model path
+
+# Execution Settings
+target_duration: 5.0    # Auto loop selection (RECOMMENDED)
+# loop_count: 100       # Or use fixed loop count (high accuracy measurements)
+warmup_runs: 5         # Thorough warmup
+timeout: 600            # 10 minute timeout per trial
+use_ort: true           # Enable ONNX Runtime (recommended)
+
+# Strategy: Bayesian Optimization (extensive sampling)
+strategy: bayesian
+max_random_samples: 50  # Extensive exploration of parameter space
+
+# Parameter Search Space (Comprehensive)
+# Maximum coverage for finding absolute best configuration
+parameters:
+  DXRT_TASK_MAX_LOAD: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+  DXRT_DYNAMIC_CPU_THREAD: [0, 1]
+  CUSTOM_INTRA_OP_THREADS_COUNT: [1, 2, 3, 4, 5, 6, 7, 8]
+  CUSTOM_INTER_OP_THREADS_COUNT: [1, 2, 3, 4]
+  NFH_INPUT_WORKER_THREADS: [1, 2, 3]
+  NFH_OUTPUT_WORKER_THREADS: [1, 2, 3, 4, 5, 6]
+
+# Thermal Management (Enabled for reliability)
+thermal_management:
+  enabled: true         # Strongly recommended for long runs
+  target_temperature: 65.0
+  cooldown_time: 45
+  max_temperature: 80.0
+  check_interval: 5
+
+# Verbose output for debugging
+verbose: true
+
+# ============================================================================
+# Expected Results
+# ============================================================================
+# - Maximum optimization potential
+# - Finds near-optimal or optimal configuration
+# - Long execution time
+# - Best for production benchmarking
+#
+# ⚠️  Use this configuration when:
+#   - Performance is critical
+#   - Time is not a constraint  
+#   - You need maximum optimization
+#   - For final production tuning
+#
+# 💡 For most cases, use standard.yaml instead

@@ -11,6 +11,7 @@
 #include <fstream>
 #include <cstring>
 #include <memory>
+#include <set>
 #include "dxrt/filesys_support.h"
 #include "dxrt/exception/exception.h"
 #include "dxrt/util.h"
@@ -384,6 +385,25 @@ std::string V6ModelParser::ConvertGraphInfoV6ToV7(const std::string& v6GraphInfo
         v7Doc.AddMember("offloading", v6Doc["offloading"], allocator);
     }
 
+    std::set<std::string> modelInputs, modelOutputs;
+    if (v6Doc.HasMember("origin_input") && v6Doc["origin_input"].IsArray()) {
+        for (auto& inp : v6Doc["origin_input"].GetArray()) {
+            if (inp.IsString()) {
+                modelInputs.insert(inp.GetString());
+                LOG_DXRT_DBG << "[V6→V7] Model input: " << inp.GetString() << std::endl;
+            }
+        }
+    }
+    if (v6Doc.HasMember("origin_output") && v6Doc["origin_output"].IsArray()) {
+        for (auto& out : v6Doc["origin_output"].GetArray()) {
+            if (out.IsString()) {
+                modelOutputs.insert(out.GetString());
+                LOG_DXRT_DBG << "[V6→V7] Model output: " << out.GetString() << std::endl;
+            }
+        }
+    }
+    LOG_DXRT_DBG << "[V6→V7] Collected " << modelInputs.size() << " model inputs, " << modelOutputs.size() << " model outputs" << std::endl;
+
     if (v6Doc.HasMember("origin_input")) {
         v7Doc.AddMember("inputs", v6Doc["origin_input"], allocator);
     }
@@ -403,12 +423,19 @@ std::string V6ModelParser::ConvertGraphInfoV6ToV7(const std::string& v6GraphInfo
             Value v7Graph(kObjectType);
 
             // name, device copy
+            std::string taskName;
             if (v6Graph.HasMember("name")) {
+                taskName = v6Graph["name"].GetString();
                 v7Graph.AddMember("name", v6Graph["name"], allocator);
             }
             if (v6Graph.HasMember("type")) {
                 v7Graph.AddMember("device", v6Graph["type"], allocator);
             }
+            
+            // Determine if this task is head or tail
+            bool isHead = false;
+            bool isTail = false;
+            LOG_DXRT_DBG << "[V6→V7] Processing task: " << taskName << std::endl;
 
             if (v6Graph.HasMember("inputs") && v6Graph["inputs"].IsObject()) {
                 Value v7Inputs(kArrayType);
@@ -419,16 +446,38 @@ std::string V6ModelParser::ConvertGraphInfoV6ToV7(const std::string& v6GraphInfo
                     nameVal.SetString(input.name.GetString(), allocator);
                     inputObj.AddMember("name", nameVal, allocator);
 
-                    if (input.value.IsObject() && input.value.HasMember("source")) {
-                        inputObj.AddMember("owner", input.value["source"], allocator);
-                    } else {
-                        Value emptyOwner("");
-                        inputObj.AddMember("owner", emptyOwner, allocator);
+                    std::string inputName = input.name.GetString();
+                    bool hasOwner = false;
+                    std::string ownerStr = "";
+                    
+                    if (input.value.IsObject() && input.value.HasMember("source") && input.value["source"].IsString()) {
+                        ownerStr = input.value["source"].GetString();
+                        hasOwner = !ownerStr.empty();
                     }
+                    
+                    Value ownerVal;
+                    ownerVal.SetString(ownerStr.c_str(), allocator);
+                    inputObj.AddMember("owner", ownerVal, allocator);
+                    
+                    // If input has no owner and is a model input, this task is a head
+                    bool isTensorHead = (modelInputs.count(inputName) > 0);
+                    if (!hasOwner && isTensorHead) {
+                        isHead = true;
+                        LOG_DXRT_DBG << "[V6→V7]   Input '" << inputName << "' is model input -> task is HEAD" << std::endl;
+                    }
+                    
+                    // Add head flag to tensor (V7+ format)
+                    inputObj.AddMember("head", isTensorHead, allocator);
+                    LOG_DXRT_DBG << "[V6→V7]   Input '" << inputName << "' head=" << (isTensorHead ? "true" : "false") << std::endl;
+                    
+                    // Add tail flag to tensor (always false for inputs)
+                    inputObj.AddMember("tail", false, allocator);
 
                     Value users(kArrayType);
-                    if (v6Graph.HasMember("name")) {
-                        users.PushBack(v6Graph["name"], allocator);
+                    if (v6Graph.HasMember("name") && v6Graph["name"].IsString()) {
+                        Value taskNameVal;
+                        taskNameVal.SetString(v6Graph["name"].GetString(), allocator);
+                        users.PushBack(taskNameVal, allocator);
                     }
                     inputObj.AddMember("users", users, allocator);
 
@@ -444,17 +493,38 @@ std::string V6ModelParser::ConvertGraphInfoV6ToV7(const std::string& v6GraphInfo
                 for (auto& output : v6Graph["outputs"].GetObject()) {
                     Value outputObj(kObjectType);
                     Value nameVal;
-                    nameVal.SetString(output.name.GetString(), allocator);
+                    std::string outputName = output.name.GetString();
+                    nameVal.SetString(outputName.c_str(), allocator);
                     outputObj.AddMember("name", nameVal, allocator);
 
-                    if (v6Graph.HasMember("name")) {
-                        outputObj.AddMember("owner", v6Graph["name"], allocator);
+                    if (v6Graph.HasMember("name") && v6Graph["name"].IsString()) {
+                        Value ownerTaskVal;
+                        ownerTaskVal.SetString(v6Graph["name"].GetString(), allocator);
+                        outputObj.AddMember("owner", ownerTaskVal, allocator);
                     }
+                    
+                    // Check if this output is a model output
+                    bool isModelOutput = (modelOutputs.count(outputName) > 0);
+                    if (isModelOutput) {
+                        isTail = true;
+                        LOG_DXRT_DBG << "[V6→V7]   Output '" << outputName << "' is model output -> task is TAIL" << std::endl;
+                    }
+                    
+                    // Add head flag to tensor (always false for outputs)
+                    outputObj.AddMember("head", false, allocator);
+                    
+                    // Add tail flag to tensor (V7+ format)
+                    outputObj.AddMember("tail", isModelOutput, allocator);
+                    LOG_DXRT_DBG << "[V6→V7]   Output '" << outputName << "' tail=" << (isModelOutput ? "true" : "false") << std::endl;
 
                     Value users(kArrayType);
                     if (output.value.IsObject() && output.value.HasMember("next_layers") && output.value["next_layers"].IsArray()) {
                         for (auto& nextLayer : output.value["next_layers"].GetArray()) {
-                            users.PushBack(nextLayer, allocator);
+                            if (nextLayer.IsString()) {
+                                Value nextLayerVal;
+                                nextLayerVal.SetString(nextLayer.GetString(), allocator);
+                                users.PushBack(nextLayerVal, allocator);
+                            }
                         }
                     }
                     outputObj.AddMember("users", users, allocator);
@@ -464,6 +534,11 @@ std::string V6ModelParser::ConvertGraphInfoV6ToV7(const std::string& v6GraphInfo
 
                 v7Graph.AddMember("outputs", v7Outputs, allocator);
             }
+            
+            // Add head/tail flags to subgraph (V7+ format)
+            v7Graph.AddMember("head", isHead, allocator);
+            v7Graph.AddMember("tail", isTail, allocator);
+            LOG_DXRT_DBG << "[V6→V7] Task '" << taskName << "' head=" << (isHead ? "true" : "false") << " tail=" << (isTail ? "true" : "false") << std::endl;
 
             v7Graphs.PushBack(v7Graph, allocator);
         }
@@ -709,10 +784,31 @@ std::string V6ModelParser::ConvertRmapInfoV6ToV7(const std::string& v6RmapInfo, 
             inputTensor.AddMember("dtype_encoded", dtypeEncodedVal, allocator);
         }
         
-        // Use input_shape from v6 graph_info instead of v6 input shapes, following v6_converter.py
+        // Use input_shape from v6 graph_info (extracted at the beginning) and apply alignment
         Value shapeVal, shapeEncodedVal;
         shapeVal.CopyFrom(input_shape, allocator);
         shapeEncodedVal.CopyFrom(input_shape, allocator);
+        
+        
+        // Align both shape and shape_encoded based on last dimension and compute align_unit
+        int alignUnit = 64;
+        if (input_shape.IsArray() && input_shape.Size() > 0) {
+            int64_t lastDim = input_shape[input_shape.Size() - 1].GetInt64();
+            if (lastDim < 64) {
+                alignUnit = 16;
+                // Round up to multiple of 16
+                //int64_t alignedLastDim = ((lastDim + 15) / 16) * 16;
+                //shapeVal[shapeVal.Size() - 1].SetInt64(alignedLastDim);
+                //shapeEncodedVal[shapeEncodedVal.Size() - 1].SetInt64(alignedLastDim);
+            } else {
+                alignUnit = 64;
+                // Round up to multiple of 64
+                //int64_t alignedLastDim = ((lastDim + 63) / 64) * 64;
+                //shapeVal[shapeVal.Size() - 1].SetInt64(alignedLastDim);
+                //shapeEncodedVal[shapeEncodedVal.Size() - 1].SetInt64(alignedLastDim);
+            }
+        }
+        
         inputTensor.AddMember("shape", shapeVal, allocator);
         inputTensor.AddMember("shape_encoded", shapeEncodedVal, allocator);
         
@@ -725,7 +821,7 @@ std::string V6ModelParser::ConvertRmapInfoV6ToV7(const std::string& v6RmapInfo, 
         layoutVal.SetString("NONE", allocator);
         inputTensor.AddMember("layout", layoutVal, allocator);
 
-        inputTensor.AddMember("align_unit", 1, allocator);
+        inputTensor.AddMember("align_unit", alignUnit, allocator);
 
         Value transposeVal;
         transposeVal.SetNull();
@@ -817,19 +913,13 @@ std::string V6ModelParser::ConvertRmapInfoV6ToV7(const std::string& v6RmapInfo, 
                 outputTensor.AddMember("dtype_encoded", dtypeEncodedVal, allocator);
             }
             
-            // Extract output shape from v6 graph_info for this specific output, following v6_converter.py
-            // shape = npu_graph["outputs"][value["name"]]["shape"]
-            Value outputShapeVal = ExtractOutputShapeFromV6Graph(v6GraphDoc, outputName, allocator);
-            Value outputShapeEncodedVal;
-            outputShapeEncodedVal.CopyFrom(outputShapeVal, allocator);
-            outputTensor.AddMember("shape", outputShapeVal, allocator);
-            outputTensor.AddMember("shape_encoded", outputShapeEncodedVal, allocator);
-            
             // Handle layout field - preserve PPU_* values, set others to NONE
             Value layoutVal;
+            bool isPPUOutput = false;
             if (v6Output.HasMember("format") && v6Output["format"].IsString()) {
                 std::string layoutStr = v6Output["format"].GetString();
                 if (layoutStr.find("PPU_") == 0) {
+                    isPPUOutput = true;
                     layoutVal.SetString(layoutStr.c_str(), allocator);
                 } else {
                     layoutVal.SetString("NONE", allocator);
@@ -838,8 +928,45 @@ std::string V6ModelParser::ConvertRmapInfoV6ToV7(const std::string& v6RmapInfo, 
                 layoutVal.SetString("NONE", allocator);
             }
             outputTensor.AddMember("layout", layoutVal, allocator);
+            
+            // Extract output shape from v6 graph_info for this specific output, following v6_converter.py
+            // For PPU outputs (dynamic size), use [1, -1] shape instead of graph_info shape
+            Value outputShapeVal(kArrayType);
+            Value outputShapeEncodedVal(kArrayType);
+            int outputAlignUnit = 64;
+            if (isPPUOutput) {
+                // PPU outputs have dynamic size, represented as [1, -1]
+                outputShapeVal.PushBack(1, allocator);
+                outputShapeVal.PushBack(-1, allocator);
+                outputShapeEncodedVal.PushBack(1, allocator);
+                outputShapeEncodedVal.PushBack(-1, allocator);
+            } else {
+                // shape = npu_graph["outputs"][value["name"]]["shape"]
+                outputShapeVal = ExtractOutputShapeFromV6Graph(v6GraphDoc, outputName, allocator);
+                outputShapeEncodedVal.CopyFrom(outputShapeVal, allocator);
+                
+                // Align both shape and shape_encoded based on last dimension and compute align_unit
+                if (outputShapeVal.IsArray() && outputShapeVal.Size() > 0) {
+                    int64_t lastDim = outputShapeVal[outputShapeVal.Size() - 1].GetInt64();
+                    if (lastDim < 64) {
+                        outputAlignUnit = 16;
+                        // Round up to multiple of 16
+                        //int64_t alignedLastDim = ((lastDim + 15) / 16) * 16;
+                        //outputShapeVal[outputShapeVal.Size() - 1].SetInt64(alignedLastDim);
+                        //outputShapeEncodedVal[outputShapeEncodedVal.Size() - 1].SetInt64(alignedLastDim);
+                    } else {
+                        outputAlignUnit = 64;
+                        // Round up to multiple of 64
+                        //int64_t alignedLastDim = ((lastDim + 63) / 64) * 64;
+                        //outputShapeVal[outputShapeVal.Size() - 1].SetInt64(alignedLastDim);
+                        //outputShapeEncodedVal[outputShapeEncodedVal.Size() - 1].SetInt64(alignedLastDim);
+                    }
+                }
+            }
+            outputTensor.AddMember("shape", outputShapeVal, allocator);
+            outputTensor.AddMember("shape_encoded", outputShapeEncodedVal, allocator);
 
-            outputTensor.AddMember("align_unit", 1, allocator);
+            outputTensor.AddMember("align_unit", outputAlignUnit, allocator);
 
             Value transposeVal;
             transposeVal.SetNull();
@@ -1176,6 +1303,21 @@ int V6ModelParser::LoadGraphInfo(deepx_graphinfo::GraphInfoDatabase& param, Mode
         }
     }
 
+    bool hasTailFlag = false;
+    for (auto &sg : param.subgraphs()) { if (sg.tail()) { hasTailFlag = true; break; } }
+    if (!hasTailFlag) {
+        std::set<std::string> modelInputs(param.inputs().begin(), param.inputs().end());
+        std::set<std::string> modelOutputs(param.outputs().begin(), param.outputs().end());
+        for (auto &sg : param.subgraphs()) {
+            for (auto &t : sg.outputs()) {
+                if (modelOutputs.count(t.name()) > 0) { sg.tail() = true; break; }
+            }
+            for (auto &t : sg.inputs()) {
+                if (t.owner().empty() && modelInputs.count(t.name()) > 0) { sg.head() = true; break; }
+            }
+        }
+    }
+
     return 0;
 }
 
@@ -1426,18 +1568,27 @@ std::string V6ModelParser::LoadRmapInfo(deepx_rmapinfo::rmapInfoDatabase& param,
                 if (tensorObj.HasMember("dtype_encoded") && tensorObj["dtype_encoded"].IsString())
                     tensor.dtype_encoded() = deepx_rmapinfo::GetDataTypeNum(tensorObj["dtype_encoded"].GetString());
 
+                if (tensorObj.HasMember("align_unit") && tensorObj["align_unit"].IsInt())
+                    tensor.align_unit() = tensorObj["align_unit"].GetInt();
+
                 if (tensorObj.HasMember("shape_encoded") && tensorObj["shape_encoded"].IsArray()) {
                     const rapidjson::Value& shapeArr = tensorObj["shape_encoded"];
                     for (rapidjson::SizeType j = 0; j < shapeArr.Size(); j++) {
-                        tensor.shape_encoded().push_back(shapeArr[j].GetInt64());
+                        int64_t value = shapeArr[j].GetInt64();
+                        if (j == shapeArr.Size() - 1)
+                        {
+                            value = GetAlign(value);
+                            if (value < 64)
+                                tensor.align_unit() = 16;
+                        }
+                        tensor.shape_encoded().push_back(value);
                     }
                 }
 
                 if (tensorObj.HasMember("layout") && tensorObj["layout"].IsString())
                     tensor.layout() = deepx_rmapinfo::GetLayoutNum(tensorObj["layout"].GetString());
 
-                if (tensorObj.HasMember("align_unit") && tensorObj["align_unit"].IsInt())
-                    tensor.align_unit() = tensorObj["align_unit"].GetInt();
+
 
                 if (tensorObj.HasMember("transpose") && tensorObj["transpose"].IsString())
                     tensor.transpose() = deepx_rmapinfo::GetTransposeNum(tensorObj["transpose"].GetString());
@@ -1477,9 +1628,13 @@ std::string V6ModelParser::LoadRmapInfo(deepx_rmapinfo::rmapInfoDatabase& param,
                     {
                         throw ModelParsingException(EXCEPTION_MESSAGE("PPU Output format is invalid"));
                     }
+                    // PPU outputs have dynamic size: shape and shape_encoded both set to [1, -1]
                     tensor.shape().clear();
                     tensor.shape().push_back(1);
                     tensor.shape().push_back(-1);
+                    tensor.shape_encoded().clear();
+                    tensor.shape_encoded().push_back(1);
+                    tensor.shape_encoded().push_back(-1);
                     int dataType = DataType::BBOX;
                     dataType += tensor.layout();
                     dataType -= deepx_rmapinfo::Layout::PPU_YOLO;

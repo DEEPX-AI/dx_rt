@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -25,6 +25,12 @@ std::ostream& operator<<(std::ostream& os, const dxrt_server_err_t& err) {
             break;
         case dxrt_server_err_t::S_ERR_SERVICE_TERMINATION:
             os << "Service terminated";
+            break;
+        case dxrt_server_err_t::S_ERR_SERVICE_DEV_BOUND_ERR:
+            os << "Service device bound error";
+            break;
+        case dxrt_server_err_t::S_ERR_DEVICE_EVENT_FAULT:
+            os << "Device event fault detected";
             break;
         default:
             os << "Unknown error";

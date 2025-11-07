@@ -12,8 +12,25 @@ import warnings
 from typing import Sequence, Union
 import dx_engine.capi._pydxrt as C
 
-def parse_model(model_path) -> str:
-    return C.parse_model(model_path)
+def parse_model(model_path, options=None) -> int:
+    """
+    Parse a model file and display information about it.
+    
+    Args:
+        model_path (str): Path to the .dxnn model file
+        options (dict, optional): Parsing options containing:
+            - verbose (bool): Show detailed task dependencies and memory usage
+            - json_extract (bool): Extract JSON binary data to files  
+            - no_color (bool): Disable color output
+            - output_file (str): Save output to file (without color codes)
+    
+    Returns:
+        int: 0 if successful, -1 if failed
+    """
+    if options is None:
+        return C.parse_model(model_path)
+    else:
+        return C.parse_model(model_path, options)
 
 def ensure_contiguous(
     data: Union[np.ndarray, Sequence]

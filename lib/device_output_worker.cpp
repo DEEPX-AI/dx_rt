@@ -183,7 +183,7 @@ void DeviceOutputWorker::ThreadWork(int id)
                     uint64_t inf_time_ns = static_cast<uint64_t>(response.inf_time) * 1000;
                     uint64_t wait_window = response.wait_end_time - response.wait_start_time;
 
-                    if (wait_window - inf_time_ns > 1000000000ULL) {
+                    if (wait_window - inf_time_ns*1.1) {
                         uint64_t npu_start_ns = response.wait_end_time - inf_time_ns;
                         uint64_t npu_end_ns   = response.wait_end_time;
                         auto npu_tp = std::make_shared<TimePoint>();
@@ -212,7 +212,7 @@ void DeviceOutputWorker::ThreadWork(int id)
                 }
                 profiler.Start("PCIe Read[Job_" + to_string(req->job_id()) + "][" + req->taskData()->name() + "][Req_" + to_string(req->id()) + "](" + to_string(id)+")");
                 // profiler.Start("PCIe Read(" + to_string(response.dma_ch)+")");
-                
+
 #endif
                 int read_ch = id;
                 // if (cycle_ch)
@@ -220,22 +220,58 @@ void DeviceOutputWorker::ThreadWork(int id)
                 //     read_ch = loopCnt % dma_ch;
                 //     // read_ch = loopCnt % 4;
                 // }
-                memset(reinterpret_cast<void*>(output.data),0, output.size );
+                
+                // PPCPU (type=3) skips RMAP output read - only reads filtered output
+                if (req->model_type() != 3)
+                {
+                    memset(reinterpret_cast<void*>(output.data),0, output.size );
 #if DXRT_USB_NETWORK_DRIVER
-                int ret2 = _device->Read(output, read_ch, false);
+                    int ret2 = _device->Read(output, read_ch, false);
 #else
-                int ret2 = _device->Read(output, read_ch);
+                    int ret2 = _device->Read(output, read_ch);
 #endif
 #ifdef USE_PROFILER
-                profiler.End("PCIe Read[Job_" + to_string(req->job_id()) + "][" + req->taskData()->name() + "][Req_" + to_string(req->id()) + "](" + to_string(id)+")");
-                // profiler.End("PCIe Read(" + to_string(response.dma_ch)+")");
-                
+                    profiler.End("PCIe Read[Job_" + to_string(req->job_id()) + "][" + req->taskData()->name() + "][Req_" + to_string(req->id()) + "](" + to_string(id)+")");
+                    // profiler.End("PCIe Read(" + to_string(response.dma_ch)+")");
+                    
 #endif
-                DXRT_ASSERT(ret2 == 0, "Failed to read output, errno="+ std::to_string(ret2) +
-                    ", reqId=" + std::to_string(reqId) + ",ch:" + std::to_string(id));
-
+                    DXRT_ASSERT(ret2 == 0, "Failed to read output, errno="+ std::to_string(ret2) +
+                        ", reqId=" + std::to_string(reqId) + ",ch:" + std::to_string(id));
+                }
+#ifdef USE_PROFILER
+                else
+                {
+                    // End profiler for PPCPU even though no RMAP read
+                    profiler.End("PCIe Read[Job_" + to_string(req->job_id()) + "][" + req->taskData()->name() + "][Req_" + to_string(req->id()) + "](" + to_string(id)+")");
+                }
+#endif
             }
             _device->CallBack();
+
+            if (DEBUG_DATA > 0)
+            {
+                DataDumpBin(req->taskData()->name() + "_output.bin",
+                    req->encoded_outputs_ptr(), req->taskData()->encoded_output_size());
+            }
+
+            auto nfhOutputWorker = _device->getNfhOutputWorker();
+            if (ENABLE_ASYNC_NFH_OUTPUT && nfhOutputWorker)
+            {
+                NfhOutputWork nfhWork(reqId, response, req, id);
+                int result = nfhOutputWorker->EnqueueWork(nfhWork);
+                if (result != 0)
+                {
+                    LOG_DXRT_ERR("Failed to enqueue NFH output work for request " << reqId << ", using fallback");
+                    // Fallback: proceed to synchronous processing below
+                }
+                else
+                {
+                    // NFH Worker will process, so we can exit here (prevent circular calls)
+                    LOG_DXRT_DBG << "NFH Output work successfully enqueued for request " << reqId << endl;
+                    continue; // proceed to next response processing
+                }
+            }
+
 #ifdef USE_PROFILER
             {
                 auto& profiler = dxrt::Profiler::GetInstance();
@@ -243,14 +279,9 @@ void DeviceOutputWorker::ThreadWork(int id)
                 profiler.Start(profile_name);
             }
 #endif
-            if (DEBUG_DATA > 0)
-            {
-                DataDumpBin(req->taskData()->name() + "_output.bin",
-                    req->encoded_outputs_ptr(), req->taskData()->encoded_output_size());
-            }
 
-            //Normal
-            if (req->model_type() == 0)
+            //Normal (synchronous processing or fallback if NFH Worker fails)
+            if (req->model_type() == 0 || (req->model_type() == 1 && !(req->taskData()->_isArgMax)))
             {
                 RequestData* req_data = req->getData();
                 // Output Format Decoding
@@ -259,10 +290,40 @@ void DeviceOutputWorker::ThreadWork(int id)
                     for (size_t i = 0; i < req_data->outputs.size(); i++)
                     {
                         Tensor& output_tensor = req_data->outputs[i];
+
+                                
+                        if (output_tensor.memory_type() == static_cast<int>(deepx_rmapinfo::MemoryType::ARGMAX))
+                        {
+                            if (output_tensor.data() == nullptr) {
+                                LOG_DXRT_ERR("ARGMAX output buffer is nullptr for tensor: " << output_tensor.name());
+                                continue;
+                            }
+                            *(static_cast<uint16_t *>(output_tensor.data())) = response.argmax;
+                            // ARGMAX tensors don't use encoded_output_ptrs
+                            if (DEBUG_DATA > 0)
+                            {
+                                DataDumpBin(req->taskData()->name() + "_output.argmax.bin", output_tensor.data(), static_cast<unsigned int>(output_tensor.size_in_bytes()));
+                            }
+                            continue;
+                        }
+
                         deepx_rmapinfo::TensorInfo tensor_info = req_data->taskData->_npuOutputTensorInfos[i];
                         int shape_dims = tensor_info.shape_encoded().size();
+                        
+                        // Validate array bounds first
+                        if (i >= req_data->encoded_output_ptrs.size()) {
+                            LOG_DXRT_ERR("Encoded output pointer index out of bounds for tensor: " << output_tensor.name());
+                            continue;
+                        }
+                        
                         npu_format_handler::Bytes encoded_output = {static_cast<uint32_t>(req_data->taskData->_encodedOutputSizes[i]), static_cast<uint8_t*>(req_data->encoded_output_ptrs[i])};
                         npu_format_handler::Bytes decoded_output = {static_cast<uint32_t>(output_tensor.size_in_bytes()), static_cast<uint8_t*>(output_tensor.data())};
+
+                        // Validate pointers before processing
+                        if (encoded_output.data == nullptr || decoded_output.data == nullptr) {
+                            LOG_DXRT_ERR("Output buffer is nullptr for tensor: " << output_tensor.name());
+                            continue;
+                        }
 
                         // dummy decoder
                         if (tensor_info.layout() == deepx_rmapinfo::Layout::ALIGNED)
@@ -274,7 +335,8 @@ void DeviceOutputWorker::ThreadWork(int id)
                                 npu_format_handler::NpuFormatHandler::decode_aligned(encoded_output,
                                                                                      decoded_output,
                                                                                      tensor_info.shape_encoded()[shape_dims - 1],
-                                                                                     static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded())
+                                                                                     static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded()),
+                                                                                     tensor_info.align_unit()
                                                                                     );
                                 LOG_DXRT_DBG <<"Output format is decoded (ALIGNED) ["<<i<<"] encoded_output size : "<<encoded_output.size<<", decoded_output size : "<<decoded_output.size<< endl;
                             }
@@ -283,7 +345,8 @@ void DeviceOutputWorker::ThreadWork(int id)
                                 npu_format_handler::NpuFormatHandler::decode_aligned(encoded_output,
                                                                                      decoded_output,
                                                                                      tensor_info.shape_encoded()[shape_dims - 1],
-                                                                                     static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded())
+                                                                                     static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded()),
+                                                                                     tensor_info.align_unit()
                                                                                     );
                                 LOG_DXRT_DBG << "Output format is decoded (ALIGNED) [" << i
                                   << "] encoded_output size : " << encoded_output.size
@@ -306,7 +369,8 @@ void DeviceOutputWorker::ThreadWork(int id)
                                                                                                 tensor_info.shape_encoded()[shape_dims - 1],
                                                                                                 static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded()),
                                                                                                 tensor_info.shape_encoded(),
-                                                                                                tensor_info.transpose()
+                                                                                                tensor_info.transpose(),
+                                                                                                tensor_info.align_unit()
                                                                                                 );
                                 */
                                 LOG_DXRT_DBG <<"Output format is decoded (ALIGNED+CHANNEL_LAST_TO_FIRST) [" << i
@@ -338,19 +402,15 @@ void DeviceOutputWorker::ThreadWork(int id)
                 {
                     DataDumpBin(req->taskData()->name() + "_decoder_output.bin", req->outputs());
                 }
-            }
-
-            //Argmax
-            else if (req->model_type() == 1)
+            } 
+            else if (req->model_type() == 1 && req->taskData()->_isArgMax) // NPU task has a single argmax output
             {
                 LOG_DXRT_DBG << "response.argmax : " << response.argmax << endl;
                 *(static_cast<uint16_t *>(req->outputs().front().data())) = response.argmax;
                 if (DEBUG_DATA > 0)
                     DataDumpBin(req->taskData()->name() + "_output.argmax.bin", req->outputs());
             }
-
-            //PPU
-            else if (req->model_type() == 2)
+            else if (req->model_type() == 2) // NPU task has a single PPU tensor output
             {
                 LOG_DXRT_DBG << "response.ppu_filter_num : " << response.ppu_filter_num << endl;
                 RequestData* req_data = req->getData();
@@ -367,10 +427,67 @@ void DeviceOutputWorker::ThreadWork(int id)
                 if (DEBUG_DATA > 0)
                     DataDumpBin(req->taskData()->name() + "_output.ppu.bin", req->outputs());
             }
+
+            //PPCPU
+            else if (req->model_type() == 3)
+            {
+                LOG_DXRT_DBG << "PPCPU output processing, ppu_filter_num : " << response.ppu_filter_num << endl;
+                RequestData* req_data = req->getData();
+                
+                if (!req_data->outputs.empty() && response.ppu_filter_num > 0)
+                {
+                    // Get unit size from output tensor DataType
+                    DataType dtype = req_data->outputs[0].type();
+                    size_t unit_size = GetDataSize_Datatype(dtype);
+                    size_t ppcpu_output_size = unit_size * response.ppu_filter_num;
+                    
+                    // Setup meminfo for PPCPU filtered output
+                    // PPCPU output is located after RMAP output in device memory
+                    dxrt_meminfo_t ppcpu_output;
+                    ppcpu_output.base = output.base;
+                    ppcpu_output.offset = output.offset + output.size;  // After RMAP output
+                    ppcpu_output.size = ppcpu_output_size;
+                    ppcpu_output.data = reinterpret_cast<uint64_t>(req_data->encoded_output_ptrs[0]);
+                    
+                    LOG_DXRT_DBG << "PPCPU Read - offset: 0x" << std::hex << ppcpu_output.offset 
+                                 << ", size: " << std::dec << ppcpu_output_size 
+                                 << " (unit_size: " << unit_size << " × ppu_filter_num: " << response.ppu_filter_num << ")" << std::endl;
+                    
+                    // Read PPCPU filtered output from device memory (DMA directly to output buffer)
+                    int read_ch = id;
+#if DXRT_USB_NETWORK_DRIVER
+                    int ret_ppcpu = _device->Read(ppcpu_output, read_ch, false);
+#else
+                    int ret_ppcpu = _device->Read(ppcpu_output, read_ch);
+#endif
+                    DXRT_ASSERT(ret_ppcpu == 0, "Failed to read PPCPU output, errno=" + std::to_string(ret_ppcpu) +
+                        ", reqId=" + std::to_string(reqId) + ", ch:" + std::to_string(id));
+                    
+                    // Set dynamic shape: [ppu_filter_num, unit_size]
+                    req_data->outputs[0].shape() = {static_cast<long long>(response.ppu_filter_num), 
+                                                     static_cast<long long>(unit_size)};
+                    
+                    LOG_DXRT_DBG << "PPCPU output shape: [" << response.ppu_filter_num 
+                                 << ", " << unit_size << "]" << std::endl;
+                }
+                else if (response.ppu_filter_num == 0)
+                {
+                    LOG_DXRT_DBG << "PPCPU: No filtered output (ppu_filter_num=0)" << std::endl;
+                    // Set empty shape
+                    if (!req_data->outputs.empty())
+                    {
+                        req_data->outputs[0].shape() = {0, 0};
+                    }
+                }
+
+                if (DEBUG_DATA > 0)
+                    DataDumpBin(req->taskData()->name() + "_output.ppcpu.bin", req->outputs());
+            }
             else
             {
-                DXRT_ASSERT(false, "Invalid model type (normal, argmax, ppu)");
+                DXRT_ASSERT(false, "Invalid model type (normal, argmax, ppu, ppcpu)");
             }
+
 #ifdef USE_PROFILER
             {
                 auto& profiler = dxrt::Profiler::GetInstance();

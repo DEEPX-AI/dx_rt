@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -89,7 +89,7 @@ class DXRT_API ServiceDevice
 
 
     virtual int InferenceRequest(dxrt_request_acc_t* req);
- 
+
     void Identify(int id_, uint32_t subCmd = 0);
     void SetSubMode(uint32_t cmd) { _subCmd = cmd; }
     void Terminate();
@@ -100,12 +100,12 @@ class DXRT_API ServiceDevice
     int GetBoundTypeCount();
     bool CanAcceptBound(npu_bound_op boundOp);
 
-    
+
 
     void CallBack();
 
-    int WaitThread(int ids);
-    void Identify(int id_, dxrt::SkipMode skip);
+
+    //void Identify(int id_, dxrt::SkipMode skip);
     void SetCallback(std::function<void(const dxrt_response_t&)> f);
     void SetErrorCallback(std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)> f);
     static std::vector<shared_ptr<ServiceDevice>> CheckServiceDevices(uint32_t subCmd = 0);
@@ -115,6 +115,7 @@ class DXRT_API ServiceDevice
 
     void usageTimerTick();
     void DoCustomCommand(void *data, uint32_t subCmd, uint32_t size);
+    void LoadPPCPUFirmware(uint64_t offset);
 
  protected:
     int _id = 0;
@@ -140,6 +141,7 @@ class DXRT_API ServiceDevice
     Profiler &_profiler;
 
     std::thread _thread[3];
+    std::thread _eventThread;
 
     std::mutex _lock;
 
@@ -157,6 +159,10 @@ class DXRT_API ServiceDevice
 
     int BoundOption(dxrt_sche_sub_cmd_t subCmd, npu_bound_op boundOp);
     int GetBoundTypeCountInternal();
+
+    int WaitThread(int ids);
+    int EventThread();
+
 };
 
 }  // namespace dxrt

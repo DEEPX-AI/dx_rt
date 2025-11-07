@@ -46,16 +46,20 @@ class InferenceJob
     explicit InferenceJob(int id) noexcept;
     ~InferenceJob();
 
-    void SetInferenceJob(std::vector<std::shared_ptr<Task>>& tasks_, std::shared_ptr<Task> head_, std::vector<std::string> lastOutputOrder);
+    void SetInferenceJob(std::vector<std::shared_ptr<Task>>& tasks_, std::shared_ptr<Task> head_, 
+                        std::vector<std::string> lastOutputOrder, 
+                        const std::vector<std::string>& modelInputNames = {});
 
     /** @brief Set inference job with multi-head support using input tasks
      * @param[in] tasks_ All tasks in the model
      * @param[in] inputTasks_ Tasks that receive external inputs (head tasks)
      * @param[in] lastOutputOrder Output tensor order
+     * @param[in] modelInputNames Names of model input tensors
      */
     void SetInferenceJobMultiHead(std::vector<std::shared_ptr<Task>>& tasks_, 
                                   const std::vector<std::shared_ptr<Task>>& inputTasks_, 
-                                  std::vector<std::string> lastOutputOrder);
+                                  std::vector<std::string> lastOutputOrder,
+                                  const std::vector<std::string>& modelInputNames);
 
 
     void onRequestComplete(RequestPtr req);
@@ -63,12 +67,6 @@ class InferenceJob
     void processReadyTask(TaskPtr taskPtr);
 
     int startJob(void *inputPtr, void *userArg, void *outputPtr);
-    int DSP_StartJob(dxrt_dspcvmat_t *dspCvMatInPtr, dxrt_dspcvmat_t *dspCvMatOutPtr, void *userArg);
-    void DSP_OnRequestComplete(RequestPtr req);
-    void DSP_SetDspEnable(int enable) { _isDsp.store(enable); }
-    int DSP_GetDspEnable() { return _isDsp.load(); }
-    void *DSP_GetOutput() { return _dspOutputPtr; }
-
     
     /** @brief Start inference job with multiple input tensors
      * @param[in] inputTensors Map of tensor name to input data pointer
@@ -121,9 +119,9 @@ class InferenceJob
     // Multi-head support
     std::vector<std::shared_ptr<Task>> _inputTasks;  // Tasks that receive external inputs
     bool _isMultiHead = false;
-	
-    std::atomic<int> _isDsp{0};
-    void* _dspOutputPtr;
+
+    // Model input tensor names (for identifying which tensors are external inputs)
+    std::vector<std::string> _modelInputNames;
 
     // std::function<void(RequestPtr)> onRequestCompleteFunction();
 

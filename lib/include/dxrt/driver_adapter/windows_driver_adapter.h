@@ -22,11 +22,14 @@ class WindowsDriverAdapter : public DriverAdapter {
     int32_t Read(void* buffer, uint32_t size) override;
     void* MemoryMap(void *__addr, size_t __len, off_t __offset = 0) override;
     int32_t Poll() override;
-    int GetFd() { return reinterpret_cast<uint64_t>(_fd); }
+    int GetFd() const override { return reinterpret_cast<uint64_t>(_fd); }
 
     ~WindowsDriverAdapter() override;
+    std::string GetName() const override { return _name;  }
+
  private:
     HANDLE _fd = INVALID_HANDLE_VALUE;
+    std::string _name;
 };
 
 }  // namespace dxrt

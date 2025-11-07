@@ -13,6 +13,9 @@
 
 #include <vector>
 #include <atomic>
+#include <unordered_map>
+#include <mutex>
+#include <memory>
 
 #include "dxrt/common.h"
 #include "dxrt/datatype.h"
@@ -26,6 +29,7 @@ class Buffer;
 class CpuHandleWorker;
 class Request;
 using RequestPtr = std::shared_ptr<Request>;
+
 
 class DXRT_API CpuHandle
 {
@@ -73,6 +77,11 @@ public:
     std::vector<uint64_t> _outputOffsets;
     std::vector<uint64_t> _inputSizes;
     std::vector<uint64_t> _outputSizes;
+    
+    // Dynamic shape output support
+    std::vector<bool> _outputIsDynamic;  // Track which outputs have dynamic shapes
+    bool _hasDynamicOutput = false;      // Flag if any output is dynamic
+        
     //std::shared_ptr<Buffer> _buffer;
     void* _cpuTaskOutputBufferPtr;
     std::shared_ptr<CpuHandleWorker> _worker=nullptr;
@@ -82,6 +91,17 @@ public:
     void Start();
     void Run(RequestPtr req);
     void Terminate(void);
+    
+    // Dynamic output management functions 
+    bool DetectDynamicShape(const std::vector<int64_t>& shape) const;
+#ifdef USE_ORT
+    void SetupOutputsWithBinding(RequestPtr req, Ort::IoBinding& binding);
+    void UpdateRequestOutputsFromBinding(RequestPtr req, std::vector<Ort::Value> ortOutputs);
+#endif
+
+    // Getter for dynamic output status
+    bool HasDynamicOutput() const { return _hasDynamicOutput; }
+    
     friend DXRT_API std::ostream& operator<<(std::ostream&, const CpuHandle&);
 };
 } /* namespace dxrt */

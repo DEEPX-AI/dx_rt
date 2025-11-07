@@ -36,7 +36,7 @@ class TaskData
     const Tensors& output_tensors() const {return _outputTensors;}
     
 
-    void set_from_npu(const std::vector<std::vector<uint8_t>>& data_);
+    void set_from_npu(const std::vector<std::vector<uint8_t>>& data_, bool hasPpuBinary = false);
     void set_from_cpu(std::shared_ptr<CpuHandle> cpuHandle);
 
     Tensors inputs(void* ptr, uint64_t phyAddr = 0);
@@ -115,6 +115,10 @@ private:
 
     bool _isArgMax = false;
     bool _isPPU = false;
-};
-
-}  // namespace dxrt
+    bool _isPPCPU = false; // v8 PPCPU model type
+    uint32_t _ppuBinaryOffset = 0; // v8 PPCPU: device memory offset of PPU binary
+    
+    // Reference to binary data (rmap, weight, ppu if exists)
+    // This is set by Task and used by Device for writing to device memory
+    const std::vector<std::vector<uint8_t>>* _data = nullptr;
+};}  // namespace dxrt

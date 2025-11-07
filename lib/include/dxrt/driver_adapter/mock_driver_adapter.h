@@ -35,6 +35,9 @@ public:
     // Poll
     // note : nfds_t __nfds = 1, int __timeout = DEVICE_POLL_LIMIT_MS
     int32_t Poll() override;
+
+    std::string GetName() const override { return "MockAdapter"; }
+    int GetFd() const override { return 0; }
 };
 
 }  // namespace dxrt

@@ -27,8 +27,10 @@
 namespace dxrt {
 
 LinuxDriverAdapter::LinuxDriverAdapter(const char* fileName)
+: _name(fileName)
 {
     _fd = open(fileName, O_RDWR|O_SYNC);
+
 }
 
 int32_t LinuxDriverAdapter::IOControl(dxrt_cmd_t request, void* data, uint32_t size , uint32_t sub_cmd)
@@ -43,10 +45,37 @@ int32_t LinuxDriverAdapter::IOControl(dxrt_cmd_t request, void* data, uint32_t s
 
     ret = ioctl(_fd, static_cast<unsigned long>(dxrt::dxrt_ioctl_t::DXRT_IOCTL_MESSAGE), &msg);
 
-    if (ret < 0)
-        return errno*(-1);
+    /*
+    if (ret < 0) {
+            std::string req_info = "";
+
+            if (data != nullptr) {
+                if (request == dxrt::dxrt_cmd_t::DXRT_CMD_NPU_RUN_REQ && size >= sizeof(dxrt_request_acc_t)) {
+                    dxrt_request_acc_t* req = static_cast<dxrt_request_acc_t*>(data);
+                    req_info = ", req_id: " + std::to_string(req->req_id) + ", dma_ch: " + std::to_string(req->dma_ch);
+                } else if (request == dxrt::dxrt_cmd_t::DXRT_CMD_NPU_RUN_RESP && size >= sizeof(dxrt_response_t)) {
+                    dxrt_response_t* resp = static_cast<dxrt_response_t*>(data);
+                    req_info = ", req_id: " + std::to_string(resp->req_id) + ", dma_ch: " + std::to_string(resp->dma_ch);
+                }
+            }
+
+            else {
+                req_info = ", data is nullptr";
+            }
+
+            LOG_DXRT_S << "IOControl FAILED - ret: " << ret 
+                    << ", errno: " << errno 
+                    << " (" << strerror(errno) << ")"
+                    << ", fd: " << _fd
+                    << ", cmd: " << static_cast<int>(request)
+                    << req_info << std::endl; 
+            return errno * (-1);
+    } else {
+        LOG_DXRT_S_DBG << "IOControl SUCCESS - ret: " << ret << std::endl;
+    }
+    */
     return ret;
-    
+
 }
 
 int32_t LinuxDriverAdapter::Write(const void* buffer, uint32_t size)
@@ -70,17 +99,16 @@ void* LinuxDriverAdapter::MemoryMap(void *__addr, size_t __len, off_t __offset)
     return ret;
 }
 
-#define DEVICE_POLL_LIMIT_MS 3*1000*1000
-
 int32_t LinuxDriverAdapter::Poll()
 {
+    LOG_DXRT_DBG << "Polling device..." << std::endl;
     pollfd _devPollFd = {
         .fd = _fd,
         .events = POLLIN,
         // .events = POLLIN|POLLHUP,
         .revents = 0,
     };
-    return poll(&_devPollFd, 1, DEVICE_POLL_LIMIT_MS);
+    return poll(&_devPollFd, 1, -1); // wait indefinitely
 }
 
 LinuxDriverAdapter::~LinuxDriverAdapter()

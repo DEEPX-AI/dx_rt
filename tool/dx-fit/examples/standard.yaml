@@ -1,0 +1,47 @@
+# ============================================================================
+# Standard Configuration - Recommended for Most Users
+# ============================================================================
+# Balanced configuration for reliable optimization
+# Best for: Production use, general optimization
+# ⭐ RECOMMENDED as starting point
+
+model_path: /path/to/your/model.dxnn  # ⚠️ CHANGE THIS to your model path
+
+# Execution Settings
+target_duration: 3.0    # Auto loop selection (RECOMMENDED)
+# loop_count: 50        # Or use fixed loop count (balance between speed and accuracy)
+warmup_runs: 5          # Standard warmup
+timeout: 300            # 5 minute timeout for large models
+use_ort: true           # Enable ONNX Runtime (recommended)
+
+# Strategy: Bayesian Optimization (smart sampling)
+strategy: bayesian
+max_random_samples: 30  # Good coverage of parameter space
+
+# Parameter Search Space (Standard)
+# Covers most common optimization scenarios
+parameters:
+  DXRT_TASK_MAX_LOAD: [2, 4, 6, 8, 10, 12, 14, 16]
+  DXRT_DYNAMIC_CPU_THREAD: [0, 1]
+  CUSTOM_INTRA_OP_THREADS_COUNT: [1, 2, 3, 4]
+  CUSTOM_INTER_OP_THREADS_COUNT: [1, 2]
+  NFH_INPUT_WORKER_THREADS: [1, 2]
+  NFH_OUTPUT_WORKER_THREADS: [1, 2, 3, 4]
+
+# Thermal Management (Optional but recommended for long runs)
+thermal_management:
+  enabled: false        # Set to true for production testing
+  target_temperature: 65.0
+  cooldown_time: 30
+  max_temperature: 80.0
+
+# ============================================================================
+# Expected Results
+# ============================================================================
+# - Reliable optimization results
+# - Good balance of speed and accuracy
+# - Typically finds near-optimal configuration
+# - Suitable for most production scenarios
+#
+# Performance improvements typically: 1.5x - 3x
+# Some models may see up to 5x improvement

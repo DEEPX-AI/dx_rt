@@ -23,14 +23,9 @@ class DriverAdapter {
 public:
 
     // input & output control
-    virtual int32_t IOControl(dxrt_cmd_t request, void* data, uint32_t size = 0, uint32_t sub_cmd = 0) {
-        std::ignore = request;
-        std::ignore = data;
-        std::ignore = size;
-        std::ignore = sub_cmd;
-        return -1;
-    }
-    virtual int32_t NetControl(dxrt_cmd_t request, void* data, uint32_t size = 0, uint32_t sub_cmd = 0, uint64_t address = 0, bool ctrlCmd = true) {
+    virtual int32_t IOControl(dxrt_cmd_t request, void *data, uint32_t size = 0, uint32_t sub_cmd = 0) = 0;
+    virtual int32_t NetControl(dxrt_cmd_t request, void *data, uint32_t size = 0, uint32_t sub_cmd = 0, uint64_t address = 0, bool ctrlCmd = true)
+    {
         std::ignore = request;
         std::ignore = data;
         std::ignore = size;
@@ -47,6 +42,7 @@ public:
     virtual int32_t Read(void* buffer, uint32_t size) = 0;
 
     dxrt_device_status_t getDeviceStatus();
+    DeviceType getDeviceType();
 
     // standalone only
 
@@ -60,7 +56,9 @@ public:
 
     virtual ~DriverAdapter() = default;
 
-    virtual int GetFd() = 0;
+    virtual int GetFd() const = 0;
+
+    virtual std::string GetName() const = 0;
 };
 
 }  // namespace dxrt

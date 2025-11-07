@@ -1,0 +1,29 @@
+# ============================================================================
+# Quick Random Search
+# ============================================================================
+# Fast initial exploration with random sampling
+# Execution focus: Quick parameter space exploration
+
+model_path: /path/to/your/model.dxnn  # ⚠️ CHANGE THIS to your model path
+
+# Execution Settings
+target_duration: 3.0    # Auto loop selection (RECOMMENDED)
+# loop_count: 30        # Or use fixed loop count
+warmup_runs: 5          # Warmup iterations before measurement
+timeout: 60             # Timeout per trial (seconds)
+use_ort: true           # Enable ONNX Runtime (recommended)
+
+# Strategy: Random Search
+strategy: random
+max_random_samples: 20  # Number of iterations for random sampling
+
+# Parameter Search Space (moderate size)
+parameters:
+  DXRT_TASK_MAX_LOAD: [3, 6, 9, 12]
+  DXRT_DYNAMIC_CPU_THREAD: [0, 1]
+  CUSTOM_INTRA_OP_THREADS_COUNT: [1, 2]
+  CUSTOM_INTER_OP_THREADS_COUNT: [1, 2]
+  NFH_INPUT_WORKER_THREADS: [1, 2]
+  NFH_OUTPUT_WORKER_THREADS: [1, 2, 4]
+
+# No thermal management for speed

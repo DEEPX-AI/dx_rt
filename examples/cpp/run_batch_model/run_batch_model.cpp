@@ -8,6 +8,7 @@
  */
 
 #include "dxrt/dxrt_api.h"
+#include "dxrt/extern/cxxopts.hpp"
 #include "../include/logger.h"
 #include <string>
 #include <iostream>
@@ -15,47 +16,42 @@
 
 int main(int argc, char* argv[])
 {
-    const int DEFAULT_LOOP_COUNT = 1;
-    const int DEFAULT_BATCH_COUNT = 1;
-    
     std::string model_path;
-    int loop_count = DEFAULT_LOOP_COUNT;
-    int batch_count = DEFAULT_BATCH_COUNT;
+    int loop_count;
+    int batch_count;
+    bool verbose;
     bool logging = false;
 
     auto &log = dxrt::Logger::GetInstance();
 
-    if ( argc > 1 )
+    cxxopts::Options options("run_batch_model", "Run batch model inference");
+    options.add_options()
+        ("m,model", "Path to model file (.dxnn)", cxxopts::value<std::string>(model_path))
+        ("l,loops", "Number of inference loops", cxxopts::value<int>(loop_count)->default_value("1"))
+        ("b,batch", "Batch count", cxxopts::value<int>(batch_count)->default_value("1"))
+        ("v,verbose", "Enable verbose/debug logging", cxxopts::value<bool>(verbose)->default_value("false"))
+        ("h,help", "Print usage");
+
+    try
     {
-        model_path = argv[1];
+        auto result = options.parse(argc, argv);
 
-        if ( argc > 2 ) 
+        if (result.count("help") || !result.count("model"))
         {
-            loop_count = std::stoi(argv[2]);
+            std::cout << options.help() << std::endl;
+            return result.count("help") ? 0 : -1;
+        }
 
-            if (argc > 3 )
-            {
-                batch_count = std::stoi(argv[3]);
-
-                if (argc > 4)
-                {
-                    std::string last_arg = argv[4];
-                    if (last_arg == "--verbose" || last_arg == "-v")
-                    {
-                        logging = true;
-                    }
-                }
-            }
+        if (verbose) {
+            log.SetLevel(dxrt::Logger::Level::LOGLEVEL_DEBUG);
+            logging = true;
         }
     }
-    else
+    catch (const std::exception& e)
     {
-        log.Info("[Usage] run_batch_model [dxnn-file-path] [loop-count] [batch-count] [--verbose|-v]");
+        log.Error(std::string("Error parsing arguments: ") + e.what());
+        std::cout << options.help() << std::endl;
         return -1;
-    }
-
-    if (logging) {
-        log.SetLevel(dxrt::Logger::Level::DEBUG);
     }
 
     log.Info("Start run_batch_model test for model: " + model_path);
@@ -84,10 +80,35 @@ int main(int argc, char* argv[])
         std::vector<void*> output_buffers(batch_count, 0);
 
         // create user output buffers
-        for(auto& ptr : output_buffers)
-        {
-            ptr = new uint8_t[ie.GetOutputSize()];
-        } // for i
+        uint64_t outputSize = ie.GetOutputSize();
+        bool isDynamic = ie.HasDynamicOutput();  // Explicit check for dynamic output
+        
+        if (isDynamic) {
+            log.Info("Dynamic shape model detected - using engine-managed output buffers");
+            log.Info("Model has dynamic output shapes that vary based on input");
+            log.Info("Static output size calculation: " + std::to_string(outputSize) + " bytes (may be 0 for dynamic tensors)");
+            
+            // Show individual tensor size estimates
+            auto tensorSizes = ie.GetOutputTensorSizes();
+            log.Info("Output tensor count: " + std::to_string(tensorSizes.size()));
+            for (size_t i = 0; i < tensorSizes.size(); ++i) {
+                log.Info("Tensor " + std::to_string(i) + " estimated size: " + std::to_string(tensorSizes[i]) + " bytes");
+            }
+            
+            // For dynamic models, pass nullptr to use engine-managed buffers
+            // The engine will allocate appropriate buffers based on actual output shapes
+        } else {
+            // Static shape model - allocate user buffers
+            if (outputSize == 0) {
+                log.Info("Static model with zero output size - no buffer allocation needed");
+            } else {
+                for(auto& ptr : output_buffers)
+                {
+                    ptr = new uint8_t[outputSize];
+                } // for i
+                log.Info("Allocated " + std::to_string(outputSize) + " bytes per output buffer");
+            }
+        }
 
         log.Debug("[output-user] Create output buffers by user");
         log.Debug("[output-user] These buffers should be deallocated by user");
@@ -103,6 +124,26 @@ int main(int argc, char* argv[])
             log.Debug("[output-user] Inference outputs (" + std::to_string(i) + ")");
             log.Debug("[output-user] Inference outputs size=" + std::to_string(outputPtrs.size()));
             log.Debug("[output-user] Inference outputs first-tensor-name=" + outputPtrs.front().front()->name());
+            
+            // For dynamic shape models, show actual output shapes
+            if (isDynamic && logging && i == 0) {  // Use explicit dynamic flag
+                log.Debug("[Dynamic] Actual output shapes for first batch:");
+                for (size_t batch_idx = 0; batch_idx < outputPtrs.size(); ++batch_idx) {
+                    for (size_t tensor_idx = 0; tensor_idx < outputPtrs[batch_idx].size(); ++tensor_idx) {
+                        const auto& tensor = outputPtrs[batch_idx][tensor_idx];
+                        std::string shape_str = "[";
+                        for (size_t dim_idx = 0; dim_idx < tensor->shape().size(); ++dim_idx) {
+                            if (dim_idx > 0) shape_str += ", ";
+                            shape_str += std::to_string(tensor->shape()[dim_idx]);
+                        }
+                        shape_str += "]";
+                        log.Debug("[Dynamic] Batch " + std::to_string(batch_idx) + 
+                                 ", Tensor " + std::to_string(tensor_idx) + 
+                                 " (" + tensor->name() + "): " + shape_str + 
+                                 " = " + std::to_string(tensor->size_in_bytes()) + " bytes");
+                    }
+                }
+            }
 
             // postProcessing(outputs);
             (void)outputPtrs;
@@ -111,12 +152,18 @@ int main(int argc, char* argv[])
 
         auto end = std::chrono::high_resolution_clock::now();
 
-        // Deallocated the user's output buffers
-        for(auto& ptr : output_buffers)
-        {
-            delete[] static_cast<uint8_t*>(ptr);
-        } // for i
-        log.Debug("[output-user] Deallocated the user's output buffers");
+        // Deallocated the user's output buffers (only for static shape models)
+        if (!isDynamic && outputSize > 0) {  // Static model with actual buffers allocated
+            for(auto& ptr : output_buffers)
+            {
+                if (ptr != nullptr) {
+                    delete[] static_cast<uint8_t*>(ptr);
+                }
+            } // for i
+            log.Debug("[output-user] Deallocated the user's output buffers");
+        } else {
+            log.Debug("[output-user] Dynamic shape model - buffers managed by engine");
+        }
 
         std::chrono::duration<double, std::milli> duration = end - start;
 

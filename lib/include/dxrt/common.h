@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -59,7 +59,7 @@
 #include <functional>
 #include <assert.h>
 #include <numeric>
-#include <cstdlib> 
+#include <cstdlib>
 #include "dxrt/gen.h"
 #include <mutex>
 #if __cplusplus >= 201402L
@@ -90,17 +90,17 @@
 
 #define LOG     std::cout<<"[DXRT] "
 #define LOG_DXRT     std::cout<<"[DXRT]["<< __func__ << "] "
-#define LOG_DXRT_DBG if(DEBUG_DXRT) std::cout<<"[DXRT]["<< __func__ << "] " 
+#define LOG_DXRT_DBG if(DEBUG_DXRT) std::cout<<"[DXRT]["<< __func__ << "] "
 #define LOG_DXRT_ERR(x) std::cout<<"[DXRT][Error] "<< x << std::endl;
 #define LOG_DXRT_WARN(x) std::cout<<"[DXRT][Warning] "<< x << std::endl;
 #define LOG_DXRT_INFO(x) std::cout<<"[DXRT][Info] "<< x << std::endl;
 
 #define LOG_DXRT_S        std::cout<<"[DXRT_SVC]["<< __func__ << "] "
-#define LOG_DXRT_S_DBG    if(DEBUG_DXRT) std::cout<<"[DXRT_SVC]["<< __func__ << "] " 
+#define LOG_DXRT_S_DBG    if(DEBUG_DXRT) std::cout<<"[DXRT_SVC]["<< __func__ << "] "
 #define LOG_DXRT_S_ERR(x) std::cout<<"[DXRT_SVC][Error] "<< x << std::endl;
 
 #define LOG_DXRT_I        std::cout<<"[DXRT_IPC]["<< __func__ << "] "
-#define LOG_DXRT_I_DBG    if(DEBUG_DXRT) std::cout<<"[DXRT_IPC]["<< __func__ << "] " 
+#define LOG_DXRT_I_DBG    if(DEBUG_DXRT) std::cout<<"[DXRT_IPC]["<< __func__ << "] "
 #define LOG_DXRT_I_ERR(x) std::cout<<"[DXRT_IPC][Error] "<< x << std::endl;
 
 #define DXRT_STR(a) __DXRT_STR(a)
@@ -124,13 +124,13 @@
 #ifdef __aarch64__
 #define IOMEM_BARRIER() asm volatile("isb");asm volatile("dsb sy");
 #else
-#define IOMEM_BARRIER() 
+#define IOMEM_BARRIER()
 #endif
 
 // #define RMAPINFO_ALIAS (using rmapinfo = deepx_rmapinfo::RegisterInfoDatabase)
 
 namespace dxrt {
-/** @brief Processors 
+/** @brief Processors
  * @headerfile "dxrt/dxrt_api.h"
 */
 enum DXRT_API Processor
@@ -141,7 +141,7 @@ enum DXRT_API Processor
 };
 DXRT_API std::ostream& operator<<(std::ostream&, const Processor&);
 
-/* \brief Inference modes 
+/* \brief Inference modes
  * \headerfile "dxrt/dxrt_api.h"
 */
 enum DXRT_API InferenceMode
@@ -172,27 +172,36 @@ T vectorProduct(const std::vector<T>& v)
     using UniqueLock = std::unique_lock<std::mutex>;
 #endif
 
+int GetTaskMaxLoad();
 
-inline int GetTaskMaxLoad() {
-    static int cached_value = -1;
-    if (cached_value == -1) {
-        const char* env_value = std::getenv("DXRT_TASK_MAX_LOAD");
-        if (env_value != nullptr) {
-            int env_int = std::atoi(env_value);
-            if (env_int > 0 && env_int <= 100) { 
-                cached_value = env_int;
-                std::cout << "[DXRT] Using DXRT_TASK_MAX_LOAD=" << cached_value << " from environment" << std::endl;
-            } else {
-                cached_value = DXRT_TASK_MAX_LOAD_DEFAULT;
-                std::cout << "[DXRT] Invalid DXRT_TASK_MAX_LOAD value, using default=" << cached_value << std::endl;
-            }
-        } else {
-            cached_value = DXRT_TASK_MAX_LOAD_DEFAULT;
-        }
-    }
-    return cached_value;
-}
 
 #define DXRT_TASK_MAX_LOAD GetTaskMaxLoad()
+
+// Environment variable getters for runtime configuration
+int GetNfhInputWorkerThreads();
+int GetNfhOutputWorkerThreads();
+
+
+// ==================== NFH (NPU Format Handler) Configuration ====================
+
+// NFH thread pool size setting
+#ifndef NFH_INPUT_WORKER_THREADS
+#define NFH_INPUT_WORKER_THREADS GetNfhInputWorkerThreads()
+#endif
+
+#ifndef NFH_OUTPUT_WORKER_THREADS
+#define NFH_OUTPUT_WORKER_THREADS GetNfhOutputWorkerThreads()
+#endif
+
+// NFH asynchronous processing enable/disable setting
+#ifndef ENABLE_ASYNC_NFH_INPUT
+#define ENABLE_ASYNC_NFH_INPUT 1  // Input Worker enabled (step-by-step testing)
+#endif
+
+#ifndef ENABLE_ASYNC_NFH_OUTPUT
+#define ENABLE_ASYNC_NFH_OUTPUT 1  // Output Worker enabled (prevent circular calls)
+#endif
+
+// NFH workers use unlimited queue size (consistent with other workers)
 
 } // namespace dxrt

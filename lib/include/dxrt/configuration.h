@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -46,7 +46,7 @@ namespace dxrt {
         // constructor
         Configuration();
 
-        
+
 
         // Delete copy constructor and assignment operator
         Configuration(const Configuration&) = delete;
@@ -90,8 +90,9 @@ namespace dxrt {
             SHOW_THROTTLING,                ///< Whether to display throttling information.
             SHOW_PROFILE,                   ///< Whether to display profile information.
             SHOW_MODEL_INFO,                ///< Whether to display model information.
-            CUSTOM_INTRA_OP_THREADS = 9,    ///< Use custom ONNX Runtime intra-op thread count.
-            CUSTOM_INTER_OP_THREADS = 10    ///< Use custom ONNX Runtime inter-op thread count.
+            CUSTOM_INTRA_OP_THREADS,        ///< Use custom ONNX Runtime intra-op thread count.
+            CUSTOM_INTER_OP_THREADS,        ///< Use custom ONNX Runtime inter-op thread count.
+            NFH_ASYNC                       ///< Handle NPU Format Handling (NFH) asynchronously.
         };
 
         /**
@@ -103,7 +104,7 @@ namespace dxrt {
             CUSTOM_INTRA_OP_THREADS_NUM = 1003, ///< Attribute for custom ONNX Runtime intra-op thread count.
             CUSTOM_INTER_OP_THREADS_NUM = 1004  ///< Attribute for custom ONNX Runtime inter-op thread count.
         };
- 
+
         /**
         * @brief Sets the enabled status for a specific configuration item.
         *
@@ -144,7 +145,7 @@ namespace dxrt {
 
         /**
          * @brief Retrieves an integer attribute value for a given configuration item and attribute.
-         * 
+         *
          * @param item The configuration item.
          * @param attrib The attribute of the configuration item.
          * @return The integer value of the attribute.
@@ -199,18 +200,27 @@ namespace dxrt {
         */
         std::string GetONNXRuntimeVersion() const;
 
+        /**
+         * @brief Sets the firmware configuration using a JSON file.
+         * @param json_file The path to the JSON file containing the firmware configuration.
+         * @note This method reads the JSON file and applies the configuration settings to the firmware.
+         */
+        void SetFWConfigWithJson(const std::string& json_file);
+
     private:
         std::unordered_map<ITEM, bool> _enableSettings;
         std::unordered_map<ITEM, std::unordered_map<ATTRIBUTE, std::string> > _attributes;
         std::unordered_map<ITEM, std::pair<bool, std::unordered_map<ATTRIBUTE, bool> > > _isReadonly;
         std::mutex _mutex;
-        
+
         // Implementation methods without mutex locking (for internal use)
         void setEnableWithoutLock(const ITEM item, bool enabled);
         void setAttributeWithoutLock(const ITEM item, const ATTRIBUTE attribute, const std::string& value);
-        
+
         // Utility method for parsing and clamping thread count values
         int parseClampThreadCount(const std::string& value);
+
+    public: static std::atomic<bool> _sNpuValidateOpt; // TODO: must integrated to configuration options
     };
 
 }  // namespace dxrt

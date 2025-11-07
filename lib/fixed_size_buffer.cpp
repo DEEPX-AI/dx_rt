@@ -11,6 +11,7 @@
 #include "dxrt/fixed_size_buffer.h"
 #include <chrono>
 #include <stdexcept>
+#include <cstring>  // for strerror
 
 static constexpr int MEM_ALIGN_VALUE = 4096;
 
@@ -27,13 +28,29 @@ FixedSizeBuffer::FixedSizeBuffer(int64_t size, int buffer_count)
         void* ptr = nullptr;
 #ifdef __linux__
         int result = posix_memalign(&ptr, MEM_ALIGN_VALUE, size);
-        DXRT_ASSERT(result == 0, "Failed to posix_memalign " + std::to_string(result));
+        if (result != 0) {
+            LOG_DXRT_ERR("Failed to posix_memalign: error=" << result << " (" << strerror(result) << ")" 
+                         << ", buffer_index=" << i << "/" << _count
+                         << ", size=" << size << " bytes (" << (size / 1024.0 / 1024.0) << " MB)"
+                         << ", alignment=" << MEM_ALIGN_VALUE);
+            DXRT_ASSERT(false, "Memory allocation failed - check system memory availability");
+        }
 #elif _WIN32
         ptr = _aligned_malloc(size, MEM_ALIGN_VALUE);
-        DXRT_ASSERT(ptr != nullptr, "Failed to windows aligned_malloc");
+        if (ptr == nullptr) {
+            LOG_DXRT_ERR("Failed to _aligned_malloc: buffer_index=" << i << "/" << _count
+                         << ", size=" << size << " bytes (" << (size / 1024.0 / 1024.0) << " MB)"
+                         << ", alignment=" << MEM_ALIGN_VALUE);
+            DXRT_ASSERT(false, "Memory allocation failed - check system memory availability");
+        }
 #else
         ptr = aligned_alloc(MEM_ALIGN_VALUE, size);
-        DXRT_ASSERT(ptr != nullptr, "Failed to aligned_alloc");
+        if (ptr == nullptr) {
+            LOG_DXRT_ERR("Failed to aligned_alloc: buffer_index=" << i << "/" << _count
+                         << ", size=" << size << " bytes (" << (size / 1024.0 / 1024.0) << " MB)"
+                         << ", alignment=" << MEM_ALIGN_VALUE);
+            DXRT_ASSERT(false, "Memory allocation failed - check system memory availability");
+        }
 #endif
         _data.push_back(ptr);
         _pointers.push_back(ptr);

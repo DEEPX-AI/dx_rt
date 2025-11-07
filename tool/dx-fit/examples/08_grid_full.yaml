@@ -1,0 +1,38 @@
+# ============================================================================
+# Grid Search - Full (⚠️ VERY SLOW)
+# ============================================================================
+# Complete exhaustive search with large parameter space
+# Execution focus: Academic research, complete parameter analysis
+# Total combinations: 5 × 2 × 4 × 2 × 3 × 4 = 960 tests!
+
+model_path: /path/to/your/model.dxnn  # ⚠️ CHANGE THIS to your model path
+
+# Execution Settings
+target_duration: 3.0    # Auto loop selection (RECOMMENDED)
+# loop_count: 50        # Or use fixed loop count for accuracy
+warmup_runs: 5          # Warmup iterations before measurement
+timeout: 120            # Timeout per trial (seconds)
+use_ort: true           # Enable ONNX Runtime (recommended)
+
+# Strategy: Grid Search
+strategy: grid
+
+# ⚠️ WARNING: Large parameter space
+parameters:
+  # DXRT Core (5 values)
+  DXRT_TASK_MAX_LOAD: [3, 6, 9, 12, 15]
+  
+  # Dynamic threading (2 values)
+  DXRT_DYNAMIC_CPU_THREAD: [0, 1]
+  
+  # ONNX Runtime (4 × 2 = 8 combinations)
+  CUSTOM_INTRA_OP_THREADS_COUNT: [1, 2, 4, 6]
+  CUSTOM_INTER_OP_THREADS_COUNT: [1, 2]
+  
+  # NFH Workers (3 × 4 = 12 combinations)
+  NFH_INPUT_WORKER_THREADS: [1, 2, 3]
+  NFH_OUTPUT_WORKER_THREADS: [2, 4, 6, 8]
+
+# Total: 5 × 2 × 4 × 2 × 3 × 4 = 960 tests
+# Recommended: Run overnight or on dedicated machine
+# Consider using Bayesian strategy instead (04_bayesian_standard.yaml)

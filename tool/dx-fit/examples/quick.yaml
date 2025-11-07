@@ -1,0 +1,39 @@
+# ============================================================================
+# Quick Configuration - Fast Testing
+# ============================================================================
+# Minimal setup for rapid testing and validation
+# Best for: Initial testing, quick exploration
+
+model_path: /path/to/your/model.dxnn  # ⚠️ CHANGE THIS to your model path
+
+# Execution Settings
+target_duration: 3.0    # Auto loop selection (RECOMMENDED)
+# loop_count: 30        # Or use fixed loop count (minimal loops for speed)
+warmup_runs: 3          # Quick warmup
+timeout: 60             # Short timeout
+use_ort: true           # Enable ONNX Runtime (recommended)
+
+# Strategy: Bayesian Optimization (smart sampling)
+strategy: bayesian
+max_random_samples: 10  # Very few iterations for speed
+
+# Parameter Search Space (Narrow)
+# Focuses on most impactful parameters
+parameters:
+  DXRT_TASK_MAX_LOAD: [3, 6, 9, 12]
+  DXRT_DYNAMIC_CPU_THREAD: [0, 1]
+  CUSTOM_INTRA_OP_THREADS_COUNT: [1, 2]
+  CUSTOM_INTER_OP_THREADS_COUNT: [1, 2]
+  NFH_INPUT_WORKER_THREADS: [1, 2]
+  NFH_OUTPUT_WORKER_THREADS: [1, 2, 4]
+
+# No thermal management for speed
+# No verbose logging
+
+# ============================================================================
+# Expected Results
+# ============================================================================
+# - Fast execution
+# - Good starting point for optimization
+# - May not find absolute best configuration
+# - Suitable for initial exploration

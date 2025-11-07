@@ -22,10 +22,11 @@ using the DXRT Python API. It includes examples for:
 7. Simple async inference (run_async)
 
 Usage:
-    python multi_input_inference_example.py <model_path>
+    python multi_input_inference_example.py --model <model_path>
 """
 
-import sys
+import argparse
+import os
 import time
 import threading
 import queue
@@ -744,24 +745,31 @@ def example10_simple_async_inference(ie: InferenceEngine, loop_count: int = 3) -
         return False
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Multi-input model inference examples")
+    parser.add_argument("--model", "-m", type=str, required=True, help="Path to model file (.dxnn)")
+    parser.add_argument("--loops", "-l", type=int, default=1, help="Number of inference loops (default: 1)")
+    args = parser.parse_args()
+
+    if not os.path.exists(args.model):
+        parser.error(f"Model path '{args.model}' does not exist.")
+    
+    return args
+
+
 def main():
     """Main function to run all examples"""
-    if len(sys.argv) < 2:
-        print("Usage: python multi_input_inference_example.py <model_path>")
-        print("Example: python multi_input_inference_example.py model.dxnn")
-        sys.exit(1)
-    
-    model_path = sys.argv[1]
+    args = parse_args()
     
     print("Multi-Input Model Inference Examples")
-    print(f"Model: {model_path}")
+    print(f"Model: {args.model}")
     
     # Track test results
     test_results = []
     
     try:
         # Create inference engine
-        with InferenceEngine(model_path) as ie:
+        with InferenceEngine(args.model) as ie:
             # Print model information once
             print_model_info(ie)
             
@@ -785,12 +793,12 @@ def main():
             test_results.append(("Batch Flattened", example8_batch_inference_flattened(ie, batch_size=3)))
             
             # Async inference tests
-            test_results.append(("Async Callback", example9_async_inference_callback(ie, async_count=3)))
-            test_results.append(("Simple Async", example10_simple_async_inference(ie, loop_count=3)))
+            test_results.append(("Async Callback", example9_async_inference_callback(ie, async_count=args.loops)))
+            test_results.append(("Simple Async", example10_simple_async_inference(ie, loop_count=args.loops)))
             
     except Exception as e:
         print(f"[ERROR] Critical Error: {e}")
-        sys.exit(1)
+        return 1
     
     # Print test summary
     print("\n" + "="*60)
@@ -813,11 +821,11 @@ def main():
     
     if failed == 0:
         print(" *** All tests passed successfully! ***")
-        sys.exit(0)
+        return 0
     else:
         print("[WARNING]  Some tests failed!")
-        sys.exit(1)
+        return 1
 
 
 if __name__ == "__main__":
-    main() 
+    exit(main()) 

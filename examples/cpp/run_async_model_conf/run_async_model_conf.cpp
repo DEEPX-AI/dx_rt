@@ -8,6 +8,7 @@
  */
 
 #include "dxrt/dxrt_api.h"
+#include "dxrt/extern/cxxopts.hpp"
 #include "dxrt/device_info_status.h"
 #include "../include/logger.h"
 
@@ -18,40 +19,38 @@
 
 int main(int argc, char* argv[])
 {
-    const int DEFAULT_LOOP_COUNT = 1;
-    
     std::string model_path;
-    int loop_count = DEFAULT_LOOP_COUNT;
-    bool logging = false;
+    int loop_count;
+    bool verbose;
 
     auto& log = dxrt::Logger::GetInstance();
 
-    if ( argc > 1 )
+    cxxopts::Options options("run_async_model_conf", "Run asynchronous model inference with configuration");
+    options.add_options()
+        ("m,model", "Path to model file (.dxnn)", cxxopts::value<std::string>(model_path))
+        ("l,loops", "Number of inference loops", cxxopts::value<int>(loop_count)->default_value("1"))
+        ("v,verbose", "Enable verbose/debug logging", cxxopts::value<bool>(verbose)->default_value("false"))
+        ("h,help", "Print usage");
+
+    try
     {
-        model_path = argv[1];
+        auto result = options.parse(argc, argv);
 
-        if ( argc > 2 ) 
+        if (result.count("help") || !result.count("model"))
         {
-            loop_count = std::stoi(argv[2]);
+            std::cout << options.help() << std::endl;
+            return result.count("help") ? 0 : -1;
+        }
 
-            if (argc > 3 )
-            {
-                std::string last_arg = argv[3];
-                if (last_arg == "--verbose" || last_arg == "-v")
-                {
-                    logging = true;
-                }
-            }
+        if (verbose) {
+            log.SetLevel(dxrt::Logger::Level::LOGLEVEL_DEBUG);
         }
     }
-    else
+    catch (const std::exception& e)
     {
-        log.Info("[Usage] run_async_model_conf [dxnn-file-path] [loop-count] [--verbose|-v]");
+        log.Error(std::string("Error parsing arguments: ") + e.what());
+        std::cout << options.help() << std::endl;
         return -1;
-    }
-
-    if (logging) {
-        log.SetLevel(dxrt::Logger::Level::DEBUG);
     }
 
     log.Info("Start async_model_conf test for model: " + model_path);

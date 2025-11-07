@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -23,7 +23,7 @@
 
 
 namespace dxrt {
-class Device;
+class DeviceTaskLayer;
 
 class TaskNpuMemoryCacheManager
 {
@@ -43,7 +43,7 @@ private:
 class NpuMemoryCacheManager
 {
 public:
-    NpuMemoryCacheManager(Device* device_);
+    explicit NpuMemoryCacheManager(DeviceTaskLayer* device_);
     bool registerMemoryCache(int taskId, int64_t size, int count);
     void unRegisterMemoryCache(int taskId);
     bool canGetCache(int taskId);
@@ -52,7 +52,7 @@ public:
 private:
     std::unordered_map<int, std::shared_ptr<TaskNpuMemoryCacheManager> > _taskNpuMemoryCaches;
     SharedMutex _npuMemoryCacheLock;
-    Device* _device;
+    DeviceTaskLayer* _device;
 };
 
 }  // namespace dxrt

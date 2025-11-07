@@ -1,0 +1,325 @@
+#!/usr/bin/python3
+"""
+DX-Fit Results Analyzer
+
+This tool analyzes the results from dx-fit runs and provides insights
+about optimal parameter combinations.
+"""
+
+import sys
+import pandas as pd
+import argparse
+import json
+from pathlib import Path
+
+def analyze_results(csv_file: str, output_dir: str = None):
+    """Analyze dx-fit results and generate insights"""
+
+    # Load data
+    df = pd.read_csv(csv_file)
+
+    # Default: save analysis files in same directory as CSV
+    if output_dir is None:
+        output_dir = Path(csv_file).parent
+    else:
+        output_dir = Path(output_dir)
+    
+    # Create output directory if it doesn't exist
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    print("=" * 60)
+    print("DX-FIT Results Analysis")
+    print("=" * 60)
+
+    # Filter successful tests
+    df_success = df[df['success'] == True]
+
+    print(f"Total tests: {len(df)}")
+    print(f"Successful tests: {len(df_success)}")
+    print(f"Failed tests: {len(df) - len(df_success)}")
+
+    if df_success.empty:
+        print("No successful tests to analyze!")
+        return
+
+    # Basic statistics
+    print("\nPerformance Statistics:")
+    print("-" * 40)
+    print(f"FPS: min={df_success['fps'].min():.2f}, "
+          f"max={df_success['fps'].max():.2f}, "
+          f"mean={df_success['fps'].mean():.2f}, "
+          f"std={df_success['fps'].std():.2f}")
+    if 'latency' in df_success.columns:
+        print(f"Latency: min={df_success['latency'].min():.2f}ms, "
+              f"max={df_success['latency'].max():.2f}ms, "
+              f"mean={df_success['latency'].mean():.2f}ms")
+
+    # Find best configuration
+    best_idx = df_success['fps'].idxmax()
+    best_row = df_success.loc[best_idx]
+
+    print("\nBest Configuration:")
+    print("-" * 40)
+    print(f"FPS: {best_row['fps']:.2f}")
+    if 'latency' in df_success.columns:
+        print(f"Latency: {best_row['latency']:.2f}ms")
+
+    # Parse parameters from the parameter columns
+    params = {}
+    for col in df_success.columns:
+        if col.startswith('DXRT_') or col.startswith('NFH_') or col.startswith('CUSTOM_'):
+            params[col] = best_row[col]
+    print("Parameters:")
+    for key, value in params.items():
+        print(f"  {key}: {value}")
+
+    # Parameter impact analysis
+    print("\nParameter Impact Analysis:")
+    print("-" * 40)
+
+    # Extract parameter columns
+    param_columns = []
+    for col in df_success.columns:
+        if col.startswith('DXRT_') or col.startswith('NFH_') or col.startswith('CUSTOM_'):
+            param_columns.append(col)
+
+    # If parameters are in dict format, extract them
+    if 'params' in df_success.columns and len(param_columns) == 0:
+        # Extract parameters from dict
+        params_df = pd.json_normalize(df_success['params'].apply(eval) if df_success['params'].dtype == object else df_success['params'])
+        df_success = pd.concat([df_success, params_df], axis=1)
+        param_columns = params_df.columns.tolist()
+
+    # Calculate correlation with FPS
+    for param in param_columns:
+        if param in df_success.columns and df_success[param].notna().any():
+            # Check if parameter has variance (not all values are the same)
+            if df_success[param].std() > 0:
+                correlation = df_success[param].corr(df_success['fps'])
+                print(f"  {param}: correlation with FPS = {correlation:.3f}")
+            else:
+                print(f"  {param}: correlation with FPS = N/A (constant value)")
+
+    # Queue load analysis
+    queue_cols = [col for col in df_success.columns if 'nfh_' in col.lower() and 'load' in col.lower()]
+    if queue_cols:
+        print(f"\nQueue Load Analysis:")
+        print("-" * 40)
+        for col in queue_cols:
+            if col in df_success.columns and df_success[col].notna().any():
+                print(f"{col}: Avg={df_success[col].mean():.1f}%, Max={df_success[col].max():.1f}%")
+
+    # PCIe analysis
+    pcie_cols = [col for col in df_success.columns if 'pcie_' in col.lower()]
+    if pcie_cols:
+        print(f"\nPCIe Performance Analysis:")
+        print("-" * 40)
+        for col in pcie_cols:
+            if col in df_success.columns and df_success[col].notna().any():
+                print(f"{col}: Avg={df_success[col].mean():.3f}ms, Max={df_success[col].max():.3f}ms")
+
+    # Thermal analysis
+    thermal_cols = ['pre_test_temp', 'post_test_temp', 'temp_change', 'pre_test_voltage', 'post_test_voltage', 'voltage_change', 'cooling_time']
+    thermal_data = [col for col in thermal_cols if col in df_success.columns and df_success[col].notna().any()]
+    
+    if thermal_data:
+        print(f"\nThermal Analysis:")
+        print("-" * 40)
+        for col in thermal_data:
+            if col in df_success.columns and df_success[col].notna().any():
+                if 'temp' in col:
+                    unit = "°C"
+                elif 'voltage' in col:
+                    unit = "mV"
+                elif 'cooling_time' in col:
+                    unit = "s"
+                else:
+                    unit = ""
+                
+                avg_val = df_success[col].mean()
+                max_val = df_success[col].max()
+                min_val = df_success[col].min()
+                print(f"  {col}: Avg={avg_val:.1f}{unit}, Min={min_val:.1f}{unit}, Max={max_val:.1f}{unit}")
+        
+        # Temperature correlation with performance
+        if 'temp_change' in df_success.columns and df_success['temp_change'].notna().any():
+            # Check if temp_change has variance (not all values are the same)
+            if df_success['temp_change'].std() > 0:
+                temp_corr = df_success['temp_change'].corr(df_success['fps'])
+                print(f"  Temperature change correlation with FPS: {temp_corr:.3f}")
+            else:
+                print(f"  Temperature change correlation with FPS: N/A (no variance in temperature change)")
+        
+        # Cooling overhead analysis
+        if 'cooling_time' in df_success.columns and 'run_time' in df_success.columns:
+            total_cooling = df_success['cooling_time'].sum()
+            total_runtime = df_success['run_time'].sum()
+            if total_runtime > 0:
+                cooling_overhead = (total_cooling / total_runtime) * 100
+                print(f"  Cooling overhead: {cooling_overhead:.1f}% of total runtime")
+
+    # Generate visualizations
+    try:
+        import matplotlib
+        matplotlib.use('Agg')  # Use non-interactive backend
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+
+        # Check if we have thermal data to determine plot layout
+        has_thermal = any(col in df_success.columns for col in ['temp_change', 'pre_test_temp', 'post_test_temp'])
+        
+        if has_thermal:
+            fig, axes = plt.subplots(2, 3, figsize=(18, 10))
+        else:
+            fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+
+        # FPS distribution
+        axes[0, 0].hist(df_success['fps'], bins=20, edgecolor='black')
+        axes[0, 0].set_title('FPS Distribution')
+        axes[0, 0].set_xlabel('FPS')
+        axes[0, 0].set_ylabel('Count')
+
+        # Latency distribution
+        if 'latency' in df_success.columns:
+            axes[0, 1].hist(df_success['latency'], bins=20, edgecolor='black')
+            axes[0, 1].set_title('Latency Distribution')
+            axes[0, 1].set_xlabel('Latency (ms)')
+            axes[0, 1].set_ylabel('Count')
+        else:
+            axes[0, 1].text(0.5, 0.5, 'No latency data', ha='center', va='center', transform=axes[0, 1].transAxes)
+            axes[0, 1].set_title('Latency Distribution (N/A)')
+
+        # FPS vs Latency scatter
+        if 'latency' in df_success.columns:
+            axes[1, 0].scatter(df_success['latency'], df_success['fps'])
+            axes[1, 0].set_title('FPS vs Latency')
+            axes[1, 0].set_xlabel('Latency (ms)')
+            axes[1, 0].set_ylabel('FPS')
+        else:
+            axes[1, 0].text(0.5, 0.5, 'No latency data', ha='center', va='center', transform=axes[1, 0].transAxes)
+            axes[1, 0].set_title('FPS vs Latency (N/A)')
+
+        # NFH Load analysis or thermal data
+        if has_thermal:
+            # Temperature analysis
+            if 'pre_test_temp' in df_success.columns and 'post_test_temp' in df_success.columns:
+                axes[0, 2].scatter(df_success['pre_test_temp'], df_success['fps'], alpha=0.7, label='Pre-test')
+                axes[0, 2].scatter(df_success['post_test_temp'], df_success['fps'], alpha=0.7, label='Post-test')
+                axes[0, 2].set_title('FPS vs Temperature')
+                axes[0, 2].set_xlabel('Temperature (°C)')
+                axes[0, 2].set_ylabel('FPS')
+                axes[0, 2].legend()
+            else:
+                axes[0, 2].text(0.5, 0.5, 'No temperature data', ha='center', va='center', transform=axes[0, 2].transAxes)
+                axes[0, 2].set_title('Temperature Analysis (N/A)')
+            
+            # Temperature change vs FPS
+            if 'temp_change' in df_success.columns:
+                axes[1, 1].scatter(df_success['temp_change'], df_success['fps'])
+                axes[1, 1].set_title('FPS vs Temperature Change')
+                axes[1, 1].set_xlabel('Temperature Change (°C)')
+                axes[1, 1].set_ylabel('FPS')
+            else:
+                axes[1, 1].text(0.5, 0.5, 'No temp change data', ha='center', va='center', transform=axes[1, 1].transAxes)
+                axes[1, 1].set_title('Temperature Change (N/A)')
+            
+            # Cooling time analysis
+            if 'cooling_time' in df_success.columns:
+                axes[1, 2].hist(df_success['cooling_time'], bins=10, edgecolor='black')
+                axes[1, 2].set_title('Cooling Time Distribution')
+                axes[1, 2].set_xlabel('Cooling Time (s)')
+                axes[1, 2].set_ylabel('Count')
+            else:
+                axes[1, 2].text(0.5, 0.5, 'No cooling data', ha='center', va='center', transform=axes[1, 2].transAxes)
+                axes[1, 2].set_title('Cooling Time (N/A)')
+        else:
+            # Original NFH Load analysis
+            if 'nfh_input_load' in df_success.columns and 'nfh_output_load' in df_success.columns:
+                axes[1, 1].scatter(df_success['nfh_input_load'], df_success['fps'], alpha=0.5, label='Input Load')
+                axes[1, 1].scatter(df_success['nfh_output_load'], df_success['fps'], alpha=0.5, label='Output Load')
+                axes[1, 1].set_title('FPS vs NFH Load')
+                axes[1, 1].set_xlabel('Load (%)')
+                axes[1, 1].set_ylabel('FPS')
+                axes[1, 1].legend()
+            else:
+                axes[1, 1].text(0.5, 0.5, 'No NFH load data', ha='center', va='center', transform=axes[1, 1].transAxes)
+                axes[1, 1].set_title('NFH Load Analysis (N/A)')
+
+        plt.tight_layout()
+        plot_file = output_dir / 'analysis_plots.png'
+        plt.savefig(plot_file)
+        print(f"\nPlots saved to: {plot_file}")
+
+    except ImportError:
+        print("\nNote: matplotlib/seaborn not available, skipping visualization")
+    except Exception as e:
+        print(f"\nWarning: Could not generate plots: {e}")
+
+    # Save analysis report
+    report_file = output_dir / 'analysis_report.txt'
+    with open(report_file, 'w') as f:
+        f.write("DX-FIT Results Analysis Report\n")
+        f.write("=" * 60 + "\n")
+        f.write(f"Total tests: {len(df)}\n")
+        f.write(f"Successful tests: {len(df_success)}\n")
+        f.write(f"Failed tests: {len(df) - len(df_success)}\n\n")
+
+        f.write("Performance Statistics:\n")
+        f.write(f"FPS: min={df_success['fps'].min():.2f}, max={df_success['fps'].max():.2f}, "
+                f"mean={df_success['fps'].mean():.2f}, std={df_success['fps'].std():.2f}\n")
+        if 'latency' in df_success.columns:
+            f.write(f"Latency: min={df_success['latency'].min():.2f}ms, max={df_success['latency'].max():.2f}ms, "
+                    f"mean={df_success['latency'].mean():.2f}ms\n")
+
+        f.write("\nBest Configuration:\n")
+        f.write(f"FPS: {best_row['fps']:.2f}\n")
+        if 'latency' in df_success.columns:
+            f.write(f"Latency: {best_row['latency']:.2f}ms\n")
+        
+        # Add thermal data for best configuration
+        thermal_cols = ['pre_test_temp', 'post_test_temp', 'temp_change', 'pre_test_voltage', 'post_test_voltage', 'voltage_change', 'cooling_time']
+        thermal_best = {col: best_row.get(col) for col in thermal_cols if col in best_row and pd.notna(best_row.get(col))}
+        
+        if thermal_best:
+            f.write("Thermal Data:\n")
+            for key, value in thermal_best.items():
+                if 'temp' in key:
+                    unit = "°C"
+                elif 'voltage' in key:
+                    unit = "mV"
+                elif 'cooling_time' in key:
+                    unit = "s"
+                else:
+                    unit = ""
+                f.write(f"  {key}: {value:.1f}{unit}\n")
+        
+        f.write("Parameters:\n")
+        for key, value in params.items():
+            f.write(f"  export {key}={value}\n")
+
+        # Top 5 configurations
+        if len(df_success) >= 5:
+            f.write("\nTop 5 Configurations:\n")
+            f.write("-" * 40 + "\n")
+            sorted_results = df_success.nlargest(5, 'fps')
+            for i, (idx, row) in enumerate(sorted_results.iterrows(), 1):
+                # Extract parameters from row
+                row_params = {}
+                for col in row.index:
+                    if col.startswith('DXRT_') or col.startswith('NFH_') or col.startswith('CUSTOM_'):
+                        row_params[col] = row[col]
+                f.write(f"{i}. FPS: {row['fps']:.2f}, Params: {row_params}\n")
+
+    print(f"\nAnalysis report saved to: {report_file}")
+
+def main():
+    parser = argparse.ArgumentParser(description='Analyze dx-fit results')
+    parser.add_argument('csv_file', help='Results CSV file from dx-fit')
+    parser.add_argument('--output', '-o', help='Output directory for analysis')
+
+    args = parser.parse_args()
+
+    analyze_results(args.csv_file, args.output)
+
+if __name__ == '__main__':
+    main()

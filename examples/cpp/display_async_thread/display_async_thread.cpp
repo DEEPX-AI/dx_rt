@@ -8,6 +8,7 @@
  */
 
 #include "dxrt/dxrt_api.h"
+#include "dxrt/extern/cxxopts.hpp"
 #include "concurrent_queue.h"
 #include "../include/logger.h"
 #include <string>
@@ -134,48 +135,42 @@ static int onInferenceCallbackFunc(dxrt::TensorPtrs &outputs, void *userArg)
 
 int main(int argc, char* argv[])
 {
-    const int DEFAULT_LOOP_COUNT = 1;
-    const int DEFAULT_THREAD_COUNT = 3;
     const bool ENABLE_ORT = false;
     
     std::string model_path;
-    int loop_count = DEFAULT_LOOP_COUNT;
-    int thread_count = DEFAULT_THREAD_COUNT;
-    bool logging = false;
+    int loop_count;
+    int thread_count;
+    bool verbose;
 
     auto &log = dxrt::Logger::GetInstance();
 
-    if ( argc > 1 )
+    cxxopts::Options options("display_async_thread", "Display async inference with multiple threads");
+    options.add_options()
+        ("m,model", "Path to model file (.dxnn)", cxxopts::value<std::string>(model_path))
+        ("l,loops", "Number of inference loops", cxxopts::value<int>(loop_count)->default_value("1"))
+        ("t,threads", "Number of threads", cxxopts::value<int>(thread_count)->default_value("3"))
+        ("v,verbose", "Enable verbose/debug logging", cxxopts::value<bool>(verbose)->default_value("false"))
+        ("h,help", "Print usage");
+
+    try
     {
-        model_path = argv[1];
+        auto result = options.parse(argc, argv);
 
-        if ( argc > 2 ) 
+        if (result.count("help") || !result.count("model"))
         {
-            loop_count = std::stoi(argv[2]);
+            std::cout << options.help() << std::endl;
+            return result.count("help") ? 0 : -1;
+        }
 
-            if (argc > 3 )
-            {
-                thread_count = std::stoi(argv[3]);
-
-                if (argc > 4)
-                {
-                    std::string last_arg = argv[4];
-                    if (last_arg == "--verbose" || last_arg == "-v")
-                    {
-                        logging = true;
-                    }
-                }
-            }
+        if (verbose) {
+            log.SetLevel(dxrt::Logger::Level::LOGLEVEL_DEBUG);
         }
     }
-    else
+    catch (const std::exception& e)
     {
-        log.Info("[Usage] display_async_thread [dxnn-file-path] [loop-count] [thread-count] [--verbose|-v]");
+        log.Error(std::string("Error parsing arguments: ") + e.what());
+        std::cout << options.help() << std::endl;
         return -1;
-    }
-
-    if (logging) {
-        log.SetLevel(dxrt::Logger::Level::DEBUG);
     }
 
     log.Info("Start display_async_thread test for model: " + model_path);

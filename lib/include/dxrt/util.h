@@ -42,6 +42,7 @@ DXRT_API void DataFromFile(std::string f, void *d, unsigned int size);
 DXRT_API void DataDumpBin(std::string filename, void *data, unsigned int size);
 DXRT_API uint32_t SizeFromFile(std::string f);
 DXRT_API std::vector<std::string> GetFileList(std::string dir);
+DXRT_API uint64_t GetAlign(uint64_t size, int align);
 DXRT_API uint64_t GetAlign(uint64_t size);
 DXRT_API void* MemAlloc(size_t size, size_t align = 8, int value = 0);
 DXRT_API void MemFree(void **p);

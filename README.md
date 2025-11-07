@@ -26,7 +26,7 @@ In other way, you can generate documents from repository (using markdown files i
 * python>=3.9 is needed.  
 ```
 # install MkDocs
-pip install mkdocs mkdocs-material mkdocs-video pymdown-extensions
+pip install mkdocs mkdocs-material mkdocs-video mkdocs-with-pdf pymdown-extensions 
 # generate html to directory "docs_generated"
 mkdocs build
 ```

@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -26,7 +26,7 @@ class NpuDevice
  public:
     static constexpr int CORE_COUNT = 3;
 
-    explicit NpuDevice(uint8_t deviceNumber, dxrt::DevicePtr devicePtr, DXTopIPCClient& DXTopIPCClient);
+    explicit NpuDevice(uint8_t deviceNumber, std::shared_ptr<DeviceCore> devicePtr, DXTopIPCClient& DXTopIPCClient);
     virtual ~NpuDevice() = default;
 
     void InitPcieBusNumber();
@@ -57,9 +57,9 @@ class NpuDevice
  private:
     uint8_t _deviceNumber;
     std::string _pcieBusNumber;
-    
-    
-    dxrt::DevicePtr _devicePtr;
+
+
+    std::shared_ptr<dxrt::DeviceCore> _devicePtr;
     uint64_t _dramUsage;
 
     dxrt_device_status_t _status;

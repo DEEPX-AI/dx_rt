@@ -16,7 +16,7 @@
 namespace dxrt {
 
 enum class memoryRequestCode : int {
-    REGISTESR_PROCESS = 0,  //set msg to pid
+    REGISTER_PROCESS = 0,  //set msg to pid
     GET_MEMORY = 1,  //set msg to size
     FREE_MEMORY = 2,  //set msg to value returned by GET_MEMORY
 

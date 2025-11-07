@@ -18,6 +18,7 @@
 namespace dxrt {
 
 WindowsDriverAdapter::WindowsDriverAdapter(const char* fileName)
+: _name(fileName)
 {
     _fd = CreateFile(fileName,
         GENERIC_READ | GENERIC_WRITE,

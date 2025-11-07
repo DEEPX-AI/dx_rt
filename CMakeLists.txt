@@ -20,7 +20,7 @@ endif()
 project(dxrt DESCRIPTION "DEEPX Runtime SDK")
 
 set(CMAKE_CXX_STANDARD_REQUIRED "ON")
-set(CMAKE_CXX_STANDARD "11")
+set(CMAKE_CXX_STANDARD "14")
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/release" CACHE PATH "Default install path" FORCE)
 endif()
@@ -52,12 +52,7 @@ include(dxrt.function)
 
 set(CMAKE_CXX_STANDARD_REQUIRED "ON")
 
-if(USE_ORT)
-    set(CMAKE_CXX_STANDARD "14")
-else()
-    #set(CMAKE_CXX_STANDARD "11")
-    set(CMAKE_CXX_STANDARD "14")
-endif()
+
 
 # global compile options
 if (MSVC)
@@ -65,7 +60,7 @@ if (MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /DWIN32 /D_WINDOWS /W3 /GR /EHsc")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS /DEBUG:FULL")
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /DEBUG:FULL")
-    
+
     add_compile_options(-D_CRT_SECURE_NO_WARNINGS)
 
     add_definitions(-D_AMD64_ -D_WIN64 -DWIN64)
@@ -93,11 +88,11 @@ if (MSVC)
         )
     endif()
 
-    # WIN SDK default setting   
+    # WIN SDK default setting
     set(WINDOWS_SDK_PATH "C:/Program Files (x86)/Windows Kits/10")
     set(WINDOWS_SDK_VERSION "10.0.22621.0")
 
-    # set windows sdk lib path        
+    # set windows sdk lib path
     set(WINDOWS_SDK_LIB_PATH "${WINDOWS_SDK_PATH}/Lib/${WINDOWS_SDK_VERSION}/um/x64")
     link_directories(${WINDOWS_SDK_LIB_PATH})
 
@@ -112,9 +107,9 @@ if (MSVC)
 
     # link Visual C++ runtime lib
     link_libraries(
-        $<$<CONFIG:Debug>:msvcrtd> 
+        $<$<CONFIG:Debug>:msvcrtd>
         $<$<CONFIG:Release>:msvcrt>
-        $<$<CONFIG:Debug>:msvcprtd> 
+        $<$<CONFIG:Debug>:msvcprtd>
         $<$<CONFIG:Release>:msvcprt>
     )
 else()
@@ -128,7 +123,7 @@ else()
 endif()
 
 if (ENABLE_DEBUG_INFO)
-    if (NOT MSVC) 
+    if (NOT MSVC)
         add_compile_options(-g)
         if (${USE_CLANG})
         else()
@@ -157,7 +152,7 @@ option(ENABLE_COVERAGE "Enable code coverage collection" OFF)
 
 if(ENABLE_COVERAGE)
     message(STATUS "Code coverage collection is ENABLED")
-    
+
     # Coverage flags for different compilers
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         # Clang coverage flags
@@ -172,30 +167,30 @@ if(ENABLE_COVERAGE)
     else()
         message(WARNING "Coverage is only supported for GCC and Clang compilers")
     endif()
-    
+
     # Apply coverage flags
     if(COVERAGE_CXX_FLAGS)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COVERAGE_CXX_FLAGS}")
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COVERAGE_C_FLAGS}")
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${COVERAGE_LINKER_FLAGS}")
         set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${COVERAGE_LINKER_FLAGS}")
-        
+
         # Add coverage compile definition
         add_compile_definitions(COVERAGE_ENABLED)
     endif()
-    
+
     # Function to clean coverage files
     function(clean_coverage_files)
         file(GLOB_RECURSE GCDA_FILES "${CMAKE_BINARY_DIR}/*.gcda")
         file(GLOB_RECURSE GCNO_FILES "${CMAKE_BINARY_DIR}/*.gcno")
         file(GLOB_RECURSE PROFRAW_FILES "${CMAKE_BINARY_DIR}/*.profraw")
         file(GLOB_RECURSE PROFDATA_FILES "${CMAKE_BINARY_DIR}/*.profdata")
-        
+
         foreach(file ${GCDA_FILES} ${GCNO_FILES} ${PROFRAW_FILES} ${PROFDATA_FILES})
             file(REMOVE ${file})
         endforeach()
     endfunction()
-    
+
     # Add custom target for cleaning coverage files
     add_custom_target(clean-coverage
         COMMAND ${CMAKE_COMMAND} -E echo "Cleaning coverage files..."
@@ -249,7 +244,6 @@ if(USE_PYTHON)
             OUTPUT_STRIP_TRAILING_WHITESPACE
         )
 
-        # Python 버전을 "X.Y" 형식으로 설정
         set(PYBIND11_PYTHON_VERSION "${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR}")
         message(STATUS "Found Python: ${Python_EXECUTABLE} (version ${PYBIND11_PYTHON_VERSION})")
     else ()

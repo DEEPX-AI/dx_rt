@@ -263,14 +263,34 @@ CpuHandle::CpuHandle(void* data_, int64_t size_, string name_, size_t device_num
         auto dataType = tensorInfo.GetElementType();
         _outputDataTypes.push_back(convertDataType(dataType));
         _outputShapes.push_back(tensorInfo.GetShape());
-        auto size = dxrt::vectorProduct(_outputShapes.back()) * convertElementSize(dataType);
-        _outputSize += size;
-        _outputSizes.push_back(size);
+        
+        // Check if this output has dynamic shape
+        bool isDynamic = DetectDynamicShape(_outputShapes.back());
+        _outputIsDynamic.push_back(isDynamic);
+        
+        if (isDynamic) {
+            _hasDynamicOutput = true;
+            // For dynamic outputs, we can't pre-calculate size, set to 0 for now
+            _outputSizes.push_back(0);
+            LOG_DXRT_DBG << "Output[" << i << "] '" << _outputNames[i] << "' has dynamic shape: " 
+                         << _outputShapes.back() << std::endl;
+        } else {
+            // Static output: calculate size as before
+            auto size = dxrt::vectorProduct(_outputShapes.back()) * convertElementSize(dataType);
+            _outputSize += size;
+            _outputSizes.push_back(size);
+            LOG_DXRT_DBG << "Output[" << i << "] '" << _outputNames[i] << "' has static shape: " 
+                         << _outputShapes.back() << ", size: " << size << std::endl;
+        }
 
         if (i < _numOutputs-1)
         {
             _outputOffsets.push_back(_outputSize);
         }
+    }
+    
+    if (_hasDynamicOutput) {
+        LOG_DXRT_DBG << "Task " << name_ << " contains dynamic shape outputs" << std::endl;
     }
     // To be replaced by a modeling method in the future
     if (_dynamicCpuThread) {
@@ -393,87 +413,29 @@ void CpuHandle::RunWithSession(RequestPtr req, std::shared_ptr<Ort::Session> ses
         throw InvalidOperationException(EXCEPTION_MESSAGE(err_msg));
     }
 
-    // Create output tensors for ONNX Runtime
-    // Use the output tensors directly from the request - they already have correct pointers
-    auto reqOutputs = req->outputs();
-    if (!reqOutputs.empty() && reqOutputs.size() >= static_cast<size_t>(_numOutputs))
-    {
-        // Create ONNX output name -> index mapping for proper tensor ordering
-        std::map<std::string, int> onnxOutputIndexMap;
-        for (int i = 0; i < _numOutputs; ++i)
-        {
-            onnxOutputIndexMap[_outputNames[i]] = i;
-        }
-
-        // Pre-allocate output tensors vector with nullptr values
-        outputTensors.clear();
-        outputTensors.reserve(_numOutputs);
-        for (int i = 0; i < _numOutputs; ++i)
-        {
-            outputTensors.emplace_back(nullptr);
-        }
-
-        // Map request outputs to ONNX outputs in correct order
-        for (int i = 0; i < _numOutputs; i++)
-        {
-            auto& outputTensor = reqOutputs[i];
-            std::string tensorName = outputTensor.name();
-
-            // Find the corresponding ONNX output index
-            auto it = onnxOutputIndexMap.find(tensorName);
-            if (it == onnxOutputIndexMap.end())
-            {
-                //LOG_DXRT_ERR("Tensor '" + tensorName + "' not found in ONNX outputs for task: " + task->name());
-                //throw std::runtime_error("Tensor '" + tensorName + "' not found in ONNX outputs");
-
-                std::string err_msg = LogMessages::CPUHandle_NotFoundInONNXOutputs(tensorName, task->name());
-                throw InvalidOperationException(EXCEPTION_MESSAGE(err_msg));
-            }
-
-            int onnxIndex = it->second;
-
-            LOG_DXRT_DBG << "CpuHandle Output[" << i << "]: " << tensorName
-                        << " -> ONNX[" << onnxIndex << "]: " << _outputNames[onnxIndex]
-                        << ", dtype: " << _outputDataTypes[onnxIndex]
-                        << ", data_ptr: " << outputTensor.data()
-                        << ", size: " << _outputSizes[onnxIndex] << std::endl;
-            LOG_DXRT_DBG << "_outputShape[" << onnxIndex << "]: " << _outputShapes[onnxIndex] << std::endl;
-
-            // Create ONNX tensor at the correct index
-            outputTensors[onnxIndex] = Ort::Value::CreateTensor(
-                memoryInfo,
-                outputTensor.data(),         // Use tensor's data pointer directly
-                _outputSizes[onnxIndex],     // Use ONNX Runtime's tensor size
-                _outputShapes[onnxIndex].data(),
-                _outputShapes[onnxIndex].size(),
-                convertONNXTensorElementDataType(_outputDataTypes[onnxIndex])
-            );
-        }
+    // Create output tensors for ONNX Runtime using IO Binding
+    // This supports mixed static/dynamic outputs without size mismatch
+    Ort::IoBinding binding(*session);
+    
+    // Bind inputs
+    for (int i = 0; i < _numInputs; ++i) {
+        binding.BindInput(_inputNames[i].c_str(), inputTensors[i]);
     }
-    else
-    {
-        std::string err_msg = LogMessages::CPUHandle_NoOutputTensorsAvailable(task->name(), reqOutputs.size(), _numOutputs);
-        throw InvalidOperationException(EXCEPTION_MESSAGE(err_msg));
-    }
-
-    // Validate tensor counts match ONNX model expectations
-    if (static_cast<int>(inputTensors.size()) != _numInputs)
-    {
-        std::string err_msg = LogMessages::CPUHandle_InputTensorCountMismatch(inputTensors.size(), _numInputs);
-        throw InvalidOperationException(EXCEPTION_MESSAGE(err_msg));
-    }
-
-    if (static_cast<int>(outputTensors.size()) != _numOutputs)
-    {
-        std::string err_msg = LogMessages::CPUHandle_OutputTensorCountMismatch(outputTensors.size(), _numOutputs);
-        throw InvalidOperationException(EXCEPTION_MESSAGE(err_msg));
-    }
-
+    
+    // Bind outputs: static pre-bind, dynamic let ORT allocate
+    SetupOutputsWithBinding(req, binding);
+    
     LOG_DXRT_DBG << "session run start : " << req->id() << std::endl;
-    session->Run(Ort::RunOptions{nullptr},
-                  _inputNamesChar.data(), inputTensors.data(), inputTensors.size(),
-                  _outputNamesChar.data(), outputTensors.data(), outputTensors.size());
-    LOG_DXRT_DBG << "session run end : " << req->id() << std::endl;
+    
+    // Run with binding
+    session->Run(Ort::RunOptions{nullptr}, binding);
+    
+    // Get outputs and update request tensors
+    auto ortOutputs = binding.GetOutputValues();
+    UpdateRequestOutputsFromBinding(req, std::move(ortOutputs));
+    
+    LOG_DXRT_DBG << "session run end (IO binding mode) : " << req->id() << std::endl;
+    
 #ifdef USE_PROFILER
     profiler.End(profileInstanceName);
 #endif
@@ -522,6 +484,74 @@ std::shared_ptr<Ort::Session> CpuHandle::CreateWorkerSession()
     */
     return std::make_shared<Ort::Session>(_env, _modelData.data(), _modelSize, workerSessionOptions);
 }
+
+bool CpuHandle::DetectDynamicShape(const std::vector<int64_t>& shape) const
+{
+    return std::any_of(shape.begin(), shape.end(), 
+                      [](int64_t dim) { return dim <= 0; });
+}
+
+
+void CpuHandle::SetupOutputsWithBinding(RequestPtr req, Ort::IoBinding& binding)
+{
+    auto reqOutputs = req->outputs();
+    Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(
+        OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault);
+    
+    for (int i = 0; i < _numOutputs; ++i) {
+        if (_outputIsDynamic[i]) {
+            // Dynamic output: let ORT allocate using default memory info
+            binding.BindOutput(_outputNames[i].c_str(), memoryInfo);
+            LOG_DXRT_DBG << "CpuHandle Dynamic Output[" << i << "]: " << _outputNames[i]
+                        << " - ORT will allocate with memory info" << std::endl;
+        } else {
+            // Static output: pre-bind to existing buffer
+            if (i < static_cast<int>(reqOutputs.size())) {
+                auto& outputTensor = reqOutputs[i];
+                Ort::Value ortValue = Ort::Value::CreateTensor(
+                    memoryInfo,
+                    outputTensor.data(),
+                    _outputSizes[i],
+                    _outputShapes[i].data(),
+                    _outputShapes[i].size(),
+                    convertONNXTensorElementDataType(_outputDataTypes[i])
+                );
+                binding.BindOutput(_outputNames[i].c_str(), ortValue);
+                LOG_DXRT_DBG << "CpuHandle Static Output[" << i << "]: " << _outputNames[i]
+                            << " - pre-bound to buffer" << std::endl;
+            } else {
+                std::string err_msg = LogMessages::CPUHandle_NoOutputTensorsAvailable(req->task()->name(), reqOutputs.size(), _numOutputs);
+                throw InvalidOperationException(EXCEPTION_MESSAGE(err_msg));
+            }
+        }
+    }
+}
+
+void CpuHandle::UpdateRequestOutputsFromBinding(RequestPtr req, std::vector<Ort::Value> ortOutputs)
+{
+    if (static_cast<int>(ortOutputs.size()) != _numOutputs) {
+        std::string err_msg = LogMessages::CPUHandle_OutputTensorCountMismatch(ortOutputs.size(), _numOutputs);
+        throw InvalidOperationException(EXCEPTION_MESSAGE(err_msg));
+    }
+    
+    auto reqOutputs = req->outputs();
+    bool anyDynamicUpdated = false;
+    for (int i = 0; i < _numOutputs; ++i) {
+        if (_outputIsDynamic[i]) {
+            auto &tensor = reqOutputs[i];
+            auto shape = ortOutputs[i].GetTensorTypeAndShapeInfo().GetShape();
+            auto data = ortOutputs[i].GetTensorMutableData<void>();
+            auto ortValue = std::make_shared<Ort::Value>(std::move(ortOutputs[i]));
+            tensor.update_with_ort_value(shape, data, static_cast<void*>(&ortValue));
+            anyDynamicUpdated = true;
+            LOG_DXRT_DBG << "Updated dynamic tensor[" << i << "] with shape size " << shape.size() << std::endl;
+        }
+    }
+    if (anyDynamicUpdated) {
+        req->setOutputs(reqOutputs);
+    }
+}
+
 #endif
 
 #else

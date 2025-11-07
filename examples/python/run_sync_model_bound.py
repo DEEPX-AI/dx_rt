@@ -8,30 +8,35 @@
 #
 
 import numpy as np
-import sys
+import os
+import argparse
 import time
 from dx_engine import InferenceEngine, InferenceOption
 from logger import Logger, LogLevel
 
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Run synchronous model inference with core/device binding")
+    parser.add_argument("--model", "-m", type=str, required=True, help="Path to model file (.dxnn)")
+    parser.add_argument("--loops", "-l", type=int, default=1, help="Number of inference loops (default: 1)")
+    parser.add_argument("--verbose", "-v", action="store_true", default=False, help="Enable debug logging")
+    args = parser.parse_args()
+
+    if not os.path.exists(args.model):
+        parser.error(f"Model path '{args.model}' does not exist.")
+    
+    if args.verbose:
+        logger = Logger()
+        logger.set_level(LogLevel.DEBUG)
+    
+    return args
+
+
 if __name__ == "__main__":
+    args = parse_args()
     logger = Logger()
     
-    DEFAULT_LOOP_COUNT = 1
-    loop_count = DEFAULT_LOOP_COUNT
-    modelPath = ""
-    argc = len(sys.argv)
-    if ( argc > 1 ) :
-        modelPath = sys.argv[1]
-        if ( argc > 2 ) :
-            loop_count = int(sys.argv[2])
-            
-        if "--verbose" in sys.argv or "-v" in sys.argv:
-            logger.set_level(LogLevel.DEBUG)
-    else:
-        logger.info("[Usage] run_sync_model_bound [dxnn-file-path] [loop-count] [--verbose|-v]")
-        exit(-1)
-    
-    logger.info(f"Start run_sync_model_bound test for model: {modelPath}")
+    logger.info(f"Start run_sync_model_bound test for model: {args.model}")
     
     # inference option
     option = InferenceOption()
@@ -52,13 +57,13 @@ if __name__ == "__main__":
    
     try:
         # create inference engine instance with model
-        with InferenceEngine(modelPath, option) as ie:
+        with InferenceEngine(args.model, option) as ie:
 
             input = [np.zeros(ie.get_input_size(), dtype=np.uint8)]
 
             start = time.perf_counter()
             # inference loop
-            for i in range(loop_count):
+            for i in range(args.loops):
 
                 # inference synchronously 
                 # use only one npu core 
@@ -71,7 +76,7 @@ if __name__ == "__main__":
                 
             end = time.perf_counter()
             total_time_ms = (end -start) * 1000
-            avg_latency = total_time_ms / loop_count
+            avg_latency = total_time_ms / args.loops
             fps = 1000.0/ avg_latency if avg_latency > 0 else 0.0
             
             logger.info("-----------------------------------")

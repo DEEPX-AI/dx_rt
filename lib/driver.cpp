@@ -2,14 +2,15 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
 #include "dxrt/common.h"
 #include "dxrt/driver.h"
 #include "dxrt/device_util.h"
+#include "dxrt/device_struct_operators.h"
 
 #include <map>
 #ifdef __linux__
@@ -64,7 +65,7 @@ std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_err_t& error) {
     os << "* NPU ID           : " << error.npu_id << endl;
     os << "* Rt drv version   : v" << GetDrvVersionWithDot(error.rt_driver_version) << endl;
     os << "* Pcie drv version : v" << GetDrvVersionWithDot(error.pcie_driver_version) << endl;
-    os << "* Firmware version : v" << GetFwVersionWithDot(error.fw_ver) << endl;
+    os << "* Firmware version : v" << GetFWVersionFromDeviceInfo(error.fw_ver, error.fw_version_suffix) << endl;
     os << "------------------------------------------------------------------------------------------" << endl;
 
     // Print base addresses
@@ -223,13 +224,13 @@ std::ostream& operator<<(std::ostream& os, const dxrt_device_info_t& info)
         << "board type " << info.bd_type << ", "
         << "ddr freq " << info.ddr_freq << ", "
         << "ddr type " << info.ddr_type << ", "
-#ifdef __linux__        
+#ifdef __linux__
         << "interface " << info.interface << ", "
 #elif _WIN32
-        << "interface " << info.interface_value << ", "
+       << "interface " << info.interface_value << ", "
 #endif
-        << string(info.fw_info)
-        << dec;
+       << GetFWVersionFromDeviceInfo(info.fw_ver, info.fw_ver_suffix)
+       << dec;
     return os;
 }
 std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_ntfy_throt_t& notify)
@@ -279,6 +280,35 @@ std::ostream& operator<<(std::ostream& os, const otp_info_t& info)
         << left << setw(20) << "Barcode:"           << string(info.BARCODE, sizeof(info.BARCODE)) << "\n"
         << left << setw(20) << "Barcode index:"     << "0x" << hex << static_cast<int>(info.BARCODE_IDX) << dec << "\n"
         << "=====================================\n";
+
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const dxrt_fct_result_t& info)
+{
+    using std::uppercase;
+    using std::left;
+    using std::setw;
+
+    os << "=====================================\n"
+       << "           FCT Result Info           \n"
+       << "=====================================\n";
+
+    for (int i = 0; i < 4; ++i) {
+        os << left << setw(20) << "WR Margin[" + std::to_string(i) + "]:" << info.wr_margin[i] << "%\n";
+    }
+
+    for (int i = 0; i < 4; ++i) {
+        os << left << setw(20) << "RD Margin[" + std::to_string(i) + "]:" << info.rd_margin[i] << "%\n";
+    }
+
+    // ddr_margin, ddr_mf, i2c_fail
+    os  << left << setw(20) << "DDR Manufacturer:" << static_cast<int>(info.ddr_mf) << "\n"
+        << left << setw(20) << "DDR Margin:" << (info.ddr_margin == 1 ? "PASS" : "FAIL") << "\n"
+        << left << setw(20) << "I2C Fail:" << (info.i2c_fail == 1 ? "FAIL" : "PASS") << "\n"
+        << left << setw(20) << "Test Done:" << static_cast<int>(info.test_done) << "\n";
+        // << left << setw(20) << "Test Done:" << (info.test_done == 1 ? "PASS" : "FAIL") << "\n";
+    os << "=====================================\n";
 
     return os;
 }

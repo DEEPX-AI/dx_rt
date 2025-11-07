@@ -185,6 +185,10 @@ function VersionDependencyCheck()
     fi
     IFS=$'\n'
     for line in $RESULT; do
+        # Skip ONNX Runtime Version line if version starts with 0 (e.g., v0.0.0)
+        if [[ "$line" =~ ^ONNX\ Runtime\ Version:\ v0 ]]; then
+            continue
+        fi
         echo "   $line" | tee -a "$LOG_FILE"
     done
     unset IFS 
@@ -195,21 +199,8 @@ function ExecutableFileCheck()
 {
     echo "==== Runtime Executable File Check ====" | tee -a "$LOG_FILE"
 
-    # library
-    LIBRARY_NAME="libdxrt.so"
-
     # service
     SERVICE_NAME="dxrtd"
-
-    #RESULT="libdxrt.so"
-    LIB_RESULT+=$'\n'$(ldconfig -p | grep $LIBRARY_NAME -w)
-    LIB_RETURN_VALUE=$?
-    if [ $LIB_RETURN_VALUE -eq 0 ]; then
-        RESULT=$'\n'"libdxrt.so ...OK"
-        RESULT+=$'\n'$LIB_RESULT
-    else
-        RESULT=$'\n'"libdxrt.so ...ERROR"
-    fi
 
     IGNORE=$(../../bin/dxrt-cli -h)
     CLI_RETURN_VALUE=$?
@@ -272,7 +263,7 @@ function ExecutableFileCheck()
     fi
     
 
-    if [[ $LIB_RETURN_VALUE -eq 0 && $RUN_MODEL_RETURN_VALUE -eq 0 
+    if [[ $RUN_MODEL_RETURN_VALUE -eq 0 
             && $CLI_RETURN_VALUE -eq 0 && $PARSE_MODEL_RETURN_VALUE -eq 0 
             && $DXTOP_RETURN_VALUE -eq 0 && $HEADER_RETURN_VALUE -eq 0 
             && $DXRTD_RETURN_VALUE -eq 0 ]]; then
@@ -285,6 +276,9 @@ function ExecutableFileCheck()
     fi
     IFS=$'\n'
     for line in $RESULT; do
+        if [[ "$line" =~ ^ONNX\ Runtime\ Version:\ v0 ]]; then
+            continue
+        fi
         echo "   $line" | tee -a "$LOG_FILE"
     done
     unset IFS 

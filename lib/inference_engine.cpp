@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -32,7 +32,7 @@
 #include "dxrt/configuration.h"
 #include "dxrt/datatype.h"
 #include "dxrt/task.h"
-#include "dxrt/device.h"
+#include "dxrt/device_pool.h"
 // #include "dxrt/util.h"
 #include "dxrt/request.h"
 #include "dxrt/cpu_handle.h"
@@ -72,6 +72,10 @@ InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &opti
         }
     }
 #endif
+
+    DevicePool::GetInstance().InitTaskLayers();
+    DevicePool::GetInstance().InitNFHLayers();
+
     std::lock_guard<std::mutex> lock(_sInferenceEngineMutex);
 
     _modelDir = getParentPath(getAbsolutePath(_modelFile));
@@ -119,46 +123,105 @@ InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &opti
     }
 
     buildTaskGraph();
+    
+    // ============================================================================
+    // [TEMPORARY FIX] v8 PPCPU: Override graph_info.json outputs for PPCPU models
+    // Issue: graph_info.json contains pre-PPU intermediate tensors in outputs,
+    //        but PPCPU models actually output a single "PPU_OUTPUT" tensor after PPU processing.
+    // TODO: Remove this temporary fix once compiler properly sets graph_info outputs for PPCPU models.
+    // ============================================================================
+    // Check if any task is PPCPU (which also sets _isPPU flag in TaskData)
+    for (auto &task : _tasks)
+    {
+        if (task->getData()->_isPPCPU)
+        {
+            // Replace graph outputs with PPU_OUTPUT for PPCPU models
+            _modelData.deepx_graph.outputs().clear();
+            _modelData.deepx_graph.outputs().push_back("PPU_OUTPUT");
+            LOG_DXRT_DBG << "[TEMPORARY FIX] PPCPU model detected: Overriding graph outputs to ['PPU_OUTPUT']" << std::endl;
+            break;
+        }
+    }
+    // ============================================================================
+    // [END TEMPORARY FIX]
+    // ============================================================================
+    
+    // Initialize _lastOutputOrder and collect tail tasks
+    _numTails = 0;
+    std::vector<std::pair<TaskPtr, std::vector<std::string>>> tailTaskOutputs;
+    
+    
+    // Use output order from graph_info (already parsed)
 #ifdef USE_ORT
     if (_option.useORT == true)
     {
+        // ORT mode: Use graph outputs (already fixed for PPCPU in TEMPORARY FIX section)
         _lastOutputOrder = _modelData.deepx_graph.outputs();
+        
+        // Collect tail tasks for offset calculation
+        // CRITICAL: Only include outputs that are actually model outputs (in _lastOutputOrder)
+        // A tail task may produce multiple outputs, but not all are model outputs
+        for (auto &task : _tasks)
+        {
+            if (task->is_tail())
+            {
+                std::vector<std::string> taskOutputNames;
+                for (auto& output : task->outputs())
+                {
+                    // Only include outputs that are in the model's final output list
+                    if (std::find(_lastOutputOrder.begin(), _lastOutputOrder.end(), output.name()) 
+                        != _lastOutputOrder.end())
+                    {
+                        taskOutputNames.push_back(output.name());
+                    }
+                }
+                
+                // Only add task if it has model outputs
+                if (!taskOutputNames.empty())
+                {
+                    tailTaskOutputs.push_back({task, taskOutputNames});
+                    _numTails++;
+                    LOG_DXRT_DBG << "Tail task '" << task->name() << "': " << taskOutputNames.size() 
+                                 << " model output(s) from " << task->outputs().size() << " total outputs" << std::endl;
+                }
+            }
+        }
     }
     else
 #endif
     {
+        // Non-ORT mode: Build _lastOutputOrder from tail tasks
+        // Note: task->outputs() already correctly set for PPCPU (contains "PPU_OUTPUT")
+        //       via TaskData::set_from_npu() in task_data.cpp
         _lastOutputOrder.clear();
-    }
-    _numTails = 0;
-
-    // Step 1: Collect all tail tasks and their outputs in _lastOutputOrder
-    std::vector<std::pair<TaskPtr, std::vector<std::string>>> tailTaskOutputs;
-    for (auto &task : _tasks)
-    {
-        if (task->is_tail())
+        
+        for (auto &task : _tasks)
         {
-            std::vector<std::string> taskOutputNames;
-            for (auto& output : task->outputs())
+            if (task->is_tail())
             {
-                taskOutputNames.push_back(output.name());
-#ifdef USE_ORT
-                if (_option.useORT == false)
+                std::vector<std::string> taskOutputNames;
+                
+                for (auto& output : task->outputs())
+                {
+                    taskOutputNames.push_back(output.name());
                     _lastOutputOrder.push_back(output.name());
-#else
-                _lastOutputOrder.push_back(output.name());
-#endif
+                }
+                
+                tailTaskOutputs.push_back({task, taskOutputNames});
+                _numTails++;
+                
+                LOG_DXRT_DBG << "Tail task '" << task->name() << "': " << taskOutputNames.size() 
+                             << " output(s) added to _lastOutputOrder" << std::endl;
             }
-            tailTaskOutputs.push_back({task, taskOutputNames});
-            _numTails++;
         }
     }
-    // Temp. CODE for v7
+    
+    // Special handling for PPU/PPCPU models (_isPPU includes both PPU and PPCPU)
     if (_isPPU)
     {
-        // For PPU models, keep the _tailOffset settings but rebuild _lastOutputOrder
-        // to ensure consistency
+        // Rebuild _lastOutputOrder to ensure consistency for PPU models
         std::vector<std::string> newLastOutputOrder;
-
+        
         for (auto &task : _tasks)
         {
             if (task->is_tail())
@@ -169,91 +232,105 @@ InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &opti
                 }
             }
         }
-
-        // Only update if the order is different
+        
+        // Update if different (important for PPU model consistency)
         if (newLastOutputOrder != _lastOutputOrder)
         {
-            LOG_DBG("PPU model: Updating _lastOutputOrder for consistency");
+            LOG_DBG("PPU/PPCPU model: Updating _lastOutputOrder for consistency");
             _lastOutputOrder = newLastOutputOrder;
-
-            // Recalculate tailOffsets for PPU consistency
-            int64_t ppuOffset = 0;
+            
+            // Recalculate tailOffsets for PPU/PPCPU models using simple sequential offset
+            int64_t cumulativeOffset = 0;
             for (auto &task : _tasks)
             {
                 if (task->is_tail())
                 {
-                    task->setTailOffset(ppuOffset);
-                    ppuOffset += task->output_size();
+                    task->setTailOffset(cumulativeOffset);
+                    cumulativeOffset += task->output_size();
+                    LOG_DBG("PPU/PPCPU Task '" + task->name() + "' tailOffset: " 
+                            + std::to_string(task->getTailOffset()) 
+                            + ", size: " + std::to_string(task->output_size()));
+                }
+            }
+        }
+        else
+        {
+            // Offsets already set correctly, just log for verification
+            for (auto &task : _tasks)
+            {
+                if (task->is_tail())
+                {
+                    LOG_DBG("PPU/PPCPU Task '" + task->name() + "' tailOffset maintained: " 
+                            + std::to_string(task->getTailOffset()));
                 }
             }
         }
     }
-    // Step 2: Calculate tailOffset based on _lastOutputOrder sequence
-    // Create mapping from tensor name to its position in _lastOutputOrder
-    std::map<std::string, size_t> tensorOrderMap;
-    for (size_t i = 0; i < _lastOutputOrder.size(); ++i)
+    else
     {
-        tensorOrderMap[_lastOutputOrder[i]] = i;
-    }
-
-    // Step 3: Set tailOffset for each task based on cumulative tensor sizes in _lastOutputOrder
-    std::map<TaskPtr, int64_t> taskOffsetMap;
-
-    for (const auto& pair : tailTaskOutputs)
-    {
-        TaskPtr task = pair.first;
-        const auto& outputNames = pair.second;
-
-        // Find the minimum position of this task's outputs in _lastOutputOrder
-        size_t minPosition = std::numeric_limits<size_t>::max();
-        for (const auto& outputName : outputNames)
+        // Standard models: Calculate tailOffset based on _lastOutputOrder sequence
+        // Create mapping from tensor name to its position in _lastOutputOrder
+        std::map<std::string, size_t> tensorOrderMap;
+        for (size_t i = 0; i < _lastOutputOrder.size(); ++i)
         {
-            auto it = tensorOrderMap.find(outputName);
-            if (it != tensorOrderMap.end())
-            {
-                minPosition = std::min(minPosition, it->second);
-            }
+            tensorOrderMap[_lastOutputOrder[i]] = i;
         }
-
-        if (minPosition == std::numeric_limits<size_t>::max())
+        
+        // Set tailOffset for each task based on cumulative tensor sizes in _lastOutputOrder
+        for (const auto& pair : tailTaskOutputs)
         {
-            LOG_DXRT_ERR("Task '" + task->name() + "' is classified as a tail but its outputs are not found in the model output list");
-            LOG_DXRT_ERR("Task outputs: ");
-            for (const auto& name : outputNames) {
-                LOG_DXRT_ERR("  - '" + name + "'");
-            }
-            LOG_DXRT_ERR("_lastOutputOrder: ");
-            for (size_t i = 0; i < _lastOutputOrder.size(); ++i) {
-                LOG_DXRT_ERR("  [" + std::to_string(i) + "] '" + _lastOutputOrder[i] + "'");
-            }
-            throw InvalidModelException(EXCEPTION_MESSAGE(LogMessages::InferenceEngine_InvaildModel()));
-        }
-
-        // Calculate offset based on preceding tensors in _lastOutputOrder
-        int64_t taskOffset = 0;
-        for (size_t i = 0; i < minPosition; ++i)
-        {
-            const std::string& precedingTensorName = _lastOutputOrder[i];
-
-            // Find the tensor size
-            for (const auto& searchPair : tailTaskOutputs)
+            TaskPtr task = pair.first;
+            const auto& outputNames = pair.second;
+            
+            // Find the minimum position of this task's outputs in _lastOutputOrder
+            size_t minPosition = std::numeric_limits<size_t>::max();
+            for (const auto& outputName : outputNames)
             {
-                TaskPtr searchTask = searchPair.first;
-                for (const auto& tensor : searchTask->outputs())
+                auto it = tensorOrderMap.find(outputName);
+                if (it != tensorOrderMap.end())
                 {
-                    if (tensor.name() == precedingTensorName)
+                    minPosition = std::min(minPosition, it->second);
+                }
+            }
+            
+            if (minPosition == std::numeric_limits<size_t>::max())
+            {
+                LOG_DXRT_ERR("Task '" + task->name() + "' is classified as a tail but its outputs are not found in the model output list");
+                LOG_DXRT_ERR("Task outputs: ");
+                for (const auto& name : outputNames) {
+                    LOG_DXRT_ERR("  - '" + name + "'");
+                }
+                LOG_DXRT_ERR("_lastOutputOrder: ");
+                for (size_t i = 0; i < _lastOutputOrder.size(); ++i) {
+                    LOG_DXRT_ERR("  [" + std::to_string(i) + "] '" + _lastOutputOrder[i] + "'");
+                }
+                throw InvalidModelException(EXCEPTION_MESSAGE(LogMessages::InferenceEngine_InvaildModel()));
+            }
+            
+            // Calculate offset based on preceding tensors in _lastOutputOrder
+            int64_t taskOffset = 0;
+            for (size_t i = 0; i < minPosition; ++i)
+            {
+                const std::string& precedingTensorName = _lastOutputOrder[i];
+                
+                // Find the tensor size
+                for (const auto& searchPair : tailTaskOutputs)
+                {
+                    TaskPtr searchTask = searchPair.first;
+                    for (const auto& tensor : searchTask->outputs())
                     {
-                        taskOffset += tensor.size_in_bytes();
-                        break;
+                        if (tensor.name() == precedingTensorName)
+                        {
+                            taskOffset += tensor.size_in_bytes();
+                            break;
+                        }
                     }
                 }
             }
+            
+            task->setTailOffset(taskOffset);
+            LOG_DBG("Task '" + task->name() + "' tailOffset set to: " + std::to_string(taskOffset));
         }
-
-        task->setTailOffset(taskOffset);
-        taskOffsetMap[task] = taskOffset;
-
-        LOG_DBG("Task '" + task->name() + "' tailOffset set to: " + std::to_string(taskOffset));
     }
 
     DXRT_ASSERT(_lastOutputOrder.size() > 0, "last output order is empty");
@@ -330,20 +407,16 @@ TensorPtrs InferenceEngine::Run(void *inputPtr, void *userArg, void *outputPtr)
 
     std::shared_ptr<InferenceJob> infJob = _inferenceJobPool->pick();
 
-    infJob->DSP_SetDspEnable(0);
-    infJob->SetInferenceJob(_tasks, _head, _lastOutputOrder);
+    infJob->SetInferenceJob(_tasks, _head, _lastOutputOrder, _modelInputOrder);
     infJob->setInferenceEngineInterface(this);
     infJob->SetStoreResult(true);
     infJob->setCallBack([this](TensorPtrs &outputs, void *userArg, int jobId)->int{
         int retval = 0;
-        if (_userCallback !=nullptr)
+        if (_userCallback != nullptr)
         {
             retval = _userCallback(outputs, userArg);
         }
-        {
-            _inferenceJobPool->GetById(jobId)->SetOccupiedJob(false);
-        }
-
+        _inferenceJobPool->GetById(jobId)->SetOccupiedJob(false);
         return retval;
     });  // inference engine callback
 
@@ -440,11 +513,11 @@ int InferenceEngine::RunAsyncMultiInput(const std::map<std::string, void*>& inpu
     // Use multi-head setup if we have multiple input tasks, otherwise use traditional setup
     if (_inputTasks.size() > 1)
     {
-        infJob->SetInferenceJobMultiHead(_tasks, _inputTasks, _lastOutputOrder);
+        infJob->SetInferenceJobMultiHead(_tasks, _inputTasks, _lastOutputOrder, _modelInputOrder);
     }
     else
     {
-        infJob->SetInferenceJob(_tasks, _head, _lastOutputOrder);
+        infJob->SetInferenceJob(_tasks, _head, _lastOutputOrder, _modelInputOrder);
     }
 
     // Store outputs if user didn't register a callback
@@ -456,14 +529,11 @@ int InferenceEngine::RunAsyncMultiInput(const std::map<std::string, void*>& inpu
     infJob->setInferenceEngineInterface(this);
     infJob->setCallBack([this](TensorPtrs &outputs, void *userArg, int jobId)->int{
         int retval = 0;
-        if (_userCallback !=nullptr)
+        if (_userCallback != nullptr)
         {
             retval = _userCallback(outputs, userArg);
         }
-        {
-            _inferenceJobPool->GetById(jobId)->SetOccupiedJob(false);
-        }
-
+        _inferenceJobPool->GetById(jobId)->SetOccupiedJob(false);
         return retval;
     });  // inference engine callback
 
@@ -558,7 +628,7 @@ std::vector<TensorPtrs> InferenceEngine::Run(
         int sub_batch_loop = static_cast<int>(batch_count / SUB_BATCH_MAX_COUNT);
         int sub_batch_remain = static_cast<int>(batch_count % SUB_BATCH_MAX_COUNT);
 
-        // std::cout << "sub-batch-loop=" << sub_batch_loop << " sub-batch-count=" << SUB_BATCH_MAX_COUNT 
+        // std::cout << "sub-batch-loop=" << sub_batch_loop << " sub-batch-count=" << SUB_BATCH_MAX_COUNT
         //        << " total=" << sub_batch_loop * SUB_BATCH_MAX_COUNT << std::endl;
         // std::cout << "sub-batch-remain=" << sub_batch_remain << std::endl;
 
@@ -687,7 +757,7 @@ void InferenceEngine::runSubBatch(std::vector<TensorPtrs>& result, int batchCoun
 
 
 // private
-int InferenceEngine::runAsync(void *inputPtr, void *userArg, void *outputPtr, 
+int InferenceEngine::runAsync(void *inputPtr, void *userArg, void *outputPtr,
     std::function<void(TensorPtrs &outputs, void *userArg, int jobId)> batchCallback)
 {
     if (_isDisposed)
@@ -698,11 +768,9 @@ int InferenceEngine::runAsync(void *inputPtr, void *userArg, void *outputPtr,
     // std::shared_ptr<InferenceJob> infJob = ObjectsPool::GetInstance().PickInferenceJob();
     std::shared_ptr<InferenceJob> infJob = _inferenceJobPool->pick();
 
-    infJob->DSP_SetDspEnable(0);
-    infJob->SetInferenceJob(_tasks, _head, _lastOutputOrder);
+    infJob->SetInferenceJob(_tasks, _head, _lastOutputOrder, _modelInputOrder);
     infJob->setInferenceEngineInterface(this);
     infJob->setCallBack([this, batchCallback](TensorPtrs &outputs, void *userArg, int jobId)->int{
-
             int retval = 0;
             if (this->_userCallback != nullptr)
             {
@@ -716,16 +784,11 @@ int InferenceEngine::runAsync(void *inputPtr, void *userArg, void *outputPtr,
                     retval = this->_userCallback(outputs, userArg);
                 }
             }
-
-            // LOG_DXRT << "InferenceJob Callback-1 jobId=" << jobId << std::endl;
             if ( batchCallback != nullptr )
             {
                 batchCallback(outputs, userArg, jobId);
             }
-            {
-                _inferenceJobPool->GetById(jobId)->SetOccupiedJob(false);
-            }
-
+            _inferenceJobPool->GetById(jobId)->SetOccupiedJob(false);
             return retval;
         });  // inference engine callback
 
@@ -734,7 +797,7 @@ int InferenceEngine::runAsync(void *inputPtr, void *userArg, void *outputPtr,
         infJob->SetStoreResult(true);
     }
     // if(infJob->getId()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || infJob->getId()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
-    //    cout<<"[PROC         ][Job_"<<infJob->getId()<<"] Start"<<endl;
+
 
     int jobId = infJob->startJob(inputPtr, userArg, outputPtr);
 
@@ -820,7 +883,6 @@ float InferenceEngine::RunBenchMarkWindows(int num, void* inputPtr)
     auto callBack = [&done_count, &i_last, &done_todo](const TensorPtrs& outputs, void* userArg) -> int {
         std::ignore = outputs;
         std::ignore = userArg;
-        // cout << "BenchMark(" << ((int)userArg) << ")" << std::endl;
         int userArgInt = reinterpret_cast<uint64_t>(userArg);
 
         done_count++;
@@ -836,17 +898,14 @@ float InferenceEngine::RunBenchMarkWindows(int num, void* inputPtr)
         done_count = 0; i_last = 0;
         profiler.Start("benchmark");
         auto start_clock = std::chrono::steady_clock::now();
-        // profiler.Start("req");
         for (int i = 0; i < infCnt; i++)
         {
             RunAsync(inputPtr, reinterpret_cast<void*>(i));
         }
-        // profiler.End("req");
         while (done_count < infCnt)
         {
             std::this_thread::sleep_for(std::chrono::microseconds(1));
         }
-        // while (done_count < infCnt || (i_last!=(infCnt-1)) )continue;
         auto end_clock = std::chrono::steady_clock::now();
         profiler.End("benchmark");
         infTime = std::chrono::duration_cast<std::chrono::microseconds>(end_clock - start_clock).count();
@@ -865,15 +924,29 @@ float InferenceEngine::RunBenchMarkWindows(int num, void* inputPtr)
 }
 #endif  // _WIN32
 
+
+#ifdef DXRT_USE_DEVICE_VALIDATION
+
+} // namespace dxrt
+
+#include "dxrt/request_response_class.h"
+#include "dxrt/tensor.h"
+
+namespace dxrt
+{
+
+static std::mutex sValidationMutex;
+
 TensorPtrs InferenceEngine::ValidateDevice(void *inputPtr, int deviceId)
 {
+    DXRT_ASSERT(_tasks.size() == 1, "ONLY ONE TASK IS ALLOWED WHEN VALIDATE DEVICE");
 
     // Return empty result if not in debug mode
     if (_modelCompileType != "debug") {
         LOG_DXRT << "Models compiled in release mode from DX-COM are not supported in validate_device."<< std::endl;
         return TensorPtrs();
     }
-
+    std::lock_guard<std::mutex> lock(sValidationMutex);
     // Auto-split single input buffer for multi-input models if applicable
     if (shouldAutoSplitInput() && inputPtr != nullptr)
     {
@@ -897,8 +970,6 @@ TensorPtrs InferenceEngine::ValidateDevice(void *inputPtr, int deviceId)
         return ValidateDeviceMultiInput(splitPtrs, deviceId);
     }
 
-    Device::_sNpuValidateOpt.store(true);
-
     auto npuTaskIter = std::find_if(_tasks.begin(), _tasks.end(), [](const std::shared_ptr<dxrt::Task>& task) {
         return task->processor() == Processor::NPU;
     });
@@ -908,20 +979,48 @@ TensorPtrs InferenceEngine::ValidateDevice(void *inputPtr, int deviceId)
     }
 
     auto npuTask = *npuTaskIter;
-
-    std::vector<dxrt::DevicePtr>& devices = dxrt::CheckDevices();
-    if (static_cast<size_t>(deviceId) >= devices.size()) {
-        throw DeviceIOException(EXCEPTION_MESSAGE("invalid device id"));
+    if (_option.devices.size() != 0)
+    {
+        if (_option.devices[0] != 0)
+        {
+            throw DeviceIOException(EXCEPTION_MESSAGE("device 0 not registered InferenceEngine, so cannot do validation"));
+        }
     }
-    auto req = Request::Create(npuTask.get(), inputPtr, nullptr, nullptr);
-    req->setInferenceJob(nullptr);
+
+    if (_validationOutputBuffer.size() == 0) {
+        size_t output_size = npuTask->getData()->_npuModel.output_all_size;
+        
+        if (output_size == 0) {
+            // For models with output_all_size == 0,
+            // allocate minimum buffer to ensure valid pointer (prevents nullptr issues)
+            LOG_DXRT_WARN("ValidateDevice: output_all_size is 0 for model " << GetModelName() 
+                         << ". Allocating minimum buffer (1 byte) to prevent nullptr.");
+            _validationOutputBuffer.resize(1);
+        } else {
+            _validationOutputBuffer.resize(output_size);
+        }
+        
+        LOG_DXRT_DBG << "ValidateDevice: allocated output buffer of size " 
+                     << _validationOutputBuffer.size() 
+                     << " (output_all_size=" << output_size << ")" << std::endl;
+    }
+
+    auto req = Request::CreateValidateRequest(npuTask.get(), inputPtr, _validationOutputBuffer.data());
     req->SetStatus(Request::Status::REQ_BUSY);
-    req->DSP_SetDspEnable(0);
     req->model_type() = req->taskData()->_npuModel.type;
-    TensorPtrs ret = devices[deviceId]->Validate(req, false);
-    Device::_sNpuValidateOpt.store(false);
+    int ret_validation = RequestResponse::ValidateRequest(req);
+    if (ret_validation != 0) {
+        LOG_DXRT_ERR("Device validation failed with error code: " << ret_validation);
+        throw InvalidOperationException(EXCEPTION_MESSAGE("Device validation failed."));
+    }
+    TensorPtrs ret;
+    ret.emplace_back(
+            std::make_shared<Tensor>("output", std::vector<int64_t>{req->taskData()->_npuModel.output_all_size},
+            DataType::INT8, _validationOutputBuffer.data()));
+
     return ret;
 }
+
 
 TensorPtrs InferenceEngine::ValidateDevice(const std::vector<void*>& inputPtrs, int deviceId)
 {
@@ -933,6 +1032,7 @@ TensorPtrs InferenceEngine::ValidateDevice(const std::vector<void*>& inputPtrs, 
     // Check if this should be interpreted as multi-input
     if (_isMultiInput && inputPtrs.size() == _modelInputOrder.size())
     {
+        
         // Interpret as multi-input
         LOG_DBG("ValidateDevice: Interpreting vector<void*> as multi-input - input count: " + std::to_string(inputPtrs.size()));
         return ValidateDeviceMultiInput(inputPtrs, deviceId);
@@ -942,6 +1042,7 @@ TensorPtrs InferenceEngine::ValidateDevice(const std::vector<void*>& inputPtrs, 
     LOG_DBG("ValidateDevice: Using traditional single-input approach");
     return ValidateDevice(inputPtrs[0], deviceId);
 }
+
 
 TensorPtrs InferenceEngine::ValidateDeviceMultiInput(const std::map<std::string, void*>& inputTensors, int deviceId)
 {
@@ -965,8 +1066,7 @@ TensorPtrs InferenceEngine::ValidateDeviceMultiInput(const std::map<std::string,
         throw InvalidArgumentException("Expected " + std::to_string(_modelInputOrder.size()) +
                                      " input tensors, but got " + std::to_string(inputTensors.size()));
     }
-
-    Device::_sNpuValidateOpt.store(true);
+    std::lock_guard<std::mutex> lock(sValidationMutex);
 
     auto npuTaskIter = std::find_if(_tasks.begin(), _tasks.end(), [](const std::shared_ptr<dxrt::Task>& task) {
         return task->processor() == Processor::NPU;
@@ -978,23 +1078,42 @@ TensorPtrs InferenceEngine::ValidateDeviceMultiInput(const std::map<std::string,
 
     auto npuTask = *npuTaskIter;
 
-    std::vector<dxrt::DevicePtr>& devices = dxrt::CheckDevices();
-    if (static_cast<size_t>(deviceId) >= devices.size()) {
-        throw DeviceIOException(EXCEPTION_MESSAGE("invalid device id"));
+    auto devicePtr = DevicePool::GetInstance().GetDeviceTaskLayer(deviceId);
+
+
+    if (_option.devices.size() != 0)
+    {
+        if (_option.devices[0] != 0)
+        {
+            throw DeviceIOException(EXCEPTION_MESSAGE("device 0 not registered InferenceEngine, so cannot do validation"));
+        }
     }
+
+    auto firstInput = inputTensors.begin();
+
 
     // Create a simplified request with multi-input data
     // For validation, we'll use the first input as the base and validate the NPU task
-    auto firstInput = inputTensors.begin();
-    auto req = Request::Create(npuTask.get(), firstInput->second, nullptr, nullptr);
-    req->setInferenceJob(nullptr);
+    if (_validationOutputBuffer.size() == 0) {
+        _validationOutputBuffer.resize(npuTask->getData()->_npuModel.output_all_size);
+    }
+
+    auto req = Request::CreateValidateRequest(npuTask.get(), firstInput->second, _validationOutputBuffer.data());
     req->SetStatus(Request::Status::REQ_BUSY);
     req->model_type() = req->taskData()->_npuModel.type;
+    int ret_validation = RequestResponse::ValidateRequest(req);
+    if (ret_validation != 0) {
+        LOG_DXRT_ERR("Device validation failed with error code: " << ret_validation);
+        throw InvalidOperationException(EXCEPTION_MESSAGE("Device validation failed."));
+    }
+    TensorPtrs ret;
+    ret.emplace_back(
+            std::make_shared<Tensor>("output", std::vector<int64_t>{req->taskData()->_npuModel.output_all_size},
+            DataType::INT8, _validationOutputBuffer.data()));
 
-    TensorPtrs ret = devices[deviceId]->Validate(req, false);
-    Device::_sNpuValidateOpt.store(false);
     return ret;
 }
+
 
 TensorPtrs InferenceEngine::ValidateDeviceMultiInput(const std::vector<void*>& inputPtrs, int deviceId)
 {
@@ -1014,6 +1133,33 @@ TensorPtrs InferenceEngine::ValidateDeviceMultiInput(const std::vector<void*>& i
     return ValidateDeviceMultiInput(inputTensors, deviceId);
 }
 
+#else
+TensorPtrs InferenceEngine::ValidateDevice(void *inputPtr, int deviceId)
+{
+    std::ignore = inputPtr;
+    std::ignore = deviceId;
+    throw InvalidOperationException(EXCEPTION_MESSAGE("Device validation is only supported in debug builds with DXRT_USE_DEVICE_VALIDATION enabled."));
+}
+TensorPtrs InferenceEngine::ValidateDevice(const std::vector<void*>& inputPtrs, int deviceId)
+{
+    std::ignore = inputPtrs;
+    std::ignore = deviceId;
+    throw InvalidOperationException(EXCEPTION_MESSAGE("Device validation is only supported in debug builds with DXRT_USE_DEVICE_VALIDATION enabled."));
+}
+TensorPtrs InferenceEngine::ValidateDeviceMultiInput(const std::map<std::string, void*>& inputTensors, int deviceId)
+{
+    std::ignore = inputTensors;
+    std::ignore = deviceId;
+    throw InvalidOperationException(EXCEPTION_MESSAGE("Device validation is only supported in debug builds with DXRT_USE_DEVICE_VALIDATION enabled."));
+}
+TensorPtrs InferenceEngine::ValidateDeviceMultiInput(const std::vector<void*>& inputPtrs, int deviceId)
+{
+    std::ignore = inputPtrs;
+    std::ignore = deviceId;
+    throw InvalidOperationException(EXCEPTION_MESSAGE("Device validation is only supported in debug builds with DXRT_USE_DEVICE_VALIDATION enabled."));
+}
+
+#endif
 TensorPtrs InferenceEngine::Wait(int jobId)
 {
     LOG_DXRT_DBG << jobId << std::endl;
@@ -1082,31 +1228,26 @@ Tensors InferenceEngine::GetInputs(void *ptr, uint64_t phyAddr)
             }
         }
     }
-    
+
     LOG_DBG("[GetInputs] Total external input tensors: " + std::to_string(externalInputs.size()));
     return externalInputs;
 }
 
 std::vector<Tensors> InferenceEngine::GetInputs(int devId)
 {
-    std::vector<dxrt::DevicePtr>& devices = dxrt::CheckDevices();
-    if (devices.empty()) return {};
-    auto device = devices[devId];
-    return device->inputs(_head->id());
+
+    auto devicePtr = DevicePool::GetInstance().GetDeviceTaskLayer(devId);
+    if (devicePtr == nullptr)
+    {
+        throw DeviceIOException(EXCEPTION_MESSAGE("invalid device id"));
+    }
+    return devicePtr->inputs(_head->id());
 }
 
 Tensors InferenceEngine::GetOutputs(void *ptr, uint64_t phyAddr)
 {
-    // Use the same tensor order logic as GetOutputTensorNames() for consistency
-    std::vector<std::string> outputTensorOrder;
-    if (!_finalOutputOrder.empty())
-    {
-        outputTensorOrder = _finalOutputOrder;
-    }
-    else
-    {
-        outputTensorOrder = _lastOutputOrder;
-    }
+    // Use _lastOutputOrder for tensor ordering
+    const std::vector<std::string>& outputTensorOrder = _lastOutputOrder;
 
     Tensors filteredTensors(outputTensorOrder.size(), Tensor("", {}, DataType::FLOAT));
 
@@ -1135,13 +1276,13 @@ Tensors InferenceEngine::GetOutputs(void *ptr, uint64_t phyAddr)
 
     for (auto &task : _tasks)
     {
-        TaskData* tempTaskDataPtr = task->getData();
-        Tensors tempTensors = tempTaskDataPtr->output_tensors();
+        TaskData* taskDataPtr = task->getData();
+        Tensors outputTensors = taskDataPtr->output_tensors();
 
         if (ptr == nullptr) {
             for (size_t i = 0; i < outputTensorOrder.size(); i++)
             {
-                for (Tensor &tensor : tempTensors)
+                for (Tensor &tensor : outputTensors)
                 {
                     if (tensor.name() == outputTensorOrder[i]) {
                         filteredTensors[i] = tensor;
@@ -1152,7 +1293,7 @@ Tensors InferenceEngine::GetOutputs(void *ptr, uint64_t phyAddr)
         else
         {
             int i = 0;
-            for (auto &t : tempTensors)
+            for (auto &t : outputTensors)
             {
                 // Check if this tensor is a final output tensor
                 auto finalOffsetIt = finalTensorOffsets.find(t.name());
@@ -1165,8 +1306,8 @@ Tensors InferenceEngine::GetOutputs(void *ptr, uint64_t phyAddr)
                 else
                 {
                     // This is an intermediate tensor - use task offset
-                    t.data() = static_cast<void*>(static_cast<uint8_t*>(ptr) + tempTaskDataPtr->_outputOffsets[i] + task->getTailOffset());
-                    t.phy_addr() = phyAddr + tempTaskDataPtr->_outputOffsets[i];
+                    t.data() = static_cast<void*>(static_cast<uint8_t*>(ptr) + taskDataPtr->_outputOffsets[i] + task->getTailOffset());
+                    t.phy_addr() = phyAddr + taskDataPtr->_outputOffsets[i];
                 }
 
                 for (size_t j = 0; j < outputTensorOrder.size(); j++)
@@ -1262,7 +1403,7 @@ std::vector<uint64_t> InferenceEngine::GetInputTensorSizes()
             }
         }
     }
-    
+
     return tensorSizes;
 }
 
@@ -1270,16 +1411,8 @@ std::vector<uint64_t> InferenceEngine::GetOutputTensorSizes()
 {
     std::vector<uint64_t> tensorSizes;
 
-    // Use the same tensor order logic as GetOutputTensorNames() for consistency
-    std::vector<std::string> outputTensorOrder;
-    if (!_finalOutputOrder.empty())
-    {
-        outputTensorOrder = _finalOutputOrder;
-    }
-    else
-    {
-        outputTensorOrder = _lastOutputOrder;
-    }
+    // Use _lastOutputOrder for tensor ordering
+    const std::vector<std::string>& outputTensorOrder = _lastOutputOrder;
 
     tensorSizes.reserve(outputTensorOrder.size());
 
@@ -1300,8 +1433,20 @@ std::vector<uint64_t> InferenceEngine::GetOutputTensorSizes()
             {
                 if (tensor.name() == outputTensorName)
                 {
-                    tensorSizes.push_back(tensor.size_in_bytes());
-                    LOG_DBG("[GetOutputTensorSizes] Output tensor '" + outputTensorName + "' size: " + std::to_string(tensor.size_in_bytes()));
+                    uint64_t tensorSize = tensor.size_in_bytes();
+
+                    // Check if this is a dynamic shape case or genuine zero size
+                    if (tensorSize == 0) {
+                        if (HasDynamicOutput()) {
+                            LOG_DXRT_WARN("[GetOutputTensorSizes] Dynamic shape tensor '" + outputTensorName + "' returns size 0. "
+                                          "Actual size will be available after inference execution.");
+                        } else {
+                            LOG_DBG("[GetOutputTensorSizes] Static tensor '" + outputTensorName + "' has zero size (empty tensor).");
+                        }
+                    }
+
+                    tensorSizes.push_back(tensorSize);
+                    LOG_DBG("[GetOutputTensorSizes] Tensor '" + outputTensorName + "' size: " + std::to_string(tensorSize));
                     found = true;
                     break;
                 }
@@ -1320,18 +1465,17 @@ std::vector<uint64_t> InferenceEngine::GetOutputTensorSizes()
 
 uint64_t InferenceEngine::GetOutputSize()
 {
+    // Check if any output has dynamic shape first
+    if (HasDynamicOutput()) {
+        LOG_DXRT_WARN("[DXRT] Dynamic shape model detected - GetOutputSize() returns 0. "
+                      "Use nullptr for output buffer to enable auto-allocation.");
+        return 0;
+    }
+
     uint64_t outputSize = 0;
 
-    // Use the same tensor order logic as GetOutputTensorNames() for consistency
-    std::vector<std::string> outputTensorOrder;
-    if (!_finalOutputOrder.empty())
-    {
-        outputTensorOrder = _finalOutputOrder;
-    }
-    else
-    {
-        outputTensorOrder = _lastOutputOrder;
-    }
+    // Use _lastOutputOrder for tensor ordering
+    const std::vector<std::string>& outputTensorOrder = _lastOutputOrder;
 
     for (const auto &name : outputTensorOrder)
     {
@@ -1499,11 +1643,6 @@ std::vector<std::string> InferenceEngine::GetInputTensorNames() const
 
 std::vector<std::string> InferenceEngine::GetOutputTensorNames() const
 {
-    // Use tensor-centric final output order if available, otherwise fall back to legacy
-    if (!_finalOutputOrder.empty())
-    {
-        return _finalOutputOrder;
-    }
     return _lastOutputOrder;
 }
 
@@ -1545,11 +1684,11 @@ TensorPtrs InferenceEngine::RunMultiInput(const std::map<std::string, void*>& in
     // Use multi-head setup if we have multiple input tasks, otherwise use traditional setup
     if (_inputTasks.size() > 1)
     {
-        infJob->SetInferenceJobMultiHead(_tasks, _inputTasks, _lastOutputOrder);
+        infJob->SetInferenceJobMultiHead(_tasks, _inputTasks, _lastOutputOrder, _modelInputOrder);
     }
     else
     {
-        infJob->SetInferenceJob(_tasks, _head, _lastOutputOrder);
+        infJob->SetInferenceJob(_tasks, _head, _lastOutputOrder, _modelInputOrder);
     }
 
     // Store outputs if user didn't register a callback
@@ -1759,8 +1898,7 @@ void InferenceEngine::initializeModel()
 
 void InferenceEngine::buildTasksAndSubgraphMap()
 {
-    // Debug logging for model data comparison
-    // LogModelDataDetails();
+
     std::vector<std::string> orginal_task_order;
     orginal_task_order = _modelData.deepx_graph.topoSort_order();
 
@@ -1796,17 +1934,20 @@ void InferenceEngine::buildTasksAndSubgraphMap()
 #endif
 
     // Cache devices once
-    std::vector<dxrt::DevicePtr>& devices = CheckDevices();
-    std::vector<dxrt::DevicePtr> selected_devices = {};
+
+    int max_device_count = DevicePool::GetInstance().GetDeviceCount();
+
+    std::vector<int> selected_devices = {};
     if (_option.devices.size() == 0)
     {
-        selected_devices = devices;
+        for (int i = 0; i < max_device_count; i++)
+            selected_devices.push_back(i);
     }
     else
     {
         for (int dev_id : _option.devices)
         {
-            selected_devices.push_back(devices[dev_id]);
+            selected_devices.push_back(dev_id);
         }
     }
 
@@ -1846,8 +1987,20 @@ void InferenceEngine::buildTasksAndSubgraphMap()
 
             const auto& weightBuffer = _modelData.deepx_binary.weight(j).buffer();
             data.emplace_back(weightBuffer.begin(), weightBuffer.end());
-            if (data.back().empty())
-                throw InvalidModelException(EXCEPTION_MESSAGE("invalid model"));
+
+            // weight can be empty for some models
+            //if (data.back().empty())
+            //    throw InvalidModelException(EXCEPTION_MESSAGE("invalid model"));
+
+            // v8: Add PPU binary if exists (for PPCPU type)
+            if (_modelData.deepx_binary._dxnnFileFormatVersion == 8 &&
+                j < _modelData.deepx_binary.ppu().size() && 
+                _modelData.deepx_binary.ppu(j).size() > 0) {
+                const auto& ppuBuffer = _modelData.deepx_binary.ppu(j).buffer();
+                data.emplace_back(ppuBuffer.begin(), ppuBuffer.end());
+                LOG_DXRT_DBG << "Added PPU binary to data vector for task '" << order 
+                             << "', size: " << data.back().size() << " bytes" << std::endl;
+            }
 
             found = true;
         }
@@ -1868,49 +2021,43 @@ void InferenceEngine::buildTasksAndSubgraphMap()
         // DXRT_ASSERT(found==true, "invalid graph info in model");
         if (found)
         {
+            // Check if this task has PPU binary (v8 PPCPU type)
+            bool hasPpuBinary = false;
+            if (_modelData.deepx_binary._dxnnFileFormatVersion == 8) {
+                auto rmapIterator = rmapIndexMap.find(order);
+                if (rmapIterator != rmapIndexMap.end()) {
+                    size_t j = rmapIterator->second;
+                    if (j < _modelData.deepx_binary.ppu().size() && 
+                        _modelData.deepx_binary.ppu(j).size() > 0) {
+                        hasPpuBinary = true;
+                    }
+                }
+            }
+            
             auto task = std::make_shared<Task>(order, rmap_info, std::move(data),
-                static_cast<npu_bound_op>(_option.boundOption), selected_devices);
+                static_cast<npu_bound_op>(_option.boundOption), hasPpuBinary);
             _tasks.emplace_back(task);
 
 #ifdef USE_ORT
             if (_option.useORT == true)
             {
-                auto &subraph = _subGraphMap[order];
+                auto &subgraph = _subGraphMap[order];
 
-                for (const auto& tensor : subraph.inputs())
+                // Use head/tail flags directly from graph_info
+                if (subgraph.head())
                 {
-                    if (tensor.owner().empty())
+                    if (_head == nullptr)
                     {
-                        if (_head == nullptr)
-                        {
-                            _head = task;
-                            task->set_head();
-                        }
-                        else
-                        {
-                            task->set_head();
-                            LOG_DBG("Multi-head model detected: Additional head task '" + task->name() + "'");
-                        }
+                        _head = task;
                     }
+                    else
+                    {
+                        LOG_DBG("Multi-head model detected: Additional head task '" + task->name() + "'");
+                    }
+                    task->set_head();
                 }
-                bool all_outputs_have_no_valid_users = true;
-                for (const auto& tensor : subraph.outputs())
-                {
-                    bool has_valid_user = false;
-                    for (const auto& user : tensor.users()) {
-                        // Check if user exists in original task order
-                        if (std::find(orginal_task_order.begin(), orginal_task_order.end(), user) != orginal_task_order.end()) {
-                            has_valid_user = true;
-                            LOG_DBG("["+task->name()+"] tensor has valid user: " + user);
-                            break;
-                        }
-                    }
-                    if (has_valid_user) {
-                        all_outputs_have_no_valid_users = false;
-                        break;
-                    }
-                }
-                if (all_outputs_have_no_valid_users)
+
+                if (subgraph.tail())
                 {
                     task->set_tail();
                     _tails.push_back(task);
@@ -2013,7 +2160,7 @@ void InferenceEngine::buildTaskGraph()
         // cout << subgraph.name() << endl;
         std::ignore = inputs;  // for(auto &v:inputs) cout << v.key() << ", " << v.val() << endl;
         std::ignore = outputs;  // for(auto &v:outputs) cout << v.key() << ", " << v.val() << endl;
-        if (!(task->is_tail()))
+
         {
             auto &nexts = task->nexts();
 
@@ -2037,18 +2184,30 @@ void InferenceEngine::buildTaskGraph()
             }
         }
 
-        if (task->is_head() == false)
+        // Build prevs for all tasks (including head tasks that may depend on other tasks)
+        // Head tasks can still have dependencies on other tasks even though they also receive model inputs
         {
             auto &prevs = task->prevs();
-            // for (size_t i = 0; i < task->inputs().size(); ++i) {
-            //    cout <<task->name() << "->inputs (" <<to_std::string(i) <<") " <<task->inputs()[i].name() << endl;
-            //}
             for (auto &tensor : inputs)
             {
                 std::string tensor_name = tensor.name();
                 std::string owner_task_name = tensor.owner();
 
-                auto owner_task = _taskMap[owner_task_name];
+                // Skip model input tensors (owner is empty) - these are provided by user, not from previous tasks
+                if (owner_task_name.empty())
+                {
+                    LOG_DBG("[INPUT][" + task->name() + "] Tensor '" + tensor_name + "' is model input (no owner), skipping prev task linkage");
+                    continue;
+                }
+
+                auto owner_task_it = _taskMap.find(owner_task_name);
+                if (owner_task_it == _taskMap.end())
+                {
+                    LOG_DXRT_ERR("[buildTaskGraph] Owner task '" + owner_task_name + "' not found for tensor '" + tensor_name + "'");
+                    continue;
+                }
+
+                auto owner_task = owner_task_it->second;
                 auto it = std::find(prevs.begin(), prevs.end(), owner_task);
 
                 if (it == prevs.end()) {
@@ -2070,7 +2229,6 @@ void InferenceEngine::buildTensorRegistry()
     LOG_DBG("Building tensor registry for comprehensive tensor management");
 
     _tensorRegistry.clear();
-    _finalOutputOrder.clear();
 
     // Step 1: Identify all tensors in the model
     std::set<std::string> allTensorNames;
@@ -2140,20 +2298,8 @@ void InferenceEngine::buildTensorRegistry()
                 ", modelOutput=" + (descriptor.isModelOutput ? "true" : "false") +
                 ", size=" + std::to_string(descriptor.sizeInBytes));
     }
-    
-    // Step 3: Build _finalOutputOrder in the same order as _lastOutputOrder
-    // This ensures proper tensor ordering for offset calculations
-    for (const std::string& tensorName : _lastOutputOrder)
-    {
-        if (_tensorRegistry.find(tensorName) != _tensorRegistry.end() &&
-            _tensorRegistry[tensorName].isModelOutput)
-        {
-            _finalOutputOrder.push_back(tensorName);
-        }
-    }
 
     LOG_DBG("Tensor registry built with " + std::to_string(_tensorRegistry.size()) + " tensors");
-    LOG_DBG("Final output order: " + std::to_string(_finalOutputOrder.size()) + " tensors");
 }
 
 void InferenceEngine::calculateTensorOffsets()
@@ -2161,7 +2307,7 @@ void InferenceEngine::calculateTensorOffsets()
     LOG_DBG("Calculating tensor offsets for final output buffer");
 
     std::lock_guard<std::mutex> lock(_outputBufferMutex);
-    
+
     if (_outputOffsetsCalculated.load()) {
         LOG_DBG("Output offsets already calculated, skipping");
         return;
@@ -2170,8 +2316,8 @@ void InferenceEngine::calculateTensorOffsets()
     _cachedOutputOffsets.clear();
     uint64_t currentOffset = 0;
 
-    // Calculate offsets based on _finalOutputOrder
-    for (const std::string& tensorName : _finalOutputOrder)
+    // Calculate offsets based on _lastOutputOrder
+    for (const std::string& tensorName : _lastOutputOrder)
     {
         auto it = _tensorRegistry.find(tensorName);
         if (it != _tensorRegistry.end())
@@ -2226,62 +2372,7 @@ bool InferenceEngine::isTensorModelInput(const std::string& tensorName) const
 bool InferenceEngine::supportsTensorCentricOffsets() const
 {
     // Return true if tensor registry is built and has output tensors
-    return !_tensorRegistry.empty() && !_finalOutputOrder.empty();
-}
-
-int InferenceEngine::DSP_GetDeviceBufferPtr(uint64_t *inputPtr, uint64_t *outputPtr)
-{
-    int ret = 0;
-
-    ret = DSP_GetBufferPtrFromObjPools(inputPtr, outputPtr);
-
-    return ret;
-}
-
-void *InferenceEngine::DSP_Run(void *inputPtr, void *outputPtr, void *userArg)
-{
-    dxrt_dspcvmat_t dspCvMatIn, dspCvMatOut;
-    dspCvMatIn.cols = 640;
-    dspCvMatIn.rows = 480;
-    dspCvMatIn.data = reinterpret_cast<uint8_t*>(inputPtr);
-    dspCvMatIn.step[0] = dspCvMatIn.cols;
-    dspCvMatIn.step[1] = 1;
-    dspCvMatIn.flags = DSPCV_8UC3;
-    dspCvMatIn.dims = 2;
-
-    dspCvMatOut.cols = 640;
-    dspCvMatOut.rows = 640;
-    dspCvMatOut.data = reinterpret_cast<uint8_t*>(outputPtr);
-    dspCvMatOut.step[0] = dspCvMatOut.cols;
-    dspCvMatOut.step[1] = 1;
-    dspCvMatOut.flags = DSPCV_8UC3;
-    dspCvMatOut.dims = 2;
-
-    std::shared_ptr<InferenceJob> infJob = _inferenceJobPool->pick();
-
-    infJob->DSP_SetDspEnable(1);
-    infJob->SetInferenceJob(_tasks, _head, _lastOutputOrder);
-
-    int jobId = infJob->DSP_StartJob(&dspCvMatIn, &dspCvMatOut, userArg);
-    {
-        _inferenceJobPool->GetById(jobId)->SetOccupiedJob(true);
-    }
-    return DSP_Wait(jobId);
-}
-
-void *InferenceEngine::DSP_Wait(int jobId)
-{
-    LOG_DXRT_DBG << jobId << std::endl;
-
-    // std::shared_ptr<InferenceJob> infJob = ObjectsPool::GetInstance().GetInferenceJobById(jobId);
-    std::shared_ptr<InferenceJob> infJob = _inferenceJobPool->GetById(jobId);
-    infJob->Wait();
-    // this_thread::sleep_for(chrono::microseconds(1));
-    // while (infJob->getStatus() == Request::Status::REQ_BUSY)
-    // {    this_thread::sleep_for(chrono::microseconds(1)); }
-
-    LOG_DXRT_DBG << jobId << " done" << std::endl;
-    return infJob->DSP_GetOutput();
+    return !_tensorRegistry.empty() && !_lastOutputOrder.empty();
 }
 
 void InferenceEngine::LogModelDataDetails()
@@ -2351,5 +2442,33 @@ void InferenceEngine::LogModelDataDetails()
 
     LOG_DXRT << "=== END MODEL DATA DETAILS ===" << endl;
 }
+
+bool InferenceEngine::HasDynamicOutput()
+{
+    // Check if any task has dynamic outputs
+    for (auto &task : _tasks)
+    {
+        // For CPU tasks, check if they have dynamic shape outputs
+        CpuHandle* cpuHandle = task->getCpuHandle();
+    if (cpuHandle && cpuHandle->HasDynamicOutput())
+        {
+            return true;
+        }
+
+        // For non-CPU tasks, check tensor shapes directly
+        for (const Tensor& tensor : task->outputs())
+        {
+            // Access private _shape member directly since const version of shape() doesn't exist
+            // Check if any dimension is <= 0 (dynamic) by examining size_in_bytes behavior
+            if (tensor.size_in_bytes() == 0)  // This indicates dynamic shape due to negative dimensions
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+
 
 }  // namespace dxrt

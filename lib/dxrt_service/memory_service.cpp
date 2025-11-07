@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -42,6 +42,7 @@ MemoryService* MemoryService::getInstance(int deviceId)
             // std::cout << "device insert:" << device->id() << endl;
             _instances.push_back(new MemoryService(info.mem_addr, info.mem_size));
             LOG_DXRT_S_DBG << "device insert:" << device->id() << endl;
+            _instances.back()->_deviceId = device->id();
         }
         LOG_DXRT_S_DBG << "device count:" << _instances.size() << endl;
     }
@@ -247,7 +248,7 @@ uint64_t MemoryService::BackwardAllocateForTask(uint64_t size, pid_t pid, int ta
 
     // Quick pre-check for large allocations only (>100MB)
     if (size > MemoryConfig::LARGE_ALLOCATION_THRESHOLD && !_mem->CanAllocateContiguous(size)) {
-        LOG_DXRT_S_ERR("Cannot backward allocate " + std::to_string(size / (1024*1024)) + "MB for Task " + std::to_string(taskId) + 
+        LOG_DXRT_S_ERR("Cannot backward allocate " + std::to_string(size / (1024*1024)) + "MB for Task " + std::to_string(taskId) +
                        " - Free: " + std::to_string(fragInfo.total_free_size / (1024*1024)) + "MB, " +
                        "Largest: " + std::to_string(fragInfo.largest_free_block / (1024*1024)) + "MB");
         return static_cast<uint64_t>(-1);
@@ -381,10 +382,16 @@ bool MemoryService::IsTaskValid(pid_t pid, int taskId) const
 
     auto pidIt = _taskAllocInfo.find(pid);
     if (pidIt == _taskAllocInfo.end()) {
+
+        LOG_DXRT_S_ERR("Process " << pid << " device " << _deviceId << " task " << taskId << ": not found in MemoryService TaskAllocInfo");
         return false;
     }
 
-    return pidIt->second.find(taskId) != pidIt->second.end();
+    if (pidIt->second.find(taskId) == pidIt->second.end())
+    {
+        LOG_DXRT_S_ERR("Process " << pid << " device " << _deviceId << " task " << taskId << ": not found in MemoryService pidIt");
+    }
+    return true;
 }
 
 // Memory fragmentation prevention and cleanup function

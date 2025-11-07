@@ -3,10 +3,10 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
- * 
+ *
  * This file uses ONNX Runtime (MIT License) - Copyright (c) Microsoft Corporation.
  */
 
@@ -15,7 +15,7 @@
 #include "dxrt/exception/exception.h"
 #include "dxrt/profiler.h"
 #include "dxrt/device_info_status.h"
-#include "dxrt/device.h"
+#include "dxrt/device_pool.h"
 #include "dxrt/device_version.h"
 #include "./resource/log_messages.h"
 #include <memory>
@@ -59,9 +59,9 @@
 #endif
 
 #if SHOW_PROFILER_DATA
-#define SHOW_PROFILER_DATA_DEFAULT_VALUE "on"
+#define SHOW_PROFILER_DATA_DEFAULT_VALUE true
 #else
-#define SHOW_PROFILER_DATA_DEFAULT_VALUE "off"
+#define SHOW_PROFILER_DATA_DEFAULT_VALUE false
 #endif
 
 #if SHOW_TASK_FLOW
@@ -71,9 +71,9 @@
 #endif
 
 #if SAVE_PROFILER_DATA
-#define SAVE_PROFILER_DATA_DEFAULT_VALUE "on"
+#define SAVE_PROFILER_DATA_DEFAULT_VALUE true
 #else
-#define SAVE_PROFILER_DATA_DEFAULT_VALUE "off"
+#define SAVE_PROFILER_DATA_DEFAULT_VALUE false
 #endif
 
 #ifndef USE_CUSTOM_INTRA_OP_THREADS
@@ -92,17 +92,31 @@
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 
-#ifndef CUSTOM_INTRA_OP_THREADS_COUNT
-#define CUSTOM_INTRA_OP_THREADS_COUNT_DEFAULT_VALUE "1"
-#else
-#define CUSTOM_INTRA_OP_THREADS_COUNT_DEFAULT_VALUE TOSTRING(CUSTOM_INTRA_OP_THREADS_COUNT)
-#endif
+// Environment variable helper functions
+static std::string getEnvOrDefault(const char* env_name, const std::string& default_value) {
+    const char* env_value = std::getenv(env_name);
+    if (env_value != nullptr) {
+        std::cout << "[DXRT] Using " << env_name << "=" << env_value << " from environment" << std::endl;
+        return std::string(env_value);
+    }
+    return default_value;
+}
 
-#ifndef CUSTOM_INTER_OP_THREADS_COUNT
-#define CUSTOM_INTER_OP_THREADS_COUNT_DEFAULT_VALUE "1"
+static std::string getCustomIntraOpThreadsDefault() {
+#ifndef CUSTOM_INTRA_OP_THREADS_COUNT
+    return getEnvOrDefault("CUSTOM_INTRA_OP_THREADS_COUNT", "1");
 #else
-#define CUSTOM_INTER_OP_THREADS_COUNT_DEFAULT_VALUE TOSTRING(CUSTOM_INTER_OP_THREADS_COUNT)
+    return getEnvOrDefault("CUSTOM_INTRA_OP_THREADS_COUNT", TOSTRING(CUSTOM_INTRA_OP_THREADS_COUNT));
 #endif
+}
+
+static std::string getCustomInterOpThreadsDefault() {
+#ifndef CUSTOM_INTER_OP_THREADS_COUNT
+    return getEnvOrDefault("CUSTOM_INTER_OP_THREADS_COUNT", "1");
+#else
+    return getEnvOrDefault("CUSTOM_INTER_OP_THREADS_COUNT", TOSTRING(CUSTOM_INTER_OP_THREADS_COUNT));
+#endif
+}
 
 #ifdef SHOW_MODEL_INFO_DEFINE
     #define SHOW_MODEL_INFO_DEFAULT_VALUE true
@@ -173,6 +187,7 @@ namespace dxrt {
         }
     };
 
+std::atomic<bool> Configuration::_sNpuValidateOpt{false}; // TODO: must integrated to configuration options
 
     Configuration* Configuration::_staticInstance = nullptr;
 
@@ -199,15 +214,16 @@ namespace dxrt {
         _enableSettings[ITEM::DYNAMIC_CPU_THREAD] = DXRT_DYNAMIC_CPU_THREAD_DEFAULT_VALUE;
         _enableSettings[ITEM::TASK_FLOW] = SHOW_TASK_FLOW_DEFAULT_VALUE;
         _enableSettings[ITEM::SHOW_THROTTLING] = false;
-        _enableSettings[ITEM::SHOW_PROFILE] = USE_PROFILER_DEFAULT_VALUE;
+        _enableSettings[ITEM::SHOW_PROFILE] = SHOW_PROFILER_DATA_DEFAULT_VALUE;
         _enableSettings[ITEM::SHOW_MODEL_INFO] = SHOW_MODEL_INFO_DEFAULT_VALUE;
         _enableSettings[ITEM::CUSTOM_INTRA_OP_THREADS] = USE_CUSTOM_INTRA_OP_THREADS_DEFAULT_VALUE;
         _enableSettings[ITEM::CUSTOM_INTER_OP_THREADS] = USE_CUSTOM_INTER_OP_THREADS_DEFAULT_VALUE;
+        _enableSettings[ITEM::NFH_ASYNC] = true; // default enabled
 
-        _attributes[ITEM::PROFILER][ATTRIBUTE::PROFILER_SHOW_DATA] = SHOW_PROFILER_DATA_DEFAULT_VALUE;
-        _attributes[ITEM::PROFILER][ATTRIBUTE::PROFILER_SAVE_DATA] = SAVE_PROFILER_DATA_DEFAULT_VALUE;
-        _attributes[ITEM::CUSTOM_INTRA_OP_THREADS][ATTRIBUTE::CUSTOM_INTRA_OP_THREADS_NUM] = CUSTOM_INTRA_OP_THREADS_COUNT_DEFAULT_VALUE;
-        _attributes[ITEM::CUSTOM_INTER_OP_THREADS][ATTRIBUTE::CUSTOM_INTER_OP_THREADS_NUM] = CUSTOM_INTER_OP_THREADS_COUNT_DEFAULT_VALUE;
+        _attributes[ITEM::PROFILER][ATTRIBUTE::PROFILER_SHOW_DATA] = SHOW_PROFILER_DATA_DEFAULT_VALUE ? "1" : "0";
+        _attributes[ITEM::PROFILER][ATTRIBUTE::PROFILER_SAVE_DATA] = SAVE_PROFILER_DATA_DEFAULT_VALUE ? "1" : "0";
+        _attributes[ITEM::CUSTOM_INTRA_OP_THREADS][ATTRIBUTE::CUSTOM_INTRA_OP_THREADS_NUM] = getCustomIntraOpThreadsDefault();
+        _attributes[ITEM::CUSTOM_INTER_OP_THREADS][ATTRIBUTE::CUSTOM_INTER_OP_THREADS_NUM] = getCustomInterOpThreadsDefault();
 
     #ifndef USE_SERVICE
         _isReadonly[ITEM::SERVICE].first = true;
@@ -224,19 +240,19 @@ namespace dxrt {
         if (value.empty()) {
             return 1; // default
         }
-        
+
         try {
             int count = std::stoi(value);
             // Clamp between 1 and hardware_concurrency()
             int hw = static_cast<int>(std::thread::hardware_concurrency());
             int maxThreads = std::max(1, hw);
             int clamped = std::max(1, std::min(count, maxThreads));
-            
+
             if (clamped != count) {
-                LOG_DXRT_DBG << "Thread count clamped from " << count << " to " << clamped 
+                LOG_DXRT_DBG << "Thread count clamped from " << count << " to " << clamped
                              << " (max: " << maxThreads << ")" << std::endl;
             }
-            
+
             return clamped;
         } catch (const std::exception& e) {
             LOG_DXRT_DBG << "Invalid thread count '" << value << "', using default (1): " << e.what() << std::endl;
@@ -251,24 +267,24 @@ namespace dxrt {
         ConfigParser parser(fileName);
 
         // Enable flags: only override defaults if keys exist in config
-        if (parser.has("ENABLE_DEBUG")) {
-            setEnableWithoutLock(ITEM::DEBUG, parser.getBoolValue("ENABLE_DEBUG"));
+        if (parser.has("DEBUG_DXRT")) {
+            setEnableWithoutLock(ITEM::DEBUG, parser.getBoolValue("DEBUG_DXRT"));
         }
         if (parser.has("USE_PROFILER")) {
             setEnableWithoutLock(ITEM::PROFILER, parser.getBoolValue("USE_PROFILER"));
         }
     #ifdef USE_SERVICE
-        if (parser.has("ENABLE_MULTI_PROCESS")) {
-            setEnableWithoutLock(ITEM::SERVICE, parser.getBoolValue("ENABLE_MULTI_PROCESS"));
+        if (parser.has("USE_SERVICE")) {
+            setEnableWithoutLock(ITEM::SERVICE, parser.getBoolValue("USE_SERVICE"));
         }
     #endif
         if (parser.has("DXRT_DYNAMIC_CPU_THREAD")) {
             setEnableWithoutLock(ITEM::DYNAMIC_CPU_THREAD, parser.getBoolValue("DXRT_DYNAMIC_CPU_THREAD"));
         }
-        if (parser.has("SHOW_TASK_FLOW_INFO")) {
-            setEnableWithoutLock(ITEM::TASK_FLOW, parser.getBoolValue("SHOW_TASK_FLOW_INFO"));
+        if (parser.has("SHOW_TASK_FLOW")) {
+            setEnableWithoutLock(ITEM::TASK_FLOW, parser.getBoolValue("SHOW_TASK_FLOW"));
         }
-        
+
         // Only override compile-time defaults if keys are present in config file
         if (parser.has("USE_CUSTOM_INTRA_OP_THREADS")) {
             setEnableWithoutLock(ITEM::CUSTOM_INTRA_OP_THREADS, parser.getBoolValue("USE_CUSTOM_INTRA_OP_THREADS"));
@@ -278,13 +294,13 @@ namespace dxrt {
         }
 
         // Attributes: only override defaults if keys exist in config
-        if (parser.has("ENABLE_SHOW_PROFILER_DATA")) {
-            setAttributeWithoutLock(ITEM::PROFILER, ATTRIBUTE::PROFILER_SHOW_DATA, parser.getValue("ENABLE_SHOW_PROFILER_DATA"));
+        if (parser.has("SHOW_PROFILER_DATA")) {
+            setAttributeWithoutLock(ITEM::PROFILER, ATTRIBUTE::PROFILER_SHOW_DATA, parser.getValue("SHOW_PROFILER_DATA"));
         }
-        if (parser.has("ENABLE_SAVE_PROFILER_DATA")) {
-            setAttributeWithoutLock(ITEM::PROFILER, ATTRIBUTE::PROFILER_SAVE_DATA, parser.getValue("ENABLE_SAVE_PROFILER_DATA"));
+        if (parser.has("SAVE_PROFILER_DATA")) {
+            setAttributeWithoutLock(ITEM::PROFILER, ATTRIBUTE::PROFILER_SAVE_DATA, parser.getValue("SAVE_PROFILER_DATA"));
         }
-        
+
         // Only override compile-time defaults if keys are present in config file
         if (parser.has("CUSTOM_INTRA_OP_THREADS_COUNT")) {
             std::string validatedValue = std::to_string(parseClampThreadCount(parser.getValue("CUSTOM_INTRA_OP_THREADS_COUNT")));
@@ -388,7 +404,7 @@ namespace dxrt {
         {
             return 0;
         }
-        
+
         try {
             return std::stoi(it2->second);
         } catch (const std::exception&) {
@@ -420,12 +436,10 @@ namespace dxrt {
     std::string Configuration::GetDriverVersion() const
     {
         uint32_t rt_driver_version = 0;
-
-        std::vector<std::shared_ptr<dxrt::Device>> devices = CheckDevices();
-        if ( devices.size() > 0 )
+        if ( DevicePool::GetInstance().GetDeviceCount() > 0 )
         {
-            dxrt_dev_info_t dev_info = devices[0]->devInfo();
-            rt_driver_version = dev_info.rt_drv_ver;
+            dxrt_dev_info_t dev_info = DeviceStatus::GetCurrentStatus(0).getDevInfo();
+            rt_driver_version = dev_info.rt_drv_ver.driver_version;
         }
 
         uint32_t major = rt_driver_version / 1000;
@@ -434,20 +448,19 @@ namespace dxrt {
 
         return  std::to_string(major) + "." +
                 std::to_string(minor) + "." +
-                std::to_string(patch); 
+                std::to_string(patch);
     }
 
     std::string Configuration::GetPCIeDriverVersion() const
     {
         uint32_t pcie_driver_version = 0;
 
-        std::vector<std::shared_ptr<dxrt::Device>> devices = CheckDevices();
-        if ( devices.size() > 0 )
+        if ( DevicePool::GetInstance().GetDeviceCount() > 0 )
         {
-            dxrt_dev_info_t dev_info = devices[0]->devInfo();
+            dxrt_dev_info_t dev_info = DeviceStatus::GetCurrentStatus(0).getDevInfo();
             pcie_driver_version = dev_info.pcie.driver_version;
         }
-                
+
 
         uint32_t major = pcie_driver_version / 1000;
         uint32_t minor = (pcie_driver_version / 100) % 10;
@@ -455,34 +468,27 @@ namespace dxrt {
 
         return  std::to_string(major) + "." +
                 std::to_string(minor) + "." +
-                std::to_string(patch);   
+                std::to_string(patch);
     }
 
     std::vector<std::pair<int, std::string>> Configuration::GetFirmwareVersions() const
     {
-        
         std::vector<std::pair<int, std::string>> fws;
 
-        std::vector<std::shared_ptr<dxrt::Device>> devices = CheckDevices();
-        if ( devices.size() > 0 )
+        int device_count = DevicePool::GetInstance().GetDeviceCount();
+        for (int i = 0; i < device_count; i++)
         {
-            for(auto& dev : devices)
-            {
-                dxrt_device_info_t device_info = dev->info();
-                //uint16_t firmware_version = 
-                uint32_t major = device_info.fw_ver / 100;
-                uint32_t minor = (device_info.fw_ver / 10) % 10;
-                uint32_t patch = device_info.fw_ver % 10;
+            dxrt_device_info_t device_info = DevicePool::GetInstance().GetDeviceCores(i)->info();
+            uint32_t major = device_info.fw_ver / 100;
+            uint32_t minor = (device_info.fw_ver / 10) % 10;
+            uint32_t patch = device_info.fw_ver % 10;
 
-                std::string version = std::to_string(major) + "." +
-                                std::to_string(minor) + "." +
-                                std::to_string(patch);
+            std::string version = std::to_string(major) + "." +
+                                  std::to_string(minor) + "." +
+                                  std::to_string(patch);
 
-                fws.emplace_back(std::pair<int, std::string>(dev->id(), version));
-            }
+            fws.emplace_back(std::pair<int, std::string>(i, version));
         }
-                
-
         return fws;
     }
 
@@ -496,5 +502,87 @@ namespace dxrt {
 #endif // USE_ORT
     }
 
-}  // namespace dxrt
+    void Configuration::SetFWConfigWithJson(const std::string& json_file)
+    {
+        int device_count = DevicePool::GetInstance().GetDeviceCount();
+        for (int i = 0; i < device_count; i++)
+        {
+            auto dev = DevicePool::GetInstance().GetDeviceCores(i);
+            if (dev)
+            {
+                dev->UpdateFwConfig(json_file);
+            }
+        }
+    }
 
+// to avoid inlining heavy function releated to configuration (common.h)
+
+
+int GetTaskMaxLoad()
+{
+    static int cached_value = -1;
+    if (cached_value == -1)
+    {
+        const char *env_value = std::getenv("DXRT_TASK_MAX_LOAD");
+        if (env_value != nullptr)
+        {
+            int env_int = std::atoi(env_value);
+            if (env_int > 0 && env_int <= 100)
+            {
+                cached_value = env_int;
+                LOG << "Using DXRT_TASK_MAX_LOAD=" << cached_value << " from environment" << std::endl;
+            }
+            else
+            {
+                cached_value = DXRT_TASK_MAX_LOAD_DEFAULT;
+                LOG << "Invalid DXRT_TASK_MAX_LOAD value, using default=" << cached_value << std::endl;
+            }
+        }
+        else
+        {
+            cached_value = DXRT_TASK_MAX_LOAD_DEFAULT;
+        }
+    }
+    return cached_value;
+}
+int GetNfhInputWorkerThreads() {
+    static int cached_value = -1;
+    if (cached_value == -1) {
+        const char* env_value = std::getenv("NFH_INPUT_WORKER_THREADS");
+        if (env_value != nullptr) {
+            int env_int = std::atoi(env_value);
+            if (env_int > 0 && env_int <= 32) {
+                cached_value = env_int;
+                std::cout << "[DXRT] Using NFH_INPUT_WORKER_THREADS=" << cached_value << " from environment" << std::endl;
+            } else {
+                cached_value = 1; // default value
+                std::cout << "[DXRT] Invalid NFH_INPUT_WORKER_THREADS value, using default=" << cached_value << std::endl;
+            }
+        } else {
+            cached_value = 1; // default value
+        }
+    }
+    return cached_value;
+}
+
+int GetNfhOutputWorkerThreads() {
+    static int cached_value = -1;
+    if (cached_value == -1) {
+        const char* env_value = std::getenv("NFH_OUTPUT_WORKER_THREADS");
+        if (env_value != nullptr) {
+            int env_int = std::atoi(env_value);
+            if (env_int > 0 && env_int <= 32) {
+                cached_value = env_int;
+                std::cout << "[DXRT] Using NFH_OUTPUT_WORKER_THREADS=" << cached_value << " from environment" << std::endl;
+            } else {
+                cached_value = 2; // default value
+                std::cout << "[DXRT] Invalid NFH_OUTPUT_WORKER_THREADS value, using default=" << cached_value << std::endl;
+            }
+        } else {
+            cached_value = 2; // default value
+        }
+    }
+    return cached_value;
+}
+
+}  // namespace dxrt

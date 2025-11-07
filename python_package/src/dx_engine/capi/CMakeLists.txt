@@ -22,7 +22,6 @@ set(PYTHON_EXECUTABLE ${Python_EXECUTABLE})
     )
 
     message(STATUS ${LS_VALUE})
-    # Python 버전을 "X.Y" 형식으로 설정
     set(PYBIND11_PYTHON_VERSION "${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR}")
     message(STATUS "Found Python: ${Python_EXECUTABLE} (version ${PYBIND11_PYTHON_VERSION})")
 

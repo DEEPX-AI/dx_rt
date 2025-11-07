@@ -32,10 +32,13 @@ macro(add_onnxruntime)
 find_library(ONNXLIB_DIRS onnxruntime HINTS ${onnxruntime_LIB_DIRS})
 include_directories(${onnxruntime_INCLUDE_DIRS})
 LIST(APPEND link_libs ${ONNXLIB_DIRS})
+if(MSVC)
+    LIST(APPEND link_libs ${onnxruntime_LIB_DIRS}/onnxruntime.lib)
+endif()
 endmacro(add_onnxruntime)
 
 macro(add_dxrt target)
-  target_include_directories(${target} PUBLIC 
+  target_include_directories(${target} PUBLIC
     ${CMAKE_SOURCE_DIR}/lib/include
     ${CMAKE_SOURCE_DIR}/extern/include
   )

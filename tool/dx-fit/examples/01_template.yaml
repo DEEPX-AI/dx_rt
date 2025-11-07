@@ -1,0 +1,78 @@
+# ============================================================================
+# Template Configuration
+# ============================================================================
+# Boilerplate template for creating custom configurations
+# Execution focus: Copy and customize for your specific use case
+# Usage: cp 01_template.yaml my_config.yaml && edit my_config.yaml
+
+model_path: /path/to/your/model.dxnn  # ⚠️ CHANGE THIS to your model path
+
+# ============================================================================
+# Execution Settings
+# ============================================================================
+# Loop count: Choose ONE of the following options
+
+# Option 1: Automatic loop selection (RECOMMENDED)
+target_duration: 3.0    # Target measurement duration in seconds
+                        # dx-fit measures FPS and calculates optimal loop count
+                        # Recommended: 2.0 (fast), 3.0 (balanced), 5.0 (precise)
+
+# Option 2: Manual loop count
+# loop_count: 30        # Fixed number of inference loops per trial
+                        # Use this if you want consistent loop count across models
+
+warmup_runs: 5          # Warmup iterations before measurement
+timeout: 60             # Timeout per trial (seconds)
+use_ort: true           # Enable ONNX Runtime (recommended)
+
+# ============================================================================
+# Search Strategy
+# ============================================================================
+# Choose ONE strategy:
+# - 'bayesian': Smart optimization (recommended, requires scikit-optimize)
+# - 'random': Fast random sampling
+# - 'grid': Complete exhaustive search
+
+strategy: bayesian
+max_random_samples: 30  # Number of iterations for random/bayesian strategies
+
+# ============================================================================
+# Parameter Search Space
+# ============================================================================
+# Define parameter values to test
+# Remove parameters you don't want to tune
+
+parameters:
+  # DXRT Core Parameters
+  DXRT_TASK_MAX_LOAD: [1, 6, 12]                    # Task load (recommended: 1-16)
+  DXRT_DYNAMIC_CPU_THREAD: [0, 1]                # Dynamic CPU threads
+  
+  # ONNX Runtime Parameters  
+  CUSTOM_INTRA_OP_THREADS_COUNT: [1, 2, 4]       # Intra-op threads (recommended: 1-4)
+  CUSTOM_INTER_OP_THREADS_COUNT: [1, 2]          # Inter-op threads (recommended: 1-2)
+  
+  # NFH Worker Threads
+  NFH_INPUT_WORKER_THREADS: [1, 3]               # Input workers (recommended: 1-3)
+  NFH_OUTPUT_WORKER_THREADS: [1, 2, 4]              # Output workers (recommended: 1-4)
+
+# ============================================================================
+# Thermal Management (Optional)
+# ============================================================================
+# Uncomment to enable thermal management
+
+# thermal_management:
+#   enabled: true
+#   target_temperature: 45.0      # Target temperature (°C)
+#   max_temperature: 85.0          # Maximum allowed temperature (°C)
+#   cooldown_duration: 10          # Cooldown duration (seconds)
+#   check_interval: 2              # Temperature check interval (seconds)
+#   max_cooling_time: 600          # Maximum total cooling time (seconds)
+
+# ============================================================================
+# Notes
+# ============================================================================
+# - Bayesian strategy is most efficient (recommended)
+# - Random strategy is fast for initial exploration
+# - Grid strategy tests all combinations (very slow)
+# - More parameters = exponentially more tests (for grid)
+# - Use thermal management for sustained testing

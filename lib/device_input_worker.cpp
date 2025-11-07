@@ -108,10 +108,10 @@ void DeviceInputWorker::ThreadWork(int id)
                 }
                 if (SHOW_PROFILE || Configuration::GetInstance().GetEnable(Configuration::ITEM::SHOW_PROFILE) )
                 {
-                    LOG << "NPU DEVICE [" << deviceId << "] Average Input Queue Load : " << loadPercent << "%" << endl;
+                    LOG << "NPU DEVICE [" << deviceId << "] Inference Worker - Average Input Queue Load : " << loadPercent << "%" << endl;
                 }
                 else
-                    LOG_DXRT_DBG << "NPU DEVICE [" << deviceId << "] Average Input Queue Load : " << loadPercent <<"%"<< endl;
+                    LOG_DXRT_DBG << "NPU DEVICE [" << deviceId << "] Inference Worker - Average Input Queue Load : " << loadPercent <<"%"<< endl;
             }
             break;
         }
@@ -157,7 +157,7 @@ void DeviceInputWorker::ThreadWork(int id)
             {
                 if (DEBUG_DATA > 0)
                 {
-                    DataDumpBin(req->taskData()->name() + "_encoder_input.bin", req->inputs());
+                    //DataDumpBin(req->taskData()->name() + "_encoder_input.bin", req->inputs());
                     DataDumpBin(req->taskData()->name() + "_input.bin", req->encoded_inputs_ptr(), req->taskData()->encoded_input_size());
                 }
                 std::ignore = ret;

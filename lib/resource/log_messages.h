@@ -62,6 +62,8 @@ namespace dxrt {
         static std::string CLI_UpdateCondition(const std::string& version);
 
         static std::string Profiler_MemoryUsage(uint64_t current_memory);
+
+        static std::string Device_FailToInitialize(int id);
     };
 
 }  // namespace dxrt
