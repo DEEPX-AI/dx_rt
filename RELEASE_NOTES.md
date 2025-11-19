@@ -1,4 +1,79 @@
 # RELEASE_NOTES
+## v3.1.0 / 2025-11-19
+
+### 1. Changed
+- Update model file format version checks to include max version…
+- Update minimum versions
+  - Driver : 1.7.1 -> 1.8.0
+  - PCIe Driver : 1.4.1 -> 1.5.1
+  - Firmware : 2.1.0 -> 2.4.0
+- Update Sanity Check to hide ONNX Runtime version when built with USE_ORT=OFF.
+- Standardize all Python and C++ examples to use argparse and cxxopts for consistent command-line argument parsing
+- Update all examples to support unified argument format
+    - -m, --model for .dxnn model file path
+    - -l, --loops for inference loop count
+    - Additional options like verbose follow similar format conventions per example
+- Update dxbenchmark default behavior to execute 30 loops when neither loop nor time options are specified
+- Enhance dxbenchmark to automatically create result directory if it does not exist when result path is specified
+- add a system requirement check in install.sh (RAM: 8GB, Arch: x86_64 or aarch64)
+- remove the check for the libdxrt.so location in Sanity Check
+- Improve parse_model CLI tool.
+- remove dsp related code
+- Update the .dxnn file format to version 7 (from v6).
+- Update C++ exception handling to translate exceptions into Python for improved error handling.
+- Update the Python v6_converter with enhanced functionality.
+- Update license information
+- feat: enhance OS and architecture checks in installation scripts
+- Update user guide document
+- Profiler now groups events by base name (before ) instead of showing individual job/request entries
+- Limited duration details to 30 values per group for cleaner output
+
+### 2. Fixed
+- Use 'python3 -m pip' instead of 'pip' for better reliability
+- fix some compile errors and warnings in windows environment
+- Fix configuration option name in common.cfg.
+- Update cross compile script for dxtop
+- Fix several multi-tasking bugs related to CPU offloading buffer management and PPU output buffer mis-pointing.
+- Fix a bug in the process of setting the PPU model format and layout.
+- Fix a critical bug affecting models with multi-output and multi-tail configurations.
+- Fix tensor mapping errors that occurred in non-ORT inference mode.
+- Fix a warning message in get_output_tensors_info and a vector access bug in _npuModel.
+- Fix an issue that prevented error messages from being displayed.
+- Fix flaws in output tensor mapping and memory address configuration.
+- docs: Updated documentation to reflect changes in supported CPU architecture and OS requirements.
+- Force-disabled with a warning instead of throwing a runtime exception in builds that don't support USE_ORT.
+- fix run_model error when -f option and -l loop count exceeds 1024
+- Fix bounding issue on service
+
+### 3. Added
+- Loading PPCPU Firmware on service initialization
+- (in NO_SERVICE mode, it is loaded with first inferenceengine initialization
+- Include binary data as Array on source code, comes with internal-only generation script
+- Add support for V8 DXNN file format
+- Add PPU support for V8 models
+- Add DX-Fit tuning toolkit, documentation, and curated examples.
+- Support dynamic shape output of tail cpu task
+- Implement asynchronous NPU Format Handler (NFH).
+- Add new functions to profiler (Flush and GetPerformanceData)
+- Add dxbenchmark, a command-line tool for comparing performance metrics across multiple models and generating detailed
+- model voltage profiler (run_model_prof.py)
+  - requires firmware > 2.2.0 and driver > 1.7.1
+- Add a new internal C++ converter for v6 models.
+- Add new Python APIs for handling device configuration and status retrieval.
+- feat: enhance build and uninstall scripts with common utilities and improved logging
+  - Integrated common utility functions into build.sh for better modularity.
+  - Added uninstall.sh script to handle project uninstallation, including cleanup of symlinks and directories.
+  - Improved logging in both scripts using color-coded messages for better user feedback.
+  - Updated color_env.sh and common_util.sh to support new logging features and ensure consistent output formatting.
+  - Refactored build.sh to streamline the build process and enhance error handling.
+- Added PCIe bus number display for dxtop
+- Add profiling data memory usage tracking with high usage warnings.
+- Add time-base inference mode to run_model (-t, --time option)
+- Add error handling for invalid firmware files and update conditions.
+- Add a function to check Python version compatibility in build.sh.
+- Add new documentation files for Inference API, Multi-Input Inference, and Global Instance.
+- Add examples for asynchronous model inference with profiling capabilities in both C++ and Python.
+
 ## v3.0.0 / 2025-07-31
 ### 1. Changed
 - Update minimum versions 

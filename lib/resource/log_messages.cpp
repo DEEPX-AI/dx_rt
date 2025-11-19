@@ -26,26 +26,17 @@ namespace dxrt {
 
     std::string LogMessages::NotSupported_ModelFileFormatVersion(
         int currentFileFormatVersion, 
-        int requiredFileFormatVersion)
-    {
-        return 
-                "Model file format version "
-                + std::to_string(currentFileFormatVersion)
-                + " is not supported.\nPlease use model file version "
-                + std::to_string(requiredFileFormatVersion)
-                + " or higher.";
-    }
-
-    std::string LogMessages::NotSupported_ModelFileFormatMaxVersion(
-        int currentFileFormatVersion, 
+        int requiredFileFormatMinVersion,
         int requiredFileFormatMaxVersion)
     {
         return 
                 "Model file format version "
                 + std::to_string(currentFileFormatVersion)
-                + " is not supported.\nPlease use model file version "
+                + " is not supported.\nPlease use model file version between "
+                + std::to_string(requiredFileFormatMinVersion)
+                + " and "
                 + std::to_string(requiredFileFormatMaxVersion)
-                + " or lower.";
+                + ".";
     }
 
     std::string LogMessages::ConvertIntToVersion(int version)

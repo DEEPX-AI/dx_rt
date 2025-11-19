@@ -34,7 +34,7 @@ std::unique_ptr<IModelParser> ModelParserFactory::CreateParser(int version) {
             return std::make_unique<V8ModelParser>();
         default:
             throw InvalidModelException(EXCEPTION_MESSAGE(
-                LogMessages::NotSupported_ModelFileFormatVersion(version, MIN_SINGLEFILE_VERSION)
+                LogMessages::NotSupported_ModelFileFormatVersion(version, MIN_SINGLEFILE_VERSION, MAX_SINGLEFILE_VERSION)
             ));
     }
 }

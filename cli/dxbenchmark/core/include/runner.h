@@ -27,7 +27,7 @@ class Runner
     public:
         Runner(string modelName, dxrt::InferenceOption op);
         ~Runner();
-        void Run(int time, int loops);
+        void Run(int time, int loops, int warmup);
         const Result GetResult() const;
 
     private:

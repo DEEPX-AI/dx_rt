@@ -442,8 +442,13 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
         profiler.End("PCIe Read[Job_" + std::to_string(req->job_id()) + "][" + req->taskData()->name() + "][Req_" + std::to_string(req->id()) + "](" + std::to_string(ch)+")");
         // profiler.End("PCIe Read(" + std::to_string(response.dma_ch)+")");
 #endif
-        DXRT_ASSERT(ret2 == 0, "Failed to read output, errno="+ std::to_string(ret2) +
-            ", reqId=" + std::to_string(reqId) + ",ch:" + std::to_string(id()));
+        //DXRT_ASSERT(ret2 == 0, "Failed to read output, errno="+ std::to_string(ret2) +
+        //    ", reqId=" + std::to_string(reqId) + ",ch:" + std::to_string(id()));
+        if ( ret2 != 0 )
+        {
+            LOG_DXRT << "Failed to read output, errno=" << 
+                std::to_string(ret2) << ", reqId=" << std::to_string(reqId) << ",ch:" << std::to_string(id()) << std::endl;
+        }
     }
     CallBack();
 
@@ -603,6 +608,8 @@ void AccDeviceTaskLayer::EventThread()
 
 void AccDeviceTaskLayer::StartThread()
 {
+    core()->CheckVersion();
+
     _eventThread = std::thread(&AccDeviceTaskLayer::EventThread, this);
     if (_serviceLayer->isRunOnService() == false)
     {
@@ -646,6 +653,7 @@ AccDeviceTaskLayer::~AccDeviceTaskLayer()
     _outputHandlerQueue.Stop();
     if (_eventThreadStartFlag)
     {
+#if __linux__
         while (_eventThreadTerminateFlag == false)
         {
             Terminate();
@@ -653,6 +661,9 @@ AccDeviceTaskLayer::~AccDeviceTaskLayer()
                 break;
             std::this_thread::sleep_for(std::chrono::microseconds(1));
         }
+#else
+        Terminate();
+#endif
         _eventThread.join();
     }
     Terminate();

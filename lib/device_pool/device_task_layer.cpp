@@ -32,8 +32,8 @@ namespace dxrt {
 extern uint8_t DEBUG_DATA;
 extern uint8_t SKIP_INFERENCE_IO;
 
-DeviceTaskLayer::DeviceTaskLayer(std::shared_ptr<DeviceCore> core, std::shared_ptr<ServiceLayerInterface> interface)
-: _core(core),  _load(0), _inferenceCnt(0), _serviceLayer(interface), _npuMemoryCacheManager(this)
+DeviceTaskLayer::DeviceTaskLayer(std::shared_ptr<DeviceCore> core, std::shared_ptr<ServiceLayerInterface> service_interface)
+: _core(core),  _load(0), _inferenceCnt(0), _serviceLayer(service_interface), _npuMemoryCacheManager(this)
 {
     _onCompleteInferenceHandler = [](){};
     _processResponseHandler = [](int deviceId, int reqId, dxrt_response_t *response){

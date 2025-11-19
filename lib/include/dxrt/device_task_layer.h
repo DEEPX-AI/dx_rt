@@ -44,7 +44,7 @@ class RequestData;
 
 class DeviceTaskLayer {
  public:
-    explicit DeviceTaskLayer(std::shared_ptr<DeviceCore> core, std::shared_ptr<ServiceLayerInterface> interface);
+    explicit DeviceTaskLayer(std::shared_ptr<DeviceCore> core, std::shared_ptr<ServiceLayerInterface> service_interface);
 
     virtual ~DeviceTaskLayer() = default;
 
@@ -115,7 +115,7 @@ class DeviceTaskLayer {
 
 class StdDeviceTaskLayer : public DeviceTaskLayer {
 public:
-    explicit StdDeviceTaskLayer(std::shared_ptr<DeviceCore> dev, std::shared_ptr<ServiceLayerInterface> interface) : DeviceTaskLayer(dev,interface) {}
+    explicit StdDeviceTaskLayer(std::shared_ptr<DeviceCore> dev, std::shared_ptr<ServiceLayerInterface> service_interface) : DeviceTaskLayer(dev,service_interface) {}
     int RegisterTask(TaskData* task) override;
     int InferenceRequest(RequestData* req, npu_bound_op boundOp) override;
     ~StdDeviceTaskLayer();
@@ -166,8 +166,8 @@ private:
 
 class AccDeviceTaskLayer : public DeviceTaskLayer {
 public:
-    explicit AccDeviceTaskLayer(std::shared_ptr<DeviceCore> dev, std::shared_ptr<ServiceLayerInterface> interface)
-    : DeviceTaskLayer(dev, interface), _inputHandlerQueue(dev->name()+"_input", 3,
+    explicit AccDeviceTaskLayer(std::shared_ptr<DeviceCore> dev, std::shared_ptr<ServiceLayerInterface> service_interface)
+    : DeviceTaskLayer(dev, service_interface), _inputHandlerQueue(dev->name()+"_input", 3,
         std::bind(&AccDeviceTaskLayer::InputHandler, this, std::placeholders::_1, std::placeholders::_2)),
      _outputHandlerQueue(dev->name()+"_output", 3,
         std::bind(&AccDeviceTaskLayer::OutputHandler, this, std::placeholders::_1, std::placeholders::_2))

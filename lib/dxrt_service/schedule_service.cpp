@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -41,7 +41,7 @@ void SchedulerService::StopScheduler(int procId)
 }
 
 
-/* 
+/*
 int SchedulerService::GetProcLoad(int procId)
 {
     std::unique_lock<std::mutex> lk(_lock);
@@ -72,7 +72,7 @@ void SchedulerService::ClearProcLoad(int procId)
 void SchedulerService::AddScheduler(const dxrt::dxrt_request_acc_t& packet_data, int deviceId)
 {
     std::unique_lock<std::mutex> lk(_lock);
-    
+
     int proc_id = packet_data.proc_id;
     int req_id = packet_data.req_id;
 
@@ -85,15 +85,18 @@ void SchedulerService::AddScheduler(const dxrt::dxrt_request_acc_t& packet_data,
                << ", Bound from request: " << packet_data.bound << endl;
 
     pushRequest(deviceId, proc_id, req_id, packet_data.task_id);
-  
-    LOG_DXRT_S_DBG << "Load Increase in Add Scheduler - Process: "<< proc_id<<" Load Proc: "<<_loadsProc[proc_id]<<" Request Id: "<<req_id<<endl;
+
+    LOG_DXRT_S_DBG << "Load Increase in Add Scheduler - Process: " <<  proc_id
+      << " Load Proc: " << _loadsProc[proc_id] << " Request Id: " << req_id << endl;
     if (_loads[deviceId].load() < DX_RT_SERVICE_SCHED_THRE)
     {
         schedule(deviceId);
     }
     else
     {
-        LOG_DXRT_S << "SCHEDULER FAULT AddScheduler - "<< proc_id << " " << req_id << endl;
+        LOG_DXRT_S_DBG << "AddScheduler: maximum load reached for device "
+          << deviceId << " - Process: "<< proc_id << " Request Id: " << req_id
+          << "(current load: " << _loads[deviceId].load() << ", max load:" << DX_RT_SERVICE_SCHED_THRE << ")" <<endl;
     }
 }
 
@@ -142,11 +145,11 @@ void SchedulerService::FinishJobs(int deviceId, const dxrt::dxrt_response_t& res
         it->second.erase(req_id);
 
         schedule(deviceId);
-    
+
         lk.unlock();
         _callBack(response_to_send, deviceId);  // send result to client
         LOG_DXRT_S_DBG << "At FinishJobs end - After _callBack end's successful"<<endl;
-       
+
     }
 }
 
@@ -175,8 +178,8 @@ void SchedulerService::StopTaskInference(pid_t pid, int deviceId, int taskId)
     if (procIt != _map.end()) {
         auto& requests = procIt->second;
         std::vector<int> requestsToRemove;
-        
-        
+
+
         for (const auto& reqPair : requests) {
             int reqId = reqPair.first;
             const auto& reqData = reqPair.second;
@@ -200,7 +203,7 @@ void SchedulerService::StopTaskInference(pid_t pid, int deviceId, int taskId)
                 _loadsProc[pid]--;
                 LOG_DXRT_S_DBG << "Decrease loadsProc in StopTaskInference - Process: "<< pid<<"LoadsProc: "<<_loadsProc[pid]<<"RequestId: "<<reqId<<endl;
             }
-            
+
             else if (_loadsProc.count(pid) && _loadsProc[pid] == 0){
                 LOG_DXRT_S_DBG << "Cannot Decrease loadsProc in StopTaskInference - LoadsProc is already zero."<<   endl;
             }
@@ -211,8 +214,8 @@ void SchedulerService::StopTaskInference(pid_t pid, int deviceId, int taskId)
             if(_loads[deviceId] > 0){
                 _loads[deviceId]--;
                 LOG_DXRT_S_DBG << "Load Decrease in StopTaskInference - Process: "<< pid<<"LoadProc: " <<_loadsProc[pid];
-            } 
-            
+            }
+
             else {
                 LOG_DXRT_S_DBG << "[StopTaskInference] _loads[" << deviceId << "] is zero or not found, cannot decrement." << endl;
             }
@@ -242,7 +245,7 @@ void SchedulerService::StopAllInferenceForProcess(pid_t pid, int deviceId)
                 const auto& reqData = reqIt->second;
                 if (reqData.task_id == 0) {  // Assuming task_id 0 means it's a process-level request
                     reqIt = it->second.erase(reqIt);
-                    
+
                     if(_loadsProc.count(pid) &&  _loadsProc[pid] > 0){
                         _loadsProc[pid]--;
                     } else {
@@ -326,7 +329,7 @@ void SchedulerService::doInference(int deviceId, int procId, int reqId)
             } else {
                 LOG_DXRT_S_DBG << "[doInference] _loads[" << deviceId << "] is zero or not found, cannot decrement." << endl;
             }
-    
+
             auto it = _map.find(procId);
             if (it != _map.end()) {
                 it->second.erase(reqId);
@@ -383,7 +386,7 @@ void SchedulerService::doInference(int deviceId, int procId, int reqId)
         //}
         int retval = _devices[deviceId]->InferenceRequest(&new_req);
         LOG_DXRT_S_DBG << "Do Inference - InferenceRequest end"<<deviceId<<" - PROCESS_ID : "<<procId<<" -Bound: " << new_req.bound << " - REQ_ID : "<<reqId<<" - Device LOAD : "<<_loads[deviceId].load()<<std::endl;//AGING LOG
-        
+
         if ((retval == -EBUSY) || (retval == -EAGAIN))
         {
             _loads[deviceId]--;
@@ -392,7 +395,7 @@ void SchedulerService::doInference(int deviceId, int procId, int reqId)
             pushRequest(deviceId, procId, reqId, new_req.task_id);
             return;
         }
-        
+
         // No empty queue in list(-2) case
         if (retval != 0)
         {
@@ -426,7 +429,7 @@ void SchedulerService::cleanTaskInferenceTime(int procId)
     std::ignore = procId;
 }
 
-int SchedulerService::GetRunningRequestCount(pid_t pid, int deviceId) 
+int SchedulerService::GetRunningRequestCount(pid_t pid, int deviceId)
 {
     std::lock_guard<std::mutex> lock(_runningRequestsMutex);
     auto key = std::make_pair(pid, deviceId);
@@ -437,68 +440,68 @@ bool SchedulerService::IsRequestRunning(pid_t pid, int deviceId, int reqId)
 {
     std::lock_guard<std::mutex> lock(_runningRequestsMutex);
     auto key = std::make_pair(pid, deviceId);
-    return _runningRequests[key].count(reqId) > 0; 
+    return _runningRequests[key].count(reqId) > 0;
 }
 
-void SchedulerService::AddRunningRequest(pid_t pid, int deviceId, int reqId) 
+void SchedulerService::AddRunningRequest(pid_t pid, int deviceId, int reqId)
 {
     std::lock_guard<std::mutex> lock(_runningRequestsMutex);
     auto key = std::make_pair(pid, deviceId);
-    _runningRequests[key].insert(reqId);  
-    
-    LOG_DXRT_S_DBG << "Added running request: PID " << pid 
-                   << ", Device " << deviceId 
-                   << ", Request " << reqId 
+    _runningRequests[key].insert(reqId);
+
+    LOG_DXRT_S_DBG << "Added running request: PID " << pid
+                   << ", Device " << deviceId
+                   << ", Request " << reqId
                    << " (total: " << _runningRequests[key].size() << ")" << endl;
 }
 
-void SchedulerService::RemoveRunningRequest(pid_t pid, int deviceId, int reqId) 
+void SchedulerService::RemoveRunningRequest(pid_t pid, int deviceId, int reqId)
 {
     std::lock_guard<std::mutex> lock(_runningRequestsMutex);
     auto key = std::make_pair(pid, deviceId);
-    
+
     auto& requestSet = _runningRequests[key];
     auto it = requestSet.find(reqId);
     if (it != requestSet.end()) {
         requestSet.erase(it);
-        LOG_DXRT_S_DBG << "Removed running request: PID " << pid 
-                       << ", Device " << deviceId 
-                       << ", Request " << reqId 
+        LOG_DXRT_S_DBG << "Removed running request: PID " << pid
+                       << ", Device " << deviceId
+                       << ", Request " << reqId
                        << " (remaining: " << requestSet.size() << ")" << endl;
     }
 }
 
-void SchedulerService::ClearRunningRequests(pid_t pid, int deviceId) 
+void SchedulerService::ClearRunningRequests(pid_t pid, int deviceId)
 {
     std::lock_guard<std::mutex> lock(_runningRequestsMutex);
     auto key = std::make_pair(pid, deviceId);
-    
+
     auto it = _runningRequests.find(key);
     if (it != _runningRequests.end()) {
-        LOG_DXRT_S_DBG << "Force clearing " << it->second.size() 
-                   << " running requests for PID " << pid 
+        LOG_DXRT_S_DBG << "Force clearing " << it->second.size()
+                   << " running requests for PID " << pid
                    << ", Device " << deviceId << endl;
-        
+
         _runningRequests.erase(it);
     }
 }
 
-std::vector<int> SchedulerService::GetRunningRequestIds(pid_t pid, int deviceId) 
+std::vector<int> SchedulerService::GetRunningRequestIds(pid_t pid, int deviceId)
 {
     std::lock_guard<std::mutex> lock(_runningRequestsMutex);
     auto key = std::make_pair(pid, deviceId);
-    
+
     std::vector<int> result;
     auto it = _runningRequests.find(key);
     if (it != _runningRequests.end()) {
         const std::set<int>& requestSet = it->second;
         result.reserve(requestSet.size());
-        
+
         for (int reqId : requestSet) {
             result.push_back(reqId);
         }
     }
-    
+
     return result;
 }
 

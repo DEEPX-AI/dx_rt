@@ -23,10 +23,16 @@ Runner::~Runner()
     // Destructor body (if needed)
 }
 
-void Runner::Run(int time, int loops)
+void Runner::Run(int time, int loops, int warmup)
 {
     vector<uint8_t> inputBuf(_ie.GetInputSize(), 0);
     double elapsed_time;
+    _runCount = 0;
+
+    for (int i  = 0; i < warmup; ++i)
+    {
+        _ie.Run(inputBuf.data());
+    }
 
     auto call_back = [this](dxrt::TensorPtrs &outputs, void *userArg) -> int{
         std::ignore = outputs;

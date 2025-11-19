@@ -22,9 +22,8 @@ namespace dxrt {
                                                             const std::string& requiredCompilerVersion);
 
         static std::string NotSupported_ModelFileFormatVersion(int currentFileFormatVersion,
-                                                            int requiredFileFormatVersion);
-        static std::string NotSupported_ModelFileFormatMaxVersion(int currentFileFormatVersion,
-                                                            int requiredMaxFileFormatVersion);
+                                                            int requiredFileFormatMinVersion,
+                                                            int requiredFileFormatMaxVersion);
 
         static std::string NotSupported_DeviceDriverVersion(int currentDriverVersion, int requiredDriverVersion);
         static std::string NotSupported_PCIEDriverVersion(int currentDriverVersion, int requiredDriverVersion);
