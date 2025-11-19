@@ -19,6 +19,7 @@
 #include "dxrt/filesys_support.h"
 #include "dxrt/fw.h"
 #include "dxrt/util.h"
+#include "dxrt/exception/exception.h"
 #include "../resource/log_messages.h"
 #include "../data/ppcpu.h"
 
@@ -162,7 +163,7 @@ int DeviceCore::Wait(void)
         return -1;
     }
 #elif _WIN32
-    ret = _driverAdapter->Poll();  // unused in windows
+    ret = _adapter->Poll();  // unused in windows
 #endif
     std::ignore = ret;
     return 0;
@@ -188,9 +189,9 @@ void DeviceCore::Identify(int id_, uint32_t subCmd)
     //DXRT_ASSERT(ret == 0, "failed to identify device "+ to_string(id_));
     if (ret != 0)
     {
-        LOG_DXRT << "failed to identify device " << id_ << endl;
+        LOG_DXRT_DBG << "failed to identify device " << id_ <<", ret=" << ret << endl;
         //_isBlocked = true;
-        return;
+        throw DeviceIOException(EXCEPTION_MESSAGE(LogMessages::Device_FailToInitialize(id_)));
     }
 
 
@@ -205,7 +206,6 @@ void DeviceCore::Identify(int id_, uint32_t subCmd)
 #endif
         _devInfo = dxVer.GetVersion();
 
-        //dxVer.CheckVersion();
 
 
 
@@ -461,6 +461,16 @@ void* DeviceCore::CreateMemoryMap()
         mem_ptr = nullptr;
     }
     return mem_ptr;
+}
+void DeviceCore::CheckVersion()
+{
+
+#ifdef __linux__
+        DxDeviceVersion dxVer(this, _info.fw_ver, _info.type, _info.interface, _info.variant);
+#elif _WIN32
+        DxDeviceVersion dxVer(this, _info.fw_ver, _info.type, _info.interface_value, _info.variant);
+#endif
+    dxVer.CheckVersion();
 }
 
 } // namespace dxrt

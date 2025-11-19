@@ -15,12 +15,12 @@
 #include "dxrt/device_core.h"
 
 #if _WIN32
-#define RT_DRV_VERSION_CHECK (1301) // 1.3.1 for windows signed driver
+#define RT_DRV_VERSION_CHECK (1.8.0) // 1.3.1 --> 1.8.0 for windows signed driver
 #else
-#define RT_DRV_VERSION_CHECK (1701) // 1.5.0 --> 1.7.1
+#define RT_DRV_VERSION_CHECK (1800) // 1.7.1 --> 1.8.0
 #endif
-#define PCIE_VERSION_CHECK   (1401) // 1.4.0 --> 1.4.1
-#define FW_VERSION_CHECK     (210)  // 2.0.5 --> 2.1.0
+#define PCIE_VERSION_CHECK   (1501) // 1.4.1 --> 1.5.1
+#define FW_VERSION_CHECK     (240)  // 2.1.0 --> 2.4.0
 
 const std::string ONNX_RUNTIME_VERSION_CHECK {"1.20.1"};
 

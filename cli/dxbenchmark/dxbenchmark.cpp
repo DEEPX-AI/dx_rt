@@ -19,7 +19,7 @@
 #include "core/include/runner.h"
 
 
-#define APP_NAME "DXRT " DXRT_VERSION "dxbenchmark"
+#define APP_NAME "DXRT " DXRT_VERSION " dxbenchmark"
 // #define TARGET_FPS_DEBUG
 
 using std::cout;
@@ -38,6 +38,7 @@ int main(int argc, char *argv[])
     string modelDir;
     int loops;
     int time;
+    int warmup;
     string devices_spec;
     bool use_ort = false;
     bool verbose = false;
@@ -47,7 +48,7 @@ int main(int argc, char *argv[])
     bool only_data;
     bool recursive;
 
-    cxxopts::Options options("benchmark_report", APP_NAME);
+    cxxopts::Options options("dxbenchmark", APP_NAME);
     options.add_options()
         ("dir", "Model directory" , cxxopts::value<string>(modelDir))
         ("result-path", "Destination of result file" , cxxopts::value<string>(result_path)->default_value("."))
@@ -55,8 +56,9 @@ int main(int argc, char *argv[])
             "Sorting criteria\n"
             "  name: Model Name\n  fps: FPS\n  time: NPU Inference Time\n  latency: Latency" , cxxopts::value<string>(criteria)->default_value("name"))
         ("order", "Sorting order\n" "  asc: Ascending order\n  desc: Descending order", cxxopts::value<string>(order)->default_value("asc"))
-        ("l, loops", "Number of inference loops to perform", cxxopts::value<int>(loops)->default_value("30") )
+        ("l, loops", "Number of inference loops to perform", cxxopts::value<int>(loops)->default_value("0") )
         ("t, time", "Time duration to perform", cxxopts::value<int>(time)->default_value("0") )
+        ("warmup", "Warmup time", cxxopts::value<int>(warmup)->default_value("10") )
         ("n, npu",
             "NPU bounding (default:0)\n"
             "  0: NPU_ALL\n  1: NPU_0\n  2: NPU_1\n  3: NPU_2\n"
@@ -84,16 +86,24 @@ int main(int argc, char *argv[])
             cout << options.help() << endl;
             exit(0);
         }
+
+        if (cmd.count("dir") == 0)
+        {
+            cout << "Model directory is required" << endl;
+            cout << options.help() << endl;
+            exit(1);
+        }
+
+        if (cmd.count("loops") == 0 && cmd.count("time") == 0)
+        {
+            cout << "Either loops or time duration must be specified." << endl;
+            cout << options.help() << endl;
+            exit(1);
+        }
     }
     catch (std::exception& e)
     {
         std::cerr << "Error: " << e.what() << std::endl;
-        cout << options.help() << endl;
-        exit(0);
-    }
-
-    if (modelDir.length() == 0)
-    {
         cout << options.help() << endl;
         exit(0);
     }
@@ -113,11 +123,9 @@ int main(int argc, char *argv[])
     // print host info
     if ( verbose )
     {
-#ifdef __linux__
         printCpuInfo();
         printArchitectureInfo();
         printMemoryInfo();
-#endif  
     }
 
     dxrt::InferenceOption op;
@@ -250,8 +258,16 @@ int main(int argc, char *argv[])
         HostInform inform;
         getHostInform(inform);
 #elif _WIN32
-        vector<string> getModelWindows(modelDir);
-        // Window Support Required
+        vector<std::pair<string, string>> fileList = getModelWindows(modelDir, recursive);
+        findDuplicates(fileList);
+        
+        if(fileList.size() == 0)
+        {
+            cout << "[ERR] The model directory is empty" << endl;
+            return -1;
+        }
+        HostInform inform;
+        getHostInform(inform);
 #endif
         dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::PROFILER, true);
         dxrt::Configuration::GetInstance().SetAttribute(dxrt::Configuration::ITEM::PROFILER, dxrt::Configuration::ATTRIBUTE::PROFILER_SHOW_DATA, "ON");
@@ -272,7 +288,7 @@ int main(int argc, char *argv[])
             profiler.Start("dxbenchmark_"+file.first);
 
             Runner runner(file.second, op);
-            runner.Run(time, loops);
+            runner.Run(time, loops, warmup);
             Result result = runner.GetResult();
 
             result.modelName = file;
@@ -297,7 +313,7 @@ int main(int argc, char *argv[])
             reporter.makeReport();
         }
 
-        reporter.makeData(dxrt::Configuration::GetInstance().GetVersion(), dxrt::Configuration::GetInstance().GetDriverVersion(), dxrt::Configuration::GetInstance().GetPCIeDriverVersion());
+        reporter.makeData(dxrt::Configuration::GetInstance().GetVersion(), dxrt::Configuration::GetInstance().GetFirmwareVersions()[0].second, dxrt::Configuration::GetInstance().GetDriverVersion(), dxrt::Configuration::GetInstance().GetPCIeDriverVersion());
     }
 
     catch (const dxrt::Exception& e)

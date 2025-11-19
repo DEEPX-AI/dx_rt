@@ -476,7 +476,7 @@ void Reporter::makeReport()
     report_file.close();
 }
 
-void Reporter::makeData(const string& rtVersion, const string& ddVersion, const string& pdVersion)
+void Reporter::makeData(const string& rtVersion, const string& fwVersion, const string& ddVersion, const string& pdVersion)
 {
 
     if (_results.empty()) {
@@ -498,11 +498,12 @@ void Reporter::makeData(const string& rtVersion, const string& ddVersion, const 
     } else {
         csvFile.seekp(0, std::ios::end);
         if (csvFile.tellp() == 0) {
-            csvFile << "Runtime Version,Device Driver Version,PCIe Driver Version,Model Name,FPS,NPU Inference Time Mean,NPU Inference Time SD,NPU Inference Time CV,Latency Mean,Latency SD,Latency CV\n";
+            csvFile << "Runtime Version, Firmware Version, Device Driver Version,PCIe Driver Version,Model Name,FPS,NPU Inference Time Mean,NPU Inference Time SD,NPU Inference Time CV,Latency Mean,Latency SD,Latency CV\n";
         }
 
         for (const auto& result : _results) {
             csvFile << rtVersion << ","
+                    << fwVersion << ","
                     << ddVersion << ","
                     << pdVersion << ","
                     << result.modelName.first << ","
@@ -525,6 +526,7 @@ void Reporter::makeData(const string& rtVersion, const string& ddVersion, const 
         jsonFile << "{\n";
 
         jsonFile << "  \"Runtime Version\": \"" << rtVersion << "\",\n";
+        jsonFile << "  \"Firmware Version\": \"" << fwVersion << "\",\n";
         jsonFile << "  \"Device Driver Version\": \"" << ddVersion << "\",\n";
         jsonFile << "  \"PCIe Driver Version\": \"" << pdVersion << "\",\n";
 

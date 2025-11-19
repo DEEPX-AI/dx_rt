@@ -85,13 +85,9 @@ int V7ModelParser::LoadBinaryInfo(deepx_binaryinfo::BinaryInfoDatabase& param, c
                 buffer[7] << 24);
     param._dxnnFileFormatVersion = dxnnFileFormatVersion;
 
-    if (dxnnFileFormatVersion < MIN_SINGLEFILE_VERSION)
+    if (dxnnFileFormatVersion < MIN_SINGLEFILE_VERSION || dxnnFileFormatVersion > MAX_SINGLEFILE_VERSION)
     {
-        throw ModelParsingException(EXCEPTION_MESSAGE(LogMessages::NotSupported_ModelFileFormatVersion(dxnnFileFormatVersion, MIN_SINGLEFILE_VERSION)));
-    }
-    else if (dxnnFileFormatVersion > MAX_SINGLEFILE_VERSION)
-    {
-        throw ModelParsingException(EXCEPTION_MESSAGE(LogMessages::NotSupported_ModelFileFormatMaxVersion(dxnnFileFormatVersion, MAX_SINGLEFILE_VERSION)));
+        throw ModelParsingException(EXCEPTION_MESSAGE(LogMessages::NotSupported_ModelFileFormatVersion(dxnnFileFormatVersion, MIN_SINGLEFILE_VERSION, MAX_SINGLEFILE_VERSION)));
     }
 
     if (dxnnFileFormatVersion != 7) {

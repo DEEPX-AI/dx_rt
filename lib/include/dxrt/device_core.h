@@ -75,6 +75,7 @@ class DeviceCore {
 
     void BoundOption(dxrt_sche_sub_cmd_t subCmd, npu_bound_op boundOp);
     void* CreateMemoryMap();
+    void CheckVersion();
 
  private:
    int _id;

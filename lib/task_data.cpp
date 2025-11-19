@@ -377,7 +377,7 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_, bool
     }
     
     _outputMemSize = std::max(static_cast<uint32_t>(0), _npuModel.output_all_size);
-    _memUsage = rmapSize + weightSize + _encodedInputSize*DXRT_TASK_MAX_LOAD + _outputMemSize*DXRT_TASK_MAX_LOAD;
+    _memUsage = rmapSize + weightSize + (static_cast<uint64_t>(_encodedInputSize) * DXRT_TASK_MAX_LOAD) + (static_cast<uint64_t>(_outputMemSize) * DXRT_TASK_MAX_LOAD);
     LOG_DXRT_DBG << "NPU Task: imported npu parameters" << endl;
 }
 
@@ -390,7 +390,7 @@ void TaskData::set_from_cpu(std::shared_ptr<CpuHandle> cpuHandle)
     _inputSize = cpuHandle->_inputSize;
     _outputSize = cpuHandle->_outputSize;
     _outputMemSize = _outputSize;
-    _memUsage = _inputSize*DXRT_TASK_MAX_LOAD + _outputMemSize*DXRT_TASK_MAX_LOAD;
+    _memUsage = (static_cast<uint64_t>(_inputSize) * DXRT_TASK_MAX_LOAD) + (static_cast<uint64_t>(_outputMemSize) * DXRT_TASK_MAX_LOAD);
     _inputDataTypes = cpuHandle->_inputDataTypes;
     _outputDataTypes = cpuHandle->_outputDataTypes;
     _inputNames = cpuHandle->_inputNames;

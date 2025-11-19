@@ -27,6 +27,14 @@ using namespace std;
 
 namespace dxrt {
 
+
+template<typename T>
+T DXRT_STD_MAX_FUNC(const T& a, const T& b)
+{
+    return (a > b) ? a : b;
+}
+
+
 /**
  * Splits a version string by delimiter and returns vector of integers
  * @param version The version string to split (e.g., "1.2.3")
@@ -62,7 +70,7 @@ bool IsVersionEqualOrHigher(const std::string& currentVersion, const std::string
     std::vector<int> minimum = ParseVersion(minVersion);
 
     // Make both vectors the same length by padding with zeros
-    size_t maxLength = std::max(current.size(), minimum.size());
+    size_t maxLength = DXRT_STD_MAX_FUNC(current.size(), minimum.size());
     current.resize(maxLength, 0);
     minimum.resize(maxLength, 0);
 
@@ -84,7 +92,7 @@ bool IsVersionHigher(const std::string& currentVersion, const std::string& minVe
     std::vector<int> minimum = ParseVersion(minVersion);
 
     // Make both vectors the same length by padding with zeros
-    size_t maxLength = std::max(current.size(), minimum.size());
+    size_t maxLength = DXRT_STD_MAX_FUNC(current.size(), minimum.size());
     current.resize(maxLength, 0);
     minimum.resize(maxLength, 0);
 
