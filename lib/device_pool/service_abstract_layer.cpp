@@ -114,7 +114,7 @@ void NoServiceLayer::RegisterDeviceCore(DeviceCore* core)
     int id = core->id();
     _ptr[id] = core;
     dxrt_device_info_t info = core->info();
-    _mems.emplace(id, std::unique_ptr<Memory>(new Memory(info, nullptr)));
+    _mems.emplace(id, std::make_shared<Memory>(info, nullptr));
 }
 
 void NoServiceLayer::SignalTaskInit(int deviceId, int taskId, npu_bound_op bound, uint64_t modelMemorySize)

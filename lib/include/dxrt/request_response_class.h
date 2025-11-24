@@ -10,7 +10,7 @@
 
 namespace dxrt {
 
-class RequestResponse {
+class DXRT_API RequestResponse {
  public:
     static int InferenceRequest(RequestPtr req);
     static void ProcessByData(int reqId, const dxrt_response_t& response, int deviceId);

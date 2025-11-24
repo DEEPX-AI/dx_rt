@@ -22,6 +22,35 @@
 
 
 
+namespace {
+
+// Convert layout metadata into legacy format field expected by firmware (layout-1 mapping)
+int8_t LayoutToLegacyFormat(deepx_rmapinfo::Layout layout)
+{
+    const int layoutValue = static_cast<int>(layout);
+    return layoutValue > 0 ? static_cast<int8_t>(layoutValue - 1) : 0;
+}
+
+// Map compile-time PPU type flag to the corresponding runtime layout descriptor
+deepx_rmapinfo::Layout LayoutFromPpuType(int ppuType)
+{
+    using deepx_rmapinfo::Layout;
+    switch (ppuType)
+    {
+        case 0:
+        case 1:
+            return Layout::PPU_YOLO;
+        case 3:
+            return Layout::PPU_FD;
+        case 2:
+            return Layout::PPU_POSE;
+        default:
+            return Layout::LAYOUT_NONE;
+    }
+}
+
+}
+
 namespace dxrt {
 
 TaskData::TaskData(int id_, std::string name_, rmapinfo info_)
@@ -284,31 +313,40 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_, bool
         int memType = static_cast<int>(_info.outputs()[0].memory().type());
 
         // v8: Set format and datatype based on PPU type from compile_config.json
-        // ppu_type: 0,1 -> Layout 4 (PPU_YOLO), 2 -> Layout 5 (PPU_FD), 3 -> Layout 6 (PPU_POSE)
-        int ppuType = _info.ppu_type();
-        if (ppuType == 0 || ppuType == 1) {
-            _npuModel.format = 4;  // PPU_YOLO
-            dataType = DataType::BBOX;
-            std::cout << "NPU Task: PPCPU format set to PPU_YOLO (ppu_type=" << ppuType << ")" << std::endl;
-        } else if (ppuType == 3) {
-            _npuModel.format = 5;  // PPU_FD
-            dataType = DataType::FACE;
-            std::cout << "NPU Task: PPCPU format set to PPU_FD (ppu_type=" << ppuType << ")" << std::endl;
-        } else if (ppuType == 2) {
-            _npuModel.format = 6;  // PPU_POSE
-            dataType = DataType::POSE;
-            std::cout << "NPU Task: PPCPU format set to PPU_POSE (ppu_type=" << ppuType << ")" << std::endl;
+        // ppu_type: 0/1 -> YOLO, 3 -> FD, 2 -> POSE (ordering preserved for backward compatibility)
+        const int ppuType = _info.ppu_type();
+        const auto ppuLayout = LayoutFromPpuType(ppuType);
+        std::string ppu_tensor_name = "NONE";
+
+        if (ppuLayout != deepx_rmapinfo::Layout::LAYOUT_NONE) {
+            _npuModel.format = LayoutToLegacyFormat(ppuLayout);
+            switch (ppuLayout) {
+                case deepx_rmapinfo::Layout::PPU_YOLO:
+                    dataType = DataType::BBOX;
+                    ppu_tensor_name = "BBOX";
+                    break;
+                case deepx_rmapinfo::Layout::PPU_FD:
+                    dataType = DataType::FACE;
+                    ppu_tensor_name = "FACE";
+                    break;
+                case deepx_rmapinfo::Layout::PPU_POSE:
+                    dataType = DataType::POSE;
+                    ppu_tensor_name = "POSE";
+                    break;
+                default:
+                    break;
+            }
         } else {
             // Fallback to legacy behavior if ppu_type is not set or invalid
-            _npuModel.format = _info.outputs()[0].layout() - 1;
-            std::cout << "NPU Task: PPCPU format fallback to layout-1 (ppu_type=" << ppuType << ")" << std::endl;
+            const auto fallbackLayout = static_cast<deepx_rmapinfo::Layout>(_info.outputs()[0].layout());
+            _npuModel.format = LayoutToLegacyFormat(fallbackLayout);
         }
         
         _outputTensors.clear();
 
         _outputTensors.emplace_back(
             //Tensor("PPU_OUTPUT", {1, _outputSize/GetDataSize_Datatype(dataType)}, dataType, nullptr)
-            Tensor("PPU_OUTPUT", _outputShapes[0], dataType, nullptr, memType)
+            Tensor(ppu_tensor_name, _outputShapes[0], dataType, nullptr, memType)
 
         );
         _npuModel.output_all_size *= 2; // Allocate double size for combined output
@@ -341,7 +379,8 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_, bool
             _npuModel.type = 2;
             
             // When updating from .dxnn v6 to v7, format was replaced with layout. Applying correction value to connect with existing m1 fw dataformat
-            _npuModel.format = _info.outputs()[0].layout() - 1;
+            const auto layout = static_cast<deepx_rmapinfo::Layout>(_info.outputs()[0].layout());
+            _npuModel.format = LayoutToLegacyFormat(layout);
             
             _outputTensors.clear();
 

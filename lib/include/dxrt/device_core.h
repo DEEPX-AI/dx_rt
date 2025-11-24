@@ -27,7 +27,7 @@
 
 namespace dxrt {
 
-class DeviceCore {
+class DXRT_API DeviceCore {
  public:
     explicit DeviceCore(int id, std::unique_ptr<DriverAdapter> adapter);
 

@@ -124,28 +124,6 @@ InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &opti
 
     buildTaskGraph();
 
-    // ============================================================================
-    // [TEMPORARY FIX] v8 PPCPU: Override graph_info.json outputs for PPCPU models
-    // Issue: graph_info.json contains pre-PPU intermediate tensors in outputs,
-    //        but PPCPU models actually output a single "PPU_OUTPUT" tensor after PPU processing.
-    // TODO: Remove this temporary fix once compiler properly sets graph_info outputs for PPCPU models.
-    // ============================================================================
-    // Check if any task is PPCPU (which also sets _isPPU flag in TaskData)
-    for (auto &task : _tasks)
-    {
-        if (task->getData()->_isPPCPU)
-        {
-            // Replace graph outputs with PPU_OUTPUT for PPCPU models
-            _modelData.deepx_graph.outputs().clear();
-            _modelData.deepx_graph.outputs().push_back("PPU_OUTPUT");
-            LOG_DXRT_DBG << "[TEMPORARY FIX] PPCPU model detected: Overriding graph outputs to ['PPU_OUTPUT']" << std::endl;
-            break;
-        }
-    }
-    // ============================================================================
-    // [END TEMPORARY FIX]
-    // ============================================================================
-
     // Initialize _lastOutputOrder and collect tail tasks
     _numTails = 0;
     std::vector<std::pair<TaskPtr, std::vector<std::string>>> tailTaskOutputs;

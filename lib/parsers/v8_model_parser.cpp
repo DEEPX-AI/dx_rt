@@ -552,19 +552,23 @@ std::string V8ModelParser::LoadRmapInfo(deepx_rmapinfo::rmapInfoDatabase& param,
             regMap.size() = 0;
         }
 
+
         // counts
         if (document.HasMember("counts") && document["counts"].IsObject()) {
             const rapidjson::Value& countsObj = document["counts"];
+            if (countsObj.HasMember("layer") && countsObj["layer"].IsInt64())
+                regMap.counts().layer() = countsObj["layer"].GetInt64();
             if (countsObj.HasMember("cmd") && countsObj["cmd"].IsInt64())
                 regMap.counts().cmd() = countsObj["cmd"].GetInt64();
-            if (countsObj.HasMember("op_mode") && countsObj["op_mode"].IsInt())
-                regMap.counts()._op_mode = countsObj["op_mode"].GetInt();
             if (countsObj.HasMember("checkpoints") && countsObj["checkpoints"].IsArray()) {
-                const rapidjson::Value& checkpointsArray = countsObj["checkpoints"];
-                for (rapidjson::SizeType j = 0; j < checkpointsArray.Size() && j < MAX_CHECKPOINT_COUNT; j++) {
-                    if (checkpointsArray[j].IsInt64())
-                        regMap.counts()._checkpoints[j] = checkpointsArray[j].GetInt64();
+                regMap.counts()._op_mode = 1;
+                const Value& listObj = countsObj["checkpoints"];
+                for (SizeType j = 0; j < MAX_CHECKPOINT_COUNT; j++) {
+                    if (j >= listObj.Size()) break;
+                    regMap.counts()._checkpoints[j] = listObj[j].GetUint64();
                 }
+            } else {
+                regMap.counts()._op_mode = 0;
             }
         }
 

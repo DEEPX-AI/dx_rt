@@ -40,7 +40,7 @@ namespace dxrt {
 
 
 static DevicePool* poolForTest = nullptr;
-void SetTestDevicePool(DevicePool* p) {
+void DXRT_API SetTestDevicePool(DevicePool* p) {
     poolForTest = p;
 }
 

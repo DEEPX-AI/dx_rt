@@ -17,7 +17,7 @@
 #include <vector>
 #include <algorithm>
 #include <cctype>
-#ifdef _WINDOWS
+#if defined(_WIN32)
 #include <limits>
     #ifdef max
         #undef max

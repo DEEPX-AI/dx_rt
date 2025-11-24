@@ -545,6 +545,15 @@ int GetTaskMaxLoad()
     }
     return cached_value;
 }
+
+#if defined(__x86_64__) || defined(_M_X64)
+#define DXRT_NFH_DEFAULT_INPUT_THREADS 2
+#define DXRT_NFH_DEFAULT_OUTPUT_THREADS 4
+#else
+#define DXRT_NFH_DEFAULT_INPUT_THREADS 1
+#define DXRT_NFH_DEFAULT_OUTPUT_THREADS 2
+#endif
+
 int GetNfhInputWorkerThreads() {
     static int cached_value = -1;
     if (cached_value == -1) {
@@ -555,11 +564,11 @@ int GetNfhInputWorkerThreads() {
                 cached_value = env_int;
                 std::cout << "[DXRT] Using NFH_INPUT_WORKER_THREADS=" << cached_value << " from environment" << std::endl;
             } else {
-                cached_value = 1; // default value
+                cached_value = DXRT_NFH_DEFAULT_INPUT_THREADS; // default value
                 std::cout << "[DXRT] Invalid NFH_INPUT_WORKER_THREADS value, using default=" << cached_value << std::endl;
             }
         } else {
-            cached_value = 1; // default value
+            cached_value = DXRT_NFH_DEFAULT_INPUT_THREADS; // default value
         }
     }
     return cached_value;
@@ -575,11 +584,11 @@ int GetNfhOutputWorkerThreads() {
                 cached_value = env_int;
                 std::cout << "[DXRT] Using NFH_OUTPUT_WORKER_THREADS=" << cached_value << " from environment" << std::endl;
             } else {
-                cached_value = 2; // default value
+                cached_value = DXRT_NFH_DEFAULT_OUTPUT_THREADS; // default value
                 std::cout << "[DXRT] Invalid NFH_OUTPUT_WORKER_THREADS value, using default=" << cached_value << std::endl;
             }
         } else {
-            cached_value = 2; // default value
+            cached_value = DXRT_NFH_DEFAULT_OUTPUT_THREADS; // default value
         }
     }
     return cached_value;

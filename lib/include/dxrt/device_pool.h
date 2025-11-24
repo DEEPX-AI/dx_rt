@@ -21,7 +21,7 @@
 
 namespace dxrt {
 
-class DevicePool {
+class DXRT_API DevicePool {
  public:
 
 

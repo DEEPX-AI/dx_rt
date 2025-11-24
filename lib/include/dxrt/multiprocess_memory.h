@@ -43,7 +43,7 @@ struct memoryResult
 };
 
 
-class MultiprocessMemory
+class DXRT_API MultiprocessMemory
 {
 public:
     explicit MultiprocessMemory();

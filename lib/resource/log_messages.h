@@ -13,7 +13,7 @@
 #include <string>
 
 namespace dxrt {
-    class LogMessages
+    class DXRT_API LogMessages
     {
     public:
         static std::string ConvertIntToVersion(int version);
@@ -63,6 +63,16 @@ namespace dxrt {
         static std::string Profiler_MemoryUsage(uint64_t current_memory);
 
         static std::string Device_FailToInitialize(int id);
+
+        // Runtime error messages for RuntimeErrorDispatcher
+        static std::string RuntimeDispatch_FailToReadOutput(int errorCode, int requestId, int channelId);
+        static std::string RuntimeDispatch_FailToWriteInput(int errorCode, int requestId, int channelId);
+        static std::string RuntimeDispatch_RanOutOfNPUMemory();
+        static std::string RuntimeDispatch_RanOutOfNPUMemoryForTask(int taskId);
+        static std::string RuntimeDispatch_DeviceRecovery(const std::string& type);
+        static std::string RuntimeDispatch_DeviceEventError();
+        static std::string RuntimeDispatch_ThrottlingNotice(int temperature);
+        
     };
 
 }  // namespace dxrt

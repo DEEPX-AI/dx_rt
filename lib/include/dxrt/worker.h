@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -78,46 +78,7 @@ private:
 
 };
 
-class DeviceInputWorker : public Worker
-{
-public:
-    DeviceInputWorker(string name_, int numThreads, Device *device_);
-    virtual ~DeviceInputWorker();
-    static shared_ptr<DeviceInputWorker> Create(string name_, int numThreads, Device *device_);
-    int request(int requestId);
-    size_t load(){ std::unique_lock<std::mutex> lk(_lock); return _queue.size();}
-    void signalToWorker();
-private:
-    std::queue<int> _queue;
-    void ThreadWork(int id) override;
-};
-class DeviceOutputWorker : public Worker
-{
-public:
-    DeviceOutputWorker(string name_, int numThreads, Device *device_);
-    virtual ~DeviceOutputWorker();
-    static shared_ptr<DeviceOutputWorker> Create(string name_, int numThreads, Device *device_);
-#ifdef USE_SERVICE
-    void PushWork(const dxrt_response_t& resp);
-#endif
-private:
-    void ThreadWork(int id) override;
-#ifdef USE_SERVICE
-    std::queue<dxrt_response_t> _queue;
-#endif
 
-};
-class DeviceEventWorker : public Worker
-{
-public:
-    DeviceEventWorker(string name_, Device *device_);
-    virtual ~DeviceEventWorker();
-    static shared_ptr<DeviceEventWorker> Create(string name_, Device *device_);
-    void ShowPCIEDetails();
-
-private:
-    void ThreadWork(int id) override;
-};
 class CpuHandleWorker : public Worker
 {
 public:
@@ -128,24 +89,24 @@ public:
 
 private:
     std::queue<std::shared_ptr<Request>> _queue;
-    void ThreadWork(int id) override; 
+    void ThreadWork(int id) override;
 
     size_t _device_num;
     size_t _numThreads;
     size_t _minThreads;
     size_t _maxThreads;
-    
+
     int _initDynamicThreads;
 
     std::deque<size_t> _loadHistory;
     size_t _slidingSum = 0;
 
     std::chrono::steady_clock::time_point _lastThreadControlTime = std::chrono::steady_clock::now();
-    std::chrono::milliseconds _threadControlInterval = std::chrono::milliseconds(200); 
+    std::chrono::milliseconds _threadControlInterval = std::chrono::milliseconds(200);
     std::chrono::steady_clock::time_point _idleStartTime = std::chrono::steady_clock::now();
-    std::chrono::milliseconds _idleInterval = std::chrono::milliseconds(500); 
+    std::chrono::milliseconds _idleInterval = std::chrono::milliseconds(500);
 
-    std::vector<std::thread> _dynamicThreads;  
-    std::atomic<int> _dynamicStopCnt{0};  
+    std::vector<std::thread> _dynamicThreads;
+    std::atomic<int> _dynamicStopCnt{0};
 };
 } // namespace dxrt

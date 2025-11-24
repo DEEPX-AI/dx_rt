@@ -18,6 +18,7 @@
 #include "request.h"
 #include "inference_job.h"
 #include "dxrt/device.h"
+#include "dxrt/multiprocess_memory.h"
 
 namespace dxrt {
 
@@ -69,19 +70,7 @@ class ObjectsPool
     //DevicePtr GetDevice(int id);
 
     MultiprocessMemoryPtr GetMultiProcessMemory();
-/*
-    int DeviceCount();
 
-    void InitDevices(SkipMode skip, uint32_t subCmd);
-
-    std::shared_ptr<Device> PickOneDevice(const std::vector<int> &device_ids_);
-
-    std::vector<std::shared_ptr<Device> >& CheckDevices();
-
-    // wait and awake
-    std::shared_ptr<Device> WaitDevice(const std::vector<int> &device_ids);
-    void AwakeDevice(size_t devIndex);
-    */
 
 
  private:
