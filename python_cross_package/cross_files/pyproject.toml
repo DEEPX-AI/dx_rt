@@ -1,0 +1,43 @@
+[tool.pydocstyle]
+ignore = "D100,D104,D213,D413,D406,D407,D203,D107,D415,D400"
+[tool.mypy]
+ignore_missing_imports = true
+install_types = true
+non_interactive = true
+python_version = "^3.8"
+[tool.black]
+line-length = 120
+target-version = ["py38"]
+[tool.isort]
+profile = "black"
+filter_files = true
+line_length = 120
+[tool.pytest.ini_options]
+addopts = ["-vv", "-s"]
+[project]
+name="dx-engine"
+version = "1.1.2"
+description="Python wrapper class for dx_rt"
+readme = "README.md"
+license = {text="MIT"}
+authors = [{name="DEEPX-RT", email="rt@deepx.ai"}]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+requires-python = ">= 3.8"
+keywords = ["deepx", "dxrt"]
+dependencies = [
+  "numpy"
+]
+[project.urls]
+Homepage = "https://deepx.ai"
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["dx_engine*"]
+namespaces = false
+[tool.setuptools.package-data]
+"dx_engine.capi" = ["*.so"]

@@ -515,7 +515,22 @@
              else
  #endif
              {
-                 taskData.set_from_npu(data);
+                // Check if this task has PPU binary (v8 PPCPU type)
+                bool hasPpuBinary = false;
+                if (modelData.deepx_binary._dxnnFileFormatVersion == 8) {
+                    // Find matching task index in ppu vector
+                    for (size_t j = 0; j < modelData.deepx_binary.rmap_info().size(); j++) {
+                        if (order == modelData.deepx_binary.rmap_info(j).name()) {
+                            if (j < modelData.deepx_binary.ppu().size() &&
+                                modelData.deepx_binary.ppu(j).size() > 0) {
+                                hasPpuBinary = true;
+                                LOG_DXRT_DBG << "Task '" << order << "' has PPU binary, marking as PPCPU type" << std::endl;
+                            }
+                            break;
+                        }
+                    }
+                }
+                 taskData.set_from_npu(data, hasPpuBinary);
              }
 
              dataList.emplace_back(taskData);

@@ -23,7 +23,7 @@ namespace dxrt {
 using rmapinfo = deepx_rmapinfo::RegisterInfoDatabase;
 
 class CpuHandle;
-class TaskData
+class DXRT_API TaskData
 {
  public:
     TaskData(int id_, std::string name_, rmapinfo info_);

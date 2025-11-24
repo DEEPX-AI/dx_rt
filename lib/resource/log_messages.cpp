@@ -239,4 +239,43 @@ namespace dxrt {
         return "Fail to initialize device " + std::to_string(id);
     }
 
+    std::string LogMessages::RuntimeDispatch_FailToReadOutput(int errorCode, int requestId, int channelId)
+    {
+        return "Fail to read output, errno=" + std::to_string(errorCode) 
+                + ", reqId=" + std::to_string(requestId) 
+                + ", ch:" + std::to_string(channelId);
+    }
+
+    std::string LogMessages::RuntimeDispatch_FailToWriteInput(int errorCode, int requestId, int channelId)
+    {
+        return "Fail to write input, errno=" + std::to_string(errorCode)
+                + ", reqId=" + std::to_string(requestId)
+                + ", ch:" + std::to_string(channelId);
+    }
+
+    std::string LogMessages::RuntimeDispatch_RanOutOfNPUMemory()
+    {
+        return "Ran out of NPU memory";
+    }
+
+    std::string LogMessages::RuntimeDispatch_RanOutOfNPUMemoryForTask(int taskId)
+    {
+        return "Ran out of NPU memory for task id=" + std::to_string(taskId);
+    }
+
+    std::string LogMessages::RuntimeDispatch_DeviceRecovery(const std::string& type)
+    {
+        return "Device recovery occurred: " + type;
+    }
+
+    std::string LogMessages::RuntimeDispatch_DeviceEventError()
+    {
+        return "Device I/O event error occurred";
+    }
+
+    std::string LogMessages::RuntimeDispatch_ThrottlingNotice(int temperature)
+    {
+        return "Throttling notice: Device temperature is " + std::to_string(temperature) + "°C";
+    }
+
 } // namespace dxrt

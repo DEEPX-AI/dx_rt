@@ -30,7 +30,7 @@
 namespace dxrt {
 class DeviceTaskLayer;
 
-class NFHLayer {
+class DXRT_API NFHLayer {
  public:
     explicit NFHLayer(std::shared_ptr<DeviceTaskLayer> devicePtr, bool isDynamic);
 

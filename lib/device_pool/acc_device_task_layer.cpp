@@ -24,6 +24,9 @@
 #include "dxrt/objects_pool.h"
 #include "dxrt/util.h"
 #include "dxrt/datatype.h"
+#include "dxrt/runtime_event_dispatcher.h"
+#include "../resource/log_messages.h"
+
 #include <memory>
 #ifdef DXRT_USE_DEVICE_VALIDATION
 #include "dxrt/task.h"
@@ -309,8 +312,14 @@ int AccDeviceTaskLayer::InputHandler(const int& requestId, int ch)
         int ret = core()->Write(inferenceAcc.input, id());
         if (ret < 0)
         {
-            LOG_DXRT_DBG << inferenceAcc.input << std::endl;
-            LOG_DXRT_DBG << "write failed: " << ret << std::endl;
+            //LOG_DXRT_DBG << inferenceAcc.input << std::endl;
+            //LOG_DXRT_DBG << "write failed: " << ret << std::endl;
+            RuntimeEventDispatcher::GetInstance().DispatchEvent(
+                RuntimeEventDispatcher::LEVEL::CRITICAL,
+                RuntimeEventDispatcher::TYPE::DEVICE_IO,
+                RuntimeEventDispatcher::CODE::WRITE_INPUT,
+                LogMessages::RuntimeDispatch_FailToWriteInput(ret, requestId, ch)
+            );
         }
 #ifdef USE_PROFILER
         profiler.End("PCIe Write[Job_" + std::to_string(req->job_id()) + "][" + req->taskData()->name() + "][Req_" + std::to_string(req->id()) + "](" + std::to_string(inferenceAcc.dma_ch)+")");
@@ -446,8 +455,12 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
         //    ", reqId=" + std::to_string(reqId) + ",ch:" + std::to_string(id()));
         if ( ret2 != 0 )
         {
-            LOG_DXRT << "Failed to read output, errno=" << 
-                std::to_string(ret2) << ", reqId=" << std::to_string(reqId) << ",ch:" << std::to_string(id()) << std::endl;
+            RuntimeEventDispatcher::GetInstance().DispatchEvent(
+                RuntimeEventDispatcher::LEVEL::CRITICAL,
+                RuntimeEventDispatcher::TYPE::DEVICE_IO,
+                RuntimeEventDispatcher::CODE::READ_OUTPUT,
+                LogMessages::RuntimeDispatch_FailToReadOutput(ret2, reqId, id())
+            );
         }
     }
     CallBack();
@@ -558,6 +571,11 @@ void AccDeviceTaskLayer::EventThread()
             {
                 LOG_DXRT_ERR(eventInfo.dx_rt_err);
                 core()->ShowPCIEDetails();
+                RuntimeEventDispatcher::GetInstance().DispatchEvent(
+                    RuntimeEventDispatcher::LEVEL::ERROR,
+                    RuntimeEventDispatcher::TYPE::DEVICE_IO,
+                    RuntimeEventDispatcher::CODE::DEVICE_EVENT,
+                    LogMessages::RuntimeDispatch_DeviceEventError());
                 break;
             }
         }
@@ -565,15 +583,25 @@ void AccDeviceTaskLayer::EventThread()
         {
             if ( Configuration::GetInstance().GetEnable(Configuration::ITEM::SHOW_THROTTLING) )
                 LOG_DXRT << eventInfo.dx_rt_ntfy_throt << std::endl;
+
+            RuntimeEventDispatcher::GetInstance().DispatchEvent(
+                RuntimeEventDispatcher::LEVEL::INFO,
+                RuntimeEventDispatcher::TYPE::DEVICE_STATUS,
+                RuntimeEventDispatcher::CODE::THROTTLING_NOTICE,
+                LogMessages::RuntimeDispatch_ThrottlingNotice(
+                    eventInfo.dx_rt_ntfy_throt.throt_temper)
+            );
         }
         else if (static_cast<dxrt::dxrt_event_t>(eventInfo.event_type)==dxrt::dxrt_event_t::DXRT_EVENT_RECOVERY)
         {
+            std::string type = "Unknown";
             if (eventInfo.dx_rt_recv.action==dxrt::dxrt_recov_t::DXRT_RECOV_RMAP)
             {
                 auto model = _npuModel.begin()->second;
                 DXRT_ASSERT(core()->Write(model.rmap, 3) == 0, "Recovery rmap failed to write model parameters(cmd)");
                 LOG_DXRT_ERR("RMAP data has been recovered. This error can cause issues with NPU operation.")
                 StartDev(RMAP_RECOVERY_DONE);
+                type = "RMAP";
             }
             else if (eventInfo.dx_rt_recv.action==dxrt::dxrt_recov_t::DXRT_RECOV_WEIGHT)
             {
@@ -581,20 +609,30 @@ void AccDeviceTaskLayer::EventThread()
                 DXRT_ASSERT(core()->Write(model.weight, 3) == 0, "Recovery weight failed to write model parameters(weight)");
                 LOG_DXRT_ERR("Weight data has been recovered. This error can cause wrong result value.")
                 StartDev(WEIGHT_RECOVERY_DONE);
+                type = "WEIGHT";
             }
             else if (eventInfo.dx_rt_recv.action==dxrt::dxrt_recov_t::DXRT_RECOV_CPU)
             {
-                std::cout << "Host received a message regarding a CPU abnormal case." << std::endl;
+                LOG_DXRT << "Host received a message regarding a CPU abnormal case." << std::endl;
+                type = "CPU";
             }
             else if (eventInfo.dx_rt_recv.action==dxrt::dxrt_recov_t::DXRT_RECOV_DONE)
             {
-                std::cout << "Device recovery is complete" << std::endl;
+                LOG_DXRT << "Device recovery is complete" << std::endl;
+                type = "DONE";
             }
             else
             {
                 LOG_DXRT_ERR("Unknown data is received from device " << std::hex << eventInfo.dx_rt_recv.action << "\n");
                 core()->ShowPCIEDetails();
             }
+
+            RuntimeEventDispatcher::GetInstance().DispatchEvent(
+                RuntimeEventDispatcher::LEVEL::WARNING,
+                RuntimeEventDispatcher::TYPE::DEVICE_CORE,
+                RuntimeEventDispatcher::CODE::RECOVERY_OCCURRED,
+                LogMessages::RuntimeDispatch_DeviceRecovery(type)
+            );
         }
         else
         {

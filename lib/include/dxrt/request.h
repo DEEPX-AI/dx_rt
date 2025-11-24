@@ -156,7 +156,5 @@ private:
 DXRT_API std::ostream& operator<<(std::ostream&, const Request::Status&);
 
 
-int InferenceRequest(RequestPtr req);
-int ProcessResponse(RequestPtr req, dxrt_response_t *response=nullptr, int deviceType = -1);
 
 } // namespace dxrt

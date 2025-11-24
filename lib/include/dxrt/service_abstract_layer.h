@@ -40,7 +40,7 @@
 
 namespace dxrt {
 
-class ServiceLayerInterface {
+class DXRT_API ServiceLayerInterface {
 public:
     virtual void HandleInferenceAcc(const dxrt_request_acc_t &acc, int deviceId) = 0;
     virtual void SignalDeviceReset(int id) = 0;
@@ -55,7 +55,7 @@ public:
     virtual void SignalTaskDeInit(int deviceId, int taskId, npu_bound_op bound) = 0;
 };
 
-class ServiceLayer : public ServiceLayerInterface {
+class DXRT_API ServiceLayer : public ServiceLayerInterface {
 public:
     explicit ServiceLayer(std::shared_ptr<MultiprocessMemory> mem);
     void HandleInferenceAcc(const dxrt_request_acc_t &acc, int deviceId) override;
@@ -74,7 +74,7 @@ private:
     std::mutex _lock;
 };
 
-class NoServiceLayer : public ServiceLayerInterface {
+class DXRT_API NoServiceLayer : public ServiceLayerInterface {
 public:
     void HandleInferenceAcc(const dxrt_request_acc_t &acc, int deviceId) override;
     void SignalDeviceReset(int id) override;
@@ -88,7 +88,7 @@ public:
     void SignalTaskInit(int deviceId, int taskId, npu_bound_op bound, uint64_t modelMemorySize) override;
     void SignalTaskDeInit(int deviceId, int taskId, npu_bound_op bound) override;
 private:
-    std::map<int, std::unique_ptr<Memory>> _mems;
+    std::map<int, std::shared_ptr<Memory>> _mems;
     std::map<int, DeviceCore*> _ptr;
 };
 

@@ -15,7 +15,7 @@
 #include "dxrt/device_core.h"
 
 #if _WIN32
-#define RT_DRV_VERSION_CHECK (1.8.0) // 1.3.1 --> 1.8.0 for windows signed driver
+#define RT_DRV_VERSION_CHECK (1800) // 1.3.1 --> 1.8.0 for windows signed driver
 #else
 #define RT_DRV_VERSION_CHECK (1800) // 1.7.1 --> 1.8.0
 #endif

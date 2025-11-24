@@ -18,7 +18,7 @@
 
 namespace dxrt {
 
-class DriverAdapter {
+class DXRT_API DriverAdapter {
 
 public:
 

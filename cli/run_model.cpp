@@ -20,6 +20,7 @@
 #include "dxrt/extern/cxxopts.hpp"
 #include "dxrt/filesys_support.h"
 #include "dxrt/profiler.h"
+#include "dxrt/runtime_event_dispatcher.h"
 
 
 #define APP_NAME "DXRT " DXRT_VERSION " run_model"
@@ -477,6 +478,33 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
+    std::atomic<bool> critical_error{false};
+
+    // Runtime Event dispatching
+    dxrt::RuntimeEventDispatcher::GetInstance().RegisterEventHandler(
+        [&critical_error](dxrt::RuntimeEventDispatcher::LEVEL level, 
+            dxrt::RuntimeEventDispatcher::TYPE type, 
+            dxrt::RuntimeEventDispatcher::CODE code, const std::string& message, const std::string& timestamp) {
+            std::cout << "[run-model] level=" << std::to_string(static_cast<int>(level))
+                        << ", type=" << std::to_string(static_cast<int>(type))
+                        << ", code=" << std::to_string(static_cast<int>(code))
+                        << ", message: " << message
+                        << ", timestamp: " << timestamp << std::endl;
+
+            if (level == dxrt::RuntimeEventDispatcher::LEVEL::CRITICAL )
+            {
+                if (type == dxrt::RuntimeEventDispatcher::TYPE::DEVICE_MEMORY &&
+                code == dxrt::RuntimeEventDispatcher::CODE::MEMORY_OVERFLOW) {
+                    std::cerr << "Terminating program due to critical NPU memory error." << std::endl;
+                    exit(-1);
+                }
+                critical_error.store(true);
+            }
+        }
+    );
+    dxrt::RuntimeEventDispatcher::GetInstance().SetCurrentLevel(
+        dxrt::RuntimeEventDispatcher::LEVEL::WARNING);
+
     // always showing the model information
     dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::SHOW_MODEL_INFO, true);
 
@@ -758,5 +786,5 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    return 0;
+    return critical_error ? -1 : 0;
 }

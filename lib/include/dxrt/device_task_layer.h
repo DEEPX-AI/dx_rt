@@ -42,7 +42,7 @@ class Device;
 class TaskData;
 class RequestData;
 
-class DeviceTaskLayer {
+class DXRT_API DeviceTaskLayer {
  public:
     explicit DeviceTaskLayer(std::shared_ptr<DeviceCore> core, std::shared_ptr<ServiceLayerInterface> service_interface);
 
@@ -113,7 +113,7 @@ class DeviceTaskLayer {
     std::function<void(int deviceId, int reqId, dxrt_response_t *response)> _processResponseHandler;
 };
 
-class StdDeviceTaskLayer : public DeviceTaskLayer {
+class DXRT_API StdDeviceTaskLayer : public DeviceTaskLayer {
 public:
     explicit StdDeviceTaskLayer(std::shared_ptr<DeviceCore> dev, std::shared_ptr<ServiceLayerInterface> service_interface) : DeviceTaskLayer(dev,service_interface) {}
     int RegisterTask(TaskData* task) override;
@@ -164,12 +164,12 @@ private:
     uint64_t _memoryMapBuffer = 0;
 };
 
-class AccDeviceTaskLayer : public DeviceTaskLayer {
+class DXRT_API AccDeviceTaskLayer : public DeviceTaskLayer {
 public:
     explicit AccDeviceTaskLayer(std::shared_ptr<DeviceCore> dev, std::shared_ptr<ServiceLayerInterface> service_interface)
     : DeviceTaskLayer(dev, service_interface), _inputHandlerQueue(dev->name()+"_input", 3,
         std::bind(&AccDeviceTaskLayer::InputHandler, this, std::placeholders::_1, std::placeholders::_2)),
-     _outputHandlerQueue(dev->name()+"_output", 3,
+     _outputHandlerQueue(dev->name()+"_output", 4,
         std::bind(&AccDeviceTaskLayer::OutputHandler, this, std::placeholders::_1, std::placeholders::_2))
      {}
      int RegisterTask(TaskData* task) override;
