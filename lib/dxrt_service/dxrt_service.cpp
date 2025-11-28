@@ -99,6 +99,7 @@ class DxrtService
     void Dispose();
 
     bool IsTaskValid(pid_t pid, int deviceId, int taskId);
+    bool IsTaskValidNoMessage(pid_t pid, int deviceId, int taskId);
     void ClearResidualIPCMessages();
     void PrintManagedTasks();
     bool TaskInit(pid_t pid, int deviceId, int taskId, int bound, uint64_t modelMemorySize);
@@ -375,19 +376,23 @@ void DxrtService::TaskDeInit(int deviceId, int taskId, int pid)
 
     // Log current state before cleanup
     auto it = _infoMap.find(make_pair(pid, deviceId));
-#ifndef DXRT_SERVICE_SIMPLE_CONSOLE_LOG
+
     if (it != _infoMap.end())
     {
+#ifndef DXRT_SERVICE_SIMPLE_CONSOLE_LOG
     LOG_DXRT_S << "Before cleanup - PID " << pid << " has "
                 << it->second.taskCount() << " tasks on device " << deviceId << endl;
+#endif
     }
     else
     {
+#ifndef DXRT_SERVICE_SIMPLE_CONSOLE_LOG
         LOG_DXRT_S << "Before cleanup - PID " << pid << " has "
             << "no" << " tasks on device " << deviceId << endl;
+#endif
         return;
     }
-#endif
+
     // Stop any ongoing inference requests for this Task
     _scheduler->StopTaskInference(pid, deviceId, taskId);
 
@@ -817,7 +822,7 @@ void DxrtService::HandleDeallocateTaskMemory(const dxrt::IPCClientMessage& clien
                 << ", PID: " << pid << endl;
 #endif
     // Check if Task is already deallocated
-    if (IsTaskValid(pid, deviceId, taskId)) {
+    if (IsTaskValidNoMessage(pid, deviceId, taskId)) {
         LOG_DXRT_S_ERR("Task " + std::to_string(taskId) +
                         " is still active, cannot deallocate memory");
         return;
@@ -1050,12 +1055,19 @@ void DxrtService::onCompleteInference(const dxrt::dxrt_response_t& response, int
                    << ", deviceId: " << serverMessage.deviceId << endl;
 
     int ret = _ipcServerWrapper.SendToClient(serverMessage);
-    if (ret != 0) {
+#ifdef __linux__
+    constexpr int correct_return_value = 0;
+#elif _WIN32
+    constexpr int correct_return_value = sizeof(dxrt::IPCServerMessage);
+#endif
+    if (ret != correct_return_value)
+    {
         LOG_DXRT_S_ERR("Failed to send response to client, ret: " + std::to_string(ret));
-    } else {
+    }
+    else
+    {
         LOG_DXRT_S_DBG << "Successfully sent response to client" << endl;
     }
-
 }
 
 // Task validity verification function implementation
@@ -1088,6 +1100,25 @@ bool DxrtService::IsTaskValid(pid_t pid, int deviceId, int taskId)
 
     return taskExists && memoryExists;
 }
+bool DxrtService::IsTaskValidNoMessage(pid_t pid, int deviceId, int taskId)
+{
+    std::lock_guard<std::mutex> lock(_deviceMutex);
+
+    // Check Task metadata in DxrtService
+    auto it = _infoMap.find(make_pair(pid, deviceId));
+    if (it == _infoMap.end())
+    {
+        return false;
+    }
+
+    bool taskExists = it->second.hasTask(taskId);
+    // Check Task validity in MemoryService
+    auto memService = dxrt::MemoryService::getInstance(deviceId);
+    bool memoryExists = (memService != nullptr) && memService->IsTaskValid(pid, taskId);
+
+    return taskExists && memoryExists;
+}
+
 
 void DxrtService::ClearResidualIPCMessages()
 {

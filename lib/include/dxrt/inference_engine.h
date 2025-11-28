@@ -595,10 +595,10 @@ class DXRT_API InferenceEngine
     size_t GetOutputTensorOffset(const std::string& tensorName) const;
 
  private:  // private functions
-    int runAsync(void *inputPtr, void *userArg, void *outputPtr,
+    int runAsync(void *inputPtr, void *userArg, void *outputPtr, int batchIndex,
         std::function<void(TensorPtrs &outputs, void *userArg, int jobId)> batchCallback);
 
-    void runSubBatch(std::vector<TensorPtrs>& result, int batchCount, int startIndex, void* batchArgs,
+    void runSubBatch(std::vector<TensorPtrs>& result, int batchCount, int startIndex,
             const std::vector<void*>& inputPtrs,
             const std::vector<void*>& outputPtrs,
             const std::vector<void*>& userArgs);

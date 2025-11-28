@@ -19,17 +19,20 @@
 #include "dxrt/nfh_request.h"
 #include "dxrt/npu_format_handler.h"
 #include "dxrt/request_response_class.h"
+#include "dxrt/device_pool.h"
 
 namespace dxrt
 {
 
+static constexpr int COMMON_NFH_LAYER_DEVICE_ID = -1;
+
 NFHLayer::NFHLayer(std::shared_ptr<DeviceTaskLayer> devicePtr, bool isDynamic)
-    : _deviceId(devicePtr->id()),
-      _device(devicePtr),
-      _inputHandler("NFHLayer::handleInput", GetNfhInputWorkerThreads(), std::bind(&NFHLayer::handleInput, this, std::placeholders::_1, std::placeholders::_2)),
-      _outputHandler("NFHLayer::handleOutput", GetNfhOutputWorkerThreads(), std::bind(&NFHLayer::handleOutput, this, std::placeholders::_1, std::placeholders::_2)),
-      _isDynamic(isDynamic),
-      _responseCallback(RequestResponse::ProcessByData) // Default callback
+    : _deviceId((devicePtr == nullptr) ? COMMON_NFH_LAYER_DEVICE_ID : devicePtr->id()),
+        _device(devicePtr),
+        _inputHandler("NFHLayer::handleInput", GetNfhInputWorkerThreads(), std::bind(&NFHLayer::handleInput, this, std::placeholders::_1, std::placeholders::_2)),
+        _outputHandler("NFHLayer::handleOutput", GetNfhOutputWorkerThreads(), std::bind(&NFHLayer::handleOutput, this, std::placeholders::_1, std::placeholders::_2)),
+        _isDynamic(isDynamic),
+        _responseCallback(RequestResponse::ProcessByData) // Default callback
 {
     if (isDynamic)
     {
@@ -47,7 +50,7 @@ void NFHLayer::SetResponseCallback(std::function<void(int, const dxrt_response_t
 
 int NFHLayer::InferenceRequest(int deviceId, std::shared_ptr<Request> req, npu_bound_op boundOp)
 {
-    if (deviceId != _deviceId)
+    if ((_deviceId != COMMON_NFH_LAYER_DEVICE_ID) && (deviceId != _deviceId))
     {
         LOG_DXRT_ERR("NFHLayer::InferenceRequest invalid deviceId " << deviceId << "!=" << _deviceId);
         return -1;
@@ -102,12 +105,29 @@ int NFHLayer::handleInput(const NfhInputRequest &inputReq, int threadId)
         if (inputReq.req)
         {
             auto reqData = inputReq.req->getData();
-            if (reqData && _device)
+            if (reqData)
             {
-                int inferenceResult = _device->InferenceRequest(inputReq.req->getData(), inputReq.boundOp);
-                if (inferenceResult != 0)
+                if (_deviceId == COMMON_NFH_LAYER_DEVICE_ID)
                 {
-                    LOG_DXRT_ERR("Failed to process InferenceRequest_ACC after NFH for request " << inputReq.requestId);
+                    auto device = DevicePool::GetInstance().GetDeviceTaskLayer(inputReq.deviceId);
+                    if (!device)
+                    {
+                        LOG_DXRT_ERR("Device not found for InferenceRequest_ACC after NFH for request " << inputReq.requestId);
+                        return -1;
+                    }
+                    int inferenceResult = device->InferenceRequest(reqData, inputReq.boundOp);
+                    if (inferenceResult != 0)
+                    {
+                        LOG_DXRT_ERR("Failed to process InferenceRequest_ACC after NFH for request " << inputReq.requestId);
+                    }
+                }
+                else
+                {
+                    int inferenceResult = _device->InferenceRequest(inputReq.req->getData(), inputReq.boundOp);
+                    if (inferenceResult != 0)
+                    {
+                        LOG_DXRT_ERR("Failed to process InferenceRequest_ACC after NFH for request " << inputReq.requestId);
+                    }
                 }
             }
             else
@@ -157,7 +177,7 @@ int NFHLayer::handleOutput(const NfhOutputRequest &outputReq, int threadId)
         else
         {
             // NFH processing completed, proceed to direct subsequent processing (prevent circular calls)
-            if (outputReq.req && _device)
+            if (outputReq.req)
             {
                 try
                 {
@@ -193,7 +213,7 @@ int NFHLayer::handleOutput(const NfhOutputRequest &outputReq, int threadId)
 
 int NFHLayer::ProcessResponse(int deviceId, int reqId, dxrt_response_t *response)
 {
-    if (deviceId != _deviceId)
+    if ((_deviceId !=COMMON_NFH_LAYER_DEVICE_ID) && (deviceId != _deviceId))
     {
         LOG_DXRT_ERR( "NFHLayer::ProcessResponse invalid deviceId " << deviceId << "!=" << _deviceId);
         return -1;

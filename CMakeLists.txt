@@ -66,7 +66,7 @@ if (MSVC)
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /DEBUG:FULL")
 
     add_compile_options(-D_CRT_SECURE_NO_WARNINGS)
-
+    add_subdirectory(extern/windows_pdcurses)
     add_definitions(-D_AMD64_ -D_WIN64 -DWIN64)
 
     # Set the runtime library based on the option

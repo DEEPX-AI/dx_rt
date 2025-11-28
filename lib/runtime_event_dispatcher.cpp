@@ -15,16 +15,26 @@ namespace dxrt {
         static RuntimeEventDispatcher instance;
         return instance;
     }
-    
+
     void RuntimeEventDispatcher::DispatchEvent(LEVEL level, TYPE type, CODE code, const std::string& eventMessage)
     {
         if ( level >= _currentLevel.load() )
         {
             auto now = std::chrono::system_clock::now();
+            auto now_ms = std::chrono::time_point_cast<std::chrono::milliseconds>(now);
+            auto ms_count = std::chrono::duration_cast<std::chrono::milliseconds>(
+                now_ms.time_since_epoch());
             auto in_time_t = std::chrono::system_clock::to_time_t(now);
-            
+
             std::stringstream ss;
-            ss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %H:%M:%S %Z");
+            std::tm tm_buf;
+#ifdef _WIN32
+            localtime_s(&tm_buf, &in_time_t);
+#else
+            localtime_r(&in_time_t, &tm_buf);
+#endif
+            ss << std::put_time(&tm_buf, "%Y-%m-%d %H:%M:%S");
+            ss << '.' << std::setfill('0') << std::setw(3) << (ms_count.count() % 1000);
             std::string timestamp = ss.str();
 
             handleEventLogging(level, type, code, eventMessage, timestamp);
@@ -42,7 +52,7 @@ namespace dxrt {
     bool RuntimeEventDispatcher::invokeEventHandler(LEVEL level, TYPE type, CODE code, const std::string& eventMessage, const std::string& timestamp)
     {
         std::function<void(LEVEL, TYPE, CODE, const std::string&, const std::string&)> handlerCopy;
-        
+
         {
             // lock range minimized
             std::lock_guard<std::mutex> lock(_handlerMutex);
@@ -95,10 +105,10 @@ namespace dxrt {
         static std::mutex logging_mutex;
         std::lock_guard<std::mutex> lock(logging_mutex);
 
-        std::cout << "[RuntimeEventDispatcher] level=" << levelStr 
-                    << " type=" << typeStr 
-                    << " code=" << codeStr 
-                    << " message=\"" << eventMessage << "\"" 
+        std::cout << "[RuntimeEventDispatcher] level=" << levelStr
+                    << " type=" << typeStr
+                    << " code=" << codeStr
+                    << " message=\"" << eventMessage << "\""
                     << " timestamp=\"" << timestamp << "\"" << std::endl;
     }
 

@@ -17,10 +17,10 @@
 #include "core/input_provider/input_provider.h"
 #include "core/view/renderer.h"
 
-#ifdef __linux__
-    #include "core/input_provider/linux_input_provider.h"
-    #include "core/view/linux_renderer.h"
-#endif
+
+#include "core/input_provider/linux_input_provider.h"
+#include "core/view/linux_renderer.h"
+
 
 int main(int argc, char *argv[])
 {
@@ -38,12 +38,10 @@ int main(int argc, char *argv[])
 
         dxrt::NpuMonitor monitor;
 
-#ifdef __linux__
+
         dxrt::NcursesRenderer renderer;
         dxrt::NcursesInputProvider inputProvider;
-#else
-        static_assert(false, "Renderer implementation is missing for this platform.");
-#endif
+
         monitor.Initialize(renderer);
         monitor.Run(inputProvider, renderer);
     }

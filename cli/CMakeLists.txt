@@ -5,7 +5,7 @@ foreach(source_file ${SRC_FILES})
     add_target(${filename} SRC_LIST ${source_file})
 endforeach()
 
+add_subdirectory(dxtop)
 if(NOT MSVC)
-    add_subdirectory(dxtop)
     add_subdirectory(dxbenchmark)
 endif()

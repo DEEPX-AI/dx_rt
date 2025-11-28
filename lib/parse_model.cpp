@@ -726,15 +726,15 @@
         // Input/Output tensor information with tree connectors
         auto print_detailed_tensors = [&](const std::string& title, const dxrt::Tensors& tensors, const std::vector<deepx_rmapinfo::TensorInfo>* tensorInfos, bool is_npu) {
             bool isOutputs = (title == std::string("Outputs"));
-            cout << (isOutputs ? "  +- " : "  +- ") << Color::bold() << title << ":" << Color::reset() << endl;
+            cout << "  +- " << Color::bold() << title << ":" << Color::reset() << endl;
             if (tensors.empty()) {
                 cout << (isOutputs ? "     " : "  |  ") << "+- (None)" << endl;
                 return;
             }
             for (size_t i = 0; i < tensors.size(); ++i) {
                 const auto& tensor = tensors[i];
-                bool last = (i + 1 == tensors.size());
-                string prefix = string(isOutputs ? "     " : "  |  ") + string(last ? "+- " : "+- ");
+                //bool last = (i + 1 == tensors.size());
+                string prefix = string(isOutputs ? "     +- " : "  |  +- ");
 
                 cout << prefix << Color::cyan() << tensor.name() << Color::reset();
 

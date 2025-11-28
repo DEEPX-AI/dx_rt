@@ -338,21 +338,21 @@ void RequestResponse::ProcessByDataPPCPU(RequestPtr req, const dxrt_response_t& 
     std::ignore = deviceId;
     LOG_DXRT_DBG << "PPCPU output processing, ppu_filter_num : " << response.ppu_filter_num << std::endl;
     RequestData* req_data = req->getData();
-    
+
     if (!req_data->outputs.empty() && response.ppu_filter_num > 0)
-    {        
+    {
         DataType dtype = req_data->outputs[0].type();
         size_t unit_size = GetDataSize_Datatype(dtype);
         memcpy(static_cast<void*>(req_data->outputs[0].data()),
                static_cast<const void*>(req_data->encoded_output_ptrs[0]),
                response.ppu_filter_num * unit_size);
         req_data->outputs[0].shape() = {1, response.ppu_filter_num};
-        
+
         LOG_DXRT_DBG << "PPCPU output shape set to [" << response.ppu_filter_num << "]" << std::endl;
     }
     else
     {
-        LOG_DXRT_WARN("PPCPU output is empty or ppu_filter_num is 0");
+        LOG_DXRT_DBG << "PPCPU output is empty or ppu_filter_num is 0, req id: " << req->id() << std::endl;
         if (!req_data->outputs.empty())
         {
             req_data->outputs[0].shape() = {0, 0};
