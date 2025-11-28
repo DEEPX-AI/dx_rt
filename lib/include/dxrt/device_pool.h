@@ -33,6 +33,10 @@ class DXRT_API DevicePool {
     std::shared_ptr<DeviceCore> GetDeviceCores(int deviceId) {return _deviceCores[deviceId];}
     std::shared_ptr<NFHLayer> GetNFHLayer(int deviceId) {
         InitNFHLayers();
+        if (USE_ONE_NFH_LAYERS)
+        {
+            return _nfhLayers[0];
+        }
         return _nfhLayers[deviceId];
     }
     std::shared_ptr<NFHLayer> PickOneNFHDevice(const std::vector<int> &device_ids_);
@@ -87,8 +91,7 @@ class DXRT_API DevicePool {
     int pickDeviceIndex(const std::vector<int> &device_ids);
     std::shared_ptr<DeviceTaskLayer> WaitDevice(const std::vector<int> &device_ids);
 
-
-
+    static constexpr bool USE_ONE_NFH_LAYERS = true;
 };
 
 }  // namespace dxrt

@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -107,7 +107,7 @@ int32_t NetworkDriverAdapter::NetControl(dxrt_cmd_t request, void* data, uint32_
             default:
                 LOG_DXRT_ERR("Undefined request (" << request << ")");
                 exit(-1);
-                break;
+                // break not requrired due to exit function call
         }
     }
     return ret;
@@ -115,6 +115,11 @@ int32_t NetworkDriverAdapter::NetControl(dxrt_cmd_t request, void* data, uint32_
 
 int32_t NetworkDriverAdapter::Write(const void* buffer, uint32_t size)
 {
+    if (buffer == nullptr || size == 0)
+    {
+        LOG_DXRT_ERR("Invalid buffer or size in NetworkDriverAdapter::Write, buffer: " << buffer << ", size: " << size);
+        return -1;
+    }
     int ret = 0;
     // printf("Write burst buffer : %p, size:%d\n", buffer, size);
     {

@@ -50,12 +50,6 @@ using std::endl;
 namespace dxrt
 {
 
-struct BatchArgument
-{
-    void* userArg;
-    int resultIndex;
-};
-
 static const int SUB_BATCH_MAX_COUNT = 128;
 std::mutex InferenceEngine::_sInferenceEngineMutex;
 constexpr int InferenceEngine::INFERENCE_JOB_MAX_COUNT;
@@ -430,7 +424,7 @@ int InferenceEngine::RunAsync(void *inputPtr, void *userArg, void *outputPtr)
         return RunAsyncMultiInput(splitPtrs, userArg, outputPtr);
     }
 
-    return runAsync(inputPtr, userArg, outputPtr, nullptr);
+    return runAsync(inputPtr, userArg, outputPtr, -1, nullptr);
 }
 
 int InferenceEngine::RunAsync(const std::vector<void*>& inputPtrs, void *userArg, void *outputPtr)
@@ -455,7 +449,7 @@ int InferenceEngine::RunAsync(const std::vector<void*>& inputPtrs, void *userArg
 
     // For single-input models or batch inference, use first pointer
     LOG_DBG("RunAsync: Using traditional single-input approach");
-    return RunAsync(inputPtrs[0], userArg, outputPtr);
+    return runAsync(inputPtrs[0], userArg, outputPtr, -1, nullptr);
 }
 
 int InferenceEngine::RunAsyncMultiInput(const std::map<std::string, void*>& inputTensors, void *userArg, void *outputPtr)
@@ -599,9 +593,6 @@ std::vector<TensorPtrs> InferenceEngine::Run(
 
     try
     {
-        // argruments
-        std::vector<BatchArgument> batch_args(SUB_BATCH_MAX_COUNT);
-
         int start_index = 0;
         int sub_batch_loop = static_cast<int>(batch_count / SUB_BATCH_MAX_COUNT);
         int sub_batch_remain = static_cast<int>(batch_count % SUB_BATCH_MAX_COUNT);
@@ -616,7 +607,7 @@ std::vector<TensorPtrs> InferenceEngine::Run(
             for (int i = 0; i < sub_batch_loop; ++i)
             {
                 runSubBatch(result, SUB_BATCH_MAX_COUNT, start_index,
-                    batch_args.data(), inputBuffers, outputBuffers, userArgs);
+                    inputBuffers, outputBuffers, userArgs);
 
                 start_index += SUB_BATCH_MAX_COUNT;
             }  // for i
@@ -625,10 +616,8 @@ std::vector<TensorPtrs> InferenceEngine::Run(
         if ( sub_batch_remain > 0 )
         {
             runSubBatch(result, sub_batch_remain, start_index,
-                batch_args.data(), inputBuffers, outputBuffers, userArgs);
+                inputBuffers, outputBuffers, userArgs);
         }
-
-        batch_args.clear();
 
     }
     catch (const dxrt::Exception& e)
@@ -644,34 +633,31 @@ std::vector<TensorPtrs> InferenceEngine::Run(
 }
 
 void InferenceEngine::runSubBatch(std::vector<TensorPtrs>& result, int batchCount, int startIndex,
-        void* batchArgs,
         const std::vector<void*>& inputBuffers,
         const std::vector<void*>& outputBuffers,
         const std::vector<void*>& userArgs
     )
 {
 
-    BatchArgument* batch_args_array = reinterpret_cast<BatchArgument*>(batchArgs);
-
     std::atomic<int> complete_count{0};
     std::mutex mtx_cv;  // mutex lock
     std::condition_variable cv_complete;  // complete condition variable
     bool is_completed = false;
 
-    auto batch_callback = [&complete_count, &cv_complete, &mtx_cv, &result, batchCount, &is_completed](TensorPtrs &outputs, void *userArg, int jobId) {
+    auto batch_callback = [this, &complete_count, &cv_complete, &mtx_cv, &result, batchCount, &is_completed](TensorPtrs &outputs, void *userArg, int jobId) {
+            std::ignore = userArg;
 
-            // std::ignore = userArg; // reserved
-            BatchArgument* batch_arg = reinterpret_cast<BatchArgument*>(userArg);
-            if ( batch_arg == nullptr )
+            auto infJob = _inferenceJobPool->GetById(jobId);
+            if (infJob == nullptr)
             {
-                throw dxrt::InvalidOperationException(EXCEPTION_MESSAGE(LogMessages::InferenceEngine_BatchArgumentIsNull()));
+                throw dxrt::InvalidOperationException(EXCEPTION_MESSAGE("InferenceJob not found for jobId"));
             }
 
             int batch_index = -1;
 
             try {
-                // find batch_index by jobId
-                batch_index = batch_arg->resultIndex;
+                // Get batch_index from InferenceJob
+                batch_index = infJob->GetBatchIndex();
                 // std::cout << "callback batch-index=" << batch_index << std::endl;
 
                 if ( batch_index >= 0 )
@@ -703,13 +689,10 @@ void InferenceEngine::runSubBatch(std::vector<TensorPtrs>& result, int batchCoun
         // Run asynchronous operations for each batch
         for (int i = 0; i < batchCount; ++i)
         {
-            BatchArgument* batchArg = reinterpret_cast<BatchArgument*>(&batch_args_array[i]);
             void* userArg = userArgs.size() > 0 ? userArgs.at(i) : nullptr;
             int current_index = startIndex + i;
 
-            batchArg->userArg = userArg;
-            batchArg->resultIndex = current_index;
-            int job_id = runAsync(inputBuffers.at(current_index), batchArg, outputBuffers.at(current_index), batch_callback);
+            int job_id = runAsync(inputBuffers.at(current_index), userArg, outputBuffers.at(current_index), current_index, batch_callback);
 
             // std::cout << "runAsync index=" << current_index << std::endl;
             // std::cout << "inputPtrs size=" << inputPtrs.size() << " OutputPtrs size=" << pOutputPtrs->size() << std::endl;
@@ -738,7 +721,7 @@ void InferenceEngine::runSubBatch(std::vector<TensorPtrs>& result, int batchCoun
 
 
 // private
-int InferenceEngine::runAsync(void *inputPtr, void *userArg, void *outputPtr,
+int InferenceEngine::runAsync(void *inputPtr, void *userArg, void *outputPtr, int batchIndex,
     std::function<void(TensorPtrs &outputs, void *userArg, int jobId)> batchCallback)
 {
     if (_isDisposed)
@@ -750,20 +733,13 @@ int InferenceEngine::runAsync(void *inputPtr, void *userArg, void *outputPtr,
     std::shared_ptr<InferenceJob> infJob = _inferenceJobPool->pick();
 
     infJob->SetInferenceJob(_tasks, _head, _lastOutputOrder, _modelInputOrder);
+    infJob->SetBatchIndex(batchIndex);
     infJob->setInferenceEngineInterface(this);
     infJob->setCallBack([this, batchCallback](TensorPtrs &outputs, void *userArg, int jobId)->int{
             int retval = 0;
             if (this->_userCallback != nullptr)
             {
-                if ( batchCallback != nullptr && userArg != nullptr )
-                {
-                    retval = this->_userCallback(outputs,
-                        (reinterpret_cast<BatchArgument*>(userArg))->userArg);
-                }
-                else
-                {
-                    retval = this->_userCallback(outputs, userArg);
-                }
+                retval = this->_userCallback(outputs, userArg);
             }
             if ( batchCallback != nullptr )
             {

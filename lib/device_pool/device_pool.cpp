@@ -232,14 +232,28 @@ void DevicePool::InitNFHLayers_once()
 {
     InitTaskLayers();
     _nfhLayers.clear();
-    for (auto& taskLayer : _taskLayers)
+    bool isDynamic = true;
+    if (USE_ONE_NFH_LAYERS)
     {
-        bool isDynamic = true;
-        auto nfhLayer = std::make_shared<NFHLayer>(taskLayer, isDynamic);
-
+        auto nfhLayer = std::make_shared<NFHLayer>(nullptr, isDynamic);
         _nfhLayers.push_back(nfhLayer);
-        taskLayer->SetProcessResponseHandler(std::bind(&NFHLayer::ProcessResponse, nfhLayer.get(),
-            std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+        for (auto &taskLayer : _taskLayers)
+        {
+            taskLayer->SetProcessResponseHandler(std::bind(&NFHLayer::ProcessResponse, nfhLayer.get(),
+                                                           std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+        }
+    }
+    else
+    {
+        for (auto &taskLayer : _taskLayers)
+        {
+            bool isDynamic = true;
+            auto nfhLayer = std::make_shared<NFHLayer>(taskLayer, isDynamic);
+
+            _nfhLayers.push_back(nfhLayer);
+            taskLayer->SetProcessResponseHandler(std::bind(&NFHLayer::ProcessResponse, nfhLayer.get(),
+                                                           std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+        }
     }
 
 }

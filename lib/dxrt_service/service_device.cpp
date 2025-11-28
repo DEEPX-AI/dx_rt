@@ -232,6 +232,31 @@ void ServiceDevice::LoadPPCPUFirmware(uint64_t offset)
         _isBlocked = true;
         return;
     }
+
+
+    //check ppcpu data integrity
+
+    std::vector<uint8_t> readData(size, 0);
+    dxrt_req_meminfo_t checkMemInfo;
+    checkMemInfo.base = _info.mem_addr;
+    checkMemInfo.offset = offset;
+    checkMemInfo.size = static_cast<uint32_t>(size);
+    checkMemInfo.data = reinterpret_cast<uint64_t>(readData.data());
+    checkMemInfo.ch = 0;
+    int retCheck = Process(dxrt::dxrt_cmd_t::DXRT_CMD_READ_MEM, static_cast<void*>(&checkMemInfo));
+    if (retCheck != 0)
+    {
+        LOG_DXRT << "failed to read back PPCPU firmware from device " << _id <<", ret:" << retCheck << std::endl;
+        _isBlocked = true;
+        return;
+    }
+    if (memcmp(data, readData.data(), size) != 0)
+    {
+        LOG_DXRT << "PPCPU firmware data mismatch on device " << _id << std::endl;
+        _isBlocked = true;
+        return;
+    }
+    LOG_DXRT_S << "PPCPU firmware loaded to device " << _id << " successfully." << std::endl;
 }
 
 void ServiceDevice::Terminate()
@@ -613,7 +638,7 @@ void ServiceDevice::DoCustomCommand(void *data, uint32_t subCmd, uint32_t size)
         LOG_DXRT_ERR("Null data pointer received");
         return;
     }
-    return;  // TODO: temporary disable weight checksum
+
     switch (sCmd)
     {
         case DX_ADD_WEIGHT_INFO:

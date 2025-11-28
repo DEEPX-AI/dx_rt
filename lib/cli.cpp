@@ -171,10 +171,22 @@ void DeviceStatusMonitor::doCommand(std::shared_ptr<DeviceCore> devicePtr)
         return;
     }
 
+    auto device_total_count = DevicePool::GetInstance().GetDeviceCount();
+
     while (true) {
-        DeviceStatus::GetCurrentStatus(devicePtr).StatusToStream(std::cout);
-        std::this_thread::sleep_for(std::chrono::seconds(delay));
-    }
+
+        for(uint32_t i = 0; i < device_total_count; i++) {
+            std::cout << "====================== Device " << i << " =======================" << std::endl;
+            auto device_ptr = DevicePool::GetInstance().GetDeviceCores(i);
+            if ( device_ptr != nullptr) 
+            {
+                DeviceStatus::GetCurrentStatus(device_ptr).StatusToStream(std::cout);
+            } // device_ptr
+        }
+
+        std::this_thread::sleep_for(std::chrono::seconds(delay));    
+        std::cout << std::endl;
+    } // while
 }
 
 

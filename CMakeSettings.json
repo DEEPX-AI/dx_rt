@@ -18,18 +18,8 @@
                 },
                 {
                     "name": "ONNXRUNTIME_ROOTDIR",
-                    "value": "${projectDir}\\onnxruntime-win-x64-1.20.1",
-                    "type": "STRING"
-                },
-                {
-                    "name": "onnxruntime_INCLUDE_DIRS",
-                    "value": "${projectDir}\\onnxruntime-win-x64-1.20.1\\include",
-                    "type": "STRING"
-                },
-                {
-                    "name": "onnxruntime_LIB_DIRS",
-                    "value": "${projectDir}\\onnxruntime-win-x64-1.20.1\\lib",
-                    "type": "STRING"
+                    "value": "${projectDir}/extern/onnxruntime-win-x64-1.20.1/",
+                    "type": "PATH"
                 },
                 {
                     "name": "VCPKG_TARGET_TRIPLET",
@@ -80,6 +70,21 @@
                     "name": "USE_PYTHON",
                     "value": "False",
                     "type": "BOOL"
+                },
+                {
+                    "name": "onnxruntime_LIB_DIRS",
+                    "value": "${projectDir}/extern/onnxruntime-win-x64-1.20.1/lib",
+                    "type": "PATH"
+                },
+                {
+                    "name": "onnxruntime_INCLUDE_DIRS",
+                    "value": "${projectDir}/extern/onnxruntime-win-x64-1.20.1/include",
+                    "type": "PATH"
+                },
+                {
+                    "name": "ONNXLIB_DIRS",
+                    "value": "${projectDir}/extern/onnxruntime-win-x64-1.20.1/lib/onnxruntime.lib",
+                    "type": "FILEPATH"
                 }
             ]
         },
@@ -94,6 +99,11 @@
             "ctestCommandArgs": "",
             "inheritEnvironments": [ "msvc_x64_x64" ],
             "variables": [
+                {
+                    "name": "GTest_DIR",
+                    "value": "${projectDir}\\vcpkg_installed\\x64-windows\\share\\gtest",
+                    "type": "PATH"
+                },
                 {
                     "name": "onnxruntime_INCLUDE_DIRS",
                     "value": "${projectDir}\\onnxruntime-win-x64-1.20.1\\include",

@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -46,8 +46,8 @@ class InferenceJob
     explicit InferenceJob(int id) noexcept;
     ~InferenceJob();
 
-    void SetInferenceJob(std::vector<std::shared_ptr<Task>>& tasks_, std::shared_ptr<Task> head_, 
-                        std::vector<std::string> lastOutputOrder, 
+    void SetInferenceJob(std::vector<std::shared_ptr<Task>>& tasks_, std::shared_ptr<Task> head_,
+                        std::vector<std::string> lastOutputOrder,
                         const std::vector<std::string>& modelInputNames = {});
 
     /** @brief Set inference job with multi-head support using input tasks
@@ -56,8 +56,8 @@ class InferenceJob
      * @param[in] lastOutputOrder Output tensor order
      * @param[in] modelInputNames Names of model input tensors
      */
-    void SetInferenceJobMultiHead(std::vector<std::shared_ptr<Task>>& tasks_, 
-                                  const std::vector<std::shared_ptr<Task>>& inputTasks_, 
+    void SetInferenceJobMultiHead(std::vector<std::shared_ptr<Task>>& tasks_,
+                                  const std::vector<std::shared_ptr<Task>>& inputTasks_,
                                   std::vector<std::string> lastOutputOrder,
                                   const std::vector<std::string>& modelInputNames);
 
@@ -67,7 +67,7 @@ class InferenceJob
     void processReadyTask(TaskPtr taskPtr);
 
     int startJob(void *inputPtr, void *userArg, void *outputPtr);
-    
+
     /** @brief Start inference job with multiple input tensors
      * @param[in] inputTensors Map of tensor name to input data pointer
      * @param[in] userArg user-defined arguments
@@ -98,6 +98,8 @@ class InferenceJob
     // inference job for IE
     bool GetOccupiedJob() { return _occupiedJob.load(); }
     void SetOccupiedJob(bool occupied) { _occupiedJob.store(occupied); }
+    int GetBatchIndex() { return _batchIndex; }
+    void SetBatchIndex(int index) { _batchIndex = index; }
 
  private:
     std::vector<RequestWeakPtr> _requests;
@@ -147,6 +149,7 @@ class InferenceJob
 
     std::atomic<bool> _occupiedJob {false};
 
+    int _batchIndex = -1;
 };
 
 using InferenceJobPtr = std::shared_ptr<InferenceJob>;

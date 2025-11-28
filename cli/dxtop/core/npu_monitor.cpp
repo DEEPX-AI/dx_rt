@@ -16,6 +16,7 @@
 #include <string>
 #include "dxrt/device_pool.h"
 #include "dxrt/device_core.h"
+#include "util/unicode_literal_support.h"
 
 namespace dxrt {
 
@@ -409,7 +410,7 @@ CoreViewModel NpuMonitor::createCoreViewModel(const NpuCore& core)
     //Temperature
     int32_t temperature = core.GetTemperature();
     std::ostringstream temperature_stream;
-    temperature_stream << std::setw(3) << core.GetTemperature() << " °C";
+    temperature_stream << std::setw(3) << core.GetTemperature() << convertLiteralUTF8(u8" \u00B0C");
 
     Field temperature_field{
         "Temp",

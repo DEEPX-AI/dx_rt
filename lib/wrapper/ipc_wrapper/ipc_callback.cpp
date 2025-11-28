@@ -189,5 +189,4 @@ switch (code)
         default:
             return "--ERROR(" + std::to_string(static_cast<int>(code)) + ")--";
     }
-    return "";
 }
