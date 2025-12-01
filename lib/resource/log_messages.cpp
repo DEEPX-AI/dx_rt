@@ -239,6 +239,11 @@ namespace dxrt {
         return "Fail to initialize device " + std::to_string(id);
     }
 
+    std::string LogMessages::Device_DeviceErrorEvent(int errorCode)
+    {
+        return "Device error event occurred, errorCode=" + std::to_string(errorCode);
+    }
+
     std::string LogMessages::RuntimeDispatch_FailToReadOutput(int errorCode, int requestId, int channelId)
     {
         return "Fail to read output, errno=" + std::to_string(errorCode) 

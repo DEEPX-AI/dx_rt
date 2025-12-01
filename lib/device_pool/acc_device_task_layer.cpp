@@ -576,6 +576,7 @@ void AccDeviceTaskLayer::EventThread()
                     RuntimeEventDispatcher::TYPE::DEVICE_IO,
                     RuntimeEventDispatcher::CODE::DEVICE_EVENT,
                     LogMessages::RuntimeDispatch_DeviceEventError());
+                DXRT_ASSERT(false, LogMessages::Device_DeviceErrorEvent(static_cast<int>(eventInfo.dx_rt_err.err_code)));
                 break;
             }
         }
