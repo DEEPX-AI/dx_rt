@@ -1065,7 +1065,7 @@ int NpuFormatHandler::DecodeOutputs(const void* reqPtr, const void* responsePtr,
             for (size_t i = 0; i < req_data->outputs.size(); i++)
             {
                 Tensor& output_tensor = req_data->outputs[i];
-             
+
                 LOG_DXRT_DBG << "output_tensor[" << i << "] name: " << output_tensor.name() << std::endl;
                 LOG_DXRT_DBG << "output_tensor[" << i << "] memory_type: " << output_tensor.memory_type() << std::endl;
                 LOG_DXRT_DBG << "output_tensor[" << i << "] data(): " << output_tensor.data() << std::endl;
@@ -1084,7 +1084,7 @@ int NpuFormatHandler::DecodeOutputs(const void* reqPtr, const void* responsePtr,
                     }
                     LOG_DXRT_DBG << "Writing argmax value " << response->argmax << " to output_tensor.data(): " << output_tensor.data() << std::endl;
                     *(static_cast<uint16_t *>(output_tensor.data())) = response->argmax;
-                    
+
                     // ARGMAX tensors don't use encoded_output_ptrs, so we skip that write
                     LOG_DXRT_DBG << "ARGMAX tensor written successfully" << std::endl;
                     if (DEBUG_DATA > 0)
@@ -1093,16 +1093,16 @@ int NpuFormatHandler::DecodeOutputs(const void* reqPtr, const void* responsePtr,
                     }
                     continue;
                 }
-                
+
                 deepx_rmapinfo::TensorInfo tensor_info = req_data->taskData->_npuOutputTensorInfos[i];
                 int shape_dims = tensor_info.shape_encoded().size();
-                
+
                 // Validate array bounds first
                 if (i >= req_data->encoded_output_ptrs.size()) {
                     LOG_DXRT_ERR("Encoded output pointer index out of bounds for tensor: " << output_tensor.name());
                     continue;
                 }
-                
+
                 Bytes encoded_output = {static_cast<uint32_t>(req_data->taskData->_encodedOutputSizes[i]), static_cast<uint8_t*>(req_data->encoded_output_ptrs[i])};
                 Bytes decoded_output = {static_cast<uint32_t>(output_tensor.size_in_bytes()), static_cast<uint8_t*>(output_tensor.data())};
 
@@ -1158,7 +1158,7 @@ int NpuFormatHandler::DecodeOutputs(const void* reqPtr, const void* responsePtr,
     else if (req->model_type() == 1 && req->taskData()->_isArgMax)
     {
         *(static_cast<uint16_t *>(req->outputs().front().data())) = response->argmax;
-        
+
         if (DEBUG_DATA > 0)
         {
             DataDumpBin(req->taskData()->name() + "_output.argmax.bin", req->outputs());
@@ -1172,7 +1172,7 @@ int NpuFormatHandler::DecodeOutputs(const void* reqPtr, const void* responsePtr,
             memcpy(static_cast<void*>(req_data->outputs[0].data()), static_cast<const void*>(req_data->encoded_output_ptrs[0]), 128 * 1024);
             req_data->outputs[0].shape() = std::vector<int64_t>{1, static_cast<int64_t>(response->ppu_filter_num)};
         }
-        
+
         if (DEBUG_DATA > 0)
         {
             DataDumpBin(req->taskData()->name() + "_output.ppu.bin", req->outputs());
@@ -1187,20 +1187,20 @@ int NpuFormatHandler::DecodeOutputs(const void* reqPtr, const void* responsePtr,
         {
             DataType dtype = req_data->outputs[0].type();
             size_t unit_size = GetDataSize_Datatype(dtype);
-            req_data->outputs[0].shape() = std::vector<int64_t>{static_cast<int64_t>(response->ppu_filter_num), 
+            req_data->outputs[0].shape() = std::vector<int64_t>{static_cast<int64_t>(response->ppu_filter_num),
                                                                  static_cast<int64_t>(unit_size)};
-            LOG_DXRT_DBG << "PPCPU output shape set to [" << response->ppu_filter_num 
+            LOG_DXRT_DBG << "PPCPU output shape set to [" << response->ppu_filter_num
                          << ", " << unit_size << "]" << std::endl;
         }
         else
         {
-            LOG_DXRT_WARN("PPCPU output is empty or ppu_filter_num is 0");
+            LOG_DXRT_DBG << "PPCPU output is empty or ppu_filter_num is 0, req id: " << req->id() << std::endl;
             if (!req_data->outputs.empty())
             {
                 req_data->outputs[0].shape() = std::vector<int64_t>{0, 0};
             }
         }
-        
+
         if (DEBUG_DATA > 0)
         {
             DataDumpBin(req->taskData()->name() + "_output.ppcpu.bin", req->outputs());

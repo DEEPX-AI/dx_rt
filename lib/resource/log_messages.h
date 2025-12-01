@@ -63,6 +63,7 @@ namespace dxrt {
         static std::string Profiler_MemoryUsage(uint64_t current_memory);
 
         static std::string Device_FailToInitialize(int id);
+        static std::string Device_DeviceErrorEvent(int errorCode);
 
         // Runtime error messages for RuntimeErrorDispatcher
         static std::string RuntimeDispatch_FailToReadOutput(int errorCode, int requestId, int channelId);
