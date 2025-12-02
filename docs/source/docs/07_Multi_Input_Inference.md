@@ -1,5 +1,7 @@
 This section describes how to use **DX-RT**’s inference APIs with models that require multiple input tensors. It covers methods for executing multi-input inference in both synchronous and asynchronous modes, with or without user-managed output buffers. Support for batch processing formats is also explained to help optimize throughput and integration flexibility.  
 
+---
+
 ## Identifying a Multi-Input Model
 
 **C++**

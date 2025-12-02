@@ -1,10 +1,53 @@
 ## v3.1.0 (November 2025)
+
+#### Changed
 - Update minimum versions
   ```
   - Driver: 1.7.1 → 1.8.0
   - PCIe Driver: 1.4.1 → 1.5.1
   - Firmware: 2.1.0 → 2.4.0
   ```
+- Standardize command-line argument parsing across all examples
+  ```
+  - Use argparse (Python) and cxxopts (C++)
+  - Unified argument format: -m/--model, -l/--loops, etc.
+  ```
+- Update SanityCheck.sh
+  ```
+  - Remove redundant libdxrt.so location check (validated via run_model execution)
+  - Hide ONNX Runtime version when built with USE_ORT=OFF
+  ```
+- Enhance build and installation scripts
+  ```
+  - Use 'python3 -m pip' instead of 'pip' for better reliability
+  - Add Python version compatibility check in build.sh
+  - Improve logging with color-coded messages
+  - Add uninstall.sh script for project cleanup
+  ```
+- Improve profiler functionality
+  ```
+  - Add Flush and GetPerformanceData functions
+  - Group events by base name instead of individual job/request entries
+  - Limit duration details to 30 values per group for cleaner output
+  - Add memory usage tracking with high usage warnings
+  ```
+- Improve parse_model CLI tool with enhanced functionality
+- Support dynamic shape output for tail CPU tasks
+- Update C++ exception handling to translate exceptions into Python
+
+#### Fixed
+- Fix multiple bugs
+  ```
+  - Multi-tasking bugs related to CPU offloading and PPU output buffer
+  - PPU model format and layout issues
+  - Multi-output and multi-tail configuration bugs
+  - Tensor mapping errors in non-ORT inference mode
+  - Output tensor mapping and memory address configuration
+  - run_model error when -f option and -l loop count exceeds 1024
+  - Bounding issues on service
+  ```
+
+#### Added
 - Add support for V8 DXNN file format with PPU support
 - Add model voltage profiler tool (run_model_prof.py)
   ```
@@ -21,59 +64,25 @@
   - Verify architecture (x86_64 or aarch64)
   - Exit with error if requirements not met
   ```
-- Standardize command-line argument parsing across all examples
-  ```
-  - Use argparse (Python) and cxxopts (C++)
-  - Unified argument format: -m/--model, -l/--loops, etc.
-  ```
-- Enhance build and installation scripts
-  ```
-  - Use 'python3 -m pip' instead of 'pip' for better reliability
-  - Add Python version compatibility check in build.sh
-  - Improve logging with color-coded messages
-  - Add uninstall.sh script for project cleanup
-  ```
-- Update SanityCheck.sh
-  ```
-  - Remove redundant libdxrt.so location check (validated via run_model execution)
-  - Hide ONNX Runtime version when built with USE_ORT=OFF
-  ```
-- Improve profiler functionality
-  ```
-  - Add Flush and GetPerformanceData functions
-  - Group events by base name instead of individual job/request entries
-  - Limit duration details to 30 values per group for cleaner output
-  - Add memory usage tracking with high usage warnings
-  ```
 - Add model file format version range validation
   ```
   - Error messages now indicate valid version range (min to max)
   ```
 - Add time-based inference mode to run_model (-t, --time option)
-- Improve parse_model CLI tool with enhanced functionality
 - Add error handling for invalid firmware files and update conditions
 - Add dxtop enhancements
   ```
   - Display PCIe bus number
   - Update cross-compilation script
   ```
-- Support dynamic shape output for tail CPU tasks
-- Fix multiple bugs
-  ```
-  - Multi-tasking bugs related to CPU offloading and PPU output buffer
-  - PPU model format and layout issues
-  - Multi-output and multi-tail configuration bugs
-  - Tensor mapping errors in non-ORT inference mode
-  - Output tensor mapping and memory address configuration
-  - run_model error when -f option and -l loop count exceeds 1024
-  - Bounding issues on service
-  ```
-- Update C++ exception handling to translate exceptions into Python
 - Add new Python APIs for device configuration and status retrieval
 - Add new documentation files for Inference API, Multi-Input Inference, and Global Instance
 - Add examples for asynchronous model inference with profiling capabilities
 
+---
+
 ## v3.0.0 (September 2025)
+
 - Update the .dxnn file format to version 7 (from v6).
 - Update C++ exception handling to translate exceptions into Python for improved error handling.
 - Update the Python v6_converter with enhanced functionality.

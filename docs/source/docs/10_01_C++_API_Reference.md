@@ -1,6 +1,8 @@
 This section documents the core C++ classes provided by the DX-RT SDK. It includes detailed descriptions of the inference engine, configuration options, device status monitoring, and tensor structures. These APIs are designed for high-performance, real-time applications and offer fine-grained control over NPU execution.  
-  
-### `class dxrt::InferenceEngine`  
+
+---
+
+### class dxrt::InferenceEngine  
   
 This class abstracts the runtime inference executor for a user's compiled model. After a model is loaded, real-time device tasks are scheduled by internal runtime libraries. It supports both synchronous and asynchronous inference modes.  
   
@@ -301,7 +303,7 @@ This class abstracts the runtime inference executor for a user's compiled model.
   
 ---  
   
-### `class dxrt::InferenceOption`  
+### class dxrt::InferenceOption  
   
 This class specifies inference options applied to an `InferenceEngine`, allowing users to configure which devices and NPU cores are used.  
   
@@ -319,7 +321,7 @@ This class specifies inference options applied to an `InferenceEngine`, allowing
   
 ---  
   
-### `class dxrt::Configuration`  
+### class dxrt::Configuration  
   
 A singleton class for managing global application configurations. Access is thread-safe and should be done via the `GetInstance()` method.  
   
@@ -419,7 +421,7 @@ A singleton class for managing global application configurations. Access is thre
   
 ---  
   
-### `class dxrt::DeviceStatus`  
+### class dxrt::DeviceStatus  
   
 Provides an abstraction for retrieving device information and real-time status.  
   
@@ -578,7 +580,7 @@ Provides an abstraction for retrieving device information and real-time status.
   
 ---  
   
-### `class dxrt::Tensor`  
+### class dxrt::Tensor  
   
 This class abstracts a DXRT tensor object, which defines a data array composed of uniform elements.  
   

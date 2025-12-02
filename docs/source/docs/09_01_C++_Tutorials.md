@@ -1,5 +1,7 @@
 This section provides C++ tutorials covering core DXRT SDK features, including synchronous/asynchronous inference, batch processing, and runtime configuration. The examples help developers quickly integrate DXRT into real-time and embedded applications.
 
+---
+
 ### Run (Synchronous)
 
 The synchronous Run method uses a single NPU core to perform inference in a blocking manner. It can be configured to utilize multiple NPU cores simultaneously by employing threads to run each core independently.  
@@ -1238,7 +1240,7 @@ For each synchronous method, you can either let the engine allocate output memor
     auto outputs = ie.RunMultiInput(inputTensors, nullptr, outputBuffer.data());
     ```
 
-****Synchronous Batch Inference****
+***Synchronous Batch Inference***
 
 For processing multiple inputs at once to maximize throughput, you can use the batch inference API. This is more efficient than running single inferences in a loop.  
 

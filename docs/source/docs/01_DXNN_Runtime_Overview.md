@@ -50,11 +50,11 @@ The pre-processed input tensors are fed into the InferenceEngine along with the 
 
 **Model Execution**  
 The InferenceEngine is the core component of the DXNN Runtime SDK. It:  
-- Initializes and controls the NPU device
-- Manages memory for input/output tensors
-- Schedules inference tasks across NPU and CPU, optimizing their interaction for real-time performance
+  - Initializes and controls the NPU device  
+  - Manages memory for input/output tensors  
+  - Schedules inference tasks across NPU and CPU, optimizing their interaction for real-time performance  
 
 **Post-Processing & Display**  
-The output tensors are processed to a Post-Processing stage, typically involving OpenCV for decoding, formatting, or visualization. Finally, the results are displayed or forwarded to the next processing step. 
+The output tensors are processed to a Post-Processing stage, typically involving OpenCV for decoding, formatting, or visualization. Finally, the results are displayed or forwarded to the next processing step.   
 
 ---

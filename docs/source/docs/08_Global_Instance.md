@@ -1,5 +1,7 @@
 This chapter introduces global utility classes provided by the **DX-RT** SDK for managing configuration settings and querying device status. These classes are implemented as singletons to ensure consistent state across C++ and Python, enabling centralized control over runtime behavior and hardware monitoring.
 
+---
+
 ## Configuration Management
 
 The `Configuration` class serves as the centralized interface for managing global runtime settings in the **DX-RT** library. Designed as a thread-safe singleton, it ensures consistent configuration across both C++ and Python environments. In Python, this class wraps the underlying C++ singleton, maintaining a shared state between the two languages.  
@@ -350,8 +352,8 @@ For programmatic use, both C++ and Python interfaces offer methods to retrieve s
 | **NPU Voltage** | `GetNpuVoltage(ch)` | `get_npu_voltage(ch)` | `uint32_t` / `int` (mV) |
 | **NPU Clock** | `GetNpuClock(ch)` | `get_npu_clock(ch)` | `uint32_t` / `int` (MHz) |
 
-> **NOTE.**  
-> The C++ API provides a richer set of methods for querying static hardware details like memory, board type, and device variants.
+!!! note "NOTE"
+     The C++ API provides a richer set of methods for querying static hardware details like memory, board type, and device variants.
 
 ---
 

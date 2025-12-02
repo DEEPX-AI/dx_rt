@@ -114,6 +114,7 @@ class DxrtService
     std::mutex _pidSetMutex;
 
     std::map<std::pair<pid_t, int>, ProcessWithDeviceInfo> _infoMap;
+    std::mutex _infoMapMutex;
 
 };
 
@@ -262,11 +263,7 @@ void DxrtService::HandleTaskDeInit(const dxrt::IPCClientMessage& clientMessage)
 #endif
 
     // Enhanced Task cleanup with better synchronization
-    {
-        std::lock_guard<std::mutex> lock(_deviceMutex);
-        TaskDeInit(deviceId, taskId, pid);
-    }
-
+    TaskDeInit(deviceId, taskId, pid);
 
     PrintManagedTasks();
 }
@@ -311,7 +308,21 @@ bool DxrtService::TaskInit(pid_t pid, int deviceId, int taskId, int bound, uint6
 
     {
         std::lock_guard<std::mutex> lock(_deviceMutex);
+        // Check device availability before task initialization
+        if (deviceId >= static_cast<int>(_devices.size())) {
+            LOG_DXRT_S_ERR("Invalid device ID: " + std::to_string(deviceId));
+            return false;
+        }
 
+        if (_devices[deviceId]->isBlocked()) {
+            LOG_DXRT_S_ERR("Device " + std::to_string(deviceId) + " is blocked, cannot initialize task");
+            return false;
+        }
+
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(_infoMapMutex);
         // Check if task already exists
         auto it = _infoMap.find(make_pair(pid, deviceId));
         if (it != _infoMap.end())
@@ -337,18 +348,10 @@ bool DxrtService::TaskInit(pid_t pid, int deviceId, int taskId, int bound, uint6
 
         _infoMap.find(make_pair(pid, deviceId))->second.InsertTaskInfo(taskId, insertInfo);
 
+    }
 
-        // Check device availability before task initialization
-        if (deviceId >= static_cast<int>(_devices.size())) {
-            LOG_DXRT_S_ERR("Invalid device ID: " + std::to_string(deviceId));
-            return false;
-        }
-
-        if (_devices[deviceId]->isBlocked()) {
-            LOG_DXRT_S_ERR("Device " + std::to_string(deviceId) + " is blocked, cannot initialize task");
-            return false;
-        }
-
+    {
+        std::lock_guard<std::mutex> lock(_deviceMutex);
         // Enhanced NPU bound option validation with 3-type limit check
 
 
@@ -372,62 +375,74 @@ bool DxrtService::TaskInit(pid_t pid, int deviceId, int taskId, int bound, uint6
 
 void DxrtService::TaskDeInit(int deviceId, int taskId, int pid)
 {
-    //std::lock_guard<std::mutex> lock(_deviceMutex);
-
-    // Log current state before cleanup
-    auto it = _infoMap.find(make_pair(pid, deviceId));
-
-    if (it != _infoMap.end())
+    dxrt::npu_bound_op bound;
+    bool doStoptaskInference = false;
+    bool taskExists = true;
     {
-#ifndef DXRT_SERVICE_SIMPLE_CONSOLE_LOG
-    LOG_DXRT_S << "Before cleanup - PID " << pid << " has "
-                << it->second.taskCount() << " tasks on device " << deviceId << endl;
-#endif
-    }
-    else
-    {
-#ifndef DXRT_SERVICE_SIMPLE_CONSOLE_LOG
+        std::lock_guard<std::mutex> lock(_infoMapMutex);
+        // Log current state before cleanup
+        auto it = _infoMap.find(make_pair(pid, deviceId));
+
+        if (it != _infoMap.end())
+        {
+    #ifndef DXRT_SERVICE_SIMPLE_CONSOLE_LOG
         LOG_DXRT_S << "Before cleanup - PID " << pid << " has "
-            << "no" << " tasks on device " << deviceId << endl;
-#endif
-        return;
+                    << it->second.taskCount() << " tasks on device " << deviceId << endl;
+    #endif
+        }
+        else
+        {
+    #ifndef DXRT_SERVICE_SIMPLE_CONSOLE_LOG
+            LOG_DXRT_S << "Before cleanup - PID " << pid << " has "
+                << "no" << " tasks on device " << deviceId << endl;
+    #endif
+            return;
+        }
+        doStoptaskInference = true;
+        if (it->second.hasTask(taskId) == false)
+        {
+            LOG_DXRT_S_ERR("Task " + std::to_string(taskId) + " does not exist for PID " +
+                            std::to_string(pid) + " on device " + std::to_string(deviceId));
+            taskExists = false;
+        }
+        bound = it->second.getTaskBound(taskId);
+        it->second.deleteTaskFromMap(taskId);
     }
 
     // Stop any ongoing inference requests for this Task
     _scheduler->StopTaskInference(pid, deviceId, taskId);
-
-    if (it->second.hasTask(taskId) == false)
-    {
-        LOG_DXRT_S_ERR("Task " + std::to_string(taskId) + " does not exist for PID " +
-                        std::to_string(pid) + " on device " + std::to_string(deviceId));
+    if (!taskExists) {
         return;
     }
+
 
     //Always clear at the end, regardless of running count
     _scheduler->ClearRunningRequests(pid, deviceId);
 
-    dxrt::npu_bound_op bound = it->second.getTaskBound(taskId);
-    auto targetDevice = _devices[deviceId];
-    int ret = targetDevice->DeleteBound(static_cast<dxrt::npu_bound_op>(bound));
-    if (ret == 0) {
+    {
+        std::lock_guard<std::mutex> lock(_deviceMutex);
+        auto targetDevice = _devices[deviceId];
+        int ret = targetDevice->DeleteBound(static_cast<dxrt::npu_bound_op>(bound));
+        if (ret == 0) {
 #ifndef DXRT_SERVICE_SIMPLE_CONSOLE_LOG
-        LOG_DXRT_S << "Released NPU bound " << bound << " from device " << deviceId;
-        LOG_DXRT_S << "Device " << deviceId << " now has " << targetDevice->GetBoundTypeCount()
-                    << "/3 bound types after releasing bound " << bound << endl;
+            LOG_DXRT_S << "Released NPU bound " << bound << " from device " << deviceId;
+            LOG_DXRT_S << "Device " << deviceId << " now has " << targetDevice->GetBoundTypeCount()
+                        << "/3 bound types after releasing bound " << bound << endl;
 #endif
-    } else {
-        LOG_DXRT_S_ERR("Failed to release NPU bound " + std::to_string(bound) +
-                        " from device " + std::to_string(deviceId) + ", ret: " + std::to_string(ret));
+        } else {
+            LOG_DXRT_S_ERR("Failed to release NPU bound " + std::to_string(bound) +
+                            " from device " + std::to_string(deviceId) + ", ret: " + std::to_string(ret));
+        }
     }
 
-    it->second.deleteTaskFromMap(taskId);
+
 }
 
 void DxrtService::TaskAbnormalDeInit(int deviceId, int taskId, int pid)
 {
     bool taskExists = false;
     {
-        std::lock_guard<std::mutex> lock(_deviceMutex);
+        std::lock_guard<std::mutex> lock(_infoMapMutex);
         auto it = _infoMap.find(make_pair(pid, deviceId));
 #ifndef DXRT_SERVICE_SIMPLE_CONSOLE_LOG
         if (it != _infoMap.end())
@@ -502,8 +517,9 @@ void DxrtService::TaskAbnormalDeInit(int deviceId, int taskId, int pid)
         }
     }
 
+    dxrt::npu_bound_op bound;
     {
-        std::lock_guard<std::mutex> lock(_deviceMutex);
+        std::lock_guard<std::mutex> lock(_infoMapMutex);
 
         // Double-check if task still exists
         auto it = _infoMap.find(make_pair(pid, deviceId));
@@ -516,8 +532,14 @@ void DxrtService::TaskAbnormalDeInit(int deviceId, int taskId, int pid)
         // Always clear running requests
         _scheduler->ClearRunningRequests(pid, deviceId);
 
-        // Release bound
-        dxrt::npu_bound_op bound = it->second.getTaskBound(taskId);
+        // Get bound info before deleting from map
+        bound = it->second.getTaskBound(taskId);
+        it->second.deleteTaskFromMap(taskId);
+    }
+
+    // Release bound (device operation)
+    {
+        std::lock_guard<std::mutex> lock(_deviceMutex);
         auto targetDevice = _devices[deviceId];
         int ret = targetDevice->DeleteBound(static_cast<dxrt::npu_bound_op>(bound));
         if (ret == 0) {
@@ -530,8 +552,6 @@ void DxrtService::TaskAbnormalDeInit(int deviceId, int taskId, int pid)
             LOG_DXRT_S_ERR("Failed to release NPU bound " + std::to_string(bound) +
                             " from device " + std::to_string(deviceId) + ", ret: " + std::to_string(ret));
         }
-
-        it->second.deleteTaskFromMap(taskId);
     }
 }
 
@@ -553,27 +573,22 @@ bool DxrtService::HandleRequestScheduledInference(const dxrt::IPCClientMessage& 
     }
 
     // Check device state before processing inference request
+    pid_t pid = clientMessage.pid;
+    int deviceId = clientMessage.deviceId;
+    int taskId = clientMessage.npu_acc.task_id;
+    int requestId = clientMessage.npu_acc.req_id;
+    int requestedBound = clientMessage.npu_acc.bound;
+    LOG_DXRT_S_DBG << "Inference request - PID: " << pid
+                    << ", DeviceId: " << deviceId
+                    << ", TaskId: " << taskId
+                    << ", RequestId: " << requestId
+                    << ", RequestedBound: " << requestedBound << endl;
+
+    // Enhanced bound option validation (check _infoMap)
     {
-        std::lock_guard<std::mutex> lock(_deviceMutex);
-
-        // Enhanced bound option validation
-        pid_t pid = clientMessage.pid;
-        int deviceId = clientMessage.deviceId;
-        int taskId = clientMessage.npu_acc.task_id;
-        int requestId = clientMessage.npu_acc.req_id;
-        int requestedBound = clientMessage.npu_acc.bound;
-        LOG_DXRT_S_DBG << "Inference request - PID: " << pid
-                        << ", DeviceId: " << deviceId
-                        << ", TaskId: " << taskId
-                        << ", RequestId: " << requestId
-                        << ", RequestedBound: " << requestedBound << endl;
-
+        std::lock_guard<std::mutex> lock(_infoMapMutex);
 
         auto it = _infoMap.find(make_pair(pid, deviceId));
-        int registeredBound = it->second.getTaskBound(taskId);
-
-        LOG_DXRT_S_DBG << "[HandleRequestScheduledInference] Registered Bound in _infoMap: "
-                   << registeredBound << endl;
 
         if (it == _infoMap.end())
         {
@@ -586,6 +601,11 @@ bool DxrtService::HandleRequestScheduledInference(const dxrt::IPCClientMessage& 
             onCompleteInference(resp, clientMessage.deviceId);
             return false;
         }
+
+        int registeredBound = it->second.getTaskBound(taskId);
+
+        LOG_DXRT_S_DBG << "[HandleRequestScheduledInference] Registered Bound in _infoMap: "
+                   << registeredBound << endl;
 
         if (it->second.getTaskBound(taskId) != requestedBound)
         {
@@ -607,8 +627,11 @@ bool DxrtService::HandleRequestScheduledInference(const dxrt::IPCClientMessage& 
             onCompleteInference(resp, clientMessage.deviceId);
             return false;
         }
+    }
 
-        // Check if device is blocked before adding to scheduler
+    // Check if device is blocked before adding to scheduler
+    {
+        std::lock_guard<std::mutex> lock(_deviceMutex);
         if (static_cast<uint32_t>(clientMessage.deviceId) < _devices.size() && _devices[clientMessage.deviceId]->isBlocked()) {
             LOG_DXRT_S_ERR("Device " + std::to_string(clientMessage.deviceId) + " is blocked, rejecting inference request");
             dxrt::dxrt_response_t resp{};
@@ -618,9 +641,9 @@ bool DxrtService::HandleRequestScheduledInference(const dxrt::IPCClientMessage& 
             onCompleteInference(resp, clientMessage.deviceId);
             return false;
         }
-
-        LOG_DXRT_S_DBG << "Inference request validation passed, adding to scheduler" << endl;
     }
+
+    LOG_DXRT_S_DBG << "Inference request validation passed, adding to scheduler" << endl;
 
     _scheduler->AddScheduler(clientMessage.npu_acc, clientMessage.deviceId);
     return true;
@@ -715,10 +738,11 @@ void DxrtService::HandleDeviceInit(const dxrt::IPCClientMessage& clientMessage)
 
     InitDevice(deviceId, static_cast<dxrt::npu_bound_op>(bound));
     {
-        std::lock_guard<std::mutex> lock(_deviceMutex);
-        // _devInfo[clientMessage.pid][deviceId][bound]++;
+        std::lock_guard<std::mutex> lock(_infoMapMutex);
         _infoMap[make_pair(pid,deviceId)].InsertWeightInfo(info);
-
+    }
+    {
+        std::lock_guard<std::mutex> lock(_deviceMutex);
         _devices[deviceId]->DoCustomCommand(&info, dxrt::dxrt_custom_sub_cmt_t::DX_ADD_WEIGHT_INFO, sizeof(dxrt::dxrt_custom_weight_info_t));
     }
 }
@@ -732,13 +756,14 @@ void DxrtService::HandleDeviceDeInit(const dxrt::IPCClientMessage& clientMessage
     info.size = clientMessage.npu_acc.datas[1];
     info.checksum = clientMessage.npu_acc.datas[2];
     {
+        std::lock_guard<std::mutex> lock(_infoMapMutex);
+        _infoMap[make_pair(pid, deviceId)].EraseWeightInfo(info);
+    }
+    {
         std::lock_guard<std::mutex> lock(_deviceMutex);
-        {
-            _infoMap[make_pair(pid, deviceId)].EraseWeightInfo(info);
-            _devices[deviceId]->DoCustomCommand(&info,
-                dxrt::dxrt_custom_sub_cmt_t::DX_DEL_WEIGHT_INFO,
-                sizeof(dxrt::dxrt_custom_weight_info_t));
-        }
+        _devices[deviceId]->DoCustomCommand(&info,
+            dxrt::dxrt_custom_sub_cmt_t::DX_DEL_WEIGHT_INFO,
+            sizeof(dxrt::dxrt_custom_weight_info_t));
     }
     DeInitDevice(deviceId, static_cast<dxrt::npu_bound_op>(bound));
 }
@@ -860,8 +885,12 @@ void DxrtService::HandleProcessDeInit(const dxrt::IPCClientMessage& clientMessag
 #endif
 
     // Enhanced process cleanup with better validation
+    // Stop all inference requests for this process
+    _scheduler->StopAllInferenceForProcess(pid, deviceId);
+
+    std::vector<int> taskIds;
     {
-        std::lock_guard<std::mutex> lock(_deviceMutex);
+        std::lock_guard<std::mutex> lock(_infoMapMutex);
 
         // Log current state before cleanup
         auto it = _infoMap.find(make_pair(pid, deviceId));
@@ -877,28 +906,27 @@ void DxrtService::HandleProcessDeInit(const dxrt::IPCClientMessage& clientMessag
                     << "None" << endl;
         }
 #endif
-        // Stop all inference requests for this process
-        _scheduler->StopAllInferenceForProcess(pid, deviceId);
 
         // Cleanup all tasks for this process on this device
-
         if (it != _infoMap.end())
         {
 #ifndef DXRT_SERVICE_SIMPLE_CONSOLE_LOG
             LOG_DXRT_S << "Cleaning up " << it->second.taskCount() << " tasks for process " << pid
                         << " on device " << deviceId << endl;
 #endif
-            // First stop all tasks, then cleanup
-            for (int taskId : it->second.getTaskIds())
-            {
-                TaskDeInit(deviceId, taskId, pid);
-            }
-
+            // Collect task IDs before cleanup
+            taskIds = it->second.getTaskIds();
             _infoMap.erase(it);
 #ifndef DXRT_SERVICE_SIMPLE_CONSOLE_LOG
             LOG_DXRT_S << "All tasks cleaned up for process " << pid << " on device " << deviceId << endl;
 #endif
         }
+    }
+
+    // Clean up tasks outside the lock
+    for (int taskId : taskIds)
+    {
+        TaskDeInit(deviceId, taskId, pid);
     }
 
 
@@ -1073,7 +1101,7 @@ void DxrtService::onCompleteInference(const dxrt::dxrt_response_t& response, int
 // Task validity verification function implementation
 bool DxrtService::IsTaskValid(pid_t pid, int deviceId, int taskId)
 {
-    std::lock_guard<std::mutex> lock(_deviceMutex);
+    std::lock_guard<std::mutex> lock(_infoMapMutex);
 
     // Check Task metadata in DxrtService
     auto it = _infoMap.find(make_pair(pid, deviceId));
@@ -1102,7 +1130,7 @@ bool DxrtService::IsTaskValid(pid_t pid, int deviceId, int taskId)
 }
 bool DxrtService::IsTaskValidNoMessage(pid_t pid, int deviceId, int taskId)
 {
-    std::lock_guard<std::mutex> lock(_deviceMutex);
+    std::lock_guard<std::mutex> lock(_infoMapMutex);
 
     // Check Task metadata in DxrtService
     auto it = _infoMap.find(make_pair(pid, deviceId));
@@ -1129,7 +1157,7 @@ void DxrtService::ClearResidualIPCMessages()
 void DxrtService::PrintManagedTasks()
 {
 #ifndef DXRT_SERVICE_SIMPLE_CONSOLE_LOG
-    std::lock_guard<std::mutex> lock(_deviceMutex);
+    std::lock_guard<std::mutex> lock(_infoMapMutex);
 
     LOG_DXRT_S << "==================== Managed Tasks Report ====================" << endl;
     if (_infoMap.empty()) {
@@ -1175,6 +1203,7 @@ void DxrtService::dequeueAllClientMessageQueue(long msgType)
 
 int DxrtService::GetDeviceIdByProcId(int procId)
 {
+    std::lock_guard<std::mutex> lock(_infoMapMutex);
     int deviceId = -1;
     for (auto it = _infoMap.begin(); it != _infoMap.end(); it++)
     {
@@ -1194,6 +1223,7 @@ void DxrtService::InitDevice(int devId, dxrt::npu_bound_op bound)
     /* TODO - Send init command to driver to clear internal logic */
     LOG_DXRT_S << "DevId : " << devId << ", add bound : " << bound << endl;
 
+    std::lock_guard<std::mutex> lock(_deviceMutex);
     // Check if device is blocked before adding bound
     if (_devices[devId]->isBlocked()) {
         LOG_DXRT_S_ERR("Device " + std::to_string(devId) + " is blocked, cannot add bound " + std::to_string(bound));
@@ -1217,6 +1247,7 @@ void DxrtService::DeInitDevice(int devId, dxrt::npu_bound_op bound)
 #ifndef DXRT_SERVICE_SIMPLE_CONSOLE_LOG
     LOG_DXRT_S << "DevId : " << devId << ", delete bound : " << bound << endl;
 #endif
+    std::lock_guard<std::mutex> lock(_deviceMutex);
     ret = _devices[devId]->DeleteBound(static_cast<dxrt::npu_bound_op>(bound));
     if (ret != 0)
     {
@@ -1355,15 +1386,15 @@ void DxrtService::handle_process_die(pid_t procId)
     // 1. Stop scheduler first
     _scheduler->StopScheduler(procId);
 
-    // 2. Collect all (deviceId, taskId) for this procId
+    // 2. Remove all client messages for this process
+    dequeueAllClientMessageQueue(procId);
+
+    // 3. Collect all (deviceId, taskId) for this procId
     std::vector<std::pair<int, int>> device_task_list;
     {
-        std::lock_guard<std::mutex> lock(_deviceMutex);
+        std::lock_guard<std::mutex> lock(_infoMapMutex);
 
-        // 3.Remove all client messages for this process
-        dequeueAllClientMessageQueue(procId);
-
-        // 4. Clean up Task metadata
+        // Clean up Task metadata
         for (auto pidit = _infoMap.lower_bound(std::make_pair(procId, -1)); pidit != _infoMap.end();)
         {
             if(pidit->first.first != procId)
@@ -1401,7 +1432,7 @@ void DxrtService::handle_process_die(pid_t procId)
 
     // 4. Clean up empty _infoMap entries
     {
-        std::lock_guard<std::mutex> lock(_deviceMutex);
+        std::lock_guard<std::mutex> lock(_infoMapMutex);
         for (auto pidit = _infoMap.lower_bound(std::make_pair(procId, -1)); pidit != _infoMap.end();)
         {
             if (pidit->first.first != procId)

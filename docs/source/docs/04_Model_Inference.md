@@ -1,5 +1,6 @@
-
 This chapter explains how to run AI model inference using the **DX-RT SDK**. It covers the model file format, step-by-step inference workflow, support for multi-device execution, tensor data handling, and profiling tools. You can also find guidance on building complete applications and optimizing CPU task throughput when using **DX-RT** in performance-critical environments.
+
+---
 
 ## Model File Format
 
@@ -35,6 +36,8 @@ Figure. Inference Workflow
 - The InferenceEngine produces Output Tensors as a result of the inference.  
 - These outputs are then passed to the Post-Processing stage for interpretation or further action.  
 
+---
+
 ### Prepare the Model  
 
 Choose one of the following options.  
@@ -48,8 +51,8 @@ Choose one of the following options.
 
 Create a `dxrt::InferenceOption` object to configure runtime settings for the inference engine.  
 
-> **NOTE.**  
-> This option is temporarily unsupported in the current version, and will be available in the next release.
+!!! note "NOTE"  
+     This option is temporarily unsupported in the current version, and will be available in the next release.  
 
 ---
 
@@ -127,8 +130,8 @@ ie.RegisterCallback(postProcCallBack)
 - The callback is triggered by a background thread after inference.  
 - You can pass a custom argument to track input/output pairs.
 
-> **NOTE.**  
-> Output data is **only** valid within the callback scope.  
+!!! note "NOTE"  
+     Output data is **only** valid within the callback scope.  
 
 ---
 
@@ -188,9 +191,9 @@ Starting with v3.0.0, when ONNX Runtime is disabled (built with `USE_ORT=OFF` or
 
 As a result, applications no longer need to manually attach input dummy bytes or remove output dummy bytes in non-ORT inference paths. This behavior applies to both C++ and Python APIs, including PPU models. If you provide user output buffers, ensure the buffer size is at least `ie.GetOutputSize()` (C++) or `ie.get_output_size()` (Python).
 
-> Note
-> - This automatic handling is internal to the runtime’s NPU format processing and does not change model-visible tensor shapes reported by the APIs.
-> - When `use_ort = True`, CPU-side execution for unsupported subgraphs is enabled via ONNX Runtime; NPU tasks still follow the same alignment policy internally.
+!!! note "NOTE"  
+     - This automatic handling is internal to the runtime’s NPU format processing and does not change model-visible tensor shapes reported by the APIs.  
+     - When `use_ort = True`, CPU-side execution for unsupported subgraphs is enabled via ONNX Runtime; NPU tasks still follow the same alignment policy internally.  
 
 ---
 
@@ -354,6 +357,8 @@ You now successfully create and build a CMake project using the **DX-RT** librar
 
 The `USE_ORT` enables the use of ONNX Runtime to handle operations that are **not** supported by the NPU. When this option is active, CPU-based execution is applied for the unsupported subgraphs of the model via ONNX Runtime.  
 
+---
+
 ### Improving CPU Capacity with Dynamic Threading 
 When executing CPU task via ONNX Runtime, performance bottlenecks may arise depending on the Host CPU performance and symbol load. To address this, **DX-RT** provides an optional dynamic multi-threading feature that can improve throughput  in high-load scenarios.  
 
@@ -364,19 +369,21 @@ When executing CPU task via ONNX Runtime, performance bottlenecks may arise depe
 
 **Enabling Dynamic CPU Threading**  
 To enable this feature, set the following environment variable:  
-```bash
+```
 export DXRT_DYNAMIC_CPU_THREAD=ON
 ```
 
 This activates internal logic to automatically adjust the ONNX Runtime thread pool size based on queue pressure.  
 
-> **NOTE.**  
-> When high CPU task load is detected at runtime, the system may print the following message:  
-> ```bash
-> To improve FPS, set: 'export DXRT_DYNAMIC_CPU_THREAD=O'
-> ```
-> This serves as a recommendation to enable the feature for improved inference performance.  
+!!! note "NOTE"  
+     When high CPU task load is detected at runtime, the system may print the following message:  
+     ```
+     To improve FPS, set: 'export DXRT_DYNAMIC_CPU_THREAD=O'
+     ```
+     This serves as a recommendation to enable the feature for improved inference performance. 
 
 
-> **WARNING.**  
-> Enabling the `DXRT_DYNAMIC_CPU_THREAD=ON` option does **not** guarantee an FPS improvement in all cases. The effectiveness of this feature depends on the specific workload, input size, and CPU capacity of the system.  
+!!! warning "WARNING"  
+     Enabling the `DXRT_DYNAMIC_CPU_THREAD=ON` option does **not** guarantee an FPS improvement in all cases. The effectiveness of this feature depends on the specific workload, input size, and CPU capacity of the system.  
+
+---

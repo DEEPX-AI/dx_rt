@@ -1,5 +1,7 @@
 This section offers Python tutorials demonstrating inference, configuration, and multi-input handling using the DXRT SDK. These examples are ideal for quick prototyping and integration into Python-based AI workflows.
 
+---
+
 ### run (Synchronous)
 
 The synchronous Run method uses a single NPU core to perform inference in a blocking manner. It can be configured to utilize multiple NPU cores simultaneously by employing threads to run each core independently. (Refer to **Figure** in **Section. Inference Workflow**)  

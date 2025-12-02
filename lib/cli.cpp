@@ -515,5 +515,41 @@ void DDRErrorCLICommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 
     cout << "Device " << devicePtr->id() << ": " << DeviceStatus::GetCurrentStatus(devicePtr).DdrBitErrStr() << endl;
 }
+
+bool CheckH1Devices()
+{
+    bool foundH1 = false;
+    auto& pool = DevicePool::GetInstance();
+    int device_total_count = pool.GetDeviceCount();
+
+    int h1_count = 0;
+
+    for (int i = 0; i < device_total_count; i++)
+    {
+        auto devicePtr = pool.GetDeviceCores(i);
+        auto deviceInfo = devicePtr->info();
+
+        if (deviceInfo.bd_type == 3) // H1 board type (3)
+        {
+            // count of devices recognized as H1
+            h1_count ++;
+        }
+    }
+
+    // h1 device found (h1 = m1x4)
+    // it must be multiple of 4 for h1
+    if (h1_count > 0 && h1_count % 4 == 0)
+    {
+        foundH1 = true;
+        LOG_DXRT << "H1 devices found. (h1-device-count=" << h1_count << ", h1-count=" << h1_count / 4 << ")" << std::endl;
+    }
+    else
+    {
+        LOG_DXRT << "H1 devices not found or not fully recognized. (h1-device-count=" << h1_count << ")" << std::endl;
+    }
+
+    return foundH1;
+}
+
 }  // namespace dxrt
 
