@@ -1,6 +1,8 @@
 This section describes the Python bindings of the DX-RT SDK. It provides a streamlined interface to the same core functionalities as the C++ SDK, making it ideal for rapid development, prototyping, and integration with Python-based AI workflows.  
-  
-### `class dx_engine.InferenceEngine`  
+
+---
+
+### class dx_engine.InferenceEngine  
   
 This class is the main Python wrapper for the DXRT Inference Engine. It provides an interface to load a compiled model and perform inference tasks, either synchronously or asynchronously, supporting both single and batch inference.  
   
@@ -225,7 +227,7 @@ This class is the main Python wrapper for the DXRT Inference Engine. It provides
   
 ---  
   
-### `class dx_engine.InferenceOption`  
+### class dx_engine.InferenceOption  
   
 This class provides a Pythonic interface to configure inference options such as device selection and core binding. It wraps the C++ `InferenceOption` struct.  
   
@@ -292,7 +294,7 @@ This class provides a Pythonic interface to configure inference options such as 
   
 ---  
   
-### `class dx_engine.Configuration`  
+### class dx_engine.Configuration  
   
 Provides access to the global DXRT configuration singleton, allowing for system-wide settings like enabling the profiler.  
   
@@ -367,7 +369,7 @@ Provides access to the global DXRT configuration singleton, allowing for system-
   
 ---  
   
-### `class dx_engine.DeviceStatus`  
+### class dx_engine.DeviceStatus  
   
 Provides an interface to query real-time status and static information about hardware devices.  
   

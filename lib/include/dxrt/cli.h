@@ -149,4 +149,6 @@ class DXRT_API DDRErrorCLICommand : public CLICommand
  private:
     void doCommand(std::shared_ptr<DeviceCore> devicePtr) override;
 };
+
+bool DXRT_API CheckH1Devices();
 }  // namespace dxrt

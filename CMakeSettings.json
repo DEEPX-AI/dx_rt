@@ -105,19 +105,24 @@
                     "type": "PATH"
                 },
                 {
-                    "name": "onnxruntime_INCLUDE_DIRS",
-                    "value": "${projectDir}\\onnxruntime-win-x64-1.20.1\\include",
-                    "type": "STRING"
+                    "name": "ONNXRUNTIME_ROOTDIR",
+                    "value": "${projectDir}/extern/onnxruntime-win-x64-1.20.1/",
+                    "type": "PATH"
                 },
                 {
                     "name": "onnxruntime_LIB_DIRS",
-                    "value": "${projectDir}\\onnxruntime-win-x64-1.20.1\\lib",
-                    "type": "STRING"
+                    "value": "${projectDir}/extern/onnxruntime-win-x64-1.20.1/lib",
+                    "type": "PATH"
                 },
                 {
-                    "name": "ONNXRUNTIME_ROOTDIR",
-                    "value": "${projectDir}\\onnxruntime-win-x64-1.20.1",
-                    "type": "STRING"
+                    "name": "onnxruntime_INCLUDE_DIRS",
+                    "value": "${projectDir}/extern/onnxruntime-win-x64-1.20.1/include",
+                    "type": "PATH"
+                },
+                {
+                    "name": "ONNXLIB_DIRS",
+                    "value": "${projectDir}/extern/onnxruntime-win-x64-1.20.1/lib/onnxruntime.lib",
+                    "type": "FILEPATH"
                 },
                 {
                     "name": "VCPKG_INSTALLED_DIR",

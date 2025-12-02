@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -24,7 +24,7 @@
 #include <map>
 #include <set>
 
-namespace dxrt 
+namespace dxrt
 {
 
     class IPCPipeServerWindows : public IPCServer
@@ -34,6 +34,7 @@ namespace dxrt
 
         IPCPipeWindows _pipe;
         std::map<pid_t, HANDLE> _msgType2handle;
+        std::mutex _handleMapMutex;  // Protect _msgType2handle from race conditions
         std::queue<IPCClientMessage> _que;
         std::condition_variable _queCv;
         std::mutex _queMt;

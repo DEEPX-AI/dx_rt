@@ -14,6 +14,7 @@
 #include <set>
 #include <algorithm>
 #include <iostream>
+#include <fstream>
 #include <memory>
 
 #include "dxrt/dxrt_api.h"
@@ -44,39 +45,64 @@ static int bounding = 0;
 #ifdef __linux__
 #include <sys/utsname.h>
 #include <sys/sysinfo.h>
+#include <cstdio>
+#include <array>
+
 void printCpuInfo() {
     std::cout << "--- CPU Information ---" << std::endl;
-    std::ifstream cpuinfo("/proc/cpuinfo");
+    
+    // Use popen to execute lscpu command
+    std::array<char, 128> buffer;
+    std::string result;
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen("lscpu 2>/dev/null", "r"), pclose);
+    
+    if (!pipe) {
+        std::cerr << "... No CPU Info." << std::endl;
+        return;
+    }
+    
+    // Read the output of lscpu
+    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+        result += buffer.data();
+    }
+    
+    if (result.empty()) {
+        std::cerr << "... No CPU Info." << std::endl;
+        return;
+    }
+    
+    // Parse and display relevant information
+    std::istringstream stream(result);
     std::string line;
+    bool architectureFound = false;
     bool modelNameFound = false;
     bool cpuCoresFound = false;
     bool vendorIdFound = false;
-
-    if (cpuinfo.is_open()) {
-        while (getline(cpuinfo, line)) {
-            // model name
-            if (!modelNameFound && line.find("model name") != std::string::npos) {
-                std::cout << "  Model Name: " << line.substr(line.find(":") + 2) << std::endl;
-                modelNameFound = true;
-            }
-            // number of CPU cores
-            if (!cpuCoresFound && line.find("cpu cores") != std::string::npos) {
-                std::cout << "  CPU Cores: " << line.substr(line.find(":") + 2) << std::endl;
-                cpuCoresFound = true;
-            }
-            // vendor ID
-            if (!vendorIdFound && line.find("vendor_id") != std::string::npos) {
-                std::cout << "  Vendor ID: " << line.substr(line.find(":") + 2) << std::endl;
-                vendorIdFound = true;
-            }
-
-            if (modelNameFound && cpuCoresFound && vendorIdFound) {
-                break;
-            }
+    
+    while (std::getline(stream, line)) {
+        // Architecture
+        if (!architectureFound && line.find("Architecture:") != std::string::npos) {
+            std::cout << "  " << line << std::endl;
+            architectureFound = true;
         }
-        cpuinfo.close();
-    } else {
-        // std::cerr << "Error: Could not open /proc/cpuinfo" << std::endl;
+        // Model name
+        else if (!modelNameFound && line.find("Model name:") != std::string::npos) {
+            std::cout << "  " << line << std::endl;
+            modelNameFound = true;
+        }
+        // CPU(s) - total number of logical CPUs
+        else if (!cpuCoresFound && line.find("CPU(s):") != std::string::npos && line.find("NUMA") == std::string::npos && line.find("On-line") == std::string::npos) {
+            std::cout << "  " << line << std::endl;
+            cpuCoresFound = true;
+        }
+        // Vendor ID
+        else if (!vendorIdFound && line.find("Vendor ID:") != std::string::npos) {
+            std::cout << "  " << line << std::endl;
+            vendorIdFound = true;
+        }
+    }
+    
+    if (!modelNameFound && !architectureFound && !cpuCoresFound) {
         std::cerr << "... No CPU Info." << std::endl;
     }
 }
@@ -92,9 +118,6 @@ void printArchitectureInfo() {
         std::cout << "  Release:     " << buffer.release << std::endl;
         std::cout << "  Version:     " << buffer.version << std::endl;
         std::cout << "  Machine:     " << buffer.machine << std::endl;  // architecture information
-        // perror("uname"); // error message if it fail
-        // std::cerr << "Error: Could not get system architecture info." << std::endl;
-        std::cerr << "No System Architecture Info." << std::endl;
     }
 }
 

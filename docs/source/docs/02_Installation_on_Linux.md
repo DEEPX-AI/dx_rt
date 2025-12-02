@@ -5,6 +5,7 @@ After you check the system requirements, follow these instructions.
 - System Requirement Check  
 - Build Environment Setup  
 - Source File Structure Check  
+- Framework Build on Linux  
 - Linux Device Driver Installation  
 - Python Package Installation  
 - Service Registration  
@@ -45,8 +46,8 @@ DEEPX provides an installation shell script to set up the **DX-RT** build enviro
 To install the full **DX-RT** toolchain, use the following commands.  
 
 ```
-$ cd dx_rt
-$ ./install.sh --all
+cd dx_rt
+./install.sh --all
 ```
 
 Here are the available `install.sh` options.  
@@ -77,8 +78,9 @@ Use the ONNX Runtime option if you need to offload certain neural network (NN) o
 We recommend using ONNX Runtime linux x64 version more than v1.20.1.  
 ```
 https://github.com/microsoft/onnxruntime/releases/download/v1.20.1/onnxruntime-linux-x64-1.20.1.tgz
-$ sudo tar -xvzf onnxruntime-linux-x64-1.20.1.tgz -C /usr/local --strip-components=1
-$ sudo ldconfig
+
+sudo tar -xvzf onnxruntime-linux-x64-1.20.1.tgz -C /usr/local --strip-components=1
+sudo ldconfig
 ```
 
 To install the ONNX Runtime library, run the following command.  
@@ -141,8 +143,8 @@ After the **DX-RT** environment setup, you can build the framework using the pro
 
 ### Build Overview  
 
-**DX-RT** supports the following target CPU architectures:   
-  - **x86_64** for desktop/server-class hosts  
+**DX-RT** supports the following target CPU architectures:  
+  - **x86_64** for desktop/server-class hosts   
   - **aarch64** for embedded systems and ARM-based platforms  
 
 You can select the target architecture using the `--arch` option in the build script.
@@ -154,18 +156,18 @@ You can select the target architecture using the `--arch` option in the build sc
 This chapter explains the importance of performing a clean build to maintain a stable and conflict-free build environment.   
 To do this, you **must** run a `clean` operation before starting any new build process. 
 
-```bash
+```
 # First, clean the previous build artifacts
-$ ./build.sh --clean
+./build.sh --clean
 
 # Then, run the build with your desired options
-$ ./build.sh
+./build.sh
 ```
 
 You can also combine these commands. The `&&` operator ensures that the build command will only run if the clean command succeeds.  
 
-```bash
-$ ./build.sh --clean && ./build.sh
+```
+./build.sh --clean && ./build.sh
 ```
 
 ---
@@ -205,32 +207,32 @@ Options:
 This example shows the safest way to build and install the library.  
 First, you clean the workspace, then you build for a specific architecture and install the libraries to a system path.  
 
-```bash
+```
 # Step 1: Clean the workspace to ensure no old files interfere
-$ ./build.sh --clean
+./build.sh --clean
 
 # Step 2: Build for the aarch64 architecture and install to /usr/local
-$ ./build.sh --arch aarch64 --install /usr/local
+./build.sh --arch aarch64 --install /usr/local
 ```
 
 **Example 2: Build a Debug Version**  
 
 To build the framework with debugging symbols, which is useful for development and troubleshooting.  
 
-```bash
+```
 # Clean is recommended here as well, especially if your last build was a Release version
-$ ./build.sh --clean
+./build.sh --clean
 
 # Build with the 'Debug' type
-$ ./build.sh --type Debug
+./build.sh --type Debug
 ```
 
 **Example 3: Uninstall the Library**  
 
 To remove all library files installed by a previous `--install` command.  
 
-```bash
-$ ./build.sh --uninstall
+```
+./build.sh --uninstall
 ```
 
 ---
@@ -255,8 +257,8 @@ option(USE_SERVICE "Use DXRT Service" ON)
 - `USE_PYTHON`: Enables Python API support
 - `USE_SERVICE`: Enables service for multi-process support  
 
-> **NOTE.**   
-> After modifying `dxrt.cfg.cmake`, re-run the build with **./build.sh --clean** to apply changes.
+!!! note "NOTE"  
+    After modifying `dxrt.cfg.cmake`, re-run the build with **./build.sh --clean** to apply changes.  
 
 ---
 
@@ -267,8 +269,8 @@ Cross-compilation is typically used to build **DX-RT** on an **x86_64** host sys
 
 **Setup Files for Cross-compile**  
 **DX-RT** supports the following CPU architectures:  
-- **x86_64** — Native build on host system  
-- **aarch64** — Cross-compile for ARM-based targets  
+   - **x86_64** — Native build on host system  
+   - **aarch64** — Cross-compile for ARM-based targets  
 
 The default architecture is **x86_64**.  
 
@@ -331,8 +333,8 @@ Typical contents:
  └── examples
 ```
 
-> **Note.**  
-> Python for cross-compile is **not** supported in the current version, but will be supported in the next release.  
+!!! note "NOTE"  
+    Python for cross-compile is **not** supported in the current version, but will be supported in the next release.  
 
 ---
 
@@ -340,8 +342,8 @@ Typical contents:
 
 After building the **DX-RT** framework, you can install the Linux device driver for **M1 AI Accelerator (NPU).**  
 
-> **NOTE.**  
-> To install the Linux device driver, you can choose either **Section. DKMS and Debian Package** or **Section. Drier Source**.
+!!! note "NOTE"  
+    To install the Linux device driver, you can choose either **Section. DKMS and Debian Package** or **Section. Drier Source**.  
 
 ### DKMS and Debian Package  
 
@@ -355,7 +357,7 @@ Here's how to install a DKMS (Dynamic Kernel Module Support) Debian package, alo
 Before installing any Debian package, it's highly recommended to update your package lists. This ensures that your system has the most current information about available packages and their dependencies from the configured repositories. This step is particularly important when using `apt` for dependency resolution.
 
 Update Package Lists:
-```bash
+```
 sudo apt update
 ```
 
@@ -366,7 +368,7 @@ There are two primary ways to install a local DKMS Debian package:
 
 ***Using `sudo dpkg -i` (For direct package installation)***  
 
-```bash
+```
 sudo dpkg -i [package_name.deb]
 ```
 
@@ -376,7 +378,7 @@ Just replace `[package_name.deb]` with the actual name of your Debian package fi
 
 ***Using `sudo apt install` (Recommended for dependency handling)***  
 
-```bash
+```
 sudo apt install ./[package_name.deb]
 ```
 
@@ -412,7 +414,7 @@ In short, the installation went through fine because you used `sudo`. This messa
 #### Checking DKMS Driver Status
 
 You can check the status of your DKMS drivers (which driver versions have been added, built, or installed for specific kernel versions) using the `dkms status` command:  
-```bash
+```
 dkms status
 ```
 
@@ -430,7 +432,7 @@ In summary, these lines mean:
 To quickly view detailed information about a Debian/Ubuntu package, including those that provide DKMS drivers, you can use the `apt show` command.  
 
 **Command:**  
-```bash
+```
 apt show [package-name]
 ```
 
@@ -479,20 +481,21 @@ Before installing the Linux device driver, you should check that the accelerator
 
 To check PCIe device recognition, run the following command.  
 ```
-$ lspci -vn | grep 1ff4
+lspci -vn | grep 1ff4
+
 0b:00.0 1200: 1ff4:0000
 ```
 
-> **NOTE.**  
-> **If there is no output,** the PCIe link is **not** properly connected. Please check the physical connection and system BIOS settings.  
+!!! note "NOTE"
+    **If there is no output,** the PCIe link is **not** properly connected. Please check the physical connection and system BIOS settings.  
 
 
 **Optional.** Display the DEEPX name in `lspci`.  
 If you want to display the DEEPX name in `lspci`, you can modify the PCI DB. (Only for Ubuntu)  
 To display the DeepX device name, run the following command.  
 ```
-$ sudo update-pciids
-$ lspci
+sudo update-pciids
+lspci
 ...
 0b:00.0 Processing accelerators: DEEPX Co., Ltd. DX_M1
 ```
@@ -533,12 +536,12 @@ Defines supported device configuration.
 
 To build for a specific device, run the following command.  
 ```
-$ make DEVICE=[device]
+make DEVICE=[device]
 ```
 
 For example, in the case of a device like **M1**, you should select a submodule, such as PCIe, that has a dependency on **M1**.  
 ```
-$ make DEVICE=m1 PCIE=[deepx]
+make DEVICE=m1 PCIE=[deepx]
 ```
 
 ***`kbuild`***  
@@ -587,8 +590,8 @@ The build process generates the following kernel modules.
 
 After completing the environment setup of the DXNN Linux Device Driver, you can build the kernel modules using either the make(Makefile) or `build.sh` script. Both methods are supported by DEEPX.  
 
-> **NOTE.**   
-> If the DKMS Debian package is already installed, it needs to be removed in order to build and install the driver from the source.
+!!! note "NOTE"  
+    If the DKMS Debian package is already installed, it needs to be removed in order to build and install the driver from the source.  
 
 **Option 1. Build Using `Makefile`**  
 
@@ -647,13 +650,13 @@ make DEVICE=m1 PCIE=deepx install
 **Step 2.** Update Module Dependencies  
 Updates: `/lib/modules/$(KERNELRELEASE)/modules.dep`
 ```
-$ sudo depmod -A
+sudo depmod -A
 ```
 
 **Step 3.** Add Module Confiduration  
 Copy the preconfigured module config file.
 ```
-$ sudo cp modules/dx_dma.conf /etc/modprobe.d/
+sudo cp modules/dx_dma.conf /etc/modprobe.d/
 ```
 
 This ensures the modules (`dx_dma`) are auto-loaded on boot.  
@@ -661,8 +664,9 @@ This ensures the modules (`dx_dma`) are auto-loaded on boot.
 **Step 4.** Test with modprobe  
 To verify the correct installation.  
 ``` 
-$ sudo modprobe dx_dma
-$ lsmod
+sudo modprobe dx_dma
+lsmod
+
   dxrt_driver            40960  0
   dx_dma                176128  1 dxrt_driver
 ```
@@ -672,7 +676,8 @@ The `build.sh` script automates installation and setup, including dependency upd
 
 Run the following command  
 ```
-$ sudo ./build.sh -d m1 -m deepx -c install
+sudo ./build.sh -d m1 -m deepx -c install
+
 - DEVICE        : m1
 - PCIE          : deepx
 - MODULE CONF   : /.../rt_npu_linux_driver/modules/dx_dma.conf
@@ -680,22 +685,26 @@ $ sudo ./build.sh -d m1 -m deepx -c install
 - KERNEL        : /lib/modules/5.15.0-102-generic/build
 - INSTALL       : /lib/modules/5.15.0-102-generic/extra/
 
- *** Build : install ***
-$ make DEVICE=m1 PCIE=deepx install
+
+*** Build : install ***
+make DEVICE=m1 PCIE=deepx install
 
 make -C /lib/modules/5.15.0-102-generic/build M=/home/jhk/deepx/dxrt/module/rt_npu_linux_driver/modules  modules_install
+
  ....
  - SUCCESS
 
- *** Update : /lib/modules/5.15.0-102-generic/modules.dep ***
- $ depmod -A
- $ cp /home/jhk/deepx/dxrt/module/rt_npu_linux_driver/modules/dx_dma.conf /etc/modprobe.d/
+
+*** Update : /lib/modules/5.15.0-102-generic/modules.dep ***
+depmod -A
+cp /home/jhk/deepx/dxrt/module/rt_npu_linux_driver/modules/dx_dma.conf /etc/modprobe.d/
 ```
 
 ***Uninstalling Modules***  
 To completely remove the installed modules and configs.  
 ```
-$ ./build.sh -d m1 -m deepx -c uninstall
+./build.sh -d m1 -m deepx -c uninstall
+
 - DEVICE        : m1
 - PCIE          : deepx
 - MODULE CONF   : /.../rt_npu_linux_driver/modules/dx_dma.conf
@@ -703,15 +712,18 @@ $ ./build.sh -d m1 -m deepx -c uninstall
 - KERNEL        : /lib/modules/5.15.0-102-generic/build
 - INSTALL       : /lib/modules/5.15.0-102-generic/extra/
 
- *** Remove : /lib/modules/5.15.0-102-generic/extra ***
- $ rm -rf /lib/modules/5.15.0-102-generic/extra/pci_deepx
- $ rm -rf /lib/modules/5.15.0-102-generic/extra/rt
 
- *** Remove : /etc/modprobe.d ***
- $ rm /etc/modprobe.d/dx_dma.conf
+*** Remove : /lib/modules/5.15.0-102-generic/extra ***
+rm -rf /lib/modules/5.15.0-102-generic/extra/pci_deepx
+rm -rf /lib/modules/5.15.0-102-generic/extra/rt
 
- *** Update : /lib/modules/5.15.0-102-generic/modules.dep ***
- $ depmod
+
+*** Remove : /etc/modprobe.d ***
+rm /etc/modprobe.d/dx_dma.conf
+
+
+*** Update : /lib/modules/5.15.0-102-generic/modules.dep ***
+depmod
 ```
 
 ---
@@ -724,17 +736,18 @@ This chapter explains how to install the **DX-RT** Python package, provided unde
 
 **Step 1.** Navigate to the python_package directory. 
 ```
-$ cd python_package
+cd python_package
 ```
 
 **Step 2.** Install the package
 ```
-$ pip install .
+pip install .
 ```
 
 **Step 3.** Verify the installation
 ```
-$ pip list | grep dx
+pip list | grep dx
+
 dx-engine          1.1.2
 ```
 
@@ -742,72 +755,74 @@ For details on using **DX-RT** with Python, refer to **Section. Python Tutorials
 
 ---
 
-> **NOTE.**  
-> - **Python C++ Module Version Mismatch**: If you encounter errors related to Python C++ module version mismatch, it typically means the compiled Python extension was built with a different Python version than the one currently being used. Common error messages include:
->   ```
->   malloc(): corrupted top size
->   ```
->   or
->   ```
->   free(): invalid pointer
->   ```
->   or
->   ```
->   double free or corruption (out)
->   ...
->   ```
-> 
->   **Solutions:**
->   1. **Rebuild with correct Python version**: Ensure you're using the same Python version for both building and running:
->      ```bash
->      $ python3 --version  # Check current Python version
->      $ pip --version      # Check current pip version
->      $ cd python_package
->      $ pip install .
->      ```
->   2. **Use virtual environment**: Create a virtual environment with the correct Python version:
->      ```bash
->      $ python3.10 -m venv dxrt_env
->      $ source dxrt_env/bin/activate
->      $ cd python_package
->      $ pip install .
->      ```
+!!! note "NOTE"  
+    **Python C++ Module Version Mismatch**: 
+    If you encounter errors related to Python C++ module version mismatch, it typically means the compiled Python extension was built with a different Python version than the one currently being used. Common error messages include:  
 
+      ```
+      malloc(): corrupted top size
+      ```
+    or
+      ```
+      free(): invalid pointer
+      ```
+    or
+      ```
+      double free or corruption (out)
+      ```
+  
+    **Solutions**  
+    1. **Rebuild with correct Python version**: Ensure you're using the same Python version for both building and running:
+       ```
+       python3 --version  # Check current Python version
+       pip --version      # Check current pip version
+       cd python_package
+       pip install .
+       ```
+    2. **Use virtual environment**: Create a virtual environment with the correct Python version:
+       ```
+       python3.10 -m venv dxrt_env
+       source dxrt_env/bin/activate
+       cd python_package
+       pip install .
+       ```
+
+---
 
 ## Service Registration
 
 This chapter explains how to register and run the **DX-RT** background service (`dxrtd`) to enable multi-process inference. **DX-RT** uses a systemd-managed daemon to support concurrent access to the NPU by multiple applications.
 
-> **NOTE.**  
-> - **DX-RT** **must** be built with `USE_SERVICE=ON`. (default setting)  
-> - **DX-RT** **must** be registered and managed as a system service using `systemd`.  
+!!! note "NOTE"  
+    - **DX-RT** **must** be built with `USE_SERVICE=ON`. (default setting)  
+    - **DX-RT** **must** be registered and managed as a system service using `systemd`.  
 
 **Registering and Running the DX-RT Service**  
 
 **Step 1.** Modify the service unit file.  
   Ensure the ExecStart path is correctly configured.  
 ```
-$ vi ./service/dxrt.service
+vi ./service/dxrt.service
 ```
 
 **Step 2.** Copy the service file to the system folder.  
 ```
-$ sudo cp ./service/dxrt.service /etc/systemd/system
+sudo cp ./service/dxrt.service /etc/systemd/system
 ```
 
 **Step 3.** Start the service.  
 ```
-$ sudo systemctl start dxrt.service
+sudo systemctl start dxrt.service
 ```
 
 **Service Management Commands**  
 ```
-$ sudo systemctl stop dxrt.service	 	    # Stop the service
-$ sudo systemctl status dxrt.service		# Check service status
-$ sudo systemctl restart dxrt.service		# Restart the service
-$ sudo systemctl enable dxrt.service		# Enable on boot
-$ sudo systemctl disable dxrt.service		# Disable on boot
-$ sudo journalctl -u dxrt.service 		    # View service logs
+sudo systemctl stop dxrt.service	 	    # Stop the service
+sudo systemctl status dxrt.service		# Check service status
+sudo systemctl restart dxrt.service		# Restart the service
+sudo systemctl enable dxrt.service		# Enable on boot
+sudo systemctl disable dxrt.service		# Disable on boot
+sudo journalctl -u dxrt.service 		    # View service logs
 ```
 
 ---
@@ -820,7 +835,7 @@ This chapter explains how to use the Sanity Check script to verify that the **DX
 
 The general syntax for running the Sanity Check script is:  
 
-```bash
+```
 sudo ./SanityCheck.sh [option]
 ```
 If no option is provided, the script defaults to all mode.
@@ -845,17 +860,17 @@ The following options are available:
 This performs a comprehensive check of both the runtime and the driver.  
 Use this after installation or when verifying overall system status.  
 
-```bash
+```
 sudo ./SanityCheck.sh
 ```
 
 or
 
-```bash
+```
 sudo ./SanityCheck.sh all
 ```
 
-```bash
+```
 ============================================================================
 ==== Sanity Check Date : ... ====
 Log file location : /.../dx_rt/dx_report/sanity/result/sanity_check_result_....log
@@ -911,11 +926,11 @@ Log file location : /.../dx_rt/dx_report/sanity/result/sanity_check_result_....l
 
 Use this option to validate that the runtime components (`dx_rt`) are properly installed and functional.
 
-```bash
+```
 sudo ./SanityCheck.sh dx_rt
 ```
 
-```bash
+```
 ============================================================================
 ==== Sanity Check Date : ... ====
 Log file location : /.../dx_rt/dx_report/sanity/result/sanity_check_result_....log
@@ -950,10 +965,10 @@ Log file location : /.../dx_rt/dx_report/sanity/result/sanity_check_result_....l
 
 Use this option to test the driver (`dx_driver`) independently, especially after driver installation or kernel updates.
 
-```bash
+```
 sudo ./SanityCheck.sh dx_driver
 ```
-```bash
+```
 ============================================================================
 ==== Sanity Check Date : ... ====
 Log file location : /.../dx_rt/dx_report/sanity/result/sanity_check_result_....log
@@ -991,7 +1006,7 @@ Log file location : /.../dx_rt/dx_report/sanity/result/sanity_check_result_....l
 
 To display usage instructions and available options for the Sanity Check script, run the following command:  
 
-```bash
+```
 sudo ./SanityCheck.sh help
 ```
 

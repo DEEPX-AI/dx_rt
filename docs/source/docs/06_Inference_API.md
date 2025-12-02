@@ -1,5 +1,7 @@
 This chapter introduces the inference APIs provided by **DX-RT**, including both C++ and Python interfaces. It covers synchronous and asynchronous execution, support for single and multi-input models, and guidance on input/output formatting. Key topics include model execution, input parsing, special handling cases, and performance tuning to help developers integrate inference efficiently.  
 
+---
+
 ## C++ Inference API
 
 This section describes the C++ interface for executing inference using the **DX-RT** SDK. It covers both synchronous and asynchronous execution modes, and provides guidance on initializing the engine, managing input/output buffers, and utilizing multiple NPU cores. These APIs are optimized for performance-critical environments and offer granular control over execution flow.  
@@ -205,24 +207,48 @@ def run(
 ) -> Union[List[np.ndarray], List[List[np.ndarray]]]
 ```
 
-Detailed Input/Output Matrix
-| Input Type | Input Condition | Model Type | Interpretation | Output Type | Output Structure |
-|---|---|---|---|---|---|
-| `np.ndarray` | size == total\_input\_size | Multi-Input | Auto-split single | `List[np.ndarray]` | Single sample output |
-| `np.ndarray` | size \!= total\_input\_size | Single-Input | Single Inference | `List[np.ndarray]` | Single sample output |
-| `List[np.ndarray]` | len == 1 | Single-Input | Single Inference | `List[np.ndarray]` | Single sample output |
-| `List[np.ndarray]` | len == input\_count | Multi-Input | Single Inference | `List[np.ndarray]` | Single sample output |
-| `List[np.ndarray]` | len == N\*input\_count | Multi-Input | Batch Inference (N samples) | `List[List[np.ndarray]]` | N sample outputs |
-| `List[np.ndarray]` | len \> 1 | Single-Input | Batch Inference | `List[List[np.ndarray]]` | `len` sample outputs |
-| `List[List[np.ndarray]]`| Explicit batch | Any | Batch Inference | `List[List[np.ndarray]]` | Matches outer list size |
+Detailed Input/Output Matrix  
 
-Auto-split Special Cases
-| Condition | Example Input | Interpretation | Output |
-|---|---|---|---|
-| Multi-input + first element is total\_size | `[concatenated_array]` | Auto-split single | `List[np.ndarray]` |
-| Multi-input + all elements are total\_size| `[concat1, concat2, concat3]`| Auto-split batch | `List[List[np.ndarray]]`|
+**Input: `np.ndarray`**
 
-Example
+* **Multi-Input Model** (`size == total_input_size`):
+   * Interpretation: Auto-split single
+   * Output: `List[np.ndarray]` (Single sample output)
+* **Single-Input Model** (`size != total_input_size`):
+   * Interpretation: Single Inference
+   * Output: `List[np.ndarray]` (Single sample output)
+
+**Input: `List[np.ndarray]`**
+
+* **Single-Input Model** (`len == 1`):
+   * Interpretation: Single Inference
+   * Output: `List[np.ndarray]` (Single sample output)
+* **Multi-Input Model** (`len == input_count`):
+    * Interpretation: Single Inference
+    * Output: `List[np.ndarray]` (Single sample output)
+* **Multi-Input Model** (`len == N * input_count`):
+    * Interpretation: Batch Inference (N samples)
+    * Output: `List[List[np.ndarray]]` (N sample outputs)
+* **Single-Input Model** (`len > 1`):
+    * Interpretation: Batch Inference
+    * Output: `List[List[np.ndarray]]` (`len` sample outputs)
+
+**Input: `List[List[np.ndarray]]`**
+
+* **Any Model** (Explicit batch):
+    * Interpretation: Batch Inference
+    * Output: `List[List[np.ndarray]]` (Matches outer list size)
+
+Auto-split Special Cases  
+
+* **Multi-input + first element is total_size** (e.g., `[concatenated_array]`):
+    * Interpretation: Auto-split single
+    * Output: `List[np.ndarray]`
+* **Multi-input + all elements are total_size** (e.g., `[concat1, concat2, concat3]`):
+    * Interpretation: Auto-split batch
+    * Output: `List[List[np.ndarray]]`
+
+Example  
 ```python
 # 1. Single array auto-split (multi-input)
 concatenated = np.zeros(ie.get_input_size(), dtype=np.uint8)

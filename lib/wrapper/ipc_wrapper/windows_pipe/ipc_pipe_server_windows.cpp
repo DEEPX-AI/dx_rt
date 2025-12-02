@@ -2,11 +2,11 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
- 
+
 #ifdef _WIN32 // all or nothing
 
 #include <windows.h>
@@ -37,11 +37,11 @@ IPCPipeServerWindows::~IPCPipeServerWindows()
 int32_t IPCPipeServerWindows::Initialize()
 {
 	LOG_DXRT_I_DBG << "IPCPipeServerWindows::Initialize " << std::endl;
-    int result = 0;
+	int result = 0;
 	std::thread th(&IPCPipeServerWindows::ThreadAtServerMainForListen, this);
 	th.detach();
 
-    return result;
+	return result;
 }
 
 void IPCPipeServerWindows::ThreadAtServerMainForListen()
@@ -49,7 +49,7 @@ void IPCPipeServerWindows::ThreadAtServerMainForListen()
 	// The main loop creates an instance of the named pipe and  then waits for a client to connect to it.
 	// When the client connects, a thread is created to handle communications with that client,
 	//   and this loop is free to wait for the next client connect request. It is an infinite loop.
-    LOG_DXRT_I_DBG << "@@@ Thread Start : ThreadAtServerMainForListen" << std::endl ;
+	LOG_DXRT_I_DBG << "@@@ Thread Start : ThreadAtServerMainForListen" << std::endl ;
 	for (;;) {
 		_pipe.InitServer();
 		if (!_pipe.IsAvailable())  continue;
@@ -57,32 +57,51 @@ void IPCPipeServerWindows::ThreadAtServerMainForListen()
 		std::thread th(&IPCPipeServerWindows::ThreadAtServerByClient, this, _pipe.Detatch());
 		th.detach();
 	}
-    LOG_DXRT_I_DBG << "@@@ Thread End : ThreadAtServerMainForListen" << std::endl ;
+	LOG_DXRT_I_DBG << "@@@ Thread End : ThreadAtServerMainForListen" << std::endl ;
 	LOG_DXRT_I_DBG << "ThreadAtServerMainForListen exiting.\n" ;
 }
 void IPCPipeServerWindows::ThreadAtServerByClient(HANDLE hPipe)
 {
-    LOG_DXRT_I_DBG << "@@@ Thread Start : ThreadAtServerByClient(enQue)" << std::endl ;
+	LOG_DXRT_I_DBG << "@@@ Thread Start : ThreadAtServerByClient(enQue)" << std::endl ;
 	IPCPipeWindows pipe(hPipe);
 	IPCClientMessage clientMessage;
 	DWORD cbReceived = 0;
 	bool bFirst = true;
+	int msgType = -1;
 	while (1) {
 		auto start = std::chrono::high_resolution_clock::now();
-		pipe.Receive(&clientMessage, sizeof(clientMessage), &cbReceived);
-		string s = "Server pipe.Receive : "; s += _s(clientMessage.code);	s += " : ";
+		int32_t recvResult = pipe.Receive(&clientMessage, sizeof(clientMessage), &cbReceived);
+		string s = "Server pipe.Receive : "; s += _s(clientMessage.code);    s += " : ";
 		// durationPrint(start, s.c_str());
-		if (sizeof(clientMessage) != cbReceived)   break;
+
+		// Broken pipe detection
+		if (recvResult < 0 || sizeof(clientMessage) != cbReceived) {
+		    LOG_DXRT_I_DBG << "Pipe broken or client disconnected. Cleaning up handle: " << reinterpret_cast<uint64_t>(hPipe) << "ReceiveResult=" << recvResult << ", cbReceived=" << cbReceived << std::endl ;
+			break;
+		}
+
 		LOG_DXRT_I_DBG << "Received: client msgType:" << clientMessage.msgType << std::endl ;
 		if (bFirst) {
 			bFirst = false;
-			_msgType2handle[clientMessage.msgType] = hPipe;
+			msgType = clientMessage.msgType;
+			_msgType2handle[msgType] = hPipe;
 		}
 		enQue(clientMessage);
 		// std::this_thread::sleep_for(std::chrono::microseconds(1)); // important:if use, 30ms delay
 	}
+
+	// Cleanup broken pipe handle from map
+	if (msgType >= 0) {
+		std::lock_guard<std::mutex> lock(_handleMapMutex);
+		auto it = _msgType2handle.find(msgType);
+		if (it != _msgType2handle.end() && it->second == hPipe) {
+			_msgType2handle.erase(it);
+			LOG_DXRT_I_DBG << "Removed broken pipe handle for msgType: " << msgType << std::endl;
+		}
+	}
+
 	pipe.CloseServerSide();
-    LOG_DXRT_I_DBG << "@@@ Thread End : ThreadAtServerByClient(enQue)" << std::endl ;
+	LOG_DXRT_I_DBG << "@@@ Thread End : ThreadAtServerByClient(enQue)" << std::endl ;
 	LOG_DXRT_I_DBG << "ThreadAtServerByClient exiting.\n" ;
 }
 
@@ -112,6 +131,7 @@ int32_t IPCPipeServerWindows::SendToClient(IPCServerMessage& serverMessage)
 	// if (_hPipe == INVALID_HANDLE_VALUE)	return resultWriteSize;
 	try
 	{
+		std::lock_guard<std::mutex> lock(_handleMapMutex);
 		auto it1 = _msgType2handle.find(serverMessage.msgType);
 		if (it1 == _msgType2handle.end())    {
 			LOG_DXRT_I_DBG << "IPCPipeServerWindows::SendToClient : Pipe Handle not found.\n" ;
@@ -121,10 +141,21 @@ int32_t IPCPipeServerWindows::SendToClient(IPCServerMessage& serverMessage)
 			HANDLE hPipe = it1->second;
 			IPCPipeWindows pipe(hPipe);
 			DWORD cbWritten = 0;
-			pipe.Send(&serverMessage, sizeof(serverMessage), &cbWritten);
+			int32_t sendResult = pipe.Send(&serverMessage, sizeof(serverMessage), &cbWritten);
 			pipe.Detatch();
-			if (sizeof(serverMessage) != cbWritten)  resultWriteSize = -1;
-			else resultWriteSize = cbWritten;
+
+			// Broken pipe - remove handle from map
+			if (sendResult < 0) {
+				LOG_DXRT_I_ERR("Send failed, removing broken pipe for msgType: " << serverMessage.msgType);
+				_msgType2handle.erase(it1);
+				resultWriteSize = -1;
+			}
+			else if (sizeof(serverMessage) != cbWritten) {
+				resultWriteSize = -1;
+			}
+			else {
+				resultWriteSize = cbWritten;
+			}
 		}
     }
     catch (std::exception& e)

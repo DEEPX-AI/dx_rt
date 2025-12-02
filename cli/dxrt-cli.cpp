@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
         ("i, info", "Get device info")
         ("m, monitor", "Monitoring device status every [arg] seconds (arg > 0)",cxxopts::value<uint32_t>() )
         //("r, reset", "Reset device(0: reset only NPU, 1: reset entire device)", cxxopts::value<int>()->default_value("0"))
-        ("r, reset", "Reset device(0: reset only NPU)", cxxopts::value<int>()->default_value("0"))
+        ("r, reset", "Reset device(0: reset only NPU)", cxxopts::value<int>()->default_value("0")->implicit_value("0"))
         ("d, device", "Device ID (if not specified, CLI commands will be sent to all devices.)", cxxopts::value<int>()->default_value("-1"))
         ("u, fwupdate", "Update firmware with deepx firmware file.\nsub-option : [force:force update, unreset:device unreset(default:reset)]", cxxopts::value<std::vector<std::string>>())
 
@@ -49,7 +49,8 @@ int main(int argc, char *argv[])
         ("p, dump", "Dump device internals to a file", cxxopts::value<string>() )
         ("w, fwupload", "Upload firmware with deepx firmware file.[2nd_boot/rtos]", cxxopts::value<std::vector<std::string>>() )
         ("errorstat", "show internal error status")
-        ("ddrerror", "show ddr error count");
+        ("ddrerror", "show ddr error count")
+        ("check-h1", "check h1 status");
 
     try
     {
@@ -147,6 +148,15 @@ int main(int argc, char *argv[])
         {
             dxrt::DDRErrorCLICommand cli(cmd);
             cli.Run();
+        }
+        else if (cmd.count("check-h1"))
+        {
+            if ( dxrt::CheckH1Devices() ) {
+                cout << "H1 devices are properly recognized." << endl;
+            } else {
+                cout << "H1 devices are NOT properly recognized." << endl;
+                return 1;
+            }   
         }
         else
         {
