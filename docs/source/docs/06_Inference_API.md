@@ -31,6 +31,7 @@ auto outputs = ie.Run(inputData);
 // Multi-input model (auto-split)
 auto outputs = ie.Run(concatenatedInput);
 ```
+
 In both cases, the output is returned as a vector of TensorPtr, representing each output tensor.  
 
 
@@ -209,44 +210,45 @@ def run(
 
 Detailed Input/Output Matrix  
 
-**Input: `np.ndarray`**
+*Input: `np.ndarray`*  
 
-* **Multi-Input Model** (`size == total_input_size`):
-   * Interpretation: Auto-split single
-   * Output: `List[np.ndarray]` (Single sample output)
-* **Single-Input Model** (`size != total_input_size`):
-   * Interpretation: Single Inference
-   * Output: `List[np.ndarray]` (Single sample output)
+- **Multi-Input Model** (`size == total_input_size`)  
+  : Interpretation: Auto-split single  
+  : Output: `List[np.ndarray]` (Single sample output)  
+- **Single-Input Model** (`size != total_input_size`):  
+  : Interpretation: Single Inference  
+  : Output: `List[np.ndarray]` (Single sample output)  
 
-**Input: `List[np.ndarray]`**
+*Input: `List[np.ndarray]`*  
 
-* **Single-Input Model** (`len == 1`):
-   * Interpretation: Single Inference
-   * Output: `List[np.ndarray]` (Single sample output)
-* **Multi-Input Model** (`len == input_count`):
-    * Interpretation: Single Inference
-    * Output: `List[np.ndarray]` (Single sample output)
-* **Multi-Input Model** (`len == N * input_count`):
-    * Interpretation: Batch Inference (N samples)
-    * Output: `List[List[np.ndarray]]` (N sample outputs)
-* **Single-Input Model** (`len > 1`):
-    * Interpretation: Batch Inference
-    * Output: `List[List[np.ndarray]]` (`len` sample outputs)
+- **Single-Input Model** (`len == 1`)  
+  : Interpretation: Single Inference  
+  : Output: `List[np.ndarray]` (Single sample output)  
+- **Multi-Input Model** (`len == input_count`)  
+  : Interpretation: Single Inference  
+  : Output: `List[np.ndarray]` (Single sample output)  
+- **Multi-Input Model** (`len == N * input_count`)  
+  : Interpretation: Batch Inference (N samples)  
+  : Output: `List[List[np.ndarray]]` (N sample outputs)  
+- **Single-Input Model** (`len > 1`)  
+  : Interpretation: Batch Inference  
+  : Output: `List[List[np.ndarray]]` (`len` sample outputs)  
 
-**Input: `List[List[np.ndarray]]`**
+*Input: `List[List[np.ndarray]]`*  
 
-* **Any Model** (Explicit batch):
-    * Interpretation: Batch Inference
-    * Output: `List[List[np.ndarray]]` (Matches outer list size)
+- **Any Model** (Explicit batch)  
+  : Interpretation: Batch Inference  
+  : Output: `List[List[np.ndarray]]` (Matches outer list size)  
+
 
 Auto-split Special Cases  
 
-* **Multi-input + first element is total_size** (e.g., `[concatenated_array]`):
-    * Interpretation: Auto-split single
-    * Output: `List[np.ndarray]`
-* **Multi-input + all elements are total_size** (e.g., `[concat1, concat2, concat3]`):
-    * Interpretation: Auto-split batch
-    * Output: `List[List[np.ndarray]]`
+- **Multi-input + first element is total_size** (e.g., `[concatenated_array]`)  
+  : Interpretation: Auto-split single  
+  : Output: `List[np.ndarray]`  
+- **Multi-input + all elements are total_size** (e.g., `[concat1, concat2, concat3]`)  
+  : Interpretation: Auto-split batch  
+  :  Output: `List[List[np.ndarray]]`  
 
 Example  
 ```python

@@ -363,6 +363,7 @@ The `USE_ORT` enables the use of ONNX Runtime to handle operations that are **no
 When executing CPU task via ONNX Runtime, performance bottlenecks may arise depending on the Host CPU performance and symbol load. To address this, **DX-RT** provides an optional dynamic multi-threading feature that can improve throughput  in high-load scenarios.  
 
 **Feature Overview**  
+
 - Dynamically increases the number of threads allocated to ONNX Runtime tasks  
 - Monitors the input queue load to determine CPU congestion  
 - Designed to boost FPS when CPU-bound tasks become a bottleneck  
