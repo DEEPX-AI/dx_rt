@@ -289,9 +289,9 @@ After building, you can execute the tool directly using the dxbenchmark command 
 !!! note "NOTE"
     **Execution Termination Condition Priority**  
     Currently, the execution duration -t {Time} is prioritized . While running based on time is generally suitable for benchmarking, large variations in inference time between models can lead to distortion in graph results.  
-       -	`--dir {Directory}`: The path to the directory containing the models.  
-       -	`EITHER -t {Time}`: Time duration in seconds (takes precedence).  
-       -	`OR -l {Loops}`: Number of inference loops.  
+     - `--dir {Directory}`: The path to the directory containing the models.  
+     - `EITHER -t {Time}`: Time duration in seconds (takes precedence).  
+     - `OR -l {Loops}`: Number of inference loops.  
 
 **Execution Examples**
   
@@ -310,10 +310,12 @@ After building, you can execute the tool directly using the dxbenchmark command 
 The tool generates a highly structured HTML report for visualization and version-controlled raw data files.  
  
 **HTML Report Structure and Visualization**  
+
    - **Filename Format:** `DXBENCHMARK_{YYYY_MM_DD_HHMMSS}.html`  
    - **Example:** `DXBENCHMARK_2025_08_13_174251.html`  
   
 **Raw Data Files**  
+
    - **Purpose:** To store the underlying data for version comparison and external analysis.  
    - **Filename Format:** `rt_{Runtime Version}_dd_{Device Driver Version}_pd_{PCIe Driver Version}.json/csv`  
    - **Example:** `rt_3.0.0_dd_1.7.1_pd_1.4.1.json`  

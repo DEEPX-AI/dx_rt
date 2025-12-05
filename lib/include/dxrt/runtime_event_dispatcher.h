@@ -70,6 +70,7 @@ namespace dxrt {
             RECOVERY_OCCURRED,      ///< Device recovery action taken
             TIMEOUT_OCCURRED,       ///< Operation timeout event
             THROTTLING_NOTICE,      ///< Device throttling notification
+            THROTTLING_EMERGENCY,   ///< Device throttling emergency notification
             UNKNOWN                 ///< Unknown or unclassified event code
         };
 

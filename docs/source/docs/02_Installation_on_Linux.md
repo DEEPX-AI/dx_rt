@@ -22,7 +22,8 @@ This section describes the hardware and software requirements for running **DX-R
 - **CPU:** amd64(x86_64), aarch64(arm64)
 - **RAM:** 8GB RAM (16GB RAM or higher is recommended)
 - **Storage:** 4GB or higher available disk space
-- **OS:** Ubuntu 18.04 / 20.04 / 22.04 / 24.04 (x64)
+- **OS**: Ubuntu 18.04 / 20.04 / 22.04 / 24.04 (x64)
+          Debian 12 / Debian 13 (x64)
 - **Hardware:** The system **must** support connection to an **M1 M.2** module with the **M.2 interface** on the host PC. 
 
 <div class="center-text">
@@ -70,7 +71,6 @@ Options:
   --venv_path <PATH>          Specify the path for the virtual environment.
                                  * If this option is omitted, no virtual environment will be created.
 ```
-
 
 **Installation with ONNX Runtime**  
 Use the ONNX Runtime option if you need to offload certain neural network (NN) operations to the CPU that are **not** supported by the NPU.  
@@ -144,8 +144,9 @@ After the **DX-RT** environment setup, you can build the framework using the pro
 ### Build Overview  
 
 **DX-RT** supports the following target CPU architectures:  
-  - **x86_64** for desktop/server-class hosts   
-  - **aarch64** for embedded systems and ARM-based platforms  
+
+- **x86_64** for desktop/server-class hosts   
+- **aarch64** for embedded systems and ARM-based platforms  
 
 You can select the target architecture using the `--arch` option in the build script.
 
@@ -202,7 +203,7 @@ Options:
 
 ### Examples for Build Script Option
 
-**Example 1: Clean Build and Install (Recommended Workflow)**  
+**Example 1:** Clean Build and Install (Recommended Workflow)  
 
 This example shows the safest way to build and install the library.  
 First, you clean the workspace, then you build for a specific architecture and install the libraries to a system path.  
@@ -215,7 +216,7 @@ First, you clean the workspace, then you build for a specific architecture and i
 ./build.sh --arch aarch64 --install /usr/local
 ```
 
-**Example 2: Build a Debug Version**  
+**Example 2:** Build a Debug Version  
 
 To build the framework with debugging symbols, which is useful for development and troubleshooting.  
 
@@ -227,7 +228,7 @@ To build the framework with debugging symbols, which is useful for development a
 ./build.sh --type Debug
 ```
 
-**Example 3: Uninstall the Library**  
+**Example 3:** Uninstall the Library  
 
 To remove all library files installed by a previous `--install` command.  
 
@@ -269,6 +270,7 @@ Cross-compilation is typically used to build **DX-RT** on an **x86_64** host sys
 
 **Setup Files for Cross-compile**  
 **DX-RT** supports the following CPU architectures:  
+
    - **x86_64** — Native build on host system  
    - **aarch64** — Cross-compile for ARM-based targets  
 
@@ -424,8 +426,9 @@ dxrt-driver-dkms/1.7.1-1, 6.5.0-27-generic, x86_64: installed
 ```
 
 In summary, these lines mean:  
-  * The `dxrt-driver-dkms` module, version `1.5.0-1`, is currently installed and fully operational for your system running the `6.5.0-27-generic` kernel on an `x86_64` architecture.  
-  * The same `dxrt-driver-dkms` module, version `1.5.0-1`, is also installed and fully operational for your system running the `6.8.0-60-generic` kernel on an `x86_64` architecture.  
+
+- The `dxrt-driver-dkms` module, version `1.5.0-1`, is currently installed and fully operational for your system running the `6.5.0-27-generic` kernel on an `x86_64` architecture.  
+- The same `dxrt-driver-dkms` module, version `1.5.0-1`, is also installed and fully operational for your system running the `6.8.0-60-generic` kernel on an `x86_64` architecture.  
 
 #### Viewing Package information
 
@@ -838,6 +841,7 @@ The general syntax for running the Sanity Check script is:
 ```
 sudo ./SanityCheck.sh [option]
 ```
+
 If no option is provided, the script defaults to all mode.
 
 ---

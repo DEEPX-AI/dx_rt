@@ -268,19 +268,24 @@ namespace dxrt {
         return "Ran out of NPU memory for task id=" + std::to_string(taskId);
     }
 
-    std::string LogMessages::RuntimeDispatch_DeviceRecovery(const std::string& type)
+    std::string LogMessages::RuntimeDispatch_DeviceRecovery(int deviceId, const std::string& type)
     {
-        return "Device recovery occurred: " + type;
+        return "Device recovery occurred: Device-ID=" + std::to_string(deviceId) + " " + type;
     }
 
-    std::string LogMessages::RuntimeDispatch_DeviceEventError()
+    std::string LogMessages::RuntimeDispatch_DeviceEventError(int deviceId, const std::string& errCodeStr)
     {
-        return "Device I/O event error occurred";
+        return "Device I/O event error occurred: Device-ID=" + std::to_string(deviceId) + " " + errCodeStr;
     }
 
-    std::string LogMessages::RuntimeDispatch_ThrottlingNotice(int temperature)
+    std::string LogMessages::RuntimeDispatch_ThrottlingNotice(int deviceId, int npuId, const std::string& mesg, int temperature)
     {
-        return "Throttling notice: Device temperature is " + std::to_string(temperature) + "°C";
+        return "Throttling notice: Device-ID=" + std::to_string(deviceId) + " NPU-ID=" + std::to_string(npuId) + " temperature is " + std::to_string(temperature) + "°C. " + mesg;
+    }
+
+    std::string LogMessages::RuntimeDispatch_ThrottlingEmergency(int deviceId, int npuId, const std::string& emergencyCodeStr)
+    {
+        return "Throttling emergency occurred: Device-ID=" + std::to_string(deviceId) + " NPU-ID=" + std::to_string(npuId) + ". " + emergencyCodeStr;
     }
 
 } // namespace dxrt

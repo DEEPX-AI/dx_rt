@@ -569,13 +569,28 @@ void AccDeviceTaskLayer::EventThread()
         {
             if (static_cast<dxrt::dxrt_error_t>(eventInfo.dx_rt_err.err_code)!=dxrt::dxrt_error_t::ERR_NONE)
             {
+                std::string err_code_str;
+                switch (static_cast<dxrt::dxrt_error_t>(eventInfo.dx_rt_err.err_code)) {
+                    case dxrt::dxrt_error_t::ERR_NPU0_HANG: err_code_str = "NPU0_HANG"; break;
+                    case dxrt::dxrt_error_t::ERR_NPU1_HANG: err_code_str = "NPU1_HANG"; break;
+                    case dxrt::dxrt_error_t::ERR_NPU2_HANG: err_code_str = "NPU2_HANG"; break;
+                    case dxrt::dxrt_error_t::ERR_NPU_BUS: err_code_str = "NPU_BUS"; break;
+                    case dxrt::dxrt_error_t::ERR_PCIE_DMA_CH0_FAIL: err_code_str = "PCIE_DMA_CH0_FAIL"; break;
+                    case dxrt::dxrt_error_t::ERR_PCIE_DMA_CH1_FAIL: err_code_str = "PCIE_DMA_CH1_FAIL"; break;
+                    case dxrt::dxrt_error_t::ERR_PCIE_DMA_CH2_FAIL: err_code_str = "PCIE_DMA_CH2_FAIL"; break;
+                    case dxrt::dxrt_error_t::ERR_LPDDR_DED_WR: err_code_str = "LPDDR_DED_WR"; break;
+                    case dxrt::dxrt_error_t::ERR_LPDDR_DED_RD: err_code_str = "LPDDR_DED_RD"; break;
+                    case dxrt::dxrt_error_t::ERR_DEVICE_ERR: err_code_str = "DEVICE_ERR"; break;
+                    default: err_code_str = "UNKNOWN"; break;
+                }
+
                 LOG_DXRT_ERR(eventInfo.dx_rt_err);
                 core()->ShowPCIEDetails();
                 RuntimeEventDispatcher::GetInstance().DispatchEvent(
                     RuntimeEventDispatcher::LEVEL::ERROR,
                     RuntimeEventDispatcher::TYPE::DEVICE_IO,
                     RuntimeEventDispatcher::CODE::DEVICE_EVENT,
-                    LogMessages::RuntimeDispatch_DeviceEventError());
+                    LogMessages::RuntimeDispatch_DeviceEventError(id(), err_code_str));
                 DXRT_ASSERT(false, LogMessages::Device_DeviceErrorEvent(static_cast<int>(eventInfo.dx_rt_err.err_code)));
                 break;
             }
@@ -585,13 +600,67 @@ void AccDeviceTaskLayer::EventThread()
             if ( Configuration::GetInstance().GetEnable(Configuration::ITEM::SHOW_THROTTLING) )
                 LOG_DXRT << eventInfo.dx_rt_ntfy_throt << std::endl;
 
-            RuntimeEventDispatcher::GetInstance().DispatchEvent(
-                RuntimeEventDispatcher::LEVEL::INFO,
-                RuntimeEventDispatcher::TYPE::DEVICE_STATUS,
-                RuntimeEventDispatcher::CODE::THROTTLING_NOTICE,
-                LogMessages::RuntimeDispatch_ThrottlingNotice(
-                    eventInfo.dx_rt_ntfy_throt.throt_temper)
-            );
+            if ( eventInfo.dx_rt_ntfy_throt.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_THROT_FREQ_DOWN
+                || eventInfo.dx_rt_ntfy_throt.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_THROT_FREQ_UP 
+                || eventInfo.dx_rt_ntfy_throt.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_THROT_VOLT_DOWN 
+                || eventInfo.dx_rt_ntfy_throt.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_THROT_VOLT_UP ) {
+
+                std::string throt_code_str;
+                switch (eventInfo.dx_rt_ntfy_throt.ntfy_code) {
+                    case dxrt::dxrt_notify_throt_t::NTFY_THROT_FREQ_DOWN: 
+                        throt_code_str = "FREQ_DOWN(MHz) " 
+                            + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_freq[0]) 
+                            + " to " + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_freq[1]); 
+                        break;
+                    case dxrt::dxrt_notify_throt_t::NTFY_THROT_FREQ_UP: throt_code_str = "FREQ_UP(MHz) " 
+                            + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_freq[0]) 
+                            + " to " + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_freq[1]);
+                        break;
+                    case dxrt::dxrt_notify_throt_t::NTFY_THROT_VOLT_DOWN: throt_code_str = "VOLT_DOWN(mV) " 
+                            + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_voltage[0]) 
+                            + " to " + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_voltage[1]); 
+                        break;
+                    case dxrt::dxrt_notify_throt_t::NTFY_THROT_VOLT_UP: throt_code_str = "VOLT_UP(mV) " 
+                            + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_voltage[0]) 
+                            + " to " + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_voltage[1]);
+                        break;
+                    default: throt_code_str = "UNKNOWN"; break;
+                }
+
+                RuntimeEventDispatcher::GetInstance().DispatchEvent(
+                    RuntimeEventDispatcher::LEVEL::INFO,
+                    RuntimeEventDispatcher::TYPE::DEVICE_STATUS,
+                    RuntimeEventDispatcher::CODE::THROTTLING_NOTICE,
+                    LogMessages::RuntimeDispatch_ThrottlingNotice(
+                        id(),
+                        eventInfo.dx_rt_ntfy_throt.npu_id,
+                        throt_code_str,
+                        eventInfo.dx_rt_ntfy_throt.throt_temper)
+                );
+            }
+            else if ( eventInfo.dx_rt_ntfy_throt.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_EMERGENCY_BLOCK
+                || eventInfo.dx_rt_ntfy_throt.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_EMERGENCY_RELEASE 
+                || eventInfo.dx_rt_ntfy_throt.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_EMERGENCY_WARN ) 
+            {
+
+                std::string emergency_code_str;
+                switch (eventInfo.dx_rt_ntfy_throt.ntfy_code) {
+                    case dxrt::dxrt_notify_throt_t::NTFY_EMERGENCY_BLOCK: emergency_code_str = "EMERGENCY_BLOCK"; break;
+                    case dxrt::dxrt_notify_throt_t::NTFY_EMERGENCY_RELEASE: emergency_code_str = "EMERGENCY_RELEASE"; break;
+                    case dxrt::dxrt_notify_throt_t::NTFY_EMERGENCY_WARN: emergency_code_str = "EMERGENCY_WARN"; break;
+                    default: emergency_code_str = "UNKNOWN"; break;
+                }
+
+                RuntimeEventDispatcher::GetInstance().DispatchEvent(
+                    RuntimeEventDispatcher::LEVEL::CRITICAL,
+                    RuntimeEventDispatcher::TYPE::DEVICE_STATUS,
+                    RuntimeEventDispatcher::CODE::THROTTLING_EMERGENCY,
+                    LogMessages::RuntimeDispatch_ThrottlingEmergency(
+                        id(),
+                        eventInfo.dx_rt_ntfy_throt.npu_id,
+                        emergency_code_str)
+                );
+            }
         }
         else if (static_cast<dxrt::dxrt_event_t>(eventInfo.event_type)==dxrt::dxrt_event_t::DXRT_EVENT_RECOVERY)
         {
@@ -632,7 +701,7 @@ void AccDeviceTaskLayer::EventThread()
                 RuntimeEventDispatcher::LEVEL::WARNING,
                 RuntimeEventDispatcher::TYPE::DEVICE_CORE,
                 RuntimeEventDispatcher::CODE::RECOVERY_OCCURRED,
-                LogMessages::RuntimeDispatch_DeviceRecovery(type)
+                LogMessages::RuntimeDispatch_DeviceRecovery(id(), type)
             );
         }
         else

@@ -713,7 +713,7 @@ void InferenceJob::Wait()
 bool InferenceJob::checkAndSetTaskReady(TaskPtr taskPtr)
 {
     if (!taskPtr) return false;
-    std::unique_lock<std::mutex> lk(_taskLock);
+    std::unique_lock<std::mutex> lk(_lock);
     auto it = _taskStatusMap.find(taskPtr->name());
     if (it == _taskStatusMap.end()) return false;
     if (it->second != Status::TASK_IDLE) {

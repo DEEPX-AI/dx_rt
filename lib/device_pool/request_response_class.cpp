@@ -157,10 +157,12 @@ void RequestResponse::ProcessByData(int reqId, const dxrt_response_t& response, 
             req->encoded_outputs_ptr(), req->taskData()->encoded_output_size());
     }
 
+    // Temproal Fix for Performance Issue
     if (req->model_type() == 0)
     {
-        ProcessByDataNormal(req, response, deviceId);
+        //ProcessByDataNormal(req, response, deviceId);
     }
+
     // Argmax
     else if (req->model_type() == 1)
     {

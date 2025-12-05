@@ -202,7 +202,8 @@ CUSTOM_INTRA_OP_THREADS_COUNT=4
 CUSTOM_INTER_OP_THREADS_COUNT=2
 ```
 
-**Important**: The ONNX Runtime thread settings shown above are an **opt-in example**. The actual default `common.cfg` file sets `USE_CUSTOM_INTRA_OP_THREADS=0` and `USE_CUSTOM_INTER_OP_THREADS=0`, which means ONNX Runtime will use its automatic thread management by default.
+!!! warning "IMPORTANT"  
+    The ONNX Runtime thread settings shown above are an **opt-in example**. The actual default `common.cfg` file sets `USE_CUSTOM_INTRA_OP_THREADS=0` and `USE_CUSTOM_INTER_OP_THREADS=0`, which means ONNX Runtime will use its automatic thread management by default.
 
 #### Configuration Parameters
 
