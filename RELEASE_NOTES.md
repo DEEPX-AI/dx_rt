@@ -1,5 +1,6 @@
 # RELEASE_NOTES
-## v3.1.0 / 2025-11-19
+
+## DX-RT v3.1.0 / 2025-11-28
 
 ### 1. Changed
 - Update model file format version checks to include max version…
@@ -74,7 +75,10 @@
 - Add new documentation files for Inference API, Multi-Input Inference, and Global Instance.
 - Add examples for asynchronous model inference with profiling capabilities in both C++ and Python.
 
-## v3.0.0 / 2025-07-31
+---
+
+## DX-RT v3.0.0 / 2025-07-31  
+
 ### 1. Changed
 - Update minimum versions 
    - Driver : 1.5.0 -> 1.7.1
@@ -93,7 +97,8 @@
 - Enhance UI for better clarity, enabled dynamic data rendering, and added visual graphs for NPU Memory usage.
 - Change default build option for DX-RT from USE_ORT=OFF to USE_ORT=ON. If the inference engine option is not specified separately, use_ort will be enabled by default, activating the CPU task for .dxnn models.
 - Add automatic handling of input dummy padding and output dummy slicing when USE_ORT=OFF (build-time or via InferenceOption). Applications no longer need to add input dummy data or remove output dummy data for inference.
-### 2. Fixed
+  
+### 2. Fixed  
 - fix kernel panic issue caused by wrong NPU channel number
 - feat: Improve error message readability in install, build scripts
   - Apply color to error messages
@@ -110,7 +115,8 @@
   - Added support in install.sh to optionally accept --python_version and --venv_path for installation
   - Added support in build.sh to accept and use --python_exec
   - Added support in build.sh to optionally accept --venv_path and activate the specified virtual environment
-### 3. Added
+
+### 3. Added  
 - Add usb inference module (tcp/ip)
 (MACRO : DXRT_USB_NETWORK_DRIVER)
 - Add Sanity Check Features
@@ -127,7 +133,10 @@
 - Add dxtop tool, a terminal-based monitoring tool for Linux environments. It provides real-time insights into NPU core utilization and DRAM usage per NPU device.
 - Add support for both .dxnn file formats: v6 (compiled with dx_com 1.40.2 or later) and v7 (compiled with dx_com 2.x.x).
 
-## v2.9.5 / 2025-06-09
+---
+
+## DX-RT v2.9.5 / 2025-06-09  
+
 ### 1. Changed
 - Modified Python tensor info dictionary results. Removed 'size_in_bytes' and added 'elem_size' to the dictionaries returned by get_input_tensors_info() and get_output_tensors_info().
 - Set the service to launch after a reboot when service=ON is built.
@@ -142,11 +151,13 @@
    - .dxnn File Format Version : v6
    - Compiler : v1.15.2
 - Removed the 'tools' directory and consolidated its functionalities within the example directory for streamlined project structure.
+
 ### 2. Fixed
 - Fixed a bug where the run() API was returning incorrect output
 - Fixed a bug where GetNpuInferenceTime related APIs returned incorrect values
 - Fixed a bug where the task load could be displayed as a negative value
 - Fixed incorrect 'dtype' in Python tensor info functions. Corrected the 'dtype' reported by get_input_tensors_info(), get_output_tensors_info(), and similar functions.
+
 ### 3. Added
 - Included details about DXRT_DYNAMIC_CPU_THREAD usage in the model inference documentation (04_Model_Inference.md)
 - Improved usability for python InferenceOption(). Users can now directly set the option variable without needing a separate method.
@@ -155,7 +166,11 @@
   - Callback functions registered via register_callback now accept user_arg of custom types.
   - run() now supports both single-input and batch-input modes, depending on the input format.
 - Add display_async_models examples
-## v2.8.4 / 2025-05-12
+
+---
+
+## DX-RT v2.8.4 / 2025-05-12
+
 ### 1. Changed
 - Modify the build.sh script according to cmake options
   - CMake option USE_ORT=ON, running build.sh --clean installs ONNX Runtime.
@@ -165,11 +180,13 @@
 - Enhanced concurrency by making key variables atomic, resolving potential race conditions.
 - Addressed multithreading issues by implementing additional locks, improving stability under heavy load.
 - Removed obsolete code, streamlining the codebase
+
 ### 2. Fixed
   - Fix crash on multi-device environment with more than 2 H1 cards(>=8 devices)
   - Resolved data corruption errors that could occur in different scenarios, ensuring data integrity.
   - Fix profiler bugs
   - Addressed issues identified by static analysis and other tools, enhancing code quality and reliability.
+
 ### 3. Added
 - USE_ORT Option for Python BItmatch.py
 - Add --use_ort flag to the run_model.py example for ONNX Runtime
@@ -178,20 +195,30 @@
  - Implemented device blocking device on error
  - Implemented page alignment for buffers to address some I/O issues.
 
-## v2.8.3 / 2025-04-11
+---
+
+## DX-RT v2.8.3 / 2025-04-11
+
 ### 1. Changed
 - Improve driver, firmware, and file format version check messages
+
 ### 2. Fixed
 - None
+
 ### 3. Added
 - Add --all option to build.sh
 
-## v2.8.2 / 2025-03-21
+---
+
+## DX-RT v2.8.2 / 2025-03-21
+
 ### 1. Changed
 - Modified the run_async_model_output example to improve the passing condition.
 - Modify Inference Engine to be used with 'with' statements, and update relevant examples.
+
 ### 2. Fixed
 - failed to read output -70 bug
+
 ### 3. Added
 - Round Robin,Shortest Job First scheduler added
 - Implemented C++ Run (Batch) function within the InferenceEngine for batched inference execution.
@@ -200,14 +227,22 @@
 - Add Python inference option interface with the following configurations
    * NPU Device Selection / NPU Bound Option / ORT Usage Flag
 
-## v2.7.1 / 2025-03-12
+---
+
+## DX-RT v2.7.1 / 2025-03-12
+
 ### 1. Changed
 - display dxnn versions in parse_model (.dxnn file format version & compiler version)
+
 ### 2. Fixed
 - None
+
 ### 3. Added
 - Add otp read / write api (internal only)
-## v2.7.1 / 2025-03-11
+
+---
+
+## DX-RT v2.7.1 / 2025-03-11
 ### 1. Changed
 - Added instructions on how to retrieve device status information
 - Driver and Firmware versions
@@ -219,7 +254,10 @@
 - Implemented retrieval of device status information by device ID
 - Retrieved the count of installed devices
 - Non contiguous input handling in Python API
-## v2.7.0 / 2025-02-25
+
+---
+
+## DX-RT v2.7.0 / 2025-02-25
 ### 1. Changed
 - API renaming
 - Optimize sync timing in asynchronous inference scenario
@@ -237,7 +275,9 @@
 - Clang compiler
 - Average load on NPU devices and CPU tasks
 
-## v2.6.3 / 2025-01-06
+---
+
+## DX-RT v2.6.3 / 2025-01-06
 ### Changed
 - seperate msg queue for Send To / Receive From
 - merge windows code & modify bitmatch (C++)
@@ -246,7 +286,9 @@
 ### Added
 - NONE
 
-## v2.6.2 / 2024-12-19
+---
+
+## DX-RT v2.6.2 / 2024-12-19
 ### Changed
 - NONE
 ### Fixed
@@ -254,7 +296,9 @@
 ### Added
 - Modify configuration function for throttling using json
 
-## v2.6.1 / 2024-12-11
+---
+
+## DX-RT v2.6.1 / 2024-12-11
 ### Changed
 - NONE
 ### Fixed
@@ -263,7 +307,9 @@
 ### Added
 - NONE
 
-## v2.6.0 / 2024-12-10
+---
+
+## DX-RT v2.6.0 / 2024-12-10
 ### Changed
 - Modify inference load control
 - onnxruntime minimum version : v1.18.0
@@ -279,7 +325,9 @@
 ### Added
 - Add NPU memory caching
 
-## v2.1.0 / 2024-10-31
+---
+
+## DX-RT v2.1.0 / 2024-10-31
 ### Changed
 - run_model async mode as default  
 - Drvier and Firmware versions
@@ -295,7 +343,9 @@
   - Async mode / Batch mode
 - Device status monitoring function via cli-command
 
-## v2.0.3 / 2024-09-04
+---
+
+## DX-RT v2.0.3 / 2024-09-04
 ### Changed
 - align change: 64 to 16
 ### Fixed
@@ -304,7 +354,9 @@
 - add firmware upload mode on cli
 - support INT64 for cpu onnx
 
-## v2.0.1 / 2024-08-06
+---
+
+## DX-RT v2.0.1 / 2024-08-06
 ### Changed
 - None
 ### Fixed
@@ -312,7 +364,9 @@
 ### Added
 - None
 
-## v2.0.0 / 2024-08-02
+---
+
+## DX-RT v2.0.0 / 2024-08-02
 ### Changed
 - dxnn version up(v6). so prior dxnn models will not work from this version.
 ### Fixed
@@ -321,7 +375,9 @@
 - stress test script
 - batch run async in pybinding
 
-## v1.2.3 / 2024-07-23
+---
+
+## DX-RT v1.2.3 / 2024-07-23
 ### Changed
 - Update process id & model_format for device message
 - Remove device dependency for parse_model
@@ -332,7 +388,9 @@
 ### Added
 - Implement multi-task and multi in/out for achieving CPU offloading level 1
 
-## v1.1.2 / 2024-07-03
+---
+
+## DX-RT v1.1.2 / 2024-07-03
 ### Changed
 - update documents
 ### Fixed
@@ -340,7 +398,9 @@
 ### Added
 - None
 
-## v1.1.1 / 2024-06-03
+---
+
+## DX-RT v1.1.1 / 2024-06-03
 ### 1. Changed
 - simplify dxrt-cli status message
 - remove unnesessary outputs by dx_rt library
@@ -351,7 +411,9 @@
 ### 3. Added
 - None
 
-## v1.0.1 / 2024-05-23
+---
+
+## DX-RT v1.0.1 / 2024-05-23
 ### 1. Changed
 - make option : -j8 -> -j$(nproc)
 ### 2. Fixed
@@ -359,8 +421,9 @@
 ### 3. Added
 - None
 
+---
 
-## v1.0.0 / 2024-04-29
+## DX-RT v1.0.0 / 2024-04-29
 ### 1. Changed
 - DXNN Version2 architecture sdk
 - Remove driver folder
@@ -371,7 +434,9 @@
 - Pybind11 support
   DXRT supports some Python APIs.
 
-## v0.5.4 / 2023-07-17
+---
+
+## DX-RT v0.5.4 / 2023-07-17
 ### 1. Changed
 - Changed classification demo name
 ### 2. Fixed
@@ -380,7 +445,9 @@
 - Support model configuration for real time face recognition demo
 - Support to receive device information and dump device memory from commandline interface application
 
-## v0.5.3 / 2023-06-14
+---
+
+## DX-RT v0.5.3 / 2023-06-14
 ### 1. Changed
 - None
 ### 2. Fixed
@@ -390,7 +457,9 @@
 - Added firmware CLI tool for DX-M1, DX-H1
 - Improve YOLOX postproc. performance
 
-## v0.5.2 / 2023-05-10
+---
+
+## DX-RT v0.5.2 / 2023-05-10
 ### 1. Changed
 - None
 ### 2. Fixed
@@ -401,7 +470,9 @@
 - Added pose estimation application
 - Added FPS estimation for run_model application
 
-## v0.5.1 / 2023-04-03
+---
+
+## DX-RT v0.5.1 / 2023-04-03
 ### 1. Changed
 - None
 ### 2. Fixed
@@ -414,7 +485,9 @@
 - Added network packet classification application
 - Added source code of L1 NPU driver
 
-## v0.5.0 / 2023-02-22
+---
+
+## DX-RT v0.5.0 / 2023-02-22
 ### 1. Changed
 - Device variant/type setting is removed from build script (Device auto-detection is applied).
 - Reduced interrupt latency for standalone device
@@ -424,7 +497,9 @@
 - Added yolov7 configurations in object detection app.
 - Added PCIe driver (only for DX-M1 FPGA)
 
-## v0.4.0 / 2023-01-05
+---
+
+## DX-RT v0.4.0 / 2023-01-05
 ### 1. Changed
 - Refactor device parameters in runtime lib.
 ### 2. Fixed
@@ -433,7 +508,9 @@
 - Add ISP interface for object detection demo
 - Add ONNX runtime interface for CPU task (verified only x86_64)
 
-## v0.3.1 / 2022-12-12
+---
+
+## DX-RT v0.3.1 / 2022-12-12
 ### 1. Changed
 - Improve object detection pre/post parameter
 - Unified post-processing for yolov5, yolox
@@ -442,7 +519,9 @@
 ### 3. Added
 - Support documents generation
 
-## v0.3.0 / 2022-12-05
+---
+
+## DX-RT v0.3.0 / 2022-12-05
 ### 1. Changed
 - Refactor face recognition application
 - Change build architecture for auto-release
@@ -452,7 +531,9 @@
 ### 3. Added
 - Add parse_model application
 
-## v0.2.0 / 2022-11-22
+---
+
+## DX-RT v0.2.0 / 2022-11-22
 ### 1. Changed
 - Separate dev-build, release-build
 ### 2. Fixed
@@ -464,5 +545,7 @@
 - Added doxygen for API reference
 - Support encrypted NPU parameters
 
-## v0.1.0 / 2022-06-30
+---
+
+## DX-RT v0.1.0 / 2022-06-30
 - Initial release for DX-L1 (eyenix FPGA)
