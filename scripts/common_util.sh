@@ -51,10 +51,10 @@ check_container_mode() {
 check_virtualenv() {
     if [ -n "$VIRTUAL_ENV" ]; then
         venv_name=$(basename "$VIRTUAL_ENV")
-        print_colored_v2 "✅ Virtual environment '$venv_name' is currently active."
+        print_colored_v2 "info" "✅ Virtual environment '$venv_name' is currently active."
         return 0
     else
-        print_colored_v2 "❌ No virtual environment is currently active."
+        print_colored_v2 "info" "❌ No virtual environment is currently active."
         return 1
     fi
 }
@@ -193,9 +193,41 @@ os_check() {
     esac
     
     if [ "$version_supported" = false ]; then
-        print_colored "Unsupported $detected_os version: $OS_VERSION_ID" "ERROR"
-        print_colored "Supported $detected_os versions: $supported_versions" "HINT"
-        print_colored "Please upgrade to a supported $detected_os version." "HINT"
+        print_colored "Current $detected_os version $OS_VERSION_ID is not officially supported." "ERROR"
+        print_colored "Officially supported $detected_os versions: $supported_versions" "HINT"
+        
+        # Determine if current version is newer or older than supported versions
+        local is_newer_version=false
+        local max_supported_version=""
+        
+        # Find the maximum supported version
+        for version in $supported_versions; do
+            if [ -z "$max_supported_version" ]; then
+                max_supported_version="$version"
+            else
+                # Compare versions using sort -V (version sort)
+                local higher_version=$(printf "%s\n%s" "$max_supported_version" "$version" | sort -V | tail -n1)
+                if [ "$higher_version" = "$version" ]; then
+                    max_supported_version="$version"
+                fi
+            fi
+        done
+        
+        # Check if current version is newer than maximum supported version
+        if [ -n "$OS_VERSION_ID" ] && [ -n "$max_supported_version" ]; then
+            local higher_version=$(printf "%s\n%s" "$max_supported_version" "$OS_VERSION_ID" | sort -V | tail -n1)
+            if [ "$higher_version" = "$OS_VERSION_ID" ] && [ "$OS_VERSION_ID" != "$max_supported_version" ]; then
+                is_newer_version=true
+            fi
+        fi
+        
+        # Provide appropriate guidance based on version comparison
+        if [ "$is_newer_version" = true ]; then
+            print_colored "Please use one of the officially supported $detected_os versions listed above." "HINT"
+        else
+            print_colored "Please upgrade to one of the officially supported $detected_os versions listed above." "HINT"
+        fi
+        
         return 1
     fi
     

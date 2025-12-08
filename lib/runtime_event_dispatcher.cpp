@@ -99,7 +99,8 @@ namespace dxrt {
             case CODE::RECOVERY_OCCURRED:   codeStr = "RECOVERY_OCCURRED"; break;
             case CODE::TIMEOUT_OCCURRED:    codeStr = "TIMEOUT_OCCURRED"; break;
             case CODE::THROTTLING_NOTICE:   codeStr = "THROTTLING_NOTICE"; break;
-            default:                              codeStr = "UNKNOWN"; break;
+            case CODE::THROTTLING_EMERGENCY:    codeStr = "THROTTLING_EMERGENCY"; break;
+            default:                        codeStr = "UNKNOWN"; break;
         }
 
         static std::mutex logging_mutex;

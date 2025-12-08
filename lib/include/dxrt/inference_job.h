@@ -141,7 +141,6 @@ class InferenceJob
     // Acquire the mutex when reading or writing the _status value, and release it after the operation is complete.
     std::atomic<Request::Status> _status = {Request::Status::REQ_IDLE};
     std::mutex _lock;
-    std::mutex _taskLock;
 
     // wait for inference job to complete
     std::condition_variable _waitCV;

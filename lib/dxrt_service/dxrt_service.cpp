@@ -376,7 +376,6 @@ bool DxrtService::TaskInit(pid_t pid, int deviceId, int taskId, int bound, uint6
 void DxrtService::TaskDeInit(int deviceId, int taskId, int pid)
 {
     dxrt::npu_bound_op bound;
-    bool doStoptaskInference = false;
     bool taskExists = true;
     {
         std::lock_guard<std::mutex> lock(_infoMapMutex);
@@ -398,7 +397,7 @@ void DxrtService::TaskDeInit(int deviceId, int taskId, int pid)
     #endif
             return;
         }
-        doStoptaskInference = true;
+
         if (it->second.hasTask(taskId) == false)
         {
             LOG_DXRT_S_ERR("Task " + std::to_string(taskId) + " does not exist for PID " +
