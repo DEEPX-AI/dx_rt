@@ -12,6 +12,18 @@
 #include "../include/render.h"
 #include "../include/utils.h"
 
+#ifdef _WIN32
+#include <direct.h>
+
+#define MKDIR_FUNC(path) _mkdir(path)
+#define IS_DIR(st) ((st).st_mode & _S_IFDIR)
+#define PATH_SEPARATOR '\\'
+#else
+#define MKDIR_FUNC(path) mkdir(path, 0755)
+#define IS_DIR(st) S_ISDIR((st).st_mode)
+#define PATH_SEPARATOR '/'
+#endif
+
 using std::string;
 using std::vector;
 using std::map;
@@ -20,17 +32,22 @@ using std::endl;
 
 bool ensureDirectoryExists(const string& path) 
 {
+    string platformPath = path;
+    if (PATH_SEPARATOR != '/') {
+        std::replace(platformPath.begin(), platformPath.end(), '/', PATH_SEPARATOR);
+    }
+
     // Check if directory already exists
     struct stat st;
-    if (stat(path.c_str(), &st) == 0) 
+    if (stat(platformPath.c_str(), &st) == 0)
     {
-        if (S_ISDIR(st.st_mode)) 
+        if (IS_DIR(st))
         {
             return true;  // Directory already exists
         }
         else 
         {
-            std::cerr << "Path exists but is not a directory: " << path << std::endl;
+            std::cerr << "Path exists but is not a directory: " << platformPath << std::endl;
             return false;
         }
     }
@@ -38,41 +55,56 @@ bool ensureDirectoryExists(const string& path)
     // Directory doesn't exist, need to create it recursively
     string currentPath;
     size_t pos = 0;
+    char separator = PATH_SEPARATOR;
     
+#ifdef _WIN32
+    // Handle drive letter on Windows
+    if (platformPath.length() >= 2 && platformPath[1] == ':' && (platformPath.length() == 2 || platformPath[2] == separator)) {
+        currentPath = platformPath.substr(0, 3);
+        pos = 3;
+    }
+    else
+#endif
     // Skip leading slash for absolute paths
-    if (!path.empty() && path[0] == '/') 
+    if (!platformPath.empty() && platformPath[0] == '/')
     {
         currentPath = "/";
         pos = 1;
     }
     
-    while (pos < path.length()) 
+    while (pos < platformPath.length())
     {
-        size_t nextSlash = path.find('/', pos);
-        if (nextSlash == string::npos) 
+        size_t nextSeparator = platformPath.find(separator, pos);
+        if (nextSeparator == string::npos)
         {
-            nextSlash = path.length();
+            nextSeparator = platformPath.length();
         }
         
-        currentPath += path.substr(pos, nextSlash - pos);
+        currentPath += platformPath.substr(pos, nextSeparator - pos);
         
         // Try to create this level of directory
         if (stat(currentPath.c_str(), &st) != 0) 
         {
             // Directory doesn't exist, create it
-            if (mkdir(currentPath.c_str(), 0755) != 0 && errno != EEXIST) 
+            if (MKDIR_FUNC(currentPath.c_str()) != 0)
             {
-                std::cerr << "Error creating directory " << currentPath 
-                         << ": " << std::strerror(errno) << std::endl;
-                return false;
+                if (errno != EEXIST)
+                {
+                    std::cerr << "Error creating directory " << currentPath
+                        << ": " << std::strerror(errno) << std::endl;
+                    return false;
+                }
             }
-            std::cout << "Created directory: " << currentPath << std::endl;
+            else
+            {
+                std::cout << "Created directory: " << currentPath << std::endl;
+            }
         }
         
-        if (nextSlash < path.length()) 
+        if (nextSeparator < platformPath.length())
         {
-            currentPath += "/";
-            pos = nextSlash + 1;
+            currentPath += separator;
+            pos = nextSeparator + 1;
         } 
         else 
         {

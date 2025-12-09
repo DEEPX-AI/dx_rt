@@ -11,7 +11,12 @@ target_include_directories(${target} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
     ${CURSES_INCLUDE_DIR}
   )
 
-target_link_libraries(${target} dxrt ${link_libs})
+if (MSVC)
+    target_link_libraries(${target} PRIVATE user32 advapi32 dxrt ${link_libs})
+    target_link_options(${target} PRIVATE "/SUBSYSTEM:CONSOLE")
+else()
+    target_link_libraries(${target} dxrt ${link_libs})
+endif()
   
 install( TARGETS ${target} DESTINATION bin )
 install( TARGETS ${target} DESTINATION ${CMAKE_SOURCE_DIR}/bin )
