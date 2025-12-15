@@ -52,7 +52,6 @@
 - Include binary data as Array on source code, comes with internal-only generation script
 - Add support for V8 DXNN file format
 - Add PPU support for V8 models
-- Add DX-Fit tuning toolkit, documentation, and curated examples.
 - Support dynamic shape output of tail cpu task
 - Implement asynchronous NPU Format Handler (NFH).
 - Add new functions to profiler (Flush and GetPerformanceData)
