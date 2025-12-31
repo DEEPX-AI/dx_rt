@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -181,7 +181,10 @@ int32_t WindowsDriverAdapter::Poll()
         cout << "Warning: Device " << _id << " wait timeout." << endl;
         return -1;
     }
-    return 0 ;
+    else
+    {
+        return 0;
+    }
 #endif
 }
 

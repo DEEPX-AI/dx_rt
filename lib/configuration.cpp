@@ -518,7 +518,7 @@ std::atomic<bool> Configuration::_sNpuValidateOpt{false}; // TODO: must integrat
 // to avoid inlining heavy function releated to configuration (common.h)
 
 
-int GetTaskMaxLoad()
+int DXRT_API GetTaskMaxLoad()
 {
     static int cached_value = -1;
     if (cached_value == -1)
@@ -527,20 +527,20 @@ int GetTaskMaxLoad()
         if (env_value != nullptr)
         {
             int env_int = std::atoi(env_value);
-            if (env_int > 0 && env_int <= 100)
+            if (env_int > 0 && env_int <= DXRT_TASK_MAX_LOAD_LIMIT)
             {
                 cached_value = env_int;
-                LOG << "Using DXRT_TASK_MAX_LOAD=" << cached_value << " from environment" << std::endl;
+                LOG << "Using DXRT_TASK_MAX_LOAD (I/O buffer-count)=" << cached_value << " from environment" << std::endl;
             }
             else
             {
-                cached_value = DXRT_TASK_MAX_LOAD_DEFAULT;
-                LOG << "Invalid DXRT_TASK_MAX_LOAD value, using default=" << cached_value << std::endl;
+                cached_value = DXRT_TASK_MAX_LOAD_DEFAULT; // default value
+                LOG << "Invalid DXRT_TASK_MAX_LOAD (I/O buffer-count) value, using default=" << cached_value << std::endl;
             }
         }
         else
         {
-            cached_value = DXRT_TASK_MAX_LOAD_DEFAULT;
+            cached_value = DXRT_TASK_MAX_LOAD_DEFAULT; // default value
         }
     }
     return cached_value;

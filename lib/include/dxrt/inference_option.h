@@ -46,14 +46,19 @@ class DXRT_API InferenceOption
      * @details NPU_ALL is an option that uses all NPU cores simultaneously. NPU_0, NPU_1, and NPU_2 are options that allow using only a single NPU core.
      */
     uint32_t    boundOption = BOUND_OPTION::NPU_ALL;
+
     /** @brief Select which uses ORT task or not
      * @details if this is true, all task will works. if false, only npu task works.
      */
-
     bool useORT = ORT_OPTION_DEFAULT;
 
-};
+    /** @brief Number of buffers to use
+     * @details Specifies the number of buffers allocated for inference.
+     * Default is DXRT_TASK_MAX_LOAD_VALUE buffers.
+     */
+    int bufferCount{DXRT_TASK_MAX_LOAD_VALUE};
 
+};
 
 
 DXRT_API std::ostream& operator<<(std::ostream&, const InferenceOption&);

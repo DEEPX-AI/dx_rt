@@ -39,6 +39,15 @@ public:
     std::string ParseModel(const std::string& filePath, ModelDataBase& modelData) override;
     
     /**
+     * @brief Parse v8 DXNN file from memory buffer
+     * @param modelBuffer Pointer to DXNN file data in memory
+     * @param modelSize Size of the DXNN file data
+     * @param modelData Output structure to populate
+     * @return Model compile type string
+     */
+    std::string ParseModel(const uint8_t* modelBuffer, size_t modelSize, ModelDataBase& modelData) override;
+    
+    /**
      * @brief Get supported version number
      * @return 8
      */

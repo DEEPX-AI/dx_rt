@@ -23,6 +23,7 @@
 #include "dxrt/device_struct.h"
 #include "dxrt/driver_adapter/network_driver_adapter.h"
 #include "dxrt/driver_net.h"
+#include "dxrt/exception/exception.h"
 
 namespace dxrt {
 
@@ -42,7 +43,7 @@ NetworkDriverAdapter::NetworkDriverAdapter()
         int sock = socket(AF_INET, SOCK_STREAM, 0);
         if (sock < 0) {
             perror("Socket creation failed");
-        }
+        } //@no_else: guard_clause
 
         memset(&server_addr, 0, sizeof(server_addr));
         server_addr.sin_family = AF_INET;
@@ -50,10 +51,11 @@ NetworkDriverAdapter::NetworkDriverAdapter()
         if (inet_pton(AF_INET, SERVER_IP, &server_addr.sin_addr) != 1) {
             perror("Invalid address format");
         }
+        //@no_else: guard_clause
 
         if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
             perror("Connection failed");
-        }
+        }//@no_else: guard_clause
         sockMap.emplace(tcpType, std::make_pair(sock, SERVER_PORT_MSG + type));
 
         LOG_DXRT_INFO("Connected to server " << SERVER_IP << ":" << sockMap[tcpType].second);
@@ -72,11 +74,15 @@ int32_t NetworkDriverAdapter::NetControl(dxrt_cmd_t request, void* data, uint32_
     info.size = size;
     info.address = address;
     {
-        if ((data != NULL))
+        if (data != nullptr)
         {
             memcpy(reinterpret_cast<void *>(info.data), data, sizeof(info.data));
         }
-        // std::cout << "Process type : " << info.type << ",cmd : " << info.cmd << ", size : " << info.size << std::endl;
+        else
+        {
+            throw dxrt::InvalidArgumentException("data pointer is null in NetworkDriverAdapter::NetControl");
+        }
+
 
         switch (request)
         {
@@ -102,6 +108,7 @@ int32_t NetworkDriverAdapter::NetControl(dxrt_cmd_t request, void* data, uint32_
                 info.type = TCP_DATAS_GET;
                 if (ctrlCmd)
                     Write(&info, sizeof(net_control_info));
+                    //@no_else: conditional_work
                 ret = Read(data, size);
                 break;
             default:
@@ -120,6 +127,7 @@ int32_t NetworkDriverAdapter::Write(const void* buffer, uint32_t size)
         LOG_DXRT_ERR("Invalid buffer or size in NetworkDriverAdapter::Write, buffer: " << buffer << ", size: " << size);
         return -1;
     }
+    //@no_else: input_validation
     int ret = 0;
     // printf("Write burst buffer : %p, size:%d\n", buffer, size);
     {
@@ -129,6 +137,7 @@ int32_t NetworkDriverAdapter::Write(const void* buffer, uint32_t size)
             perror("Send failed");
             ret = -1;
         }
+        //@no_else: guard_clause
     }
     return ret;
 }
@@ -155,6 +164,7 @@ int32_t NetworkDriverAdapter::Read(void* buffer, uint32_t size)
             ret = -1;
             break;
         }
+        //@no_else: guard_clause
         writePointer += bytesReceived;
         totalBytesReceived += bytesReceived;
         remainingSize -= bytesReceived;

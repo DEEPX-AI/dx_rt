@@ -28,6 +28,8 @@ public:
     ~V6ModelParser() override = default;
     
     std::string ParseModel(const std::string& filePath, ModelDataBase& modelData) override;
+    std::string ParseModel(const uint8_t* modelBuffer, size_t modelSize, ModelDataBase& modelData) override;
+
     int GetSupportedVersion() const override { return 6; }
     std::string GetParserName() const override { return "DXNN V6 Parser"; }
 

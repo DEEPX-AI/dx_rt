@@ -27,6 +27,7 @@ public:
     ~V7ModelParser() override = default;
     
     std::string ParseModel(const std::string& filePath, ModelDataBase& modelData) override;
+    std::string ParseModel(const uint8_t* modelBuffer, size_t modelSize, ModelDataBase& modelData) override;
     int GetSupportedVersion() const override { return 7; }
     std::string GetParserName() const override { return "DXNN V7 Parser"; }
 

@@ -77,6 +77,9 @@ class DXRT_API DeviceCore {
     void* CreateMemoryMap();
     void CheckVersion();
 
+    int GetReadChannel();
+    int GetWriteChannel();
+
  private:
    int _id;
    std::unique_ptr<DriverAdapter> _adapter;

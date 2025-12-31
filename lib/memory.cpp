@@ -372,6 +372,11 @@ MemoryFragmentationInfo Memory::GetFragmentationInfoNoLock() const
     {
         info.fragmentation_ratio = (double)(info.total_free_size - info.largest_free_block) / info.total_free_size;
     }
+    else
+    {
+        // avoid division by zero
+        info.fragmentation_ratio = 0.0;
+    }
 
     return info;
 }

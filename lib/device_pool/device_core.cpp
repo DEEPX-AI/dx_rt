@@ -67,7 +67,7 @@ int DeviceCore::Write(dxrt_meminfo_t &meminfo)
 #if DXRT_USB_NETWORK_DRIVER == 0
     int ch = _writeChannel.load();
     // _writeChannel = (_writeChannel+1)%3;
-    _writeChannel.store((ch + 1) % 3);
+    _writeChannel.store((ch + 1) % 2);
     return Write(meminfo, ch);
 #else
     {
@@ -87,6 +87,7 @@ int DeviceCore::Write(dxrt_meminfo_t &meminfo, int ch)
     int ret = 0;
     DXRT_ASSERT(meminfo.base + meminfo.offset != 0, "DeviceCore Write ZERO NPU MEMORY ADDRESS");
     DXRT_ASSERT(meminfo.data != 0, "DeviceCore Write ZERO CPU MEMORY ADDRESS");
+    DXRT_ASSERT(ch < 4, "DeviceCore Write CHANNEL INVALID");
     //Profiler::GetInstance().Start("Write");
 #if DXRT_USB_NETWORK_DRIVER == 0
     dxrt_req_meminfo_t mem_info_req;
@@ -471,6 +472,55 @@ void DeviceCore::CheckVersion()
         DxDeviceVersion dxVer(this, _info.fw_ver, _info.type, _info.interface_value, _info.variant);
 #endif
     dxVer.CheckVersion();
+}
+
+int DeviceCore::GetReadChannel()
+{
+    if (static_cast<DeviceType>(_info.type) == DeviceType::ACC_TYPE)
+    {
+        return 4;
+    }
+    else if (static_cast<DeviceType>(_info.type) == DeviceType::STD_TYPE)
+    {
+        return 1;
+    }
+    else
+    {
+        DXRT_ASSERT(false, "UNKNOWN device type");
+        return 0;
+    }
+}
+
+
+
+
+int DeviceCore::GetWriteChannel()
+{
+    if (static_cast<DeviceType>(_info.type) == DeviceType::ACC_TYPE)
+    {
+        //check for version
+        auto driver_version = _devInfo.rt_drv_ver.driver_version;
+        auto pcie_version = _devInfo.pcie.driver_version;
+
+        if ((driver_version >= RT_DRIVER_WRITE_CHANNEL_CHANGE_VERSION) &&
+            (pcie_version >= PCIE_DRIVER_WRITE_CHANNEL_CHANGE_VERSION))
+        {
+            return 2;
+        }
+        else
+        {
+            return 3;
+        }
+    }
+    else if (static_cast<DeviceType>(_info.type) == DeviceType::STD_TYPE)
+    {
+        return 1;
+    }
+    else
+    {
+        DXRT_ASSERT(false, "UNKNOWN device type");
+        return 0;
+    }
 }
 
 } // namespace dxrt

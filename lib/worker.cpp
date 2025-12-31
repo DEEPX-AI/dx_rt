@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -17,8 +17,8 @@ using std::endl;
 
 namespace dxrt {
 
-Worker::Worker(string name_, Type type_, int numThreads, Device *device_, CpuHandle *cpuHandle_)
-: _device(device_), _cpuHandle(cpuHandle_), _threads(numThreads), _name(name_), _type(type_)
+Worker::Worker(string name_, Type type_, int bufferCount, int numThreads, Device *device_, CpuHandle *cpuHandle_)
+: _device(device_), _cpuHandle(cpuHandle_), _threads(numThreads), _name(name_), _type(type_), _bufferCount(bufferCount)
 {
     LOG_DXRT_DBG << name_ << " will be created." << endl;
 }
@@ -94,8 +94,10 @@ void Worker::Stop()
     {
         return;
     }
-    _stop.store(true);
-
+    else
+    {
+        _stop.store(true);
+    }
 }
 
 void Worker::UpdateQueueStats(int queueSize) {

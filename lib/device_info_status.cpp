@@ -66,6 +66,11 @@ string convert_capacity(uint64_t n)
         value = static_cast<double>(n)/static_cast<double>(killo);
         postfix = "KiB";
     }
+    else
+    {
+        //  in bytes
+        return std::to_string(n)+" Bytes";
+    }
     char buffer[dxrt::CHARBUFFER_SIZE];
     snprintf(buffer, dxrt::CHARBUFFER_SIZE, "%.3g", value);
     return string(buffer)+postfix;

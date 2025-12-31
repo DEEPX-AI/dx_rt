@@ -43,6 +43,15 @@ namespace dxrt {
 extern uint8_t DEBUG_DATA;
 extern uint8_t SKIP_INFERENCE_IO;
 
+
+AccDeviceTaskLayer::AccDeviceTaskLayer(std::shared_ptr<DeviceCore> dev, std::shared_ptr<ServiceLayerInterface> service_interface)
+: DeviceTaskLayer(dev, service_interface), _inputHandlerQueue(dev->name()+"_input", dev->GetReadChannel(),
+    std::bind(&AccDeviceTaskLayer::InputHandler, this, std::placeholders::_1, std::placeholders::_2)),
+    _outputHandlerQueue(dev->name()+"_output", dev->GetWriteChannel(),
+    std::bind(&AccDeviceTaskLayer::OutputHandler, this, std::placeholders::_1, std::placeholders::_2))
+{}
+
+
 int AccDeviceTaskLayer::RegisterTask(TaskData* task)
 {
     LOG_DXRT_DBG << "Device " << id() << " RegisterTask ACC" << std::endl;
@@ -156,7 +165,8 @@ int AccDeviceTaskLayer::RegisterTask(TaskData* task)
     const int64_t block_size = data_align(task->encoded_input_size(), 64)
                            + static_cast<int64_t>(task->_outputMemSize);
 
-   int npu_cache_count = DXRT_TASK_MAX_LOAD;
+   //int npu_cache_count = DXRT_TASK_MAX_LOAD;
+   int npu_cache_count = task->get_buffer_count();
     while (npu_cache_count > 0)
     {
         if (_npuMemoryCacheManager.registerMemoryCache(task->id(), block_size, npu_cache_count) == false)
@@ -189,6 +199,7 @@ int AccDeviceTaskLayer::Release(TaskData* task)
         _npuInferenceAcc.erase(taskId);
         _npuModel.erase(taskId);
     }
+
     if (_npuMemoryCacheManager.canGetCache(taskId))
     {
         _npuMemoryCacheManager.unRegisterMemoryCache(taskId);
@@ -239,7 +250,6 @@ int AccDeviceTaskLayer::InferenceRequestACC(RequestData* req, npu_bound_op bound
 
         npu_inference_acc.input.offset = AllocateFromCache(
             data_align(task->_encodedInputSize, 64) + task->_outputMemSize, taskId);
-
         if (Configuration::_sNpuValidateOpt.load())
         {
             _load++;
@@ -252,7 +262,7 @@ int AccDeviceTaskLayer::InferenceRequestACC(RequestData* req, npu_bound_op bound
         else outputOffset += model.output_all_offset;
 
         npu_inference_acc.output.offset = outputOffset + model.last_output_offset;
-        // v8 PPCPU: Set custom_offset to PPU binary offset for firmware to execute PPU
+        // Set custom_offset to PPU binary offset for firmware to execute PPU
         if (task->_isPPCPU) {
             npu_inference_acc.custom_offset = task->_ppuBinaryOffset;
             LOG_DXRT_DBG << "Device " << id() << " PPCPU inference: custom_offset=0x" << std::hex
@@ -309,7 +319,7 @@ int AccDeviceTaskLayer::InputHandler(const int& requestId, int ch)
 #ifdef USE_PROFILER
         profiler.Start("PCIe Write[Job_" + std::to_string(req->job_id()) + "][" + req->taskData()->name() + "][Req_" + std::to_string(req->id()) + "](" + std::to_string(inferenceAcc.dma_ch)+")");
 #endif
-        int ret = core()->Write(inferenceAcc.input, id());
+        int ret = core()->Write(inferenceAcc.input);
         if (ret < 0)
         {
             //LOG_DXRT_DBG << inferenceAcc.input << std::endl;
@@ -363,8 +373,33 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
     {
 #ifdef USE_PROFILER
         auto& profiler = Profiler::GetInstance();
-        std::shared_ptr<TimePoint> tp = std::make_shared<TimePoint>();
-        tp->end = ProfilerClock::now();
+
+        // Record OutputHandler entry time (Framework Response Handling Delay)
+        uint64_t output_handler_entry_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            ProfilerClock::now().time_since_epoch()).count();
+
+        // Get response receive timestamp from OutputReceiverThread (before queueing)
+        uint64_t response_recv_ns = 0;
+        {
+            std::lock_guard<std::mutex> lock(_responseTimestampLock);
+            auto it = _responseReceiveTimestamps.find(reqId);
+            if (it != _responseReceiveTimestamps.end()) {
+                response_recv_ns = it->second;
+                _responseReceiveTimestamps.erase(it);  // Cleanup after use
+            }
+        }
+
+        // Measure Framework Response Handling Delay
+        if (response_recv_ns > 0) {
+            auto queue_delay_tp = std::make_shared<TimePoint>();
+            queue_delay_tp->start = ProfilerClock::time_point(std::chrono::nanoseconds(response_recv_ns));
+            queue_delay_tp->end = ProfilerClock::time_point(std::chrono::nanoseconds(output_handler_entry_ns));
+            profiler.AddTimePoint("Framework Response Handling Delay[Job_" + std::to_string(req->job_id()) + "][" +
+                req->taskData()->name() + "][Req_" + std::to_string(req->id()) + "]_" + std::to_string(response.dma_ch),
+                queue_delay_tp);
+        }
+
+        // Calculate accurate NPU Core execution time using firmware timestamps
         if (response.wait_start_time > 0 && response.wait_end_time > response.wait_start_time) {
             uint64_t inf_time_ns = static_cast<uint64_t>(response.inf_time) * 1000;
             uint64_t wait_window = response.wait_end_time - response.wait_start_time;
@@ -385,9 +420,14 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
                 npu_tp->end   = ProfilerClock::time_point(std::chrono::nanoseconds(npu_end_ns));
                 profiler.AddTimePoint("NPU Core[Job_" + std::to_string(req->job_id()) + "][" + req->taskData()->name() + "][Req_" + std::to_string(req->id()) + "]_" + std::to_string(response.dma_ch), npu_tp);
             }
-        } else {
-            tp->start = tp->end - std::chrono::microseconds(response.inf_time);
-            profiler.AddTimePoint("NPU Core[Job_" + std::to_string(req->job_id()) + "][" + req->taskData()->name() + "][Req_" + std::to_string(req->id()) + "]_" + std::to_string(response.dma_ch), tp);
+        } else if (response_recv_ns > 0) { //case when service is off
+            // Fallback: use response receive time to calculate NPU core time
+            // This is more accurate than using OutputHandler entry time
+            uint64_t inf_time_ns = static_cast<uint64_t>(response.inf_time) * 1000;
+            auto npu_tp = std::make_shared<TimePoint>();
+            npu_tp->end = ProfilerClock::time_point(std::chrono::nanoseconds(response_recv_ns));
+            npu_tp->start = ProfilerClock::time_point(std::chrono::nanoseconds(response_recv_ns - inf_time_ns));
+            profiler.AddTimePoint("NPU Core[Job_" + std::to_string(req->job_id()) + "][" + req->taskData()->name() + "][Req_" + std::to_string(req->id()) + "]_" + std::to_string(response.dma_ch), npu_tp);
         }
 
         if (response.wait_timestamp > 0) {
@@ -396,6 +436,7 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
             wait_tp->end = ProfilerClock::time_point(std::chrono::nanoseconds(response.wait_end_time));
             profiler.AddTimePoint("Service Process Wait[Job_" + std::to_string(req->job_id()) + "][" + req->taskData()->name() + "][Req_" + std::to_string(req->id()) + "]_" + std::to_string(response.dma_ch), wait_tp);
         }
+
         profiler.Start("PCIe Read[Job_" + std::to_string(req->job_id()) + "][" + req->taskData()->name() + "][Req_" + std::to_string(req->id()) + "](" + std::to_string(ch)+")");
         // profiler.Start("PCIe Read(" + std::to_string(response.dma_ch)+")");
 
@@ -410,7 +451,7 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
         // PPCPU (type=3) processes filtered output with dynamic shape
         if (req->model_type() != 3)
         {
-            memset(reinterpret_cast<void *>(output.data), 0, output.size);
+            // memset(reinterpret_cast<void *>(output.data), 0, output.size);
             ret2 = core()->Read(output, read_ch, ctrlCmd);
         }
         else
@@ -420,19 +461,33 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
 
             if (!req_data->outputs.empty() && response.ppu_filter_num > 0)
             {
-                // Get output tensor DataType and calculate unit size
+                // Validate ppu_filter_num against reasonable limits
                 DataType dtype = req_data->outputs[0].type();
+                size_t unit_size = GetDataSize_Datatype(dtype);
+                size_t expected_max_boxes = req_data->taskData->output_size() / unit_size;
+
+                uint32_t validated_filter_num = response.ppu_filter_num;
+
+                if (response.ppu_filter_num > expected_max_boxes) {
+                    LOG_DXRT_ERR("PPCPU: Invalid ppu_filter_num=" << response.ppu_filter_num
+                                 << " exceeds maximum boxes=" << expected_max_boxes
+                                 << " (dtype=" << static_cast<int>(dtype)
+                                 << ", unit_size=" << unit_size << ")");
+                    // Clamp to maximum to prevent buffer overflow
+                    validated_filter_num = static_cast<uint32_t>(expected_max_boxes);
+                }
+
                 // Configure memory info for PPCPU filtered output
                 dxrt_meminfo_t ppcpu_output = SetMemInfo_PPCPU(
                     output,
-                    response.ppu_filter_num,
+                    validated_filter_num,
                     dtype,
-                    req_data->encoded_output_ptrs[0]
+                    req_data->encoded_output_ptrs[0]  // Use output_buffer_base instead of encoded_output_ptrs
                 );
 
                 LOG_DXRT_DBG << "PPCPU Read - offset: 0x" << std::hex << ppcpu_output.offset
                              << ", size: " << std::dec << ppcpu_output.size
-                             << " (ppu_filter_num: " << response.ppu_filter_num << ")" << std::endl;
+                             << " (ppu_filter_num: " << validated_filter_num << ")" << std::endl;
 
                 // Read PPCPU filtered output from device memory
                 ret2 = core()->Read(ppcpu_output, read_ch, ctrlCmd);
@@ -496,6 +551,9 @@ void AccDeviceTaskLayer::OutputReceiverThread(int id)
     std::ignore = tp;
     LOG_DXRT_DBG << core()->name() << " OutputReceiverThread "<<id<<": Entry" << std::endl;
 
+    int termination_count = 0;
+    static constexpr int DXRT_DEVICE_TERMINATE_CONFIRM_COUNT = 5;
+
     while (_stop.load(std::memory_order_acquire) == false)
     {
         memset(static_cast<void*>(&response), 0x00, sizeof(dxrt_response_t));
@@ -512,7 +570,11 @@ void AccDeviceTaskLayer::OutputReceiverThread(int id)
         if (ret == -1)
         {
             LOG_DXRT_DBG << core()->name() << " OutputReceiverThread "<<id<<": Terminate detected." << std::endl;
-            continue;
+            termination_count++;
+            if (termination_count >= DXRT_DEVICE_TERMINATE_CONFIRM_COUNT)
+                break;
+            else
+                continue;
         }
         if (ret != 0)
         {
@@ -541,16 +603,25 @@ void AccDeviceTaskLayer::OutputReceiverThread(int id)
             LOG_DXRT_DBG << core()->name() << " : requested to stop thread." << std::endl;
             break;
         }
+#ifdef USE_PROFILER
+        // Record timestamp when response is received from driver (before queueing)
+        {
+            std::lock_guard<std::mutex> lock(_responseTimestampLock);
+            _responseReceiveTimestamps[response.req_id] =
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    ProfilerClock::now().time_since_epoch()).count();
+        }
+#endif
         _outputHandlerQueue.PushWork(response);
     }
 
     LOG_DXRT_DBG << core()->name() << " OutputReceiverThread "<<id<<": End" << std::endl;
-    _outputDispatcherTerminateFlag[id].store(true);
+    _outputDispatcherTerminateFlag[id].store(true, std::memory_order_release);
 }
 
 void AccDeviceTaskLayer::EventThread()
 {
-    _eventThreadStartFlag.store(true);
+    _eventThreadStartFlag.store(true, std::memory_order_release);
     std::string threadName = core()->name();
     int loopCnt = 0;
     LOG_DXRT_DBG << threadName << " : Entry" << std::endl;
@@ -601,34 +672,40 @@ void AccDeviceTaskLayer::EventThread()
                 LOG_DXRT << eventInfo.dx_rt_ntfy_throt << std::endl;
 
             if ( eventInfo.dx_rt_ntfy_throt.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_THROT_FREQ_DOWN
-                || eventInfo.dx_rt_ntfy_throt.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_THROT_FREQ_UP 
-                || eventInfo.dx_rt_ntfy_throt.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_THROT_VOLT_DOWN 
+                || eventInfo.dx_rt_ntfy_throt.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_THROT_FREQ_UP
+                || eventInfo.dx_rt_ntfy_throt.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_THROT_VOLT_DOWN
                 || eventInfo.dx_rt_ntfy_throt.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_THROT_VOLT_UP ) {
 
                 std::string throt_code_str;
                 switch (eventInfo.dx_rt_ntfy_throt.ntfy_code) {
-                    case dxrt::dxrt_notify_throt_t::NTFY_THROT_FREQ_DOWN: 
-                        throt_code_str = "FREQ_DOWN(MHz) " 
-                            + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_freq[0]) 
-                            + " to " + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_freq[1]); 
-                        break;
-                    case dxrt::dxrt_notify_throt_t::NTFY_THROT_FREQ_UP: throt_code_str = "FREQ_UP(MHz) " 
-                            + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_freq[0]) 
+                    case dxrt::dxrt_notify_throt_t::NTFY_THROT_FREQ_DOWN:
+                        throt_code_str = "FREQ_DOWN(MHz) "
+                            + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_freq[0])
                             + " to " + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_freq[1]);
                         break;
-                    case dxrt::dxrt_notify_throt_t::NTFY_THROT_VOLT_DOWN: throt_code_str = "VOLT_DOWN(mV) " 
-                            + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_voltage[0]) 
-                            + " to " + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_voltage[1]); 
+                    case dxrt::dxrt_notify_throt_t::NTFY_THROT_FREQ_UP: throt_code_str = "FREQ_UP(MHz) "
+                            + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_freq[0])
+                            + " to " + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_freq[1]);
                         break;
-                    case dxrt::dxrt_notify_throt_t::NTFY_THROT_VOLT_UP: throt_code_str = "VOLT_UP(mV) " 
-                            + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_voltage[0]) 
+                    case dxrt::dxrt_notify_throt_t::NTFY_THROT_VOLT_DOWN: throt_code_str = "VOLT_DOWN(mV) "
+                            + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_voltage[0])
+                            + " to " + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_voltage[1]);
+                        break;
+                    case dxrt::dxrt_notify_throt_t::NTFY_THROT_VOLT_UP: throt_code_str = "VOLT_UP(mV) "
+                            + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_voltage[0])
                             + " to " + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_voltage[1]);
                         break;
                     default: throt_code_str = "UNKNOWN"; break;
                 }
 
+                auto level = RuntimeEventDispatcher::LEVEL::INFO;
+                if ( eventInfo.dx_rt_ntfy_throt.throt_temper >= 95)
+                {
+                    level = RuntimeEventDispatcher::LEVEL::WARNING;
+                }
+
                 RuntimeEventDispatcher::GetInstance().DispatchEvent(
-                    RuntimeEventDispatcher::LEVEL::INFO,
+                    level,
                     RuntimeEventDispatcher::TYPE::DEVICE_STATUS,
                     RuntimeEventDispatcher::CODE::THROTTLING_NOTICE,
                     LogMessages::RuntimeDispatch_ThrottlingNotice(
@@ -639,8 +716,8 @@ void AccDeviceTaskLayer::EventThread()
                 );
             }
             else if ( eventInfo.dx_rt_ntfy_throt.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_EMERGENCY_BLOCK
-                || eventInfo.dx_rt_ntfy_throt.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_EMERGENCY_RELEASE 
-                || eventInfo.dx_rt_ntfy_throt.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_EMERGENCY_WARN ) 
+                || eventInfo.dx_rt_ntfy_throt.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_EMERGENCY_RELEASE
+                || eventInfo.dx_rt_ntfy_throt.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_EMERGENCY_WARN )
             {
 
                 std::string emergency_code_str;
@@ -718,13 +795,16 @@ void AccDeviceTaskLayer::StartThread()
 {
     core()->CheckVersion();
 
+    // Initialize atomic flags with release semantics to prevent data races with spawned threads
+    _eventThreadTerminateFlag.store(false, std::memory_order_release);
+
     _eventThread = std::thread(&AccDeviceTaskLayer::EventThread, this);
     if (_serviceLayer->isRunOnService() == false)
     {
-        for (int i = 0; i < 3; i++)
+        for (uint32_t i = 0; i < core()->info().num_dma_ch; i++)
         {
             _outputDispatcher.emplace_back(&AccDeviceTaskLayer::OutputReceiverThread, this, i);
-            _outputDispatcherTerminateFlag[i] = false;
+            _outputDispatcherTerminateFlag[i].store(false, std::memory_order_release);
         }
         //Load PPCPU firmware if not running on service layer
         size_t fw_size = PPCPUDataLoader::GetDataSize();
@@ -750,6 +830,10 @@ void AccDeviceTaskLayer::StartThread()
         core()->DoCustomCommand(&meminfo_req, dxrt::dxrt_custom_sub_cmt_t::DX_INIT_PPCPU,sizeof(dxrt_req_meminfo_t));
 
     }
+    else
+    {
+        LOG_DXRT_DBG << "Service layer is running. Skipping PPCPU firmware load." << std::endl;
+    }
     _inputHandlerQueue.Start();
     _outputHandlerQueue.Start();
 }
@@ -759,13 +843,13 @@ AccDeviceTaskLayer::~AccDeviceTaskLayer()
     _stop.store(true);
     _inputHandlerQueue.Stop();
     _outputHandlerQueue.Stop();
-    if (_eventThreadStartFlag)
+    if (_eventThreadStartFlag.load(std::memory_order_acquire))
     {
 #if __linux__
-        while (_eventThreadTerminateFlag == false)
+        while (_eventThreadTerminateFlag.load(std::memory_order_acquire) == false)
         {
             Terminate();
-            if (_eventThreadTerminateFlag == true)
+            if (_eventThreadTerminateFlag.load(std::memory_order_acquire) == true)
                 break;
             std::this_thread::sleep_for(std::chrono::microseconds(1));
         }
@@ -791,8 +875,18 @@ AccDeviceTaskLayer::~AccDeviceTaskLayer()
     _outputDispatcher.clear();
 }
 
+
 void AccDeviceTaskLayer::ProcessResponseFromService(const dxrt::_dxrt_response_t& response)
 {
+#ifdef USE_PROFILER
+        // Record timestamp when response is received from driver (before queueing)
+        {
+            std::lock_guard<std::mutex> lock(_responseTimestampLock);
+            _responseReceiveTimestamps[response.req_id] =
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    ProfilerClock::now().time_since_epoch()).count();
+        }
+#endif
     _outputHandlerQueue.PushWork(response);
 }
 #ifdef DXRT_USE_DEVICE_VALIDATION
@@ -851,7 +945,7 @@ dxrt_meminfo_t AccDeviceTaskLayer::SetMemInfo_PPCPU(const dxrt_meminfo_t& rmap_o
     dxrt_meminfo_t ppcpu_output;
     ppcpu_output.base = rmap_output.base;
     ppcpu_output.offset = rmap_output.offset + rmap_output.size;  // After RMAP output
-    ppcpu_output.size = ppcpu_output_size;
+    ppcpu_output.size = static_cast<uint32_t>(ppcpu_output_size);
     ppcpu_output.data = reinterpret_cast<uint64_t>(output_ptr);
 
     return ppcpu_output;

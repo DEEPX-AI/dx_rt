@@ -18,7 +18,7 @@ from typing import List, Union, Any, Optional, Dict, Callable
 import sys
 
 try:
-    from dx_engine import InferenceEngine, InferenceOption
+    from dx_engine import InferenceEngine, InferenceOption, Configuration, RuntimeEventDispatcher
 except ImportError:
 
     print(f"[FATAL ERR] dx_engine module or its components are not found. "
@@ -26,6 +26,7 @@ except ImportError:
     raise 
 
 APP_NAME = "DXRT Python run_model"
+critical_error = False # Global flag for critical errors
 
 class RunModelMode(Enum):
     BENCHMARK_MODE = 0
@@ -149,6 +150,9 @@ def parse_arguments():
     parser.add_argument("-f", "--fps", type=int, default=0, help="Target FPS for TARGET_FPS_MODE\n(enables this mode if > 0 and --single is not set, default: 0)")
     parser.add_argument("--skip-io", action="store_true", default=False, help="Attempt to skip Inference I/O (Benchmark mode only)")
     parser.add_argument("--use-ort", action="store_true", default=False, help="Enable ONNX Runtime for CPU tasks in the model graph\nIf disabled, only NPU tasks operate")
+    parser.add_argument("--profiler", action="store_true", default=False, help="Enable profiler")
+    parser.add_argument("--buffer-count", type=int, default=InferenceOption.DXRT_TASK_MAX_LOAD_DEFAULT, 
+                        help=f"Number of input/output buffers, count's range is 1~{InferenceOption.DXRT_TASK_MAX_LOAD_LIMIT}")
     
     args = parser.parse_args()
 
@@ -159,6 +163,22 @@ def parse_arguments():
         parser.error(f"Input file '{args.input}' does not exist.")
     
     return args
+
+def dispatch_event_handler(level: RuntimeEventDispatcher.LEVEL,
+                           type: RuntimeEventDispatcher.TYPE,
+                           code: RuntimeEventDispatcher.CODE,
+                           event_message: str,
+                           timestamp: str) -> None:
+    print(f"[run_model] Level: {level}, Type: {type}, Code: {code}, Message: {event_message}, Timestamp: {timestamp} ")
+
+    if level == RuntimeEventDispatcher.LEVEL.CRITICAL:
+        if (type == RuntimeEventDispatcher.TYPE.DEVICE_MEMORY and
+        code == RuntimeEventDispatcher.CODE.MEMORY_OVERFLOW):
+            print("Terminating program due to critical NPU memory error.", file=sys.stderr)
+            exit(-1)
+        
+        global critical_error
+        critical_error = True
 
 def main():
     global current_run_mode, callback_completed_count
@@ -173,12 +193,41 @@ def main():
     if args.skip_io:
         print("[WARN] --skip-io is set. Actual I/O skipping depends on backend support via Python API.", file=sys.stderr)
 
+    configuration = Configuration()
+    if args.profiler:
+        configuration.set_enable(Configuration.ITEM.PROFILER, True)
+        configuration.set_attribute(Configuration.ITEM.PROFILER, Configuration.ATTRIBUTE.PROFILER_SAVE_DATA, "ON")
+        print("[INFO] Profiler is enabled.")
+    else:
+        configuration.set_enable(Configuration.ITEM.PROFILER, False)
+
     print(f"Model file: {args.model}")
     # Disable until DX_SIM is supported
     if args.input:
         print(f"Input data file: {args.input}")
         print(f"Output data file: {args.output}")
     print(f"Loops: {args.loops}")
+
+    if args.buffer_count < 1 or args.buffer_count > InferenceOption.DXRT_TASK_MAX_LOAD_LIMIT:
+        print(f"[ERR] Invalid buffer count: {args.buffer_count}. It must be between 1 and {InferenceOption.DXRT_TASK_MAX_LOAD_LIMIT}.", file=sys.stderr)
+        sys.exit(-1)
+    else:
+        print(f"Input/Output buffer count: {args.buffer_count}")
+
+    # RuntimeEventDispatcher setup for event logging
+    try:
+        runtime_event_dispatcher = RuntimeEventDispatcher()
+
+        print("[INFO] RuntimeEventDispatcher initialized for event logging.")
+        # register event handler
+        runtime_event_dispatcher.register_event_handler(dispatch_event_handler)
+
+        # set event level threshold
+        runtime_event_dispatcher.set_current_level(RuntimeEventDispatcher.LEVEL.WARNING)
+
+    except Exception as e:
+        print(f"[WARN] Failed to initialize RuntimeEventDispatcher: {e}", file=sys.stderr)
+
 
     io = InferenceOption()
     # Respect build capability for ORT: if runtime does not support ORT, force-disable
@@ -192,6 +241,9 @@ def main():
     except Exception:
         # Fallback: set as requested; C++ layer will guard if needed
         io.use_ort = args.use_ort
+
+    # buffer_count setting
+    io.buffer_count = args.buffer_count
 
     devices_list_for_op: List[int] = []
     devices_spec_str = args.devices.strip().lower()
@@ -391,6 +443,8 @@ def main():
             print_inf_result("", "output.bin", args.model,
                              latency_mean_ms, npu_time_mean_ms, measured_fps,
                              args.loops, current_run_mode, args.verbose)
+            
+            sys.exit(-1 if critical_error else 0)
         else:
             print(f"[ERR] Unknown run model mode: {current_run_mode}", file=sys.stderr)
             sys.exit(-1)

@@ -11,24 +11,24 @@
 
 #ifdef _WIN32
     #include <windows.h>
-	typedef int pid_t;
-	#if 0
-	void usleep(int us)
-	{
-		struct timeval tv;
-		tv.tv_sec = 0;
-		tv.tv_usec = us; // micro seconds
-		select(0, NULL, NULL, NULL, &tv); // sleep 10 us
-	}
-	#endif
-	// usleep(us) this_thread::sleep_for(chrono::microseconds(us));
-	#pragma warning(disable : 4244)
-	#pragma warning(disable : 4251)
-	#pragma warning(disable : 4267)
-	#pragma warning(disable : 4312)
-	#pragma warning(disable : 4819)
-	#pragma warning(disable : 4996)
-	#pragma warning(disable : 5208)
+    typedef int pid_t;
+    #if 0
+    void usleep(int us)
+    {
+        struct timeval tv;
+        tv.tv_sec = 0;
+        tv.tv_usec = us; // micro seconds
+        select(0, NULL, NULL, NULL, &tv); // sleep 10 us
+    }
+    #endif
+    // usleep(us) this_thread::sleep_for(chrono::microseconds(us));
+    #pragma warning(disable : 4244)
+    #pragma warning(disable : 4251)
+    #pragma warning(disable : 4267)
+    #pragma warning(disable : 4312)
+    #pragma warning(disable : 4819)
+    #pragma warning(disable : 4996)
+    #pragma warning(disable : 5208)
     #ifdef DXRT_STATIC
         #define DXRT_API
     #else
@@ -70,7 +70,14 @@
 #define DEBUG_DXRT 0
 #endif
 
-#define DXRT_TASK_MAX_LOAD_DEFAULT    (6)
+namespace dxrt {
+    int DXRT_API GetTaskMaxLoad();
+}
+
+const int DXRT_TASK_MAX_LOAD_DEFAULT = 6;
+const int DXRT_TASK_MAX_LOAD_VALUE = dxrt::GetTaskMaxLoad();
+const int DXRT_TASK_MAX_LOAD_LIMIT = 100;
+const int DXRT_NPU_FULL_MAX_LOAD = 10;
 
 #if DEBUG_DXRT
 #define LOG_DBG(x) std::cout<<"[DXRT] "<< x << std::endl;
@@ -172,10 +179,8 @@ T vectorProduct(const std::vector<T>& v)
     using UniqueLock = std::unique_lock<std::mutex>;
 #endif
 
-int GetTaskMaxLoad();
-
-
-#define DXRT_TASK_MAX_LOAD GetTaskMaxLoad()
+//int GetTaskMaxLoad();
+//#define DXRT_TASK_MAX_LOAD GetTaskMaxLoad()
 
 // Environment variable getters for runtime configuration
 int GetNfhInputWorkerThreads();

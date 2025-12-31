@@ -191,7 +191,7 @@ typedef struct otp_info {
 typedef struct fct_result
 {
     uint32_t wr_margin[4];
-	uint32_t rd_margin[4];
+    uint32_t rd_margin[4];
     uint8_t ddr_margin;
     uint8_t ddr_mf;
     uint8_t i2c_fail;
@@ -308,9 +308,9 @@ typedef struct _dxrt_message
     uint32_t size = 0;
 } dxrt_message_t;
 typedef struct _dxrt_device_message {
-    uint32_t cmd = 0;	/* command */
-    uint32_t ack = 0;	/* Response from device */
-    uint32_t size = 0;	/* Data Size */
+    uint32_t cmd = 0;    /* command */
+    uint32_t ack = 0;    /* Response from device */
+    uint32_t size = 0;    /* Data Size */
     uint32_t data[1000] = {0,};
 } dxrt_device_message_t;
 typedef enum {
@@ -405,7 +405,7 @@ typedef enum {
 
 #define DXRT_IOCTL_MAGIC     'D'
 #ifdef _WIN32
-#define DX_NRM_IOCTL(index)						CTL_CODE(FILE_DEVICE_VIDEO, index, METHOD_BUFFERED, FILE_ANY_ACCESS)
+#define DX_NRM_IOCTL(index)                        CTL_CODE(FILE_DEVICE_VIDEO, index, METHOD_BUFFERED, FILE_ANY_ACCESS)
 #endif
 typedef enum {
 #ifdef __linux__
@@ -415,14 +415,14 @@ typedef enum {
 #elif _WIN32
     DXRT_IOCTL_MESSAGE = DX_NRM_IOCTL(0x001),
     DXRT_IOCTL_DUMMY = _IOW(DXRT_IOCTL_MAGIC, 1, dxrt_message_t),
-    //IOCTL_DXM1_MAP_CODE			= DX_NRM_IOCTL(0x101),
-    //IOCTL_DXM1_UNMAP_CODE		= DX_NRM_IOCTL(0x102),
-    //IOCTL_DXM1_DMA_EVENT_CODE	= DX_NRM_IOCTL(0x201),
-    //IOCTL_DXM1_MSG_EVENT_CODE	= DX_NRM_IOCTL(0x202),
-    //IOCTL_DXM1_DMA_CH_READ		= DX_NRM_IOCTL(0x301),
-    //IOCTL_DXM1_DMA_CH_WRITE		= DX_NRM_IOCTL(0x302),
-    //IOCTL_DXM1_DMA_MEM_READ		= DX_NRM_IOCTL(0x401),
-    //IOCTL_DXM1_DMA_MEM_WRITE	= DX_NRM_IOCTL(0x402),
+    //IOCTL_DXM1_MAP_CODE            = DX_NRM_IOCTL(0x101),
+    //IOCTL_DXM1_UNMAP_CODE        = DX_NRM_IOCTL(0x102),
+    //IOCTL_DXM1_DMA_EVENT_CODE    = DX_NRM_IOCTL(0x201),
+    //IOCTL_DXM1_MSG_EVENT_CODE    = DX_NRM_IOCTL(0x202),
+    //IOCTL_DXM1_DMA_CH_READ        = DX_NRM_IOCTL(0x301),
+    //IOCTL_DXM1_DMA_CH_WRITE        = DX_NRM_IOCTL(0x302),
+    //IOCTL_DXM1_DMA_MEM_READ        = DX_NRM_IOCTL(0x401),
+    //IOCTL_DXM1_DMA_MEM_WRITE    = DX_NRM_IOCTL(0x402),
     DXRT_IOCTL_MAX
 #endif
 } dxrt_ioctl_t;

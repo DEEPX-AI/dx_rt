@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -15,12 +15,12 @@ std::string NpuDeviceFormatter::FormatDeviceType(const uint32_t type)
 {
     switch (type)
     {
-    case 0: 
+    case 0:
         return "ACC";
-    case 1: 
+    case 1:
         return "STD";
-    default: 
-    
+    default:
+
         return "Invalid Type";
     }
 }
@@ -58,10 +58,10 @@ std::string NpuDeviceFormatter::FormatFirmwareVersion(const uint16_t fw_version)
     uint16_t minor = (fw_version / 10) % 10;
     uint16_t patch = fw_version % 10;
 
-    return  "v" + 
+    return  "v" +
             std::to_string(major) + "." +
             std::to_string(minor) + "." +
-            std::to_string(patch);         
+            std::to_string(patch);
 }
 
 std::string NpuDeviceFormatter::FormatDDRType(const uint16_t ddr_type)
@@ -69,10 +69,10 @@ std::string NpuDeviceFormatter::FormatDDRType(const uint16_t ddr_type)
     switch (ddr_type)
     {
     case 1:
-        return "lpddr4"; 
+        return "lpddr4";
     case 2:
         return "lpddr5";
-    default: 
+    default:
         return "Invalid Type";
     }
 }
@@ -85,7 +85,7 @@ std::string NpuDeviceFormatter::FormatRTDriverVersion(const uint32_t rt_driver_v
 
     return  std::to_string(major) + "." +
             std::to_string(minor) + "." +
-            std::to_string(patch);         
+            std::to_string(patch);
 }
 
 std::string NpuDeviceFormatter::FormatPCIeDriverVersion(const uint32_t pcie_driver_version)
@@ -96,7 +96,7 @@ std::string NpuDeviceFormatter::FormatPCIeDriverVersion(const uint32_t pcie_driv
 
     return  std::to_string(major) + "." +
             std::to_string(minor) + "." +
-            std::to_string(patch);         
+            std::to_string(patch);
 }
 
 std::string NpuDeviceFormatter::FormatCapacity(const uint64_t n)
@@ -106,7 +106,7 @@ std::string NpuDeviceFormatter::FormatCapacity(const uint64_t n)
     constexpr uint64_t giga = mega * kilo;
     constexpr uint64_t tera = giga * kilo;
 
-    double value = n;
+    double value = static_cast<double>(n);
     std::string postfix = " B";
 
     if (n >= tera)

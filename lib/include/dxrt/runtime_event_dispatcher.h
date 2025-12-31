@@ -119,17 +119,18 @@ namespace dxrt {
          * @return Current minimum event severity level
          */
         LEVEL GetCurrentLevel() const { return _currentLevel.load(); }
+
+    public:
+        /**
+         * @brief Destructor for RuntimeEventDispatcher.
+         */
+        ~RuntimeEventDispatcher() = default;
         
     private:
         /**
          * @brief Private constructor to enforce singleton pattern.
          */
         RuntimeEventDispatcher() {}
-
-        /**
-         * @brief Private destructor to enforce singleton pattern.
-         */
-        ~RuntimeEventDispatcher() {}
 
         /**
          * @brief Deleted copy constructor to prevent copying.
@@ -171,7 +172,7 @@ namespace dxrt {
     private:
         static RuntimeEventDispatcher* _staticInstance;  ///< Singleton instance pointer
         std::function<void(LEVEL, TYPE, CODE, const std::string& message, const std::string& timestamp)> _eventHandler{nullptr};  ///< Custom event handler callback
-        std::atomic<LEVEL> _currentLevel{LEVEL::INFO};  ///< Current minimum event level threshold
+        std::atomic<LEVEL> _currentLevel{LEVEL::WARNING};  ///< Current minimum event level threshold
         std::mutex _handlerMutex;  ///< Mutex for thread-safe event handler registration and access
 
     };

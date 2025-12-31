@@ -16,6 +16,10 @@
 using namespace dxrt;
 
 #include <strsafe.h>
+#include <tchar.h>
+#include <sddl.h>
+#include <chrono>
+#include <thread>
 
 // using namespace std;
 
@@ -34,6 +38,14 @@ IPCPipeWindows::IPCPipeWindows(HANDLE hPipe)
 }
 IPCPipeWindows::~IPCPipeWindows()
 {
+    if (overlappedSend.hEvent != NULL)
+    {
+        CloseHandle(overlappedSend.hEvent);
+    }   // @no_else: resource_check
+    if (overlappedRecv.hEvent != NULL)
+    {
+        CloseHandle(overlappedRecv.hEvent);
+    }   // @no_else: resource_check
     Close();
 }
 
@@ -101,7 +113,7 @@ int32_t IPCPipeWindows::ReceiveOL(LPVOID buffer, int32_t bytesToRead, LPDWORD by
 
             if (peekError == ERROR_BROKEN_PIPE) // ignore broken pipe log for client exit normal case
             {
-                LOG_DXRT_I_DBG << "PeekNamedPipe failed - pipe broken. GLE=" << peekError;
+                LOG_DXRT_I_DBG << "PeekNamedPipe failed - pipe broken. GLE=" + std ::to_string(peekError);
                 *byteRead = 0;
                 return -1;  // Signal broken pipe
             }
@@ -110,7 +122,7 @@ int32_t IPCPipeWindows::ReceiveOL(LPVOID buffer, int32_t bytesToRead, LPDWORD by
                 peekError == ERROR_NO_DATA ||
                 peekError == ERROR_INVALID_HANDLE) {
 
-                    LOG_DXRT_I_ERR("PeekNamedPipe failed - pipe broken. GLE=" << peekError);
+                    LOG_DXRT_I_ERR("PeekNamedPipe failed - pipe broken. GLE=" + std::to_string(peekError));
                 *byteRead = 0;
                 return -1;  // Signal broken pipe
             }
@@ -252,6 +264,24 @@ void IPCPipeWindows::InitServer()
 {
     LOG_DXRT_I_DBG << "Pipe Server: before CreateNamedPipe on " << PIPE_NAME << std::endl;
     constexpr int szBuf = 4096;
+
+    //prepare secrity attribute
+
+    SECURITY_ATTRIBUTES sa;
+    sa.nLength = sizeof(SECURITY_ATTRIBUTES);
+    sa.lpSecurityDescriptor = NULL;
+    sa.bInheritHandle = false;
+
+    constexpr TCHAR* szSDDL = _T("D:(A;;GA;;;SY)(A;;GRGW;;;AU)");
+
+    if (ConvertStringSecurityDescriptorToSecurityDescriptor(
+        szSDDL, SDDL_REVISION_1, &(sa.lpSecurityDescriptor),
+        NULL) == NULL)
+    {
+        LOG_DXRT_I_ERR("SDDL Conversion Failed. GLE=" + std::to_string(GetLastError()));
+        return;
+    }
+
     _hPipe = CreateNamedPipe(
 		PIPE_NAME,             		// pipe name
         FILE_FLAG_OVERLAPPED |
@@ -264,7 +294,15 @@ void IPCPipeWindows::InitServer()
 		szBuf,                  	// output buffer size
 		szBuf,                  	// input buffer size
 		0,                        	// client time-out
-		NULL);                    	// default security attribute
+		&sa);                    	// default security attribute
+
+
+    //release security descriptor
+    if (sa.lpSecurityDescriptor != nullptr)
+    {
+        LocalFree(sa.lpSecurityDescriptor);
+    }
+
     if (_hPipe == INVALID_HANDLE_VALUE) {
         LOG_DXRT_I_ERR("CreateNamedPipe failed, GLE=" << GetLastError() << "."); return;
     }

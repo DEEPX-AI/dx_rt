@@ -7,7 +7,9 @@
 # Unauthorized sharing or usage is strictly prohibited by law.
 #
 
+from dx_engine.version import __version__
 from dx_engine.inference_engine import InferenceEngine
 from dx_engine.inference_option import InferenceOption
 from dx_engine.configuration import Configuration
 from dx_engine.device_status import DeviceStatus
+from dx_engine.runtime_event_dispatcher import RuntimeEventDispatcher

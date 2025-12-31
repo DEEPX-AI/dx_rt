@@ -50,7 +50,7 @@ std::string V6ModelParser::ParseModel(const std::string& filePath, ModelDataBase
     }
 
     int fileSize = getFileSize(filePath);
-    vector<char> vbuf(fileSize, 'a');
+    vector<char> vbuf(fileSize);
     char *buf = vbuf.data();
 
     FILE *fp = fopen(filePath.c_str(), "rb");
@@ -61,8 +61,13 @@ std::string V6ModelParser::ParseModel(const std::string& filePath, ModelDataBase
     std::ignore = fread(static_cast<void*>(buf), fileSize, 1, fp);
     fclose(fp);
 
-    LoadBinaryInfo(modelData.deepx_binary, buf, fileSize);
+    return V6ModelParser::ParseModel((const uint8_t*)buf, fileSize, modelData);
+}
 
+std::string V6ModelParser::ParseModel(const uint8_t* modelBuffer, size_t modelSize, ModelDataBase& modelData)
+{
+
+    LoadBinaryInfo(modelData.deepx_binary, (char*)modelBuffer, modelSize);
     // Store original v6 graph_info and rmap_info
     string v6GraphInfo = "";
     for (const auto& str : modelData.deepx_binary.graph_info().str())
@@ -1074,8 +1079,9 @@ std::string V6ModelParser::ExtractInputNameFromV6Graph(const rapidjson::Document
                 string(graph["name"].GetString()) == "npu_0") {
                 if (graph.HasMember("inputs") && graph["inputs"].IsObject()) {
                     const Value& inputs = graph["inputs"];
-                    for (auto iter = inputs.MemberBegin(); iter != inputs.MemberEnd(); ++iter) {
-                        return iter->name.GetString();  // Return the first input name
+                    if (inputs.MemberCount() > 0) 
+                    {
+                        return inputs.MemberBegin()->name.GetString(); // Return the first input name
                     }
                 }
             }
@@ -1104,8 +1110,9 @@ Value V6ModelParser::ExtractInputShapeFromV6Graph(const rapidjson::Document& v6G
                 string(graph["name"].GetString()) == "npu_0") {
                 if (graph.HasMember("inputs") && graph["inputs"].IsObject()) {
                     const Value& inputs = graph["inputs"];
-                    for (auto iter = inputs.MemberBegin(); iter != inputs.MemberEnd(); ++iter) {
-                        const Value& inputTensor = iter->value;
+                    if (inputs.MemberCount() > 0)
+                    {
+                        const Value& inputTensor = inputs.MemberBegin()->value;
                         if (inputTensor.HasMember("shape") && inputTensor["shape"].IsArray()) {
                             Value shape(kArrayType);
                             const Value& inputShape = inputTensor["shape"];
@@ -1116,7 +1123,6 @@ Value V6ModelParser::ExtractInputShapeFromV6Graph(const rapidjson::Document& v6G
                             }
                             return shape;
                         }
-                        break; // Return first input's shape
                     }
                 }
             }
@@ -1427,12 +1433,12 @@ std::string V6ModelParser::LoadRmapInfo(deepx_rmapinfo::rmapInfoDatabase& param,
                     else if (memory.name() == "INPUT")
                     {
                         regMap.model_memory().input() = memory;
-                        regMap.model_memory().model_memory_size() += memory.size() * DXRT_TASK_MAX_LOAD;
+                        regMap.model_memory().model_memory_size() += memory.size() * _taskBufferCount; // DXRT_TASK_MAX_LOAD;
                     }
                     else if (memory.name() == "OUTPUT")
                     {
                         regMap.model_memory().output() = memory;
-                        regMap.model_memory().model_memory_size() += memory.size() * DXRT_TASK_MAX_LOAD;
+                        regMap.model_memory().model_memory_size() += memory.size() * _taskBufferCount; // DXRT_TASK_MAX_LOAD;
                     }
                     else if (memory.name() == "TEMP")
                     {

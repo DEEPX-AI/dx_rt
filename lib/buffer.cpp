@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -31,17 +31,17 @@ void *Buffer::Get()
 void *Buffer::Get(uint32_t size)
 {
     uint64_t addr;
-    if(size>_size)
+    if (size > _size)
     {
         return nullptr;
-    }
-    if(_cur + size > _end)
+    }  // @no_else: input_validation
+    if (_cur + size > _end)
     {
         _cur = _start;
-    }
+    }  // @no_else: conditional_work
     addr = _cur;
     _cur += size;
     return reinterpret_cast<void*>(addr);
 }
 
-} // namespace dxrt
+}  // namespace dxrt

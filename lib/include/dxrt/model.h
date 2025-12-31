@@ -438,8 +438,9 @@ struct ParseOptions {
            return -1 if failed to parse model
 */
 DXRT_API int ParseModel(std::string file, const ParseOptions& options);
-DXRT_API ModelDataBase LoadModelParam(std::string file);
-DXRT_API std::string LoadModelParam(ModelDataBase& modelDB, std::string file);
+//DXRT_API ModelDataBase LoadModelParam(std::string file, int bufferCount);
+DXRT_API std::string LoadModelParam(ModelDataBase& modelDB, std::string file, int bufferCount = DXRT_TASK_MAX_LOAD_VALUE);
+DXRT_API std::string LoadModelParam(ModelDataBase& modelDB, const uint8_t* modelBuffer, size_t modelSize, int bufferCount = DXRT_TASK_MAX_LOAD_VALUE);
 DXRT_API int LoadGraphInfo(deepx_graphinfo::GraphInfoDatabase& graphInfo, ModelDataBase& data);
 DXRT_API int LoadBinaryInfo(deepx_binaryinfo::BinaryInfoDatabase& binInfo,char *buffer, int fileSize);
 DXRT_API std::string LoadRmapInfo(deepx_rmapinfo::rmapInfoDatabase& rampInfo, ModelDataBase& data);

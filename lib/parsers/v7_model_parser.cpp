@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -45,7 +45,7 @@ std::string V7ModelParser::ParseModel(const std::string& filePath, ModelDataBase
     }
 
     int fileSize = getFileSize(filePath);
-    std::vector<char> vbuf(fileSize, 'a');
+    std::vector<char> vbuf(fileSize);
     char *buf = vbuf.data();
 
     FILE *fp = fopen(filePath.c_str(), "rb");
@@ -56,7 +56,11 @@ std::string V7ModelParser::ParseModel(const std::string& filePath, ModelDataBase
     std::ignore = fread(static_cast<void*>(buf), fileSize, 1, fp);
     fclose(fp);
 
-    LoadBinaryInfo(modelData.deepx_binary, buf, fileSize);
+    return V7ModelParser::ParseModel((const uint8_t*)buf, fileSize, modelData);
+}
+
+std::string V7ModelParser::ParseModel(const uint8_t* modelBuffer, size_t modelSize, ModelDataBase& modelData) {
+    LoadBinaryInfo(modelData.deepx_binary, (char*)modelBuffer, modelSize);
 
     LoadGraphInfo(modelData.deepx_graph, modelData);
 
@@ -326,6 +330,7 @@ int V7ModelParser::LoadBinaryInfo(deepx_binaryinfo::BinaryInfoDatabase& param, c
     // [Buffer] - Bitmatch Mask.
     for (size_t i = 0; i < param.bitmatch_mask().size(); i++) {
         param.bitmatch_mask(i)._buffer.resize(param.bitmatch_mask(i).size());
+        if (param.bitmatch_mask(i).size() == 0) continue; // @no_else: conditional_work
         memcpy(param.bitmatch_mask(i)._buffer.data(), buffer + (offset + param.bitmatch_mask(i).offset()), param.bitmatch_mask(i).size());
     }
 
@@ -619,12 +624,12 @@ std::string V7ModelParser::LoadRmapInfo(deepx_rmapinfo::rmapInfoDatabase& param,
                     else if (memory.name() == "INPUT")
                     {
                         regMap.model_memory().input() = memory;
-                        regMap.model_memory().model_memory_size() += memory.size() * DXRT_TASK_MAX_LOAD;
+                        regMap.model_memory().model_memory_size() += memory.size() * _taskBufferCount; // DXRT_TASK_MAX_LOAD;
                     }
                     else if (memory.name() == "OUTPUT")
                     {
                         regMap.model_memory().output() = memory;
-                        regMap.model_memory().model_memory_size() += memory.size() * DXRT_TASK_MAX_LOAD;
+                        regMap.model_memory().model_memory_size() += memory.size() * _taskBufferCount; // DXRT_TASK_MAX_LOAD;
                     }
                     else if (memory.name() == "TEMP")
                     {

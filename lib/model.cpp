@@ -70,22 +70,46 @@ static string dataFormatTable[] =
     "NHW"
 };
 
-ModelDataBase LoadModelParam(string file)
+ModelDataBase LoadModelParam(string file, int bufferCount)
 {
     ModelDataBase param;
-    LoadModelParam(param, file);
+    LoadModelParam(param, file, bufferCount);
 
     return param;
 }
 
-string LoadModelParam(ModelDataBase& param, string file)
+string LoadModelParam(ModelDataBase& param, string file, int bufferCount)
 {
     // Use new parser system for version-specific parsing
     try
     {
         auto parser = ModelParserFactory::CreateParser(file);
         LOG_DXRT_DBG << "Using " << parser->GetParserName() << " for file: " << file << std::endl;
+        parser->SetTaskBufferCount(bufferCount);
         return parser->ParseModel(file, param);
+    }
+    catch (const std::exception &e)
+    {
+        // If any error occurs during parsing, propagate to caller
+        std::ignore = e;
+        throw;
+    }
+
+    // The actual parsing logic has been moved to version-specific parsers
+    // This should not be reached if the factory call above succeeds
+    throw InvalidOperationException(EXCEPTION_MESSAGE("LoadModelParam: Parser factory call failed"));
+}
+
+string LoadModelParam(ModelDataBase& param, const uint8_t* modelBuffer, size_t modelSize, int bufferCount)
+{
+    // Use new parser system for version-specific parsing
+    try
+    {
+        //auto parser = ModelParserFactory::CreateParser(file);
+        auto parser = ModelParserFactory::CreateParser(modelBuffer, modelSize);
+        //LOG_DXRT_DBG << "Using " << parser->GetParserName() << " for file: " << file << std::endl;
+        parser->SetTaskBufferCount(bufferCount);
+        return parser->ParseModel(modelBuffer, modelSize, param);
     }
     catch (const std::exception &e)
     {

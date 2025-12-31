@@ -20,7 +20,10 @@
 #define RT_DRV_VERSION_CHECK (1800) // 1.7.1 --> 1.8.0
 #endif
 #define PCIE_VERSION_CHECK   (1501) // 1.4.1 --> 1.5.1
-#define FW_VERSION_CHECK     (240)  // 2.1.0 --> 2.4.0
+#define FW_VERSION_CHECK     (240)  // 2.1.0 --> 2.4.0./bui
+
+#define RT_DRIVER_WRITE_CHANNEL_CHANGE_VERSION 2000
+#define PCIE_DRIVER_WRITE_CHANNEL_CHANGE_VERSION 2000
 
 const std::string ONNX_RUNTIME_VERSION_CHECK {"1.20.1"};
 

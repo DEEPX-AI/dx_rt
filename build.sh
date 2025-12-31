@@ -26,6 +26,10 @@ help() {
     echo -e "                            If omitted, the default system 'python3' will be used."
     echo -e "  ${COLOR_GREEN}--venv_path <PATH>${COLOR_RESET}  Specify the path to a virtual environment to activate for the build."
     echo -e "                            If omitted, no virtual environment will be activated."
+    echo -e "  ${COLOR_GREEN}--use_service_on${COLOR_RESET}  Enable the use of the service in the build."
+    echo -e "  ${COLOR_GREEN}--use_service_off${COLOR_RESET} Disable the use of the service in the build."
+    echo -e "  ${COLOR_GREEN}--use_ort_on${COLOR_RESET}      Enable the use of the ORT component in the build."
+    echo -e "  ${COLOR_GREEN}--use_ort_off${COLOR_RESET}     Disable the use of the ORT component in the build."
     echo -e ""
     echo -e "${COLOR_BOLD}Examples:${COLOR_RESET}"
     echo -e "  ${COLOR_YELLOW}$0 --type Release --arch x86_64${COLOR_RESET}"
@@ -34,6 +38,7 @@ help() {
     echo -e ""
     echo -e "  ${COLOR_YELLOW}$0 --python_exec /usr/local/bin/python3.8${COLOR_RESET}"
     echo -e "  ${COLOR_YELLOW}$0 --venv_path ./venv-dxnn${COLOR_RESET}"
+    echo -e "  ${COLOR_YELLOW}$0 --use_service_off --use_ort_off${COLOR_RESET}"
 
     if [ "$1" == "error" ] && [[ ! -n "$2" ]]; then
         echo -e "${TAG_ERROR} Invalid or missing arguments."
@@ -162,7 +167,33 @@ build_dxrt() {
     if [ ! -z $install ]; then
         cmd+=(-DCMAKE_INSTALL_PREFIX=$install)
     fi
-    cmd+=(-DPython_EXECUTABLE=$(which ${python_exec}))
+    
+    #cmd+=(-DPython_EXECUTABLE=$(which ${python_exec}))
+    # Force update Python path in CMake cache to avoid stale path issues
+    # If virtual environment is active, use it; otherwise use the specified python_exec
+    if [ -n "$VIRTUAL_ENV" ]; then
+        PYTHON_PATH="$VIRTUAL_ENV/bin/python3"
+        print_colored_v2 "INFO" "Using Python from virtual environment: $PYTHON_PATH"
+    else
+        PYTHON_PATH=$(which ${python_exec})
+        print_colored_v2 "INFO" "Using system Python: $PYTHON_PATH"
+    fi
+    cmd+=(-DPython_EXECUTABLE:FILEPATH=${PYTHON_PATH})
+
+
+    # set cmake options for service
+    if [ $CMAKE_USE_SERVICE == "true" ]; then
+        cmd+=(-DUSE_SERVICE=ON)
+    else
+        cmd+=(-DUSE_SERVICE=OFF)
+    fi
+
+    # set cmake options for ort
+    if [ $CMAKE_USE_ORT == "true" ]; then
+        cmd+=(-DUSE_ORT=ON)
+    else
+        cmd+=(-DUSE_ORT=OFF)
+    fi
 
     print_colored_v2 "INFO" "========== CMAKE ARGS ========================================"
     print_colored_v2 "INFO" "cmake args : ${cmd[@]}"
@@ -571,6 +602,10 @@ while (( $# )); do
         --uninstall) uninstall=true; shift;;
         --clang) clang=true; shift;;
         --docker) build_in_docker=true; shift;;
+        --use_service_on) CMAKE_USE_SERVICE=true; shift;;
+        --use_service_off) CMAKE_USE_SERVICE=false; shift;;
+        --use_ort_on) CMAKE_USE_ORT=true; shift;;
+        --use_ort_off) CMAKE_USE_ORT=false; shift;;
         *)
             help "error" "Invalid argument : $1"
             exit 1;;

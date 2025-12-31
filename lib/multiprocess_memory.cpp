@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -33,7 +33,7 @@
 
 #include <chrono>
 #include <thread>
- 
+
 
 #define SOCKET_NAME "/tmp/dxrt_memory_socket"
 
@@ -90,13 +90,14 @@ namespace dxrt
             }
             std::this_thread::sleep_for(std::chrono::seconds(2));
         }
-        
+
         //DXRT_ASSERT(isDone, "ran out of NPU memory");
         if (!isDone) {
+            LOG_DXRT_ERR("Failed to allocate NPU memory " + std::to_string(required) + "byte after retries");
             RuntimeEventDispatcher::GetInstance().DispatchEvent(
-                RuntimeEventDispatcher::LEVEL::CRITICAL, 
-                RuntimeEventDispatcher::TYPE::DEVICE_MEMORY, 
-                RuntimeEventDispatcher::CODE::MEMORY_OVERFLOW, 
+                RuntimeEventDispatcher::LEVEL::CRITICAL,
+                RuntimeEventDispatcher::TYPE::DEVICE_MEMORY,
+                RuntimeEventDispatcher::CODE::MEMORY_OVERFLOW,
                 LogMessages::RuntimeDispatch_RanOutOfNPUMemory());
         }
         /* TODO
@@ -106,7 +107,7 @@ namespace dxrt
             return static_cast<uint64_t>(-1);
         }
         */
-        
+
         LOG_DXRT_DBG << std::hex << serverMessage.data << std::dec << " is allocated from service\n";
         DXRT_ASSERT(static_cast<int64_t>(serverMessage.data) != -1, "allocate error");
         // DXRT_ASSERT(static_cast<int64_t>(serverMessage.data) != 0,"allocate error");
@@ -205,13 +206,13 @@ namespace dxrt
             }
             std::this_thread::sleep_for(std::chrono::seconds(2));
         }
-        
+
         // DXRT_ASSERT(isDone, "ran out of NPU memory for Task " + std::to_string(taskId));
         if (!isDone) {
             RuntimeEventDispatcher::GetInstance().DispatchEvent(
-                RuntimeEventDispatcher::LEVEL::CRITICAL, 
-                RuntimeEventDispatcher::TYPE::DEVICE_MEMORY, 
-                RuntimeEventDispatcher::CODE::MEMORY_OVERFLOW, 
+                RuntimeEventDispatcher::LEVEL::CRITICAL,
+                RuntimeEventDispatcher::TYPE::DEVICE_MEMORY,
+                RuntimeEventDispatcher::CODE::MEMORY_OVERFLOW,
                 LogMessages::RuntimeDispatch_RanOutOfNPUMemoryForTask(taskId));
         }
         /* TODO
@@ -221,7 +222,7 @@ namespace dxrt
             return static_cast<uint64_t>(-1);
         }
         */
-        
+
         LOG_DXRT_DBG << std::hex << serverMessage.data << std::dec << " is allocated from service for Task " << taskId << "\n";
         DXRT_ASSERT(static_cast<int64_t>(serverMessage.data) != -1, "allocate error for Task " + std::to_string(taskId));
         return serverMessage.data;
@@ -276,7 +277,7 @@ namespace dxrt
     void MultiprocessMemory::SignalDeviceInit(int deviceId, npu_bound_op bound, int weightSize, int weightOffset, uint32_t checksum)
     {
         LOG_DXRT_DBG << "WARNING: SignalDeviceInit() is deprecated. Use SignalTaskInit() for proper Task-based initialization." << std::endl;
-        
+
         dxrt::IPCClientMessage clientMessage;
         LOG_DXRT_DBG << "Dev Id : " << deviceId << "\n";
         clientMessage.code = dxrt::REQUEST_CODE::DEVICE_INIT;

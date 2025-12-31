@@ -34,6 +34,9 @@ class InferenceOption:
         NPU_12 = 5 
         NPU_02 = 6 
 
+    DXRT_TASK_MAX_LOAD_DEFAULT = 6
+    DXRT_TASK_MAX_LOAD_LIMIT = 100
+
     def __init__(self) -> None:
         """Initializes a new InferenceOption object with default C++ values."""
         self.instance: C.InferenceOption = C.InferenceOption()
@@ -83,10 +86,23 @@ class InferenceOption:
             raise TypeError("devices must be a list of integers.")
         self.instance.devices = value
 
+
+    @property
+    def buffer_count(self) -> int:
+        """Gets or sets the buffer count for inference."""
+        return self.instance.bufferCount
+
+    @buffer_count.setter
+    def buffer_count(self, value: int) -> None:
+        if not isinstance(value, int):
+            raise TypeError("buffer_count must be an integer value.")
+        self.instance.bufferCount = value
+
     def __repr__(self) -> str:
         return (f"InferenceOption(use_ort={self.use_ort}, "
                 f"bound_option={self.bound_option.name if self.bound_option else 'None'}, "
-                f"devices={self.devices})")
+                f"devices={self.devices})"
+                f"buffer_count={self.buffer_count})")
     
     def set_use_ort(self, use_ort):
         if not isinstance(use_ort, bool):
@@ -111,4 +127,11 @@ class InferenceOption:
 
     def get_devices(self):
         return self.instance.devices
+    
+    def set_buffer_count(self, buffer_count):
+        if not isinstance(buffer_count, int):
+            raise TypeError("buffer_count must be an integer value.")
+        self.instance.bufferCount = buffer_count
 
+    def get_buffer_count(self):
+        return self.instance.bufferCount

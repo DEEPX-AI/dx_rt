@@ -165,39 +165,34 @@ private:
 };
 
 class DXRT_API AccDeviceTaskLayer : public DeviceTaskLayer {
-public:
-    explicit AccDeviceTaskLayer(std::shared_ptr<DeviceCore> dev, std::shared_ptr<ServiceLayerInterface> service_interface)
-    : DeviceTaskLayer(dev, service_interface), _inputHandlerQueue(dev->name()+"_input", 3,
-        std::bind(&AccDeviceTaskLayer::InputHandler, this, std::placeholders::_1, std::placeholders::_2)),
-     _outputHandlerQueue(dev->name()+"_output", 4,
-        std::bind(&AccDeviceTaskLayer::OutputHandler, this, std::placeholders::_1, std::placeholders::_2))
-     {}
-     int RegisterTask(TaskData* task) override;
-     int InferenceRequest(RequestData* req, npu_bound_op boundOp) override;
+ public:
+    explicit AccDeviceTaskLayer(std::shared_ptr<DeviceCore> dev, std::shared_ptr<ServiceLayerInterface> service_interface);
+    int RegisterTask(TaskData *task) override;
+    int InferenceRequest(RequestData *req, npu_bound_op boundOp) override;
 
+    void EventThread();
+    void OutputReceiverThread(int id);
 
-     void EventThread();
-     void OutputReceiverThread(int id);
+    int InputHandler(const int &reqId, int ch);
+    int OutputHandler(const dxrt_response_t &resp, int ch);
 
-     int InputHandler(const int& reqId, int ch);
-     int OutputHandler(const dxrt_response_t& resp, int ch);
+    int Release(TaskData *task) override;
+    void StartThread() override;
 
-     int Release(TaskData *task) override;
-     void StartThread() override;
+    virtual ~AccDeviceTaskLayer();
 
-     virtual ~AccDeviceTaskLayer();
-
-     // Test accessors
-     const dxrt_request_acc_t* test_getInferenceAcc(int taskId) const {
-         auto it = _npuInferenceAcc.find(taskId);
-         return (it == _npuInferenceAcc.end()) ? nullptr : &it->second;
-     }
+    // Test accessors
+    const dxrt_request_acc_t *test_getInferenceAcc(int taskId) const
+    {
+        auto it = _npuInferenceAcc.find(taskId);
+        return (it == _npuInferenceAcc.end()) ? nullptr : &it->second;
+    }
      const dxrt_request_acc_t* test_getOngoing(int reqId) const {
          auto it = _ongoingRequests.find(reqId);
          return (it == _ongoingRequests.end()) ? nullptr : &it->second;
      }
 
-     int getFullLoad() const override { return DXRT_TASK_MAX_LOAD;}
+     int getFullLoad() const override { return DXRT_NPU_FULL_MAX_LOAD;}
 
      void ProcessResponseFromService(const dxrt_response_t &resp) override;
     std::vector<Tensors> inputs(int taskId) override { return {_inputTensorFormats[taskId]}; }
@@ -214,6 +209,12 @@ public:
 
      std::unordered_map<int, dxrt_request_acc_t> _npuInferenceAcc;
      std::unordered_map<int, dxrt_request_acc_t> _ongoingRequests;
+
+#ifdef USE_PROFILER
+     // Track response receive timestamps for queueing delay measurement
+     std::unordered_map<uint32_t, uint64_t> _responseReceiveTimestamps;
+     std::mutex _responseTimestampLock;
+#endif
 
      SharedMutex requestsLock;
 

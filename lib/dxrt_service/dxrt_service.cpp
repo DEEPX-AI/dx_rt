@@ -233,7 +233,13 @@ dxrt::RESPONSE_CODE get_ch() {
 
 void DxrtService::ErrorBroadCastToClient(dxrt::dxrt_server_err_t err, uint32_t errCode, int deviceId)
 {
-    for (auto pid : _pid_set) {
+    std::vector<pid_t> pids;
+    {
+        std::lock_guard<std::mutex> lk(_pidSetMutex);
+        std::copy(_pid_set.begin(), _pid_set.end(), std::back_inserter(pids));
+    }
+
+    for (auto pid : pids) {
         _srvErr->ErrorReportToClient(err, pid, errCode, deviceId);
     }
 }
@@ -1351,28 +1357,18 @@ static bool IsProcessRunning(DWORD procId)
         }
 
         LOG_DXRT_ERR("OpenProcess failed for PID " << procId << ". Error: " << error)
-        return false;
+        return true;  // Assume running if we can't determine
     }
 
 
-    DWORD exitCode;
-    if (GetExitCodeProcess(hProcess, &exitCode)) {
-        if (exitCode == STILL_ACTIVE) {
-            CloseHandle(hProcess);
-            return true;
-        }
-        else
-        {
-            CloseHandle(hProcess);
-            return false;
-        }
-    }
-    else
+    DWORD dwResult = WaitForSingleObject(hProcess, 0);
+    CloseHandle(hProcess);
+    if (dwResult == WAIT_OBJECT_0)
     {
-        LOG_DXRT_ERR("GetExitCodeProcess failed for PID " << procId << ". Error: " << GetLastError())
-            CloseHandle(hProcess);
-        return false;
+        return false;  // Process has terminated
     }
+
+    return true;  // Process is still running
 }
 #endif
 void DxrtService::handle_process_die(pid_t procId)
@@ -1489,17 +1485,27 @@ void DxrtService::die_check_thread()
         std::this_thread::sleep_for(std::chrono::seconds(1));
 
         // Check process status
-        for (auto it = _pid_set.begin(); it != _pid_set.end(); )
+        std::vector<pid_t> pids;
         {
-            pid_t procId = *it;
+            std::lock_guard<std::mutex> lk(_pidSetMutex);
+            std::copy(_pid_set.begin(), _pid_set.end(), std::back_inserter(pids));
+        }
+        std::vector<pid_t> erase_pids;
+
+        // Check process status
+        for (pid_t procId : pids)
+        {
             if (IsProcessRunning(procId) == false)
             {
                 handle_process_die(procId);
-                it = _pid_set.erase(it);
+                erase_pids.push_back(procId);
             }
-            else
+        }
+        {
+            std::lock_guard<std::mutex> lk(_pidSetMutex);
+            for (pid_t procId : erase_pids)
             {
-                it++;
+                _pid_set.erase(procId);
             }
         }
 
@@ -1555,7 +1561,12 @@ int DXRT_API dxrt_service_main(int argc, char* argv[])
     auto cmd = options.parse(argc, argv);
 
     DXRT_Schedule scheduler_option = DXRT_Schedule::FIFO;
-    if (scheduler_option_str == "RoundRobin")
+    if (scheduler_option_str == "FIFO")
+    {
+        LOG_DXRT_S << "Uses FIFO Scheduler\n";
+        scheduler_option = DXRT_Schedule::FIFO;
+    }
+    else if (scheduler_option_str == "RoundRobin")
     {
         LOG_DXRT_S << "Uses Round Robin Scheduler\n";
         scheduler_option = DXRT_Schedule::RoundRobin;
@@ -1565,6 +1576,11 @@ int DXRT_API dxrt_service_main(int argc, char* argv[])
         LOG_DXRT_S << "Uses Shortest Jobs First Scheduler\n";
 
         scheduler_option = DXRT_Schedule::SJF;
+    }
+    else
+    {
+        LOG_DXRT_S << "Uses Default FIFO Scheduler\n";
+        scheduler_option = DXRT_Schedule::FIFO;
     }
 
     DxrtService service(scheduler_option);

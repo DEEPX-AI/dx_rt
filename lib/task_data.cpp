@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -16,6 +16,7 @@
 #include "dxrt/profiler.h"
 #include "dxrt/util.h"
 #include "dxrt/buffer.h"
+#include "dxrt/ppu_binary_parser.h"
 #include <limits>
 #include <cstdint>
 #include <sstream>
@@ -53,8 +54,8 @@ deepx_rmapinfo::Layout LayoutFromPpuType(int ppuType)
 
 namespace dxrt {
 
-TaskData::TaskData(int id_, std::string name_, rmapinfo info_)
-: _id(id_), _name(name_), _info(info_)
+TaskData::TaskData(int id_, std::string name_, rmapinfo info_, int bufferCount_)
+: _id(id_), _name(name_), _info(info_), _bufferCount(bufferCount_)
 {
 }
 
@@ -67,9 +68,9 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_, bool
     int64_t last_output_lower_bound = std::numeric_limits<int64_t>::max();
     int64_t last_output_upper_bound = 0;
     bool has_valid_output = false;  // Track if we have any valid outputs
-    
+
     _processor = Processor::NPU;
-    
+
     _numInputs = _info.inputs().size();
     _numOutputs = _info.outputs().size();
 
@@ -131,7 +132,7 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_, bool
                 last_output_lower_bound = tensor_offset;
             if (last_output_upper_bound < tensor_offset + tensor_info.memory().size())
                 last_output_upper_bound = tensor_offset + tensor_info.memory().size();
-            
+
             _npuOutputTensorInfos.emplace_back(tensor_info);
 
             _outputNames.emplace_back(tensor_info.name());
@@ -139,6 +140,7 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_, bool
 
             _encodedOutputNames.emplace_back(tensor_info.name_encoded());
             _encodedOutputShapes.emplace_back(encoded_shape);
+            _encodedOutputSize += tensor_info.memory().size();
             _encodedOutputSizes.emplace_back(tensor_info.memory().size());
 
             _outputOffsets.emplace_back(orginal_tensor_offset);
@@ -168,11 +170,11 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_, bool
         if (!has_valid_output || last_output_lower_bound == std::numeric_limits<int64_t>::max()) {
             last_output_lower_bound = 0;
         }
-        
+
         // Validate the calculated bounds
         if (last_output_lower_bound < 0 || last_output_upper_bound < last_output_lower_bound) {
             std::stringstream err_msg;
-            err_msg << "Invalid output memory bounds calculated: lower=" << last_output_lower_bound 
+            err_msg << "Invalid output memory bounds calculated: lower=" << last_output_lower_bound
                     << ", upper=" << last_output_upper_bound;
             LOG_DXRT_ERR(err_msg.str());
             throw std::runtime_error("Invalid output memory bounds");
@@ -181,8 +183,8 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_, bool
         // After last_output_lower_bound is determined, subtract it from all values in _encodedOutputOffsets.
         for(auto &offset : _encodedOutputOffsets)
         {
-            
-            
+
+
             // Sanity check: offset should not be negative after normalization (but offset is int64_t which can be negative)
             if (offset < static_cast<uint64_t>(last_output_lower_bound))
             {
@@ -197,10 +199,7 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_, bool
             }
         }
     }
-    
-    // Calculate encoded output size with validation
-    _encodedOutputSize = last_output_upper_bound - last_output_lower_bound;
-    
+
     // Check if any output is PPU type (dynamic size)
     bool hasPPUOutput = false;
     for (int i = 0; i < _numOutputs; i++) {
@@ -209,7 +208,7 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_, bool
             break;
         }
     }
-    
+
     // Validate encoded output size (skip for PPU outputs which have dynamic size)
     if (has_valid_output && !hasPPUOutput && _encodedOutputSize <= 0) {
         std::stringstream err_msg;
@@ -219,7 +218,7 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_, bool
     }
 
     LOG_DXRT_DBG << "NPU Task: imported output shapes"<< endl;
-    
+
     if (_numInputs > 0)
     {
         for (int i = 0; i < _numInputs; i++){
@@ -260,12 +259,12 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_, bool
         _outputTensors.emplace_back(Tensor(_outputNames[i], _outputShapes[i], _outputDataTypes[i], nullptr, memType));
     }
     LOG_DXRT_DBG << "NPU Task: imported tensors" << endl;
-    
+
     // Use actual data size from loaded buffers, not from rmap_info metadata
     // (rmap_info may have incorrect or zero sizes for some models)
     auto rmapSize = data_.size() > 0 ? data_[0].size() : 0;
     auto weightSize = data_.size() > 1 ? data_[1].size() : 0;
-    
+
     _npuModel.npu_id = 0;
     _npuModel.type = 0;
     _npuModel.cmds = static_cast<int32_t>(_info.counts().cmd());
@@ -285,21 +284,21 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_, bool
     _npuModel.input_all_size = static_cast<uint32_t>(_info.model_memory().input().size());
     _npuModel.output_all_offset = static_cast<uint32_t>(_info.model_memory().output().offset());
     _npuModel.output_all_size = static_cast<uint32_t>(_info.model_memory().output().size());
-    
+
     // Validate before casting to uint32_t to prevent overflow
     int64_t last_offset_calc = _info.model_memory().output().offset() + last_output_lower_bound;
     if (last_offset_calc < 0 || last_offset_calc > UINT32_MAX) {
         std::stringstream err_msg;
-        err_msg << "Invalid last_output_offset calculation: " << last_offset_calc 
-                << " (output.offset=" << _info.model_memory().output().offset() 
+        err_msg << "Invalid last_output_offset calculation: " << last_offset_calc
+                << " (output.offset=" << _info.model_memory().output().offset()
                 << ", lower_bound=" << last_output_lower_bound << ")";
         LOG_DXRT_ERR(err_msg.str());
         throw std::runtime_error("Invalid last_output_offset - possible overflow");
     }
-    
+
     _npuModel.last_output_offset = static_cast<uint32_t>(last_offset_calc);
-    _npuModel.last_output_size = _encodedOutputSize;
-    
+    _npuModel.last_output_size = static_cast<uint32_t>(last_output_upper_bound - last_output_lower_bound);
+
     _isPPU = false;
     _isPPCPU = false;
 
@@ -317,7 +316,6 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_, bool
         const int ppuType = _info.ppu_type();
         const auto ppuLayout = LayoutFromPpuType(ppuType);
         std::string ppu_tensor_name = "NONE";
-
         if (ppuLayout != deepx_rmapinfo::Layout::LAYOUT_NONE) {
             _npuModel.format = LayoutToLegacyFormat(ppuLayout);
             switch (ppuLayout) {
@@ -341,17 +339,49 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_, bool
             const auto fallbackLayout = static_cast<deepx_rmapinfo::Layout>(_info.outputs()[0].layout());
             _npuModel.format = LayoutToLegacyFormat(fallbackLayout);
         }
-        
+
         _outputTensors.clear();
 
-        _outputTensors.emplace_back(
-            //Tensor("PPU_OUTPUT", {1, _outputSize/GetDataSize_Datatype(dataType)}, dataType, nullptr)
-            Tensor(ppu_tensor_name, _outputShapes[0], dataType, nullptr, memType)
+        // Calculate optimal PPU output size using PPU binary parser
+        uint32_t ppuOutputSize = 0;
+        if (data_.size() > 2 && data_[2].size() > 0) {
+            // PPU binary is stored at index 2 (after rmap[0] and weight[1])
+            PpuOutputSizeInfo ppuSizeInfo = CalculatePpuOutputSize(data_[2], dataType);
 
+            if (ppuSizeInfo.total_output_size > 0) {
+                ppuOutputSize = ppuSizeInfo.total_output_size;
+                _encodedOutputSize = ppuOutputSize;  // Update encoded output size to match optimized size
+                LOG_DXRT_DBG << "PPU optimal output size calculated: " << ppuOutputSize
+                             << " bytes (max_boxes: " << ppuSizeInfo.max_box_count
+                             << ", box_size: " << ppuSizeInfo.box_data_size << ")" << std::endl;
+            } else {
+                // Fallback to legacy calculation if PPU parsing fails
+                ppuOutputSize = _encodedOutputSize;
+                LOG_DXRT_WARN("PPU binary parsing failed, using legacy size: " << ppuOutputSize << " bytes");
+            }
+        } else {
+            // Fallback if PPU binary is not available
+            ppuOutputSize = _encodedOutputSize;
+            LOG_DXRT_WARN("PPU binary not found in data vector, using legacy size: " << ppuOutputSize << " bytes");
+        }
+
+        // Set _outputSize to the optimized PPU output size
+        // This is the actual maximum size based on grid dimensions, not the raw encoded size
+        _outputSize = ppuOutputSize;
+
+        _outputTensors.emplace_back(
+            Tensor(ppu_tensor_name, {ppuOutputSize/GetDataSize_Datatype(dataType)}, dataType, nullptr, memType)
         );
-        _npuModel.output_all_size *= 2; // Allocate double size for combined output
+
+        // Allocate additional space for PPU output
+        // output_all_size already includes encoded output space from model_memory().output().size()
+        // We only need to add space for PPU filtered output
+        _npuModel.output_all_size += data_align(ppuOutputSize,64);
 
         LOG_DXRT_DBG << "NPU Task: PPCPU type detected (v8 with PPU binary)" << std::endl;
+        LOG_DXRT_DBG << "  - Encoded output size: " << _encodedOutputSize << " bytes" << std::endl;
+        LOG_DXRT_DBG << "  - PPU output size (optimized): " << ppuOutputSize << " bytes" << std::endl;
+        LOG_DXRT_DBG << "  - Total output_all_size: " << _npuModel.output_all_size << " bytes" << std::endl;
     }
     // Check all outputs for ARGMAX type
     else
@@ -364,7 +394,7 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_, bool
                 allAreArgmax = false;
             }
         }
-        
+
         // Only set type=1 and special handling if ALL outputs are ARGMAX
         if (allAreArgmax)
         {
@@ -375,13 +405,13 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_, bool
         }
         else if (_info.outputs()[0].memory().type() == deepx_rmapinfo::MemoryType::PPU)
         {
-            
+
             _npuModel.type = 2;
-            
+
             // When updating from .dxnn v6 to v7, format was replaced with layout. Applying correction value to connect with existing m1 fw dataformat
             const auto layout = static_cast<deepx_rmapinfo::Layout>(_info.outputs()[0].layout());
             _npuModel.format = LayoutToLegacyFormat(layout);
-            
+
             _outputTensors.clear();
 
             int dataType = _info.outputs()[0].dtype();
@@ -390,7 +420,7 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_, bool
             _outputTensors.emplace_back(
                 Tensor(_outputNames[0], _outputShapes[0], static_cast<DataType>(dataType), nullptr, memType)
             );
-            _npuModel.last_output_offset = _npuModel.output_all_size; 
+            _npuModel.last_output_offset = _npuModel.output_all_size;
             //inference acc output offset -> input offset + input size (or output all offset) + output all size
 #if DXRT_USB_NETWORK_DRIVER == 0
             _npuModel.last_output_size = 128*1024;
@@ -404,6 +434,11 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_, bool
             _encodedOutputSize = _outputSize;
             _isPPU = true;
         }
+        else
+        {
+            // normal NPU model, not ARGMAX nor PPU
+            _npuModel.type = 0;
+        }
     }
 
     if (_info.version().npu() == "M1_8K")
@@ -414,9 +449,10 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_, bool
     {
         _npuModel.npu_id = 0;
     }
-    
+
     _outputMemSize = std::max(static_cast<uint32_t>(0), _npuModel.output_all_size);
-    _memUsage = rmapSize + weightSize + (static_cast<uint64_t>(_encodedInputSize) * DXRT_TASK_MAX_LOAD) + (static_cast<uint64_t>(_outputMemSize) * DXRT_TASK_MAX_LOAD);
+    //_memUsage = rmapSize + weightSize + (static_cast<uint64_t>(_encodedInputSize) * DXRT_TASK_MAX_LOAD) + (static_cast<uint64_t>(_outputMemSize) * DXRT_TASK_MAX_LOAD);
+    _memUsage = rmapSize + weightSize + (static_cast<uint64_t>(data_align(_encodedInputSize, 64)) * _bufferCount) + (static_cast<uint64_t>(_outputMemSize) * _bufferCount);
     LOG_DXRT_DBG << "NPU Task: imported npu parameters" << endl;
 }
 
@@ -429,7 +465,8 @@ void TaskData::set_from_cpu(std::shared_ptr<CpuHandle> cpuHandle)
     _inputSize = cpuHandle->_inputSize;
     _outputSize = cpuHandle->_outputSize;
     _outputMemSize = _outputSize;
-    _memUsage = (static_cast<uint64_t>(_inputSize) * DXRT_TASK_MAX_LOAD) + (static_cast<uint64_t>(_outputMemSize) * DXRT_TASK_MAX_LOAD);
+    //_memUsage = (static_cast<uint64_t>(_inputSize) * DXRT_TASK_MAX_LOAD) + (static_cast<uint64_t>(_outputMemSize) * DXRT_TASK_MAX_LOAD);
+    _memUsage = (static_cast<uint64_t>(_inputSize) * _bufferCount) + (static_cast<uint64_t>(_outputMemSize) * _bufferCount);
     _inputDataTypes = cpuHandle->_inputDataTypes;
     _outputDataTypes = cpuHandle->_outputDataTypes;
     _inputNames = cpuHandle->_inputNames;
@@ -499,6 +536,16 @@ uint32_t TaskData::weightChecksum()
         value ^= ptr[i];
     }
     return value;
+}
+
+int64_t TaskData::NPU_block_size() const
+{
+    int64_t block_size = 0;
+    if (_processor == Processor::NPU)
+    {
+        block_size = static_cast<int64_t>(_npuModel.input_all_size) + static_cast<int64_t>(_npuModel.output_all_size);
+    }
+    return block_size;
 }
 
 

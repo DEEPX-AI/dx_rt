@@ -34,7 +34,7 @@ using RequestPtr = std::shared_ptr<Request>;
 class DXRT_API CpuHandle
 {
 public:
-    CpuHandle(void* data_, int64_t size_, std::string name_, size_t device_num_);
+    CpuHandle(void* data_, int64_t size_, std::string name_, size_t device_num_, int buffer_count_);
     ~CpuHandle();
 #ifdef USE_ORT
     Ort::Env _env;
@@ -48,6 +48,7 @@ public:
     // Create individual session for worker (DYNAMIC THREAD mode)
     std::shared_ptr<Ort::Session> CreateWorkerSession();
     void RunWithSession(RequestPtr req, std::shared_ptr<Ort::Session> session);
+
 #endif
 
 public:
@@ -103,5 +104,9 @@ public:
     bool HasDynamicOutput() const { return _hasDynamicOutput; }
     
     friend DXRT_API std::ostream& operator<<(std::ostream&, const CpuHandle&);
+
+protected:
+    int _bufferCount = DXRT_TASK_MAX_LOAD_VALUE;
+
 };
 } /* namespace dxrt */

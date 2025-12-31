@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -63,12 +63,12 @@ int32_t LinuxDriverAdapter::IOControl(dxrt_cmd_t request, void* data, uint32_t s
                 req_info = ", data is nullptr";
             }
 
-            LOG_DXRT_S << "IOControl FAILED - ret: " << ret 
-                    << ", errno: " << errno 
+            LOG_DXRT_S << "IOControl FAILED - ret: " << ret
+                    << ", errno: " << errno
                     << " (" << strerror(errno) << ")"
                     << ", fd: " << _fd
                     << ", cmd: " << static_cast<int>(request)
-                    << req_info << std::endl; 
+                    << req_info << std::endl;
             return errno * (-1);
     } else {
         LOG_DXRT_S_DBG << "IOControl SUCCESS - ret: " << ret << std::endl;
@@ -81,16 +81,20 @@ int32_t LinuxDriverAdapter::IOControl(dxrt_cmd_t request, void* data, uint32_t s
 int32_t LinuxDriverAdapter::Write(const void* buffer, uint32_t size)
 {
     int ret = write(_fd, buffer, size);
-    if (ret < 0) return ret;
-    return 0;
+    if (ret < 0)
+        return ret;
+    else
+        return 0;
 }
 
 
 int32_t LinuxDriverAdapter::Read(void* buffer, uint32_t size)
 {
     int ret = read(_fd, buffer, size);
-    if (ret < 0) return ret;
-    return 0;
+    if (ret < 0)
+        return ret;
+    else
+        return 0;
 }
 
 void* LinuxDriverAdapter::MemoryMap(void *__addr, size_t __len, off_t __offset)

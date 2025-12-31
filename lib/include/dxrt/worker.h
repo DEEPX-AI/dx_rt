@@ -43,10 +43,10 @@ public:
         DEVICE_EVENT,
         CPU_HANDLE,
     };
-    Worker(std::string name_, Type type_, int numThreads = 1, Device *device_ = nullptr, CpuHandle *cpuHandle_ = nullptr);
+    Worker(std::string name_, Type type_, int bufferCount, int numThreads = 1, Device *device_ = nullptr, CpuHandle *cpuHandle_ = nullptr);
     Worker();
     virtual ~Worker();
-    static std::shared_ptr<Worker> Create(std::string name_, Type type_, int numThreads = 1, Device *device_ = nullptr, CpuHandle *cpuHandle_ = nullptr);
+    static std::shared_ptr<Worker> Create(std::string name_, Type type_, int bufferCount, int numThreads = 1, Device *device_ = nullptr, CpuHandle *cpuHandle_ = nullptr);
     virtual void Stop();
     void UpdateQueueStats(int queueSize);
     bool isStopped();
@@ -76,15 +76,18 @@ private:
     std::atomic<int> _accumulatedQueueSize{0};
     //std::queue<std::shared_ptr<Request>> _queue;
 
+protected:
+    int _bufferCount = DXRT_TASK_MAX_LOAD_VALUE;
+
 };
 
 
 class CpuHandleWorker : public Worker
 {
 public:
-    CpuHandleWorker(string name_, int numThreads, int initDynamicThreads, CpuHandle *cpuHandle_, size_t device_num);
+    CpuHandleWorker(string name_, int buffer_count_, int numThreads, int initDynamicThreads, CpuHandle *cpuHandle_, size_t device_num);
     virtual ~CpuHandleWorker();
-    static shared_ptr<CpuHandleWorker> Create(string name_, int numThreads, int initDynamicThreads, CpuHandle *cpuHandle_, size_t device_num);
+    static shared_ptr<CpuHandleWorker> Create(string name_, int buffer_count_, int numThreads, int initDynamicThreads, CpuHandle *cpuHandle_, size_t device_num);
     int request(std::shared_ptr<Request> req);
 
 private:
@@ -108,5 +111,6 @@ private:
 
     std::vector<std::thread> _dynamicThreads;
     std::atomic<int> _dynamicStopCnt{0};
+
 };
 } // namespace dxrt

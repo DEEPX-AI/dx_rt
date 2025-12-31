@@ -445,6 +445,9 @@ int main(int argc, char *argv[])
     int64_t duration = 0;
     int num_devices = 0;
     int64_t warmup_runs = 0;  // Added warmup runs
+    int buffer_count = DXRT_TASK_MAX_LOAD_VALUE;
+    bool profiler_enable = false;
+
     cxxopts::Options options("run_model", APP_NAME);
     options.add_options()
         ("m, model", "Model file (.dxnn)" , cxxopts::value<string>(modelFile))
@@ -473,6 +476,8 @@ int main(int argc, char *argv[])
 #ifdef USE_ORT
         ("use-ort", "Enable ONNX Runtime for CPU tasks in the model graph\nIf disabled, only NPU tasks operate", cxxopts::value<bool>(use_ort)->default_value("false"))
 #endif
+        ("profiler", "Enable profiler", cxxopts::value<bool>(profiler_enable)->default_value("false"))
+        ("buffer-count", "Number of input/output buffers, count's range is 1~" + std::to_string(DXRT_TASK_MAX_LOAD_LIMIT), cxxopts::value<int>(buffer_count)->default_value(std::to_string(DXRT_TASK_MAX_LOAD_VALUE)))
         ("h, help", "Print usage" );
 
     options.add_options("internal")
@@ -493,6 +498,20 @@ int main(int argc, char *argv[])
             cout << options.help({""}) << endl;
             exit(0);
         }
+
+        if ( cmd.count("buffer-count") )
+        {
+            if ( buffer_count <= 0 || buffer_count > DXRT_TASK_MAX_LOAD_LIMIT )
+            {
+                std::cout << "Please check --buffer-count option value. Must be between 1 and " << DXRT_TASK_MAX_LOAD_LIMIT << endl;
+                exit(1);
+            }
+            else 
+            {
+                std::cout << "Using I/O Buffer Count=" << buffer_count << std::endl;
+                std::cout << std::endl;
+            }
+        }   
     }
     catch (std::exception& e)
     {
@@ -700,13 +719,24 @@ int main(int argc, char *argv[])
     }
     else
     {
-        cout << "[ERR] Please check bounding option value. Must be between 0 and " << (dxrt::N_BOUND_INF_MAX -1) << endl;
+        std::cout << "[ERR] Please check bounding option value. Must be between 0 and " << (dxrt::N_BOUND_INF_MAX -1) << endl;
         return -1;
     }
     op.useORT = use_ort;
+    op.bufferCount = buffer_count;
 
     try{
 
+        if ( profiler_enable )
+        {
+            dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::PROFILER, true);
+            dxrt::Configuration::GetInstance().SetAttribute(dxrt::Configuration::ITEM::PROFILER, dxrt::Configuration::ATTRIBUTE::PROFILER_SAVE_DATA, "on");
+            std::cout << "[INFO] Profiler is enabled." << std::endl;
+        }
+        else
+        {
+            dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::PROFILER, false);
+        }
         //dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::PROFILER, false);
 
         SetRunModelMode(single, targetFps);

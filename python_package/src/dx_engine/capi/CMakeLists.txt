@@ -5,7 +5,7 @@ set(target _pydxrt)
 
 file(REMOVE "_pydxrt.so")
 if (MSVC)
-if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8) # detect x64 using pointer size 
+if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8) # detect x64 using pointer size
     message(FATAL_ERROR "Please use Visual Studio x64 Native Tools Command Prompt")
 endif()
 endif()
@@ -33,7 +33,7 @@ set(PYTHON_EXECUTABLE ${Python_EXECUTABLE})
 if(MSVC)
     set(PYTHON_MODULE_EXTENSION ".pyd")
 else()
-    set(python_v "${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR}")  
+    set(python_v "${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR}")
     if(${python_v} LESS 38)
         set(m_flag "m")
     else()
@@ -57,20 +57,23 @@ include_directories(
 find_package(pybind11 REQUIRED)
 
 
-pybind11_add_module( ${target} 
-  ${BINDING_CPP_DIR}/py_inference_engine.cpp ${BINDING_CPP_DIR}/py_configuration.cpp ${BINDING_CPP_DIR}/py_device_status.cpp)
-target_include_directories(${target} PRIVATE 
+pybind11_add_module( ${target}
+  ${BINDING_CPP_DIR}/py_inference_engine.cpp
+  ${BINDING_CPP_DIR}/py_configuration.cpp
+  ${BINDING_CPP_DIR}/py_device_status.cpp
+  ${BINDING_CPP_DIR}/py_runtime_event_dispatcher.cpp)
+
+target_include_directories(${target} PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/../../../../lib/include
   ${CMAKE_CURRENT_SOURCE_DIR}/../../../../extern/include
 )
 if (Python_EXECUTABLE MATCHES "pypy")
-    # PyPy임을 나타내는 C++ 매크로를 정의합니다.
+    # Define C++ macro to indicate PyPy.
     target_compile_definitions(${target} PRIVATE PYBIND11_IS_PYPY)
 endif()
 
-#target_link_libraries(${target} PRIVATE ${CMAKE_SOURCE_DIR}/../../../build_dxrt/Release/dxrt.lib ${link_libs})
 if(MSVC)
-    target_link_libraries(${target} PRIVATE ${link_libs})
+    target_link_libraries(${target} PRIVATE ${CMAKE_SOURCE_DIR}/../../../build_dxrt/Release/dxrt.lib ${link_libs})
 else()
     target_link_libraries(${target} PRIVATE dxrt pthread ${link_libs})
 endif()

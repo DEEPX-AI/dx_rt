@@ -65,15 +65,15 @@ static std::vector<int> makeList(int n)
 }
 
 // Constructor 1: Default devices + hasPpuBinary
-Task::Task(std::string name_, rmapinfo rmapInfo_, std::vector<std::vector<uint8_t>>&& data_, npu_bound_op boundOp, bool hasPpuBinary)
-: Task(name_, rmapInfo_, std::move(data_), boundOp, makeList(DevicePool::GetInstance().GetDeviceCount()), hasPpuBinary)
+Task::Task(std::string name_, rmapinfo rmapInfo_, int bufferCount_, std::vector<std::vector<uint8_t>>&& data_, npu_bound_op boundOp, bool hasPpuBinary)
+: Task(name_, rmapInfo_, bufferCount_, std::move(data_), boundOp, makeList(DevicePool::GetInstance().GetDeviceCount()), hasPpuBinary)
 {
 }
 
 // Constructor 2: Specific devices + hasPpuBinary
-Task::Task(std::string name_, rmapinfo rmapInfo_, std::vector<std::vector<uint8_t>>&& data_,
+Task::Task(std::string name_, rmapinfo rmapInfo_, int bufferCount_, std::vector<std::vector<uint8_t>>&& data_,
     npu_bound_op boundOp, const std::vector<int>& deviceIds, bool hasPpuBinary)
-: _taskData(getNextId(), name_, rmapInfo_), _data(std::move(data_)), _boundOp(boundOp)
+: _taskData(getNextId(), name_, rmapInfo_, bufferCount_), _data(std::move(data_)), _boundOp(boundOp)
 {
     _device_ids = deviceIds;
     _inferenceCnt.store(0);
@@ -85,14 +85,14 @@ Task::Task(std::string name_, rmapinfo rmapInfo_, std::vector<std::vector<uint8_
         if (_data.size() != 2 && _data.size() != 3 && _data.size() != 4 && _data.size() != 5)
             throw InvalidModelException(EXCEPTION_MESSAGE(
                 "invalid npu task " + name() + ": data size = " + std::to_string(data_.size())));
-        
+
         // Set data reference for device memory write
         _taskData._data = &_data;
-        
+
         _taskData.set_from_npu(_data, hasPpuBinary);
         LOG_DXRT_DBG << "NPU Task: imported npu parameters" << endl;
-        SetEncodedInputBuffer(_device_ids.size() * DXRT_TASK_MAX_LOAD);
-        SetOutputBuffer(_device_ids.size() * DXRT_TASK_MAX_LOAD);
+        SetEncodedInputBuffer(_device_ids.size() * _taskData.get_buffer_count()); // DXRT_TASK_MAX_LOAD);
+        SetOutputBuffer(_device_ids.size() * _taskData.get_buffer_count()); // DXRT_TASK_MAX_LOAD);
 
         LOG_DXRT_DBG << "NPU Task: checked devices" << endl;
         for (auto deviceId : _device_ids)
@@ -114,10 +114,10 @@ Task::Task(std::string name_, rmapinfo rmapInfo_, std::vector<std::vector<uint8_
     else
     {
         _taskData._processor = Processor::CPU;
-        _cpuHandle = std::make_shared<CpuHandle>(_data.front().data(), _data.front().size(), _taskData._name, _device_ids.size());
+        _cpuHandle = std::make_shared<CpuHandle>(_data.front().data(), _data.front().size(), _taskData._name, _device_ids.size(), _taskData.get_buffer_count());
         // cout << *_cpuHandle << endl;
         _taskData.set_from_cpu(_cpuHandle);
-        SetOutputBuffer(_device_ids.size() * DXRT_TASK_MAX_LOAD);
+        SetOutputBuffer(_device_ids.size() * _taskData.get_buffer_count()); // DXRT_TASK_MAX_LOAD);
         _cpuHandle->Start();
         LOG_DXRT_DBG << "CPU Task created" << endl;
     }
@@ -138,7 +138,11 @@ Task::~Task(void)
         _cpuHandle = nullptr;
         LOG_DXRT_DBG << "Task " << id() << " Done (CPU)" << endl;
     }
-    else if (!_device_ids.empty())
+    else if (_device_ids.empty())
+    {
+        LOG_DXRT_DBG << "Task " << id() << " has no associated devices. Skipping cleanup." << endl;
+    }
+    else
     {
         // NPU Task cleanup - unified Task-based approach
         for (int device_id : _device_ids)
@@ -600,8 +604,8 @@ std::ostream& operator<<(std::ostream& os, const Task& task)
         if (task._taskData._processor == Processor::NPU)
         {
             mem_usage += task._taskData._memUsage;
-            mem_usage += (task._taskData._inputSize * DXRT_TASK_MAX_LOAD);
-            mem_usage += (task._taskData._outputMemSize * DXRT_TASK_MAX_LOAD);
+            mem_usage += (task._taskData._inputSize * task._taskData.get_buffer_count()); // DXRT_TASK_MAX_LOAD);
+            mem_usage += (task._taskData._outputMemSize * task._taskData.get_buffer_count()); // DXRT_TASK_MAX_LOAD);
         }
 
         os << std::dec << "  Task[" << task._taskData._id << "] "
@@ -629,6 +633,11 @@ std::ostream& operator<<(std::ostream& os, const Task& task)
         for (const auto& tensor : task._taskData._inputTensors) os << "     -  " << tensor << std::endl;
         os << "  Outputs" << std::endl;
         for (const auto& tensor : task._taskData._outputTensors) os << "     -  " << tensor << std::endl;
+    }
+    else
+    {
+        os << "  Task[" << task._taskData._id << "] "
+           << task._taskData._name << ", Processor: UNKNOWN (" << static_cast<int>(task._taskData._processor) << ")" << std::endl;
     }
     return os;
 }

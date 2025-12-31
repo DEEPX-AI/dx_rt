@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -26,7 +26,7 @@ class CpuHandle;
 class DXRT_API TaskData
 {
  public:
-    TaskData(int id_, std::string name_, rmapinfo info_);
+    TaskData(int id_, std::string name_, rmapinfo info_, int bufferCount_ = DXRT_TASK_MAX_LOAD_VALUE);
 
     int id() const{return _id;}
     std::string name() const {return _name;}
@@ -34,7 +34,7 @@ class DXRT_API TaskData
 
     const Tensors& input_tensors() const {return _inputTensors;}
     const Tensors& output_tensors() const {return _outputTensors;}
-    
+
 
     void set_from_npu(const std::vector<std::vector<uint8_t>>& data_, bool hasPpuBinary = false);
     void set_from_cpu(std::shared_ptr<CpuHandle> cpuHandle);
@@ -49,6 +49,8 @@ class DXRT_API TaskData
 
     int encoded_input_size() const {return _encodedInputSize;}
     int encoded_output_size() const {return _encodedOutputSize;}
+    int get_buffer_count() const { return _bufferCount; }
+    int64_t NPU_block_size() const;
 
 private:
 
@@ -68,6 +70,7 @@ private:
       }
       return totalSize;
    }
+
 
  public:  // TODO(ykpark): make private
     int _id;
@@ -95,7 +98,7 @@ private:
     std::vector<uint64_t> _outputOffsets;
     std::vector<uint64_t> _encodedOutputOffsets;
     //std::shared_ptr<Buffer> _taskOutputBuffer=nullptr;
-    
+
     uint32_t _encodedInputSize = 0;
     uint32_t _encodedOutputSize = 0;
     std::vector<uint32_t> _encodedInputSizes;
@@ -117,8 +120,11 @@ private:
     bool _isPPU = false;
     bool _isPPCPU = false; // v8 PPCPU model type
     uint32_t _ppuBinaryOffset = 0; // v8 PPCPU: device memory offset of PPU binary
-    
+
     // Reference to binary data (rmap, weight, ppu if exists)
     // This is set by Task and used by Device for writing to device memory
     const std::vector<std::vector<uint8_t>>* _data = nullptr;
+
+    int _bufferCount{DXRT_TASK_MAX_LOAD_VALUE};
+
 };}  // namespace dxrt

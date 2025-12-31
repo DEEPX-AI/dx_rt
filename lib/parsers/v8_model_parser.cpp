@@ -43,7 +43,7 @@ std::string V8ModelParser::ParseModel(const std::string& filePath, ModelDataBase
     }
 
     int fileSize = getFileSize(filePath);
-    std::vector<char> vbuf(fileSize, 'a');
+    std::vector<char> vbuf(fileSize);
     char *buf = vbuf.data();
 
     FILE *fp = fopen(filePath.c_str(), "rb");
@@ -54,7 +54,11 @@ std::string V8ModelParser::ParseModel(const std::string& filePath, ModelDataBase
     std::ignore = fread(static_cast<void*>(buf), fileSize, 1, fp);
     fclose(fp);
 
-    LoadBinaryInfo(modelData.deepx_binary, buf, fileSize);
+    return V8ModelParser::ParseModel((const uint8_t*)buf, fileSize, modelData);
+}
+
+std::string V8ModelParser::ParseModel(const uint8_t* modelBuffer, size_t modelSize, ModelDataBase& modelData) {
+    LoadBinaryInfo(modelData.deepx_binary, (char*)modelBuffer, modelSize);
 
     LoadGraphInfo(modelData.deepx_graph, modelData);
 
@@ -649,10 +653,10 @@ std::string V8ModelParser::LoadRmapInfo(deepx_rmapinfo::rmapInfoDatabase& param,
                     regMap.model_memory().model_memory_size() += memory.size();
                 } else if (memory.name() == "INPUT") {
                     regMap.model_memory().input() = memory;
-                    regMap.model_memory().model_memory_size() += memory.size() * DXRT_TASK_MAX_LOAD;
+                    regMap.model_memory().model_memory_size() += memory.size() * _taskBufferCount; // DXRT_TASK_MAX_LOAD;
                 } else if (memory.name() == "OUTPUT") {
                     regMap.model_memory().output() = memory;
-                    regMap.model_memory().model_memory_size() += memory.size() * DXRT_TASK_MAX_LOAD;
+                    regMap.model_memory().model_memory_size() += memory.size() * _taskBufferCount; // DXRT_TASK_MAX_LOAD;
                 } else if (memory.name() == "TEMP") {
                     regMap.model_memory().temp() = memory;
                     regMap.model_memory().model_memory_size() += memory.size();

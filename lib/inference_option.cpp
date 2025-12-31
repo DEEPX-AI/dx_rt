@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -16,7 +16,7 @@ namespace dxrt
 DXRT_API InferenceOption DefaultInferenceOption;
 
 template <typename T>
-std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
+static void vector_output_operator(std::ostream& os, const std::vector<T>& v)
 {
     os << "[";
     for (size_t i = 0; i < v.size(); ++i)
@@ -26,16 +26,18 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
         {
             os << ", ";
         }
+        else
+        {
+            os << "]";
+        }
     }
-    os << "]";
-    return os;
 }
 
 std::ostream& operator<<(std::ostream& os, const InferenceOption& option)
 {
-    os << "          inference option: "
-        << option.devices << "/"
-        << option.boundOption;
+    os << "          inference option: ";
+    vector_output_operator(os, option.devices);
+    os << "/" << option.boundOption;
     return os;
 }
 

@@ -15,7 +15,6 @@
 
 namespace dxrt
 {
-
 // ServiceLayer --------------------------------------------------
 ServiceLayer::ServiceLayer(std::shared_ptr<MultiprocessMemory> mem) : _mem(std::move(mem)) {}
 void ServiceLayer::HandleInferenceAcc(const dxrt_request_acc_t &acc, int deviceId)
@@ -92,7 +91,6 @@ extern uint8_t DEBUG_DATA;
 
 void NoServiceLayer::HandleInferenceAcc(const dxrt_request_acc_t &acc, int deviceId)
 {
-    LOG_DXRT_DBG << "NoServiceLayer::HandleInferenceAcc deviceId=" << deviceId << " acc=" << acc << std::endl;
     DeviceCore *core = _ptr[deviceId];
     dxrt_request_acc_t acc_cp = acc;
     int ret = -1;

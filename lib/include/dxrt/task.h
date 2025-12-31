@@ -60,8 +60,8 @@ using RequestPtr = std::shared_ptr<Request>;
 class DXRT_API Task
 {
 public:
-    Task(std::string name_, rmapinfo, std::vector<std::vector<uint8_t>>&&, npu_bound_op boundOp = N_BOUND_NORMAL, bool hasPpuBinary = false);
-    Task(std::string name_, rmapinfo, std::vector<std::vector<uint8_t>>&&, npu_bound_op boundOp, const std::vector<int>& deviceIds, bool hasPpuBinary = false);
+    Task(std::string name_, rmapinfo, int bufferCount_, std::vector<std::vector<uint8_t>>&&, npu_bound_op boundOp = N_BOUND_NORMAL, bool hasPpuBinary = false);
+    Task(std::string name_, rmapinfo, int bufferCount_, std::vector<std::vector<uint8_t>>&&, npu_bound_op boundOp, const std::vector<int>& deviceIds, bool hasPpuBinary = false);
 
     Task();
     ~Task(void);

@@ -157,8 +157,8 @@ bool version_check()
 }
 
 
-CpuHandle::CpuHandle(void* data_, int64_t size_, string name_, size_t device_num_)
-: _name(name_), _device_num(device_num_)
+CpuHandle::CpuHandle(void* data_, int64_t size_, string name_, size_t device_num_, int buffer_count_)
+: _name(name_), _device_num(device_num_), _bufferCount(buffer_count_)
 {
     if (version_check() == false)
     {
@@ -446,7 +446,7 @@ void CpuHandle::Terminate()
 void CpuHandle::Start()
 {
     LOG_DXRT_DBG << "CpuHandleWorer Start : " << _numThreads << endl;
-    _worker = CpuHandleWorker::Create(_name, _numThreads, _initDynamicThreads, this, _device_num);
+    _worker = CpuHandleWorker::Create(_name, _bufferCount, _numThreads, _initDynamicThreads, this, _device_num);
 }
 
 #ifdef USE_ORT
@@ -554,7 +554,9 @@ void CpuHandle::UpdateRequestOutputsFromBinding(RequestPtr req, std::vector<Ort:
 #endif
 
 #else
-CpuHandle::CpuHandle(void* data_, int64_t size_, string name_, size_t device_num_) : _name(name_), _device_num(device_num_){
+CpuHandle::CpuHandle(void* data_, int64_t size_, std::string name_, size_t device_num_, int buffer_count_)
+: _name(name_), _device_num(device_num_), _bufferCount(buffer_count_)
+{
     std::ignore = size_;
     std::ignore = data_;
     std::ignore = device_num_;

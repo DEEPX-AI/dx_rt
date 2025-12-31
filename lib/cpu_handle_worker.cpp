@@ -36,8 +36,8 @@ using std::mutex;
 
 namespace dxrt {
 
-CpuHandleWorker::CpuHandleWorker(string name_, int numThreads, int initDynamicThreads, CpuHandle *cpuHandle_, size_t device_num)
-: Worker(name_, Type::CPU_HANDLE, numThreads, nullptr, cpuHandle_),
+CpuHandleWorker::CpuHandleWorker(string name_, int bufferCount, int numThreads, int initDynamicThreads, CpuHandle *cpuHandle_, size_t device_num)
+: Worker(name_, Type::CPU_HANDLE, bufferCount, numThreads, nullptr, cpuHandle_),
   _device_num(device_num),
   _minThreads(MIN_EACH_CPU_TASK_THREADS), _maxThreads(MAX_EACH_CPU_TASK_THREADS)
 {
@@ -88,9 +88,9 @@ CpuHandleWorker::~CpuHandleWorker()
     LOG_DXRT_DBG << " DONE" << endl;
 }
 
-std::shared_ptr<CpuHandleWorker> CpuHandleWorker::Create(string name_, int numThreads, int initDynamicThreads, CpuHandle *cpuHandle_, size_t device_num)
+std::shared_ptr<CpuHandleWorker> CpuHandleWorker::Create(string name_, int buffer_count_, int numThreads, int initDynamicThreads, CpuHandle *cpuHandle_, size_t device_num)
 {
-    std::shared_ptr<CpuHandleWorker> ret = std::make_shared<CpuHandleWorker>(name_, numThreads, initDynamicThreads, cpuHandle_, device_num);
+    std::shared_ptr<CpuHandleWorker> ret = std::make_shared<CpuHandleWorker>(name_, buffer_count_, numThreads, initDynamicThreads, cpuHandle_, device_num);
     return ret;
 }
 
@@ -135,47 +135,59 @@ void CpuHandleWorker::ThreadWork(int id)
             }
             return !_queue.empty() || _stop.load();
         });
-        if (_stop.load(memory_order_acquire) && !isDynamic)
+        if (isDynamic)
         {
-            LOG_DXRT_DBG << threadName << " : requested to stop thread." << endl;
-            while (!_queue.empty()) {
-                _queue.pop();
-            }
-            LOG_DXRT_DBG << "Queue is flushed" << endl;
-            CpuHandle::_totalNumThreads--;
-            //if (id == 0 &&
-            //        (GetAverageLoad() > 2 || CpuHandle::_dynamicCpuThread || SHOW_PROFILE
-            //        || Configuration::GetInstance().GetEnable(Configuration::ITEM::SHOW_PROFILE) ))
-            if (id == 0 &&
-                    (GetAverageLoad() > 2 || SHOW_PROFILE || Configuration::GetInstance().GetEnable(Configuration::ITEM::SHOW_PROFILE) ))
+            // Check if this dynamic thread is requested to stop
+            if (dynamicStop)
             {
-                double avgLoad = GetAverageLoad();
-                double loadPercent = 0.0;
-
-                if (avgLoad > 1) {
-                    loadPercent = (avgLoad - 1) / (DXRT_TASK_MAX_LOAD*_device_num - 1) * 100;
-                }
-                LOG << "CPU TASK [" << getName() << "] Inference Worker - Average Input Queue Load : " << loadPercent
-                << "%  (DXRT_DYNAMIC_CPU_THREAD: " << (CpuHandle::_dynamicCpuThread ? "ON" : "OFF") << ")"
-                << (avgLoad > 2 && !(CpuHandle::_dynamicCpuThread) ? " - To improve FPS, set: \'export DXRT_DYNAMIC_CPU_THREAD=ON\'" : "")
-                << endl;
+                LOG_DXRT_DBG << threadName << " : requested to dynamic stop thread." << endl;
+                CpuHandle::_totalNumThreads--;
+                LOG_DXRT_DBG << threadName << " : dynamic thread exiting." << endl;
+                break;
             }
-            /*
-            if (id == 0)
-                LOG << "CPU TASK [" << getName() << "] Average Wait Load : " << ((GetAverageLoad()-1)/(DXRT_TASK_MAX_LOAD-1)*100)
-                << "%  (DXRT_DYNAMIC_CPU_THREAD: " << (CpuHandle::_dynamicCpuThread ? "ON" : "OFF") << ")"
-                << (GetAverageLoad() > 2 && !(CpuHandle::_dynamicCpuThread) ? " - Enable \'DXRT_DYNAMIC_CPU_THREAD\' for higher FPS." : "")
-                << endl;
-            */
-            break;
         }
-        else if (isDynamic && dynamicStop)
+        else
         {
-            LOG_DXRT_DBG << threadName << " : requested to dynamic stop thread." << endl;
-            CpuHandle::_totalNumThreads--;
-            LOG_DXRT_DBG << threadName << " : dynamic thread exiting." << endl;
-            break;
+            //not dynamic thread, check _stop flag
+            if (_stop.load(memory_order_acquire))
+            {
+                LOG_DXRT_DBG << threadName << " : requested to stop thread." << endl;
+                while (!_queue.empty()) {
+                    _queue.pop();
+                }
+                LOG_DXRT_DBG << "Queue is flushed" << endl;
+                CpuHandle::_totalNumThreads--;
+                //if (id == 0 &&
+                //        (GetAverageLoad() > 2 || CpuHandle::_dynamicCpuThread || SHOW_PROFILE
+                //        || Configuration::GetInstance().GetEnable(Configuration::ITEM::SHOW_PROFILE) ))
+                if (id == 0 &&
+                        (GetAverageLoad() > 2 || SHOW_PROFILE || Configuration::GetInstance().GetEnable(Configuration::ITEM::SHOW_PROFILE) ))
+                {
+                    double avgLoad = GetAverageLoad();
+                    double loadPercent = 0.0;
+
+                    if (avgLoad > 1) {
+                        //loadPercent = (avgLoad - 1) / (DXRT_TASK_MAX_LOAD*_device_num - 1) * 100;
+                        loadPercent = (avgLoad - 1) / (_bufferCount*_device_num - 1) * 100;
+                    }
+                    LOG << "CPU TASK [" << getName() << "] Inference Worker - Average Input Queue Load : " << loadPercent
+                    << "%  (DXRT_DYNAMIC_CPU_THREAD: " << (CpuHandle::_dynamicCpuThread ? "ON" : "OFF") << ")"
+                    << (avgLoad > 2 && !(CpuHandle::_dynamicCpuThread) ? " - To improve FPS, set: \'export DXRT_DYNAMIC_CPU_THREAD=ON\'" : "")
+                    << endl;
+                }
+                /*
+                if (id == 0)
+                    //LOG << "CPU TASK [" << getName() << "] Average Wait Load : " << ((GetAverageLoad()-1)/(DXRT_TASK_MAX_LOAD-1)*100)
+                    LOG << "CPU TASK [" << getName() << "] Average Wait Load : " << ((GetAverageLoad()-1)/(_bufferCount-1)*100)
+                    << "%  (DXRT_DYNAMIC_CPU_THREAD: " << (CpuHandle::_dynamicCpuThread ? "ON" : "OFF") << ")"
+                    << (GetAverageLoad() > 2 && !(CpuHandle::_dynamicCpuThread) ? " - Enable \'DXRT_DYNAMIC_CPU_THREAD\' for higher FPS." : "")
+                    << endl;
+                */
+                break;
+            }
         }
+
+
         load = _queue.size();
         LOG_DXRT_DBG<< threadName <<" wakeup, load: "<<to_string(load)<<", isDynamic : "<<to_string(isDynamic)<<" _dynamicStopCnt: "<<to_string(_dynamicStopCnt.load())<<endl;;
         UpdateQueueStats(load);
@@ -268,13 +280,15 @@ int CpuHandleWorker::request(shared_ptr<Request> req)
     _loadHistory.push_back(load);
     _slidingSum += load;
 
-    if (_loadHistory.size() > DXRT_TASK_MAX_LOAD*_device_num) {
+    //if (_loadHistory.size() > DXRT_TASK_MAX_LOAD*_device_num) {
+    if (_loadHistory.size() > _bufferCount*_device_num) {
         _slidingSum -= _loadHistory.front();
         _loadHistory.pop_front();
     }
 
     size_t avgLoad = _slidingSum / _loadHistory.size();
-    if (timeSinceLastAdd >= _threadControlInterval && _loadHistory.size() == DXRT_TASK_MAX_LOAD*_device_num)
+    //if (timeSinceLastAdd >= _threadControlInterval && _loadHistory.size() == DXRT_TASK_MAX_LOAD*_device_num)
+    if (timeSinceLastAdd >= _threadControlInterval && _loadHistory.size() == _bufferCount*_device_num)
     {
         int dynamicThreads = static_cast<int>(_dynamicThreads.size());
 

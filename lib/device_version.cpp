@@ -76,12 +76,19 @@ bool IsVersionEqualOrHigher(const std::string& currentVersion, const std::string
 
     // Compare each component from left to right
     for (size_t i = 0; i < maxLength; ++i) {
-        if (current[i] > minimum[i]) {
+        if (current[i] > minimum[i])
+        {
             return true;  // Current version is higher
-        } else if (current[i] < minimum[i]) {
+        }
+        else if (current[i] < minimum[i])
+        {
             return false; // Current version is lower
         }
-        // If equal, continue to next component
+        else
+        {
+            // If equal, continue to next component
+            continue;
+        }
     }
 
     return true; // All components are equal
@@ -98,12 +105,19 @@ bool IsVersionHigher(const std::string& currentVersion, const std::string& minVe
 
     // Compare each component from left to right
     for (size_t i = 0; i < maxLength; ++i) {
-        if (current[i] > minimum[i]) {
+        if (current[i] > minimum[i])
+        {
             return true;  // Current version is higher
-        } else if (current[i] < minimum[i]) {
+        }
+        else if (current[i] < minimum[i])
+        {
             return false; // Current version is lower
         }
-        // If equal, continue to next component
+        else
+        {
+            // If equal, continue to next component
+            continue;
+        }
     }
 
     return false; // All components are equal

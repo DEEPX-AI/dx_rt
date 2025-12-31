@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -42,6 +42,7 @@ T CircularBuffer<T>::Pop()
     std::unique_lock<std::mutex> lk(_lock);
     //DXRT_ASSERT(_count>0, "circular buffer is empty.");
     if ( _count <= 0 ) throw InvalidOperationException(EXCEPTION_MESSAGE("circular buffer is empty"));
+    //@no_else: input_validation
     T item = _buf[_tail];
     _tail = (_tail +1)%_size;
     --_count;
@@ -54,6 +55,7 @@ T CircularBuffer<T>::Get()
     std::unique_lock<std::mutex> lk(_lock);
     //DXRT_ASSERT(_count>0, "circular buffer is empty.");
     if ( _count <= 0 ) throw InvalidOperationException(EXCEPTION_MESSAGE("circular buffer is empty"));
+    //@no_else: input_validation
     T item = _buf[(_head - 1 + _size)%_size];
     return item;
 }

@@ -172,6 +172,9 @@
          case dxrt::DataType::UINT8: return "uint8";
          case dxrt::DataType::INT64: return "int64";
          case dxrt::DataType::UINT64: return "uint64";
+         case dxrt::DataType::BBOX: return "BBOX";
+         case dxrt::DataType::FACE: return "FACE";  
+         case dxrt::DataType::POSE: return "POSE";
          default: return "unknown";
      }
  }
@@ -180,7 +183,9 @@
  static size_t calculate_tensor_bytes(const dxrt::Tensor& tensor) {
      // Use the existing size_in_bytes() method from Tensor class
      return tensor.size_in_bytes();
- } int ParseModel(string file)
+ }
+ 
+ int ParseModel(string file)
  {
      ParseOptions default_options;
      return ParseModel(file, default_options);
@@ -349,7 +354,7 @@
 #ifdef USE_ORT
             if (is_cpu_model) {
                 std::shared_ptr<CpuHandle> handle =
-                    std::make_shared<CpuHandle>(data.front().data(), data.front().size(), order, 1);
+                    std::make_shared<CpuHandle>(data.front().data(), data.front().size(), order, 1, taskData.get_buffer_count());
                 taskData.set_from_cpu(handle);
             }
             else
@@ -377,6 +382,7 @@
     }
 
     // Calculate memory usage
+    int npu_buffer_count = DXRT_TASK_MAX_LOAD_VALUE;
     for (const auto& taskName : tempTaskOrder) {
         TaskData* taskData = nullptr;
         for (auto& td : tempDataList) {
@@ -390,8 +396,10 @@
         if (taskData->_processor == dxrt::Processor::NPU) {
             npuTaskCount++;
             totalModelMemory += static_cast<uint64_t>(taskData->_memUsage);
-            uint64_t buffers_total = (static_cast<uint64_t>(taskData->_encodedInputSize) + static_cast<uint64_t>(taskData->_outputMemSize)) * DXRT_TASK_MAX_LOAD;
+            //uint64_t buffers_total = (static_cast<uint64_t>(taskData->_encodedInputSize) + static_cast<uint64_t>(taskData->_outputMemSize)) * DXRT_TASK_MAX_LOAD;
+            uint64_t buffers_total = (static_cast<uint64_t>(taskData->_encodedInputSize) + static_cast<uint64_t>(taskData->_outputMemSize)) * taskData->get_buffer_count();
             totalBufferMemory += buffers_total;
+            npu_buffer_count = taskData->get_buffer_count();
         }
     }
 
@@ -400,7 +408,8 @@
     cout << "  - " << Color::bold() << "Total             : " << Color::purple() << format_bytes(totalModelMemory) << Color::reset() << endl;
     cout << "  - " << Color::bold() << "Buffers           : " << Color::purple() << format_bytes(totalBufferMemory) << Color::reset() << endl;
     cout << "  - " << Color::bold() << "NPU Tasks Count   : " << Color::purple() << npuTaskCount << Color::reset() << endl;
-    cout << "  - " << Color::bold() << "Buffer Pool Size  : " << Color::purple() << "x" << DXRT_TASK_MAX_LOAD << Color::reset() << endl;
+    //cout << "  - " << Color::bold() << "Buffer Pool Size  : " << Color::purple() << "x" << DXRT_TASK_MAX_LOAD << Color::reset() << endl;
+    cout << "  - " << Color::bold() << "Buffer Pool Size  : " << Color::purple() << "x" << npu_buffer_count << Color::reset() << endl;
 
     // Someone wants to use parse_model without NPU, So, NPU related code is commented out.
     //for (int i=0; i < deviceCount; i++)
@@ -482,6 +491,17 @@
                     memcpy(data.back().data(), weightBuffer.data(), weightBuffer.size());
                 }
 
+                // v8: Add PPU binary if exists (for PPCPU type)
+                if (modelData.deepx_binary._dxnnFileFormatVersion == 8 &&
+                    j < modelData.deepx_binary.ppu().size() &&
+                    modelData.deepx_binary.ppu(j).size() > 0) {
+                    data.emplace_back(vector<uint8_t>(modelData.deepx_binary.ppu(j).size()));
+                    auto& ppuBuffer = modelData.deepx_binary.ppu(j).buffer();
+                    memcpy(data.back().data(), ppuBuffer.data(), ppuBuffer.size());
+                    LOG_DXRT_DBG << "Added PPU binary to data vector for task '" << order
+                                 << "', size: " << data.back().size() << " bytes" << std::endl;
+                }
+
                  found = true;
              }
          }
@@ -509,7 +529,7 @@
              if (is_cpu_model)
              {
                  std::shared_ptr<CpuHandle> handle =
-                     std::make_shared<CpuHandle>(data.front().data(), data.front().size(), order, 1);
+                     std::make_shared<CpuHandle>(data.front().data(), data.front().size(), order, 1, taskData.get_buffer_count());
                  taskData.set_from_cpu(handle);
              }
              else
@@ -682,18 +702,24 @@
         if (options.verbose) {
             if (taskData->_processor == dxrt::Processor::NPU) {
                 uint64_t model_bytes = taskData->_npuModel.rmap.size + taskData->_npuModel.weight.size;
-                uint64_t buffers_total = (static_cast<uint64_t>(taskData->_encodedInputSize) + static_cast<uint64_t>(taskData->_outputMemSize)) * DXRT_TASK_MAX_LOAD;
-                uint64_t input_device_mem = static_cast<uint64_t>(taskData->_encodedInputSize) * DXRT_TASK_MAX_LOAD;
-                uint64_t output_device_mem = static_cast<uint64_t>(taskData->_outputMemSize) * DXRT_TASK_MAX_LOAD;
+                //uint64_t buffers_total = (static_cast<uint64_t>(taskData->_encodedInputSize) + static_cast<uint64_t>(taskData->_outputMemSize)) * DXRT_TASK_MAX_LOAD;
+                uint64_t buffers_total = (static_cast<uint64_t>(taskData->_encodedInputSize) + static_cast<uint64_t>(taskData->_outputMemSize)) * taskData->get_buffer_count();
+                //uint64_t input_device_mem = static_cast<uint64_t>(taskData->_encodedInputSize) * DXRT_TASK_MAX_LOAD;
+                uint64_t input_device_mem = static_cast<uint64_t>(taskData->_encodedInputSize) * taskData->get_buffer_count();
+                //uint64_t output_device_mem = static_cast<uint64_t>(taskData->_outputMemSize) * DXRT_TASK_MAX_LOAD;
+                uint64_t output_device_mem = static_cast<uint64_t>(taskData->_outputMemSize) * taskData->get_buffer_count();
 
                 cout << "  +- Memory Usage (NPU Device)" << endl;
                 cout << "  |  +- Total        : " << Color::bold() << format_bytes(taskData->_memUsage) << Color::reset() << endl;
                 cout << "  |  +- Model        : " << format_bytes(model_bytes) << endl;
-                cout << "  |  +- Buffers (x" << DXRT_TASK_MAX_LOAD << ") : " << format_bytes(buffers_total) << endl;
+                //cout << "  |  +- Buffers (x" << DXRT_TASK_MAX_LOAD << ") : " << format_bytes(buffers_total) << endl;
+                cout << "  |  +- Buffers (x" << taskData->get_buffer_count() << ") : " << format_bytes(buffers_total) << endl;
                 cout << "  |     +- Input buffers  : " << format_bytes(input_device_mem)
-                     << " " << Color::gray() << "(" << format_bytes(taskData->_encodedInputSize) << " x " << DXRT_TASK_MAX_LOAD << ")" << Color::reset() << endl;
+                     //<< " " << Color::gray() << "(" << format_bytes(taskData->_encodedInputSize) << " x " << DXRT_TASK_MAX_LOAD << ")" << Color::reset() << endl;
+                     << " " << Color::gray() << "(" << format_bytes(taskData->_encodedInputSize) << " x " << taskData->get_buffer_count() << ")" << Color::reset() << endl;
                 cout << "  |     +- Output buffers : " << format_bytes(output_device_mem)
-                     << " " << Color::gray() << "(" << format_bytes(taskData->_outputMemSize) << " x " << DXRT_TASK_MAX_LOAD << ")" << Color::reset() << endl;
+                     //<< " " << Color::gray() << "(" << format_bytes(taskData->_outputMemSize) << " x " << DXRT_TASK_MAX_LOAD << ")" << Color::reset() << endl;
+                     << " " << Color::gray() << "(" << format_bytes(taskData->_outputMemSize) << " x " << taskData->get_buffer_count() << ")" << Color::reset() << endl;
 
                 // Show logical tensor sizes vs device allocation if different
                 if (taskData->_outputMemSize != taskData->_outputSize || taskData->_encodedInputSize != taskData->_inputSize) {
@@ -715,9 +741,11 @@
                     }
                 }
             } else { // CPU
-                size_t buffers_total = (taskData->_inputSize + taskData->_outputSize) * DXRT_TASK_MAX_LOAD;
+                //size_t buffers_total = (taskData->_inputSize + taskData->_outputSize) * DXRT_TASK_MAX_LOAD;
+                size_t buffers_total = (taskData->_inputSize + taskData->_outputSize) * taskData->get_buffer_count();
                 cout << "  +- Buffer Usage (Host Memory)" << endl;
-                cout << "  |  +- Buffers (x" << DXRT_TASK_MAX_LOAD << ") : " << format_bytes(buffers_total) << endl;
+                //cout << "  |  +- Buffers (x" << DXRT_TASK_MAX_LOAD << ") : " << format_bytes(buffers_total) << endl;
+                cout << "  |  +- Buffers (x" << taskData->get_buffer_count() << ") : " << format_bytes(buffers_total) << endl;
                 cout << "  |     +- In: " << format_bytes(taskData->_inputSize)
                      << ", Out: " << format_bytes(taskData->_outputSize) << endl;
             }

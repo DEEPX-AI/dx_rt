@@ -44,6 +44,8 @@
 
 #define PRINT_ALL_INFERENCE_ENGINE
 
+
+
 using std::cout;
 using std::endl;
 
@@ -54,8 +56,7 @@ static const int SUB_BATCH_MAX_COUNT = 128;
 std::mutex InferenceEngine::_sInferenceEngineMutex;
 constexpr int InferenceEngine::INFERENCE_JOB_MAX_COUNT;
 
-InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &option_)
-:_modelFile(path_), _option(option_)
+void InferenceEngine::checkService()
 {
 #ifdef USE_SERVICE
     if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE))
@@ -66,21 +67,97 @@ InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &opti
         }
     }
 #endif
+}
 
-    DevicePool::GetInstance().InitTaskLayers();
-    DevicePool::GetInstance().InitNFHLayers();
+InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &option_)
+: _modelFile(path_), _option(option_)
+{
+    checkService();
+    loadModelFromFile(path_, option_);
 
-    std::lock_guard<std::mutex> lock(_sInferenceEngineMutex);
+    LOG_DBG("InferenceEngine created. (from file: " + _modelFile + ")");
+}
 
+InferenceEngine::InferenceEngine(const uint8_t* modelBuffer, size_t modelSize, InferenceOption &option)
+:_modelFile("In-Memory Model"), _option(option)
+{
+    checkService();
+    loadModelFromMemory(_modelFile, modelBuffer, modelSize, option);
+
+    LOG_DBG("InferenceEngine created. (from memory: " + std::to_string(modelSize) + " bytes)");
+}
+
+void InferenceEngine::loadModelFromFile(const std::string& modelPath, InferenceOption &option)
+{
+    // extract absolute path and directory
+    _modelFile = std::string(getAbsolutePath(modelPath));
     _modelDir = getParentPath(getAbsolutePath(_modelFile));
 
     LOG_DXRT_DBG <<_modelFile << endl;
     LOG_DXRT_DBG << getAbsolutePath(_modelFile) << endl;
     LOG_DXRT_DBG << _modelDir << endl;
 
+    // check file existence
+    if (!dxrt::fileExists(_modelFile))
+    {
+        // DXRT_ASSERT(false, "Can't find " + _modelFile);
+        throw dxrt::FileNotFoundException(EXCEPTION_MESSAGE(_modelFile));
+    }
+
+    // check file extension (.dxnn)
+    if ( dxrt::getExtension(_modelFile) != "dxnn") {
+        throw dxrt::FileNotFoundException(EXCEPTION_MESSAGE("Invalid model extension : " + _modelFile));
+    }
+
+    // check file header ("DXNN") - begin
+
+    // DXNN header: "DXNN" (4 bytes) + 4-byte little-endian int version
+    std::ifstream ifs(_modelFile, std::ios::binary);
+    if (!ifs) {
+        throw dxrt::FileNotFoundException(EXCEPTION_MESSAGE("Invalid model path : " + _modelFile));
+    }
+
+    char header[8] = {0};
+    ifs.read(header, 8);
+    if (ifs.gcount() != 8) {
+        throw dxrt::ModelParsingException(EXCEPTION_MESSAGE("Failed to read DXNN header: " + _modelFile));
+    }
+
+    if (std::string(header, 4) != "DXNN") {
+        throw InvalidModelException(EXCEPTION_MESSAGE(LogMessages::InvalidDXNNFileFormat()));
+    }
+    // check file header ("DXNN") - end
+
+    // load file into memory buffer
+    int fileSize = getFileSize(_modelFile);
+    std::vector<uint8_t> vbuf(fileSize);
+    uint8_t *buf = vbuf.data();
+
+    FILE *fp = fopen(_modelFile.c_str(), "rb");
+    if (!fp) {
+        throw FileNotFoundException(EXCEPTION_MESSAGE("Failed to open file: " + _modelFile));
+    }
+
+    std::ignore = fread(static_cast<void*>(buf), fileSize, 1, fp);
+    fclose(fp);
+
+    loadModelFromMemory(_modelFile, buf, fileSize, option);
+}
+
+void InferenceEngine::loadModelFromMemory(const std::string& name, const uint8_t* modelBuffer, size_t modelSize, InferenceOption &option)
+{
+    // Implementation for loading model from memory buffer
+    _name = name;
+    _option = option;
+
+    DevicePool::GetInstance().InitTaskLayers();
+    DevicePool::GetInstance().InitNFHLayers();
+
+    std::lock_guard<std::mutex> lock(_sInferenceEngineMutex);
+
     initializeEnvironmentVariables();
-    initializeModel();
-    buildTasksAndSubgraphMap();
+    initializeModel(modelBuffer, modelSize, _option.bufferCount);
+    buildTasksAndSubgraphMap(_option.bufferCount);
 
     // Parse multi-input information from model data
     #ifdef USE_ORT
@@ -332,8 +409,10 @@ InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &opti
     // Build tensor registry for comprehensive tensor management
     buildTensorRegistry();
     calculateTensorOffsets();
+#ifdef CHECK_INPUT_OUTPUT_MISTMATCH
+    checkInputOutputMistmatch();
+#endif
 
-    LOG_DBG("InferenceEngine created.");
 }
 
 InferenceEngine::~InferenceEngine(void)
@@ -1834,17 +1913,12 @@ void InferenceEngine::initializeEnvironmentVariables()
 #endif
 }
 
-void InferenceEngine::initializeModel()
-{
-    if (!dxrt::fileExists(_modelFile))
-    {
-        // DXRT_ASSERT(false, "Can't find " + _modelFile);
-        throw dxrt::FileNotFoundException(_modelFile);
-    }
 
-    _modelFile = std::string(getAbsolutePath(_modelFile));
-    _name = _modelFile;
-    _modelCompileType = LoadModelParam(_modelData, _modelFile);
+
+void InferenceEngine::initializeModel(const uint8_t* modelBuffer, size_t modelSize, int bufferCount)
+{
+
+    _modelCompileType = LoadModelParam(_modelData, modelBuffer, modelSize, bufferCount);
     if (_modelCompileType == "debug")
     {
             LOG << "NOTICE: Only one NPU task will run because the compile type is debug." << std::endl;
@@ -1853,7 +1927,7 @@ void InferenceEngine::initializeModel()
     _isOffloadingModel = _modelData.deepx_graph.use_offloading();
 }
 
-void InferenceEngine::buildTasksAndSubgraphMap()
+void InferenceEngine::buildTasksAndSubgraphMap(int bufferCount)
 {
 
     std::vector<std::string> orginal_task_order;
@@ -1993,12 +2067,12 @@ void InferenceEngine::buildTasksAndSubgraphMap()
             std::shared_ptr<Task> task;
             if (_option.devices.size() != 0)
             {
-                task = std::make_shared<Task>(order, rmap_info, std::move(data),
+                task = std::make_shared<Task>(order, rmap_info, bufferCount, std::move(data),
                     static_cast<npu_bound_op>(_option.boundOption), _option.devices, hasPpuBinary);
             }
             else
             {
-                task = std::make_shared<Task>(order, rmap_info, std::move(data),
+                task = std::make_shared<Task>(order, rmap_info, bufferCount, std::move(data),
                     static_cast<npu_bound_op>(_option.boundOption), hasPpuBinary);
             }
             _tasks.emplace_back(task);
@@ -2434,6 +2508,95 @@ bool InferenceEngine::HasDynamicOutput()
     return false;
 }
 
+void InferenceEngine::checkInputOutputMistmatch()
+{
+    static constexpr uint64_t MAX_TENSOR_SIZE = static_cast<uint64_t>(4) * 1024 * 1024 * 1024; // 4GB
 
+
+    // Implement the function to check for input/output mismatches
+
+    bool hasError = false;
+    // 1st. get inputs from model
+
+    std::set<std::string> avilableInputs;
+    for(auto& it: _modelInputOrder)
+    {
+        avilableInputs.insert(it);
+    }
+
+    for (const auto& taskName: _taskOrder)
+    {
+        //find task
+        auto taskIt = _taskMap.find(taskName);
+        if (taskIt == _taskMap.end())
+        {
+            hasError = true;
+            LOG_DXRT_ERR("Task " + taskName + " not found in task map during input/output mismatch check.");
+            continue;
+        }
+        auto task = taskIt->second;
+        //check inputs
+        uint64_t totalInputSize = 0;
+        for (const auto& inputTensor: task->inputs())
+        {
+            if (avilableInputs.find(inputTensor.name()) == avilableInputs.end())
+            {
+                hasError = true;
+                LOG_DXRT_ERR("Input tensor " + inputTensor.name() + " for task " + taskName + " not found in model input order during input/output mismatch check.");
+            }
+            uint64_t inputSize = inputTensor.size_in_bytes();
+            totalInputSize += inputSize;
+            if (inputSize > MAX_TENSOR_SIZE)
+            {
+                hasError = true;
+                LOG_DXRT_ERR("Input tensor " + inputTensor.name() + " for task " + taskName + " exceeds 4GB size limit during input/output mismatch check.(actual size: " + std::to_string(inputSize) + ")");
+            }
+        }
+        //get output tensors
+        for (const auto& outputTensor: task->outputs())
+        {
+            avilableInputs.insert(outputTensor.name());
+            uint64_t outputSize = outputTensor.size_in_bytes();
+            if (outputSize > MAX_TENSOR_SIZE)
+            {
+                hasError = true;
+                LOG_DXRT_ERR("Output tensor " + outputTensor.name() + " for task " + taskName + " exceeds 4GB size limit during input/output mismatch check.(actual size: " + std::to_string(outputSize) + ")");
+            }
+        }
+        if (totalInputSize == 0)
+        {
+            hasError = true;
+            LOG_DXRT_ERR("Task " + taskName + " has zero input buffer size during input/output mismatch check.");
+        }
+
+        if (task->output_size() == 0)
+        {
+            hasError = true;
+            LOG_DXRT_ERR("Task " + taskName + " has zero output buffer size during input/output mismatch check.");
+        }
+        if (totalInputSize > MAX_TENSOR_SIZE)
+        {
+            hasError = true;
+            LOG_DXRT_ERR("Total input size " + std::to_string(totalInputSize) + " for task " + taskName + " exceeds 4GB size limit during input/output mismatch check. (actual size : " + std::to_string(totalInputSize) + ")");
+        }
+        int64_t npu_block_size = task->getData()->NPU_block_size();
+        if (static_cast<uint64_t>(npu_block_size) >= MAX_TENSOR_SIZE)
+        {
+            hasError = true;
+            LOG_DXRT_ERR("NPU block size " + std::to_string(npu_block_size) + " for task " + taskName + " exceeds 4GB size limit during input/output mismatch check. (actual size : " + std::to_string(npu_block_size) + ")");
+        }
+
+    }
+    if (_taskOrder.size() != _taskMap.size())
+    {
+        hasError = true;
+        LOG_DXRT_ERR("Task order size " + std::to_string(_taskOrder.size()) + " does not match task map size " + std::to_string(_taskMap.size()) + " during input/output mismatch check.");
+    }
+
+    if (hasError)
+    {
+        throw dxrt::InvalidModelException("Input/Output mismatch detected in the model. Check logs for details.");
+    }
+}
 
 }  // namespace dxrt

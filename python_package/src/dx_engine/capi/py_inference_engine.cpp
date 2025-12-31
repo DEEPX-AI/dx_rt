@@ -842,6 +842,12 @@ int pyDeviceStatus_GetId(DeviceStatus &deviceStatus);
 int pyDeviceStatus_GetNpuVoltage(DeviceStatus &deviceStatus, int ch);
 int pyDeviceStatus_GetNpuClock(DeviceStatus &deviceStatus, int ch);
 
+// RuntimeEventDispatcher
+void pyRuntimeEventDispatcher_DispatchEvent(dxrt::RuntimeEventDispatcher &dispatcher, int level, int type, int code, const std::string &eventMessage);
+void pyRuntimeEventDispatcher_SetCurrentLevel(dxrt::RuntimeEventDispatcher &dispatcher, int level);
+int pyRuntimeEventDispatcher_GetCurrentLevel(dxrt::RuntimeEventDispatcher &dispatcher);
+
+
 // Module definition
 PYBIND11_MODULE(_pydxrt, m) {
     m.doc() = "Python bindings for DXRT Inference Engine";
@@ -850,6 +856,60 @@ PYBIND11_MODULE(_pydxrt, m) {
     py::register_exception_translator([](std::exception_ptr p) {
         translateException(p);
     });
+
+    // RuntimeEventDispatcher class binding
+    
+    py::class_<dxrt::RuntimeEventDispatcher>(m, "RuntimeEventDispatcher")
+        // Binds the static GetInstance() method to a Python static method `get_instance()`.
+        .def_static("get_instance", &dxrt::RuntimeEventDispatcher::GetInstance, py::return_value_policy::reference)
+        ; // End of class binding
+
+        
+    m.def("runtime_event_dispatcher_dispatch_event", &pyRuntimeEventDispatcher_DispatchEvent,
+        py::arg("runtime_event_dispatcher"), py::arg("level"), py::arg("type"), py::arg("code"), py::arg("event_message"),
+        "Dispatches a runtime event with specified parameters.");
+    
+    m.def("runtime_event_dispatcher_register_event_handler", 
+        [](dxrt::RuntimeEventDispatcher &dispatcher, py::function eventHandler) {
+            if (eventHandler.is_none()) {
+                dispatcher.RegisterEventHandler(nullptr);
+                return;
+            }
+            
+            py::object captured_handler = eventHandler;
+            dispatcher.RegisterEventHandler(
+                [captured_handler](dxrt::RuntimeEventDispatcher::LEVEL level,
+                                 dxrt::RuntimeEventDispatcher::TYPE type,
+                                 dxrt::RuntimeEventDispatcher::CODE code,
+                                 const std::string& message,
+                                 const std::string& timestamp) {
+                    py::gil_scoped_acquire gil;
+                    try {
+                        captured_handler(static_cast<int>(level),
+                                       static_cast<int>(type),
+                                       static_cast<int>(code),
+                                       message,
+                                       timestamp);
+                    } catch (const py::error_already_set &e) {
+                        std::cerr << "Python error in event handler: " << e.what() << std::endl;
+                    }
+                });
+        },
+        py::arg("runtime_event_dispatcher"), py::arg("event_handler"),
+        "Registers a Python event handler callback for runtime events.");
+
+    // .def("register_callback", [](InferenceEngine &ie, const py::object &pyCallback_obj) {
+    //         pyRegisterCallback(ie, pyCallback_obj);
+    //     })
+
+    m.def("runtime_event_dispatcher_set_current_level", &pyRuntimeEventDispatcher_SetCurrentLevel,
+        py::arg("runtime_event_dispatcher"), py::arg("level"),
+        "Sets the current event level for the dispatcher.");
+
+    m.def("runtime_event_dispatcher_get_current_level", &pyRuntimeEventDispatcher_GetCurrentLevel,
+        py::arg("runtime_event_dispatcher"),
+        "Gets the current event level of the dispatcher.");
+
 
     // Configuration class binding
     py::class_<dxrt::Configuration>(m, "Configuration")
@@ -921,6 +981,7 @@ PYBIND11_MODULE(_pydxrt, m) {
     py::class_<InferenceOption>(m, "InferenceOption")
         .def(py::init<>())
         .def_readwrite("useORT", &InferenceOption::useORT)
+        .def_readwrite("bufferCount", &InferenceOption::bufferCount)
         .def_readwrite("boundOption", &InferenceOption::boundOption)
         .def_property("devices",
             [](const InferenceOption &opt) { return py::cast(opt.devices); }, // Getter
@@ -941,6 +1002,18 @@ PYBIND11_MODULE(_pydxrt, m) {
         .def(py::init<const std::string&, InferenceOption&>(),
              py::arg("model_path"),
              py::arg("inference_option")) // Python __init__ in InferenceEngine.py handles providing default
+        .def(py::init([](const py::array& model_array, InferenceOption& opt) {
+            // Get buffer info from numpy array
+            py::buffer_info buf = model_array.request();
+            return new InferenceEngine(
+                reinterpret_cast<const std::uint8_t*>(buf.ptr),
+                static_cast<size_t>(buf.size * buf.itemsize),
+                opt
+            );
+        }),
+             py::arg("model_array"),
+             py::arg("inference_option"),
+             "Creates InferenceEngine from model data as numpy array")
         .def("get_input_size", &InferenceEngine::GetInputSize)
         .def("get_input_tensor_sizes", &InferenceEngine::GetInputTensorSizes)
         .def("get_output_size", &InferenceEngine::GetOutputSize)

@@ -77,6 +77,73 @@ class InferenceEngine:
         self._input_tensor_info_cache: Optional[List[Dict[str, Any]]] = None
         self._output_tensor_info_cache: Optional[List[Dict[str, Any]]] = None
 
+    @classmethod
+    def from_buffer(
+        cls,
+        memory_buffer: np.ndarray,
+        inference_option: Optional[InferenceOption] = None
+    ) -> 'InferenceEngine':
+        """
+        Creates an InferenceEngine from a memory buffer without a file path.
+        
+        This is an alternative constructor that loads the model directly from
+        a pre-allocated memory buffer containing the model data.
+
+        Args:
+            memory_buffer: Pre-allocated memory buffer containing model data.
+                          Must be a C-contiguous numpy array.
+            inference_option (Optional): Configuration options for inference.
+                                         If None, a default InferenceOption instance is created.
+
+        Returns:
+            InferenceEngine: A new instance loaded from the memory buffer.
+
+        Example:
+            >>> with open('model.dxnn', 'rb') as f:
+            ...     buffer = np.frombuffer(f.read(), dtype=np.uint8)
+            >>> engine = InferenceEngine.from_buffer(buffer)
+        """
+        if not isinstance(memory_buffer, np.ndarray):
+            raise TypeError("memory_buffer must be a numpy.ndarray.")
+        
+        if not memory_buffer.flags['C_CONTIGUOUS']:
+            raise ValueError("memory_buffer must be C-contiguous.")
+
+        current_option_instance: InferenceOption
+        if inference_option is None:
+            current_option_instance = InferenceOption()
+        else:
+            if not isinstance(inference_option, InferenceOption):
+                raise TypeError("inference_option must be an instance of dx_engine.InferenceOption or None.")
+            current_option_instance = inference_option
+
+        # If this build does not support ORT, force-disable it
+        try:
+            if hasattr(C, 'is_ort_supported') and not C.is_ort_supported():
+                if current_option_instance.use_ort:
+                    warnings.warn(
+                        "USE_ORT is disabled in this build. Forcing InferenceOption.use_ort to False.",
+                        RuntimeWarning,
+                    )
+                    current_option_instance.use_ort = False
+        except Exception:
+            pass
+
+        # Create instance without calling __init__
+        instance = cls.__new__(cls)
+        
+        try:
+            # Create engine from buffer only (no model path)
+            instance.engine = C.InferenceEngine(memory_buffer, current_option_instance.instance)
+        except Exception as e:
+            raise RuntimeError(f"Failed to create InferenceEngine from buffer: {str(e)}") from e
+
+        instance._input_tensor_info_cache = None
+        instance._output_tensor_info_cache = None
+        instance._memory_buffer = memory_buffer
+
+        return instance
+
     def _analyze_input_format(self, input_data: Any) -> Dict[str, Any]:
         """
         Analyzes input data format and determines processing method.

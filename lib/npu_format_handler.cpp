@@ -25,6 +25,7 @@
 #include "dxrt/profiler.h"
 #include "dxrt/util.h"
 #include "dxrt/driver.h"
+#include "dxrt/exception/exception.h"
 
 namespace npu_format_handler {
 
@@ -734,6 +735,12 @@ int NpuFormatHandler::decode_aligned_transposed(
             transpose_col = static_cast<uint64_t>(shape_encoded[shape_dims - 1]); // Last dimension becomes columns
             transpose_row = calculate_product(0, shape_dims - 1);         // Product of the preceding dimensions becomes rows
              if (shape_encoded[shape_dims - 1] < 0) throw std::runtime_error("Negative dimension in shape_encoded[last]");
+        }
+        else
+        {
+            // not rechable due to earlier check, but keep for safety
+            // when c++23 is supported, use std::unreachable() with c++23 checking
+            throw dxrt::InvalidArgumentException("Unsupported transpose_type " + std::to_string(static_cast<int>(transpose_type)) + " encountered.");
         }
          // Handle cases where calculated dimensions might be zero
          if (transpose_row == 0 || transpose_col == 0) {

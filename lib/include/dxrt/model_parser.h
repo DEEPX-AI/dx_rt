@@ -33,6 +33,16 @@ public:
      * @return Compile type string (e.g., "release", "debug")
      */
     virtual std::string ParseModel(const std::string& filePath, ModelDataBase& modelData) = 0;
+
+
+    /**
+     * @brief Parse the model from memory buffer and populate ModelDataBase
+     * @param modelBuffer Pointer to the DXNN file data in memory
+     * @param modelSize Size of the DXNN file data
+     * @param modelData Output parameter to store parsed data
+     * @return Compile type string (e.g., "release", "debug")
+     */
+    virtual std::string ParseModel(const uint8_t* modelBuffer, size_t modelSize, ModelDataBase& modelData) = 0;
     
     /**
      * @brief Get the version number this parser supports
@@ -45,6 +55,18 @@ public:
      * @return Parser name (e.g., "DXNN V6 Parser", "DXNN V7 Parser")
      */
     virtual std::string GetParserName() const = 0;
+
+    /**
+     * @brief Set the number of buffers to use during parsing
+     * @param bufferCount Number of buffers
+     */
+    void SetTaskBufferCount(int bufferCount)
+    {
+        _taskBufferCount = bufferCount;
+    }
+
+protected:
+    int _taskBufferCount = DXRT_TASK_MAX_LOAD_VALUE;
 };
 
 /**
@@ -62,6 +84,16 @@ public:
      * @throws InvalidModelException if version is not supported
      */
     static std::unique_ptr<IModelParser> CreateParser(const std::string& filePath);
+
+
+    /**
+     * @brief Create a parser for the specified memory buffer
+     * @param modelBuffer Pointer to the DXNN file data in memory
+     * @param modelSize Size of the DXNN file data
+     * @return Unique pointer to the appropriate parser
+     * @throws InvalidModelException if version is not supported
+     */
+    static std::unique_ptr<IModelParser> CreateParser(const uint8_t* modelBuffer, size_t modelSize);
     
     /**
      * @brief Create a parser for a specific version
@@ -79,6 +111,15 @@ public:
      * @throws InvalidModelException if file format is invalid
      */
     static int GetFileFormatVersion(const std::string& filePath);
+
+    /**
+     * @brief Get the file format version from a DXNN file buffer
+     * @param modelBuffer Pointer to the DXNN file data in memory
+     * @param modelSize Size of the DXNN file data
+     * @return Version number
+     * @throws InvalidModelException if file format is invalid
+     */
+    static int GetFileFormatVersion(const uint8_t* modelBuffer, size_t modelSize);
     
     /**
      * @brief Check if a version is supported
