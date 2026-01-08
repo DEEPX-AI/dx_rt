@@ -20,11 +20,11 @@ parse_model -m <model_dir>
 
 **Option**  
 ```
-  -m, --model     model path
-  -v, --verbose   show detailed task dependencies and memory usage
+  -m, --model FILE    model path (required)
+  -v, --verbose       show detailed task dependencies and memory usage
   -o, --output FILE   save the raw console output to a file (without color codes)
   -j, --json          extract JSON binary data (graph_info, rmap_info) to files
-  -h, --help      show help
+  -h, --help          show this help message
 ```
 
 **Example**  
@@ -51,44 +51,76 @@ run_model -m <model_dir> -i <input_bin> -o <output_bin> -r <reference output_bin
 
 **Option**  
 ```
-  -m, --model arg    Model file (.dxnn)
-  -b, --benchmark    Perform a benchmark test (Maximum throughput)
-                     (This is the default mode,
-                      if --single or --fps > 0 are not specified)
-  -s, --single       Perform a single run test
-                     (Sequential single-input inference on a single-core)
-  -v, --verbose      Shows NPU Processing Time and Latency
-  -n, --npu arg      NPU bounding (default:0)
-                       0: NPU_ALL
-                       1: NPU_0
-                       2: NPU_1
-                       3: NPU_2
-                       4: NPU_0/1
-                       5: NPU_1/2
-                       6: NPU_0/2
-  -l, --loops arg    Number of inference loops to perform (default: 30)
-  -t, --time arg     Duration of inference in seconds (benchmark and
-                     target-fps mode, overrides --loops) (default: 0)
-  -w, --warmup-runs arg  Number of warmup runs before actual measurement
-                         (default: 0)
-  -d, --devices arg  Specify target NPU devices.
-                     Examples:
-                       'all' (default): Use all available/bound NPUs
-                       '0': Use NPU0 only
-                       '0,1,2': Use NPU0, NPU1, and NPU2
-                       'count:N': Use the first N NPUs
-                       (e.g., 'count:2' for NPU0, NPU1) (default: all)
-  -f, --fps arg      Target FPS for TARGET_FPS_MODE (default: 0)
-                     (enables this mode if > 0 and --single is not set)
-      --use-ort      Enable ONNX Runtime for CPU tasks in the model graph
-                     If disabled, only NPU tasks operate
-  -h, --help         Print usage
+  -m, --model arg         Model file (.dxnn)
+  -b, --benchmark         Perform a benchmark test (Maximum throughput)
+                          (This is the default mode,
+                           if --single or --fps > 0 are not specified)
+  -s, --single            Perform a single run test
+                          (Sequential single-input inference on a
+                          single-core)
+  -v, --verbose           Shows NPU Processing Time and Latency
+  -n, --npu arg           NPU bounding (default:0)
+                            0: NPU_ALL
+                            1: NPU_0
+                            2: NPU_1
+                            3: NPU_2
+                            4: NPU_0/1
+                            5: NPU_1/2
+                            6: NPU_0/2
+  -l, --loops arg         Number of inference loops to perform (default:
+                          30)
+  -t, --time arg          Duration of inference in seconds (benchmark and
+                          target-fps mode, overrides --loops) (default: 0)
+  -w, --warmup-runs arg   Number of warmup runs before actual measurement
+                          (default: 0)
+  -d, --devices arg       Specify target NPU devices.
+                          Examples:
+                            'all' (default): Use all available/bound NPUs
+                            '0': Use NPU0 only
+                            '0,1,2': Use NPU0, NPU1, and NPU2
+                            'count:N': Use the first N NPUs
+                            (e.g., 'count:2' for NPU0, NPU1) (default: all)
+  -f, --fps arg           Target FPS for TARGET_FPS_MODE (default: 0)
+                          (enables this mode if > 0 and --single is not
+                          set)
+      --use-ort           Enable ONNX Runtime for CPU tasks in the model
+                          graph
+                          If disabled, only NPU tasks operate
+      --profiler          Enable profiler
+      --buffer-count arg  Number of input/output buffers, count's range is
+                          1~100 (default: 6)
+  -h, --help              Print usage
 ```
 
-**Example**  
+**Examples**  
+
+Basic inference with 100 loops:
 ```
 run_model -m /.../model.dxnn -i /.../input.bin -l 100
 ```
+
+Enable profiler to collect detailed timing data:
+```
+run_model -m model.dxnn --profiler -l 50
+```
+This generates a `profiler.json` file in the working directory containing detailed performance metrics.
+
+Configure buffer count for optimized throughput:
+```
+run_model -m model.dxnn --buffer-count 8 -l 100
+```
+Adjust the number of input/output buffers (range: 1-100) to balance memory usage and inference throughput. Higher buffer counts can improve performance in pipelined scenarios.
+
+Combined options with profiling and custom buffer count:
+```
+run_model -m model.dxnn --profiler --buffer-count 10 -l 200 -v
+```
+
+Benchmark mode with profiling enabled:
+```
+run_model -m model.dxnn --benchmark --profiler -t 60
+```
+Run benchmark for 60 seconds with profiling enabled to analyze performance bottlenecks.
 
 ---
 
@@ -108,14 +140,13 @@ dxrt-cli <option> <argument>
 ```
   -s, --status             Get device status
   -i, --info               Get device info
-  -m, --monitor arg        Monitoring device status every [arg] seconds 
+  -m, --monitor arg        Monitoring device status every [arg] seconds
                            (arg > 0)
-  -r, --reset arg          Reset device(0: reset only NPU, 1: reset entire 
-                           device) (default: 0)
-  -d, --device arg         Device ID (if not specified, CLI commands will 
+  -r, --reset [=arg(=0)]   Reset device(0: reset only NPU) (default: 0)
+  -d, --device arg         Device ID (if not specified, CLI commands will
                            be sent to all devices.) (default: -1)
   -u, --fwupdate arg       Update firmware with deepx firmware file.
-                           sub-option : [force:force update, unreset:device 
+                           sub-option : [force:force update, unreset:device
                            unreset(default:reset)]
   -g, --fwversion arg      Get firmware version with deepx firmware file
   -C, --fwconfig_json arg  Update firmware settings from [JSON]

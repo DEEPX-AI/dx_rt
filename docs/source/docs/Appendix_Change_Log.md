@@ -1,3 +1,30 @@
+## v3.2.0 (December 2025)
+
+#### Changed
+- Optimize PCIe DMA sequence for better performance.
+- Update OS requirements in installation guide for debian
+
+#### Fixed
+- Optimize device memory footprint of PPU models
+
+#### Added
+- Add RuntimeEventDispatcher class for C++
+   - RuntimeEventDispatcher is a singleton class that provides centralized event dispatching and handling for runtime events from the DX-RT system, such as device errors, warnings, and notifications.
+- Add Python wrapper for RuntimeEventDispatcher class -> dx_engine 1.1.4
+- Add `--profiler` option to enable profiling mode in run_model.py
+- Add `--buffer-count` option to configure inference buffer count in run_model.py
+- Add build.sh options
+```
+  --use_service_on  Enable the use of the service in the build.
+  --use_service_off Disable the use of the service in the build.
+  --use_ort_on      Enable the use of the ORT component in the build.
+  --use_ort_off     Disable the use of the ORT component in the build.
+```
+- Add `__version__` import to the main `dx_engine` module namespace
+- Implement per-instance configuration of Input and Output buffer counts for the Inference Engine.
+- Enable direct loading of the .dxnn model format from a memory buffer within the Inference Engine.
+- Add RuntimeEventDispatcher for centralized event handling and logging.
+
 ## v3.1.0 (November 2025)
 
 #### Changed

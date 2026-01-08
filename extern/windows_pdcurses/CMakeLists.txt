@@ -92,7 +92,7 @@ target_include_directories(pdcurses PUBLIC
 install(TARGETS pdcurses DESTINATION lib)
 install(FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/curses.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/pdcurses.h
+    #${CMAKE_CURRENT_SOURCE_DIR}/pdcurses.h
     DESTINATION include)
 
 # --- Demos (Optional, consider building them as separate executables) ---

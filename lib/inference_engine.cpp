@@ -461,15 +461,7 @@ TensorPtrs InferenceEngine::Run(void *inputPtr, void *userArg, void *outputPtr)
     infJob->SetInferenceJob(_tasks, _head, _lastOutputOrder, _modelInputOrder);
     infJob->setInferenceEngineInterface(this);
     infJob->SetStoreResult(true);
-    infJob->setCallBack([this](TensorPtrs &outputs, void *userArg, int jobId)->int{
-        int retval = 0;
-        if (_userCallback != nullptr)
-        {
-            retval = _userCallback(outputs, userArg);
-        }
-        _inferenceJobPool->GetById(jobId)->SetOccupiedJob(false);
-        return retval;
-    });  // inference engine callback
+    infJob->setCallBack(nullptr);  // inference engine callback
 
     int jobId = infJob->startJob(inputPtr, userArg, outputPtr);
     {
@@ -578,15 +570,7 @@ int InferenceEngine::RunAsyncMultiInput(const std::map<std::string, void*>& inpu
     }
 
     infJob->setInferenceEngineInterface(this);
-    infJob->setCallBack([this](TensorPtrs &outputs, void *userArg, int jobId)->int{
-        int retval = 0;
-        if (_userCallback != nullptr)
-        {
-            retval = _userCallback(outputs, userArg);
-        }
-        _inferenceJobPool->GetById(jobId)->SetOccupiedJob(false);
-        return retval;
-    });  // inference engine callback
+    infJob->setCallBack(nullptr);
 
     int jobId = infJob->startMultiInputJob(inputTensors, userArg, outputPtr);
     {
@@ -723,45 +707,48 @@ void InferenceEngine::runSubBatch(std::vector<TensorPtrs>& result, int batchCoun
     std::condition_variable cv_complete;  // complete condition variable
     bool is_completed = false;
 
-    auto batch_callback = [this, &complete_count, &cv_complete, &mtx_cv, &result, batchCount, &is_completed](TensorPtrs &outputs, void *userArg, int jobId) {
-            std::ignore = userArg;
+    auto batch_callback = [this, &complete_count, &cv_complete, &mtx_cv, &result, batchCount, &is_completed](TensorPtrs &outputs, void *userArg, int jobId) -> int
+    {
+        std::ignore = userArg;
 
-            auto infJob = _inferenceJobPool->GetById(jobId);
-            if (infJob == nullptr)
+        auto infJob = _inferenceJobPool->GetById(jobId);
+        if (infJob == nullptr)
+        {
+            throw dxrt::InvalidOperationException(EXCEPTION_MESSAGE("InferenceJob not found for jobId"));
+        }
+
+        int batch_index = -1;
+
+        try
+        {
+            // Get batch_index from InferenceJob
+            batch_index = infJob->GetBatchIndex();
+            // std::cout << "callback batch-index=" << batch_index << std::endl;
+
+            if (batch_index >= 0)
             {
-                throw dxrt::InvalidOperationException(EXCEPTION_MESSAGE("InferenceJob not found for jobId"));
+                result.at(batch_index) = outputs;
             }
-
-            int batch_index = -1;
-
-            try {
-                // Get batch_index from InferenceJob
-                batch_index = infJob->GetBatchIndex();
-                // std::cout << "callback batch-index=" << batch_index << std::endl;
-
-                if ( batch_index >= 0 )
-                {
-                    result.at(batch_index) = outputs;
-                }
-                else
-                {
-                    LOG_DXRT << "ERROR jobId=" << jobId << ", batch_index=" << batch_index << std::endl;
-                }
-            }
-            catch(std::exception &e)
+            else
             {
-                LOG_DXRT_ERR(LogMessages::InferenceEngine_BatchFailToAllocateOutputBuffer() << e.what());
+                LOG_DXRT << "ERROR jobId=" << jobId << ", batch_index=" << batch_index << std::endl;
             }
+        }
+        catch (std::exception &e)
+        {
+            LOG_DXRT_ERR(LogMessages::InferenceEngine_BatchFailToAllocateOutputBuffer() << e.what());
+        }
 
-            complete_count++;
-            LOG_DXRT_DBG << "runAsync complete-count=" << complete_count.load() << std::endl;
-            if ( complete_count.load() == batchCount && is_completed)
-            {
-                //std::unique_lock<std::mutex> lock(mtx_cv);
-                cv_complete.notify_one();
-                LOG_DXRT_DBG << "runAsync completed" << std::endl;
-            }
-        };
+        complete_count++;
+        LOG_DXRT_DBG << "runAsync complete-count=" << complete_count.load() << std::endl;
+        if (complete_count.load() == batchCount && is_completed)
+        {
+            // std::unique_lock<std::mutex> lock(mtx_cv);
+            cv_complete.notify_one();
+            LOG_DXRT_DBG << "runAsync completed" << std::endl;
+        }
+        return 0;
+    };
 
     try
     {
@@ -801,7 +788,7 @@ void InferenceEngine::runSubBatch(std::vector<TensorPtrs>& result, int batchCoun
 
 // private
 int InferenceEngine::runAsync(void *inputPtr, void *userArg, void *outputPtr, int batchIndex,
-    std::function<void(TensorPtrs &outputs, void *userArg, int jobId)> batchCallback)
+    std::function<int(TensorPtrs &outputs, void *userArg, int jobId)> batchCallback)
 {
     if (_isDisposed)
     {
@@ -809,40 +796,36 @@ int InferenceEngine::runAsync(void *inputPtr, void *userArg, void *outputPtr, in
     }
     // return InferenceJob instance from InferenceJob pool (reused)
     // std::shared_ptr<InferenceJob> infJob = ObjectsPool::GetInstance().PickInferenceJob();
-    std::shared_ptr<InferenceJob> infJob = _inferenceJobPool->pick();
 
-    infJob->SetInferenceJob(_tasks, _head, _lastOutputOrder, _modelInputOrder);
-    infJob->SetBatchIndex(batchIndex);
-    infJob->setInferenceEngineInterface(this);
-    infJob->setCallBack([this, batchCallback](TensorPtrs &outputs, void *userArg, int jobId)->int{
-            int retval = 0;
-            if (this->_userCallback != nullptr)
-            {
-                retval = this->_userCallback(outputs, userArg);
-            }
-            if ( batchCallback != nullptr )
-            {
-                batchCallback(outputs, userArg, jobId);
-            }
-            _inferenceJobPool->GetById(jobId)->SetOccupiedJob(false);
-            return retval;
-        });  // inference engine callback
-
-    if (_userCallback == nullptr)
+    try
     {
-        infJob->SetStoreResult(true);
+        std::shared_ptr<InferenceJob> infJob = _inferenceJobPool->pick();
+        infJob->SetInferenceJob(_tasks, _head, _lastOutputOrder, _modelInputOrder);
+        infJob->SetBatchIndex(batchIndex);
+        infJob->setInferenceEngineInterface(this);
+        infJob->setCallBack(batchCallback);
+
+
+        if (_userCallback == nullptr)
+        {
+            infJob->SetStoreResult(true);
+        }
+
+        int jobId = infJob->startJob(inputPtr, userArg, outputPtr);
+
+        // occupired inference job id
+        {
+            _inferenceJobPool->GetById(jobId)->SetOccupiedJob(true);
+        }
+
+        return jobId;
+
     }
-    // if(infJob->getId()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || infJob->getId()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
-
-
-    int jobId = infJob->startJob(inputPtr, userArg, outputPtr);
-
-    // occupired inference job id
+    catch (...)
     {
-        _inferenceJobPool->GetById(jobId)->SetOccupiedJob(true);
+        // to avoid sonarqube critical issue
+        throw;
     }
-
-    return jobId;
 }
 
 void InferenceEngine::RegisterCallback(std::function<int(TensorPtrs &outputs, void *userArg)> f)
@@ -1687,6 +1670,7 @@ std::map<std::string, std::string> InferenceEngine::GetInputTensorToTaskMapping(
     return _inputTensorToTaskMap;
 }
 
+// NOSONAR:
 TensorPtrs InferenceEngine::RunMultiInput(const std::map<std::string, void*>& inputTensors, void *userArg, void *outputPtr)
 {
     if (_isDisposed)
@@ -1734,18 +1718,7 @@ TensorPtrs InferenceEngine::RunMultiInput(const std::map<std::string, void*>& in
     }
 
     infJob->setInferenceEngineInterface(this);
-    infJob->setCallBack([this](TensorPtrs &outputs, void *userArg, int jobId)->int{
-        int retval = 0;
-        if (_userCallback !=nullptr)
-        {
-            retval = _userCallback(outputs, userArg);
-        }
-        {
-            _inferenceJobPool->GetById(jobId)->SetOccupiedJob(false);
-        }
-
-        return retval;
-    });  // inference engine callback
+    infJob->setCallBack(nullptr);
 
     int jobId = infJob->startMultiInputJob(inputTensors, userArg, outputPtr);
     {
@@ -2597,6 +2570,17 @@ void InferenceEngine::checkInputOutputMistmatch()
     {
         throw dxrt::InvalidModelException("Input/Output mismatch detected in the model. Check logs for details.");
     }
+}
+
+
+void InferenceEngine::onInferenceComplete(TensorPtrs &outputs, void *userArg, int jobId)
+{
+    auto infJob = _inferenceJobPool->GetById(jobId);
+    if (this->_userCallback != nullptr)
+    {
+        this->_userCallback(outputs, userArg);
+    }
+    infJob->SetOccupiedJob(false);
 }
 
 }  // namespace dxrt

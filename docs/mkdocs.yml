@@ -57,10 +57,10 @@ plugins:
       author: DEEPX.ai
       copyright: ⓒ Copyright 2025 DEEPX All Rights Reserved.
       cover_title: DXNN Runtime (DX-RT) User Manual
-      cover_subtitle: v3.1.0 (Nov 2025)
+      cover_subtitle: v3.2.0 (Dec 2025)
       cover_logo: source/img/deepx.png
       custom_template_path: source/stylesheets
-      output_path: ../DEEPX_DX-RT_UM_v3.1.0_Nov_2025.pdf
+      output_path: ../DEEPX_DX-RT_UM_v3.2.0_Dec_2025.pdf
 extra:
   homepage: https://developer.deepx.ai
   generator: false

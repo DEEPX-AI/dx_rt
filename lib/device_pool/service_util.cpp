@@ -99,6 +99,30 @@ bool DXRT_API isDxrtServiceRunning() {
     CloseHandle(hSnapshot);
     return false;  // No Other instance
 }
+
+static const wchar_t* DXRTD_SERVICE_MUTEX_NAME = L"Global\\DxrtdServiceRunningMutex";
+
+// Create mutex when service starts
+HANDLE DXRT_API createServiceMutex() {
+    HANDLE hMutex = CreateMutexW(nullptr, TRUE, DXRTD_SERVICE_MUTEX_NAME);
+    if (hMutex == nullptr) {
+        return nullptr;  // Failed to create mutex
+    }
+    if (GetLastError() == ERROR_ALREADY_EXISTS) {
+        CloseHandle(hMutex);
+        return nullptr;  // Another instance already running
+    }
+    return hMutex;  // Caller must keep this handle and close on exit
+}
+
+// Release mutex when service stops
+void DXRT_API releaseServiceMutex(HANDLE hMutex) {
+    if (hMutex != nullptr) {
+        ReleaseMutex(hMutex);
+        CloseHandle(hMutex);
+    }
+}
+
 #endif
 
 }  // namespace dxrt

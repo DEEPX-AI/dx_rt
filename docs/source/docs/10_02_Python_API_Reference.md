@@ -9,11 +9,60 @@ This class is the main Python wrapper for the DXRT Inference Engine. It provides
 #### Constructor  
   
 ***`__init__(self, model_path: str, inference_option: Optional[InferenceOption] = None)`***  
--   **Description**: Initializes the InferenceEngine by loading a compiled model from the specified path.  
+-   **Description**: Initializes the InferenceEngine by loading a compiled model from the specified file path.  
 -   **Parameters**:  
     -   `model_path`: `str`. Path to the compiled model file (e.g., `*.dxnn`).  
     -   `inference_option`: `Optional[InferenceOption]`. An `InferenceOption` object for configuration. If `None`, default options are used.  
 -   **Raises**: `RuntimeError` if the underlying C++ engine fails to initialize.  
+-   **Example**:
+    ```python
+    from dx_engine import InferenceEngine, InferenceOption
+    
+    # Load model from file path
+    engine = InferenceEngine("model.dxnn")
+    
+    # Load model with custom options
+    option = InferenceOption()
+    option.devices = [0, 1]
+    option.bound_option = InferenceOption.NPU_ALL
+    engine2 = InferenceEngine("model.dxnn", option)
+    ```
+
+***`from_buffer(cls, memory_buffer: np.ndarray, inference_option: Optional[InferenceOption] = None) -> InferenceEngine`***  
+-   **Description**: Alternative class method constructor that creates an InferenceEngine from a memory buffer without requiring a file path. This is useful for embedded systems, network-based model distribution, or when models are loaded from custom sources (e.g., encrypted storage).  
+-   **Parameters**:  
+    -   `memory_buffer`: `np.ndarray`. Pre-allocated memory buffer containing the compiled model data. Must be a C-contiguous numpy array (dtype=uint8).  
+    -   `inference_option`: `Optional[InferenceOption]`. Configuration options for inference. If `None`, default options are used.  
+-   **Returns**: A new `InferenceEngine` instance loaded from the memory buffer.  
+-   **Raises**: 
+    -   `TypeError` if `memory_buffer` is not a numpy array.
+    -   `ValueError` if `memory_buffer` is not C-contiguous.
+    -   `RuntimeError` if the C++ engine fails to initialize from the buffer.
+-   **Example**:
+    ```python
+    import numpy as np
+    from dx_engine import InferenceEngine, InferenceOption
+    
+    # Load model file into memory buffer
+    with open('model.dxnn', 'rb') as f:
+        buffer = np.frombuffer(f.read(), dtype=np.uint8)
+    
+    # Create engine from memory buffer
+    engine = InferenceEngine.from_buffer(buffer)
+    
+    # With custom options
+    option = InferenceOption()
+    option.use_ort = True
+    engine2 = InferenceEngine.from_buffer(buffer, option)
+    ```
+-   **Use Cases**:
+    -   Loading models from encrypted or compressed storage
+    -   Network-based model distribution
+    -   Embedded systems with models stored in ROM
+    -   Dynamic model loading without filesystem access
+
+
+
   
 #### Member Functions  
   
@@ -250,6 +299,19 @@ This class provides a Pythonic interface to configure inference options such as 
 ***`use_ort`***  
 -   **Description**: Gets or sets whether to use the ONNX Runtime for executing CPU-based tasks in the model graph.  
 -   **Type**: `bool`.  
+
+***`buffer_count`***  
+-   **Description**: Gets or sets the number of internal buffers allocated for inference. Higher values can improve throughput in pipelined inference scenarios by allowing more concurrent operations, but consume more memory. Default is 6. Valid range is 1-100.
+-   **Type**: `int`.
+-   **Example**:
+    ```python
+    from dx_engine import InferenceEngine, InferenceOption
+    
+    option = InferenceOption()
+    option.buffer_count = 8  # Allocate 8 buffers for higher throughput
+    engine = InferenceEngine("model.dxnn", option)
+    ```
+  
   
 #### Member Functions  
   
@@ -267,6 +329,11 @@ This class provides a Pythonic interface to configure inference options such as 
 -   **Signature**: `def get_use_ort(self) -> bool`  
 -   **Description**: Returns whether ONNX Runtime usage is enabled.  
 -   **Returns**: A boolean value.  
+
+***`get_buffer_count(self)`***  
+-   **Signature**: `def get_buffer_count(self) -> int`  
+-   **Description**: Returns the current buffer count configuration.  
+-   **Returns**: An integer representing the number of buffers.  
   
 ***`set_bound_option(self, boundOption: BOUND_OPTION)`***  
 -   **Signature**: `def set_bound_option(self, boundOption: BOUND_OPTION)`  
@@ -285,6 +352,13 @@ This class provides a Pythonic interface to configure inference options such as 
 -   **Description**: Enables or disables the use of ONNX Runtime for CPU tasks.  
 -   **Parameters**:  
     -   `use_ort`: A boolean value.  
+
+***`set_buffer_count(self, buffer_count: int)`***  
+-   **Signature**: `def set_buffer_count(self, buffer_count: int)`  
+-   **Description**: Sets the number of internal buffers for inference.  
+-   **Parameters**:  
+    -   `buffer_count`: An integer value specifying the number of buffers (valid range: 1-100).  
+  
   
 #### Nested Classes  
   

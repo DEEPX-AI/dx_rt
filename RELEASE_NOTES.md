@@ -4,12 +4,6 @@
 
 ### 1. Changed
 - Optimize PCIe DMA sequence for better performance.
-- Update minimum required versions:
-```
-Driver : 1.8.0 -> 2.0.0
-PCIe Driver : 1.5.1 -> 2.0.0
-Firmware : 2.4.0 -> 2.4.0 (no change)
-```
 - docs: update OS requirements in installation guide for debian
 
 ### 2. Fixed

@@ -15,4 +15,10 @@ namespace dxrt {
 
 bool DXRT_API isDxrtServiceRunning();
 
+// Add these declarations for Windows
+#ifdef _WIN32
+HANDLE DXRT_API createServiceMutex();
+void DXRT_API releaseServiceMutex(HANDLE hMutex);
+#endif
+
 }  // namespace dxrt

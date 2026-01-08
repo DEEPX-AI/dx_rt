@@ -10,6 +10,8 @@
 #pragma once
 #ifdef _WIN32
 
+#include <mutex>
+#include <vector>
 #include "driver_adapter.h"
 
 namespace dxrt {
@@ -28,8 +30,14 @@ class WindowsDriverAdapter : public DriverAdapter {
     std::string GetName() const override { return _name;  }
 
  private:
-    HANDLE _fd = INVALID_HANDLE_VALUE;
-    std::string _name;
+     HANDLE AcquireEvent();
+     void ReleaseEvent(HANDLE hEvent);
+
+     HANDLE _fd = INVALID_HANDLE_VALUE;
+     std::string _name;
+
+     std::mutex _eventPoolMutex;
+     std::vector<HANDLE> _eventPool;
 };
 
 }  // namespace dxrt

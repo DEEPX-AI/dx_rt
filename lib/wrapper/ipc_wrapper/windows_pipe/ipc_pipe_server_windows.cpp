@@ -31,6 +31,7 @@ IPCPipeServerWindows::IPCPipeServerWindows(uint64_t fd)
 
 IPCPipeServerWindows::~IPCPipeServerWindows()
 {
+	_stop.store(true);
 	_queCv.notify_all();
 }
 
@@ -49,20 +50,37 @@ void IPCPipeServerWindows::ThreadAtServerMainForListen()
 	// The main loop creates an instance of the named pipe and  then waits for a client to connect to it.
 	// When the client connects, a thread is created to handle communications with that client,
 	//   and this loop is free to wait for the next client connect request. It is an infinite loop.
-	LOG_DXRT_I_DBG << "@@@ Thread Start : ThreadAtServerMainForListen" << std::endl ;
+	LOG_DXRT_I_DBG << "@@@ Thread Start : ThreadAtServerMainForListen" << std::endl;
+
+	constexpr size_t MAX_CLIENT_THREADS = 64;
+	std::atomic<size_t> activeThreadCount{ 0 };
+
 	for (;;) {
 		_pipe.InitServer();
-		if (!_pipe.IsAvailable())  continue;
-		LOG_DXRT_I_DBG << "Client connected, creating a processing thread.\n" ;
-		std::thread th(&IPCPipeServerWindows::ThreadAtServerByClient, this, _pipe.Detatch());
-		th.detach();
+		if (!_pipe.IsAvailable()) continue;
+
+		if (activeThreadCount.load() >= MAX_CLIENT_THREADS) {
+			LOG_DXRT_WARN("Maximum client threads reached. Rejecting new connection.");
+			_pipe.Close();
+			continue;
+		}
+
+		LOG_DXRT_I_DBG << "Client connected, creating a processing thread.\n";
+		try {
+			std::thread th(&IPCPipeServerWindows::ThreadAtServerByClient, this, _pipe.Detatch());
+			th.detach();
+		}
+		catch (const std::system_error& e) {
+			LOG_DXRT_ERR("Failed to create thread: " << e.what());
+			_pipe.Close();
+		}
 	}
-	LOG_DXRT_I_DBG << "@@@ Thread End : ThreadAtServerMainForListen" << std::endl ;
-	LOG_DXRT_I_DBG << "ThreadAtServerMainForListen exiting.\n" ;
+	LOG_DXRT_I_DBG << "@@@ Thread End : ThreadAtServerMainForListen" << std::endl;
+	LOG_DXRT_I_DBG << "ThreadAtServerMainForListen exiting.\n";
 }
 void IPCPipeServerWindows::ThreadAtServerByClient(HANDLE hPipe)
 {
-	LOG_DXRT_I_DBG << "@@@ Thread Start : ThreadAtServerByClient(enQue)" << std::endl ;
+	LOG_DXRT_I_DBG << "@@@ Thread Start : ThreadAtServerByClient(enQue)" << std::endl;
 	IPCPipeWindows pipe(hPipe);
 	IPCClientMessage clientMessage;
 	DWORD cbReceived = 0;
@@ -76,15 +94,32 @@ void IPCPipeServerWindows::ThreadAtServerByClient(HANDLE hPipe)
 
 		// Broken pipe detection
 		if (recvResult < 0 || sizeof(clientMessage) != cbReceived) {
-		    LOG_DXRT_I_DBG << "Pipe broken or client disconnected. Cleaning up handle: " << reinterpret_cast<uint64_t>(hPipe) << "ReceiveResult=" << recvResult << ", cbReceived=" << cbReceived << std::endl ;
+			LOG_DXRT_I_DBG << "Pipe broken or client disconnected. Cleaning up handle: " << reinterpret_cast<uint64_t>(hPipe) << "ReceiveResult=" << recvResult << ", cbReceived=" << cbReceived << std::endl;
 			break;
 		}
 
-		LOG_DXRT_I_DBG << "Received: client msgType:" << clientMessage.msgType << std::endl ;
+		LOG_DXRT_I_DBG << "Received: client msgType:" << clientMessage.msgType << std::endl;
 		if (bFirst) {
 			bFirst = false;
 			msgType = clientMessage.msgType;
-			_msgType2handle[msgType] = hPipe;
+			{
+				std::lock_guard<std::mutex> lock(_handleMapMutex);
+
+				// COO: Clean up previous connection if existing handle is found
+				auto it = _msgType2handle.find(msgType);
+				if (it != _msgType2handle.end()) {
+					HANDLE oldPipe = it->second;
+					if (oldPipe != hPipe && oldPipe != INVALID_HANDLE_VALUE) {
+						LOG_DXRT_WARN("Client reconnected with same PID: " << msgType
+							<< ". Closing old handle: " << reinterpret_cast<uint64_t>(oldPipe));
+						// COO: Disconnect previous pipe (to trigger the associated thread to terminate)
+						DisconnectNamedPipe(oldPipe);
+						CloseHandle(oldPipe);
+					}
+				}
+
+				_msgType2handle[msgType] = hPipe;
+			}
 		}
 		enQue(clientMessage);
 		// std::this_thread::sleep_for(std::chrono::microseconds(1)); // important:if use, 30ms delay
@@ -94,6 +129,7 @@ void IPCPipeServerWindows::ThreadAtServerByClient(HANDLE hPipe)
 	if (msgType >= 0) {
 		std::lock_guard<std::mutex> lock(_handleMapMutex);
 		auto it = _msgType2handle.find(msgType);
+		//TODO: Only remove if it matches the current handle (a new connection may already be registered)
 		if (it != _msgType2handle.end() && it->second == hPipe) {
 			_msgType2handle.erase(it);
 			LOG_DXRT_I_DBG << "Removed broken pipe handle for msgType: " << msgType << std::endl;
@@ -101,8 +137,8 @@ void IPCPipeServerWindows::ThreadAtServerByClient(HANDLE hPipe)
 	}
 
 	pipe.CloseServerSide();
-	LOG_DXRT_I_DBG << "@@@ Thread End : ThreadAtServerByClient(enQue)" << std::endl ;
-	LOG_DXRT_I_DBG << "ThreadAtServerByClient exiting.\n" ;
+	LOG_DXRT_I_DBG << "@@@ Thread End : ThreadAtServerByClient(enQue)" << std::endl;
+	LOG_DXRT_I_DBG << "ThreadAtServerByClient exiting.\n";
 }
 
 // listen

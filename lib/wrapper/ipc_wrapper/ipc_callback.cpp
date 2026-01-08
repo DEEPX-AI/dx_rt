@@ -28,6 +28,20 @@ using std::endl;
 
 namespace dxrt {
 
+std::shared_ptr<DeviceTaskLayer> getDeviceTaskLayerSafe(uint32_t deviceId)
+{
+    try {
+        auto& pool = DevicePool::GetInstance();
+        if (deviceId < pool.GetDeviceCount()) {
+            return pool.GetDeviceTaskLayer(static_cast<int>(deviceId));
+        }
+    }
+    catch (const std::exception& e) {
+        LOG_DXRT_I_ERR("Failed to get device task layer: " << e.what());
+    }
+    return nullptr;
+}
+
 int codeToChannel(RESPONSE_CODE code)
 {
     switch (code)
@@ -99,53 +113,48 @@ int ipc_callBack(const IPCServerMessage& outResponseServerMessage, void* usrData
 #ifdef USE_SERVICE
     switch (outResponseServerMessage.code)
     {
-        case RESPONSE_CODE::CONFIRM_MEMORY_ALLOCATION:
-        case RESPONSE_CODE::CONFIRM_MEMORY_ALLOCATION_AND_TRANSFER_MODEL:
-            return 234;
+    case RESPONSE_CODE::CONFIRM_MEMORY_ALLOCATION:
+    case RESPONSE_CODE::CONFIRM_MEMORY_ALLOCATION_AND_TRANSFER_MODEL:
+        return 234;
 
-        case RESPONSE_CODE::CONFIRM_MEMORY_FREE:
-            break;
-        case RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH0:
-        case RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH1:
-        case RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH2:
-            {
-
-                if ( outResponseServerMessage.deviceId < DevicePool::GetInstance().GetDeviceCount() )
-                {
-                    DevicePool::GetInstance().GetDeviceTaskLayer(outResponseServerMessage.deviceId)
-                        ->ProcessResponseFromService(outResponseServerMessage.npu_resp);
-                }
-                else
-                {
-                    LOG_DXRT_I_ERR("the device id is out of the devices range. "+ std::to_string(outResponseServerMessage.deviceId));
-                }
-
-            }
-
-            break;
-        case RESPONSE_CODE::ERROR_REPORT: {
-
-            if ( outResponseServerMessage.deviceId < DevicePool::GetInstance().GetDeviceCount() )
-            {
-
-                DevicePool::GetInstance().GetDeviceTaskLayer(outResponseServerMessage.deviceId)
-                        ->ProcessErrorFromService(static_cast<dxrt::dxrt_server_err_t>(outResponseServerMessage.data),
-                    static_cast<int>(outResponseServerMessage.result));
-            }
-            else
-            {
-                cout << "============================================================" << endl;
-                cout << " ** Reason : " <<  static_cast<dxrt::dxrt_server_err_t>(outResponseServerMessage.data) <<
-                    "(value: " << static_cast<int>(outResponseServerMessage.result) << ")" << endl;
-                cout << " ** Take error message from server" << endl;
-                cout << " ** Please restart daemon and applications" << endl;
-                cout << "============================================================" << endl;
-                DXRT_ASSERT(false, "");
-            }
-            break;
+    case RESPONSE_CODE::CONFIRM_MEMORY_FREE:
+        break;
+    case RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH0:
+    case RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH1:
+    case RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH2:
+    {
+        auto taskLayer = getDeviceTaskLayerSafe(outResponseServerMessage.deviceId);
+        if (taskLayer)
+        {
+            taskLayer->ProcessResponseFromService(outResponseServerMessage.npu_resp);
         }
-        default:
-            break;
+        else
+        {
+            LOG_DXRT_I_ERR("the device id is out of the devices range. " + std::to_string(outResponseServerMessage.deviceId));
+        }
+    }
+    break;
+    case RESPONSE_CODE::ERROR_REPORT: {
+        auto taskLayer = getDeviceTaskLayerSafe(outResponseServerMessage.deviceId);
+        if (taskLayer)
+        {
+            taskLayer->ProcessErrorFromService(static_cast<dxrt::dxrt_server_err_t>(outResponseServerMessage.data),
+                static_cast<int>(outResponseServerMessage.result));
+        }
+        else
+        {
+            cout << "============================================================" << endl;
+            cout << " ** Reason : " << static_cast<dxrt::dxrt_server_err_t>(outResponseServerMessage.data) <<
+                "(value: " << static_cast<int>(outResponseServerMessage.result) << ")" << endl;
+            cout << " ** Take error message from server" << endl;
+            cout << " ** Please restart daemon and applications" << endl;
+            cout << "============================================================" << endl;
+            DXRT_ASSERT(false, "");
+        }
+        break;
+    }
+    default:
+        break;
     }
 #endif
     return 0;

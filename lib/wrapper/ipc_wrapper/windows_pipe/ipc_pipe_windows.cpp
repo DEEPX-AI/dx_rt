@@ -142,15 +142,19 @@ int32_t IPCPipeWindows::ReceiveOL(LPVOID buffer, int32_t bytesToRead, LPDWORD by
         // overlapped
         fSuccess = ReadFile(_hPipe, buffer, bytesToRead, byteRead, &overlappedRecv);
         if (!fSuccess) {
-            if (GetLastError() == ERROR_IO_PENDING) {
-                DWORD e = WaitForSingleObject(overlappedRecv.hEvent, INFINITE);
+            DWORD lastError = GetLastError();
+            if (lastError == ERROR_IO_PENDING) {
+                DWORD e = WaitForSingleObject(overlappedRecv.hEvent, 30000);
+                if (e == WAIT_TIMEOUT) {
+                    CancelIo(_hPipe);
+                    return -1;
+                }
                 GetOverlappedResult(_hPipe, &overlappedRecv, byteRead, FALSE);
-				// if (e == WAIT_OBJECT_0)	break;
+                // if (e == WAIT_OBJECT_0)	break;
                 // if (e == WAIT_TIMEOUT) continue;
                 fSuccess = true;
             }
             else {
-                DWORD lastError = GetLastError();
                 LOG_DXRT_I_ERR("ReadFile from pipe failed. GLE=" << lastError << ", handle " << reinterpret_cast<uint64_t>(_hPipe));
 
                 // Broken pipe errors - client disconnected

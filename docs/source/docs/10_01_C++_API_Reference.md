@@ -9,10 +9,52 @@ This class abstracts the runtime inference executor for a user's compiled model.
 #### Constructor  
   
 ***`explicit InferenceEngine(const std::string &modelPath, InferenceOption &option = DefaultInferenceOption)`***  
--   **Description**: Loads a model from the specified path and configures the NPU to run it.  
+-   **Description**: Loads a model from the specified file path and configures the NPU to run it.  
 -   **Parameters**:  
     -   `modelPath`: The file path to the compiled model (e.g., `model.dxnn`).  
-    -   `option`: A reference to an `InferenceOption` object to configure devices and NPU cores.  
+    -   `option`: A reference to an `InferenceOption` object to configure devices and NPU cores. If not provided, uses `DefaultInferenceOption`.  
+-   **Example**:
+    ```cpp
+    // Load model from file path
+    dxrt::InferenceEngine ie("model.dxnn");
+    
+    // Load model with custom options
+    dxrt::InferenceOption option;
+    option.devices = {0, 1};
+    option.boundOption = dxrt::InferenceOption::NPU_ALL;
+    dxrt::InferenceEngine ie2("model.dxnn", option);
+    ```
+
+***`explicit InferenceEngine(const uint8_t* modelBuffer, size_t modelSize, InferenceOption &option = DefaultInferenceOption)`***  
+-   **Description**: Loads a model from a memory buffer and configures the NPU to run it. This constructor is useful for embedded systems or when models are loaded from custom sources (e.g., encrypted storage, network).  
+-   **Parameters**:  
+    -   `modelBuffer`: A pointer to the compiled model data in memory.  
+    -   `modelSize`: The size of the model data in bytes.  
+    -   `option`: A reference to an `InferenceOption` object to configure devices and NPU cores. If not provided, uses `DefaultInferenceOption`.  
+-   **Example**:
+    ```cpp
+    // Load model file into memory buffer
+    std::ifstream file("model.dxnn", std::ios::binary | std::ios::ate);
+    std::streamsize size = file.tellg();
+    file.seekg(0, std::ios::beg);
+    std::vector<uint8_t> buffer(size);
+    if (file.read(reinterpret_cast<char*>(buffer.data()), size)) {
+        // Create inference engine from memory buffer
+        dxrt::InferenceEngine ie(buffer.data(), buffer.size());
+        
+        // With custom options
+        dxrt::InferenceOption option;
+        option.useORT = true;
+        dxrt::InferenceEngine ie2(buffer.data(), buffer.size(), option);
+    }
+    ```
+-   **Use Cases**:
+    -   Loading models from encrypted or compressed storage
+    -   Network-based model distribution
+    -   Embedded systems with models stored in ROM
+    -   Dynamic model loading without filesystem access
+
+
   
 #### Member Functions  
   
@@ -318,7 +360,15 @@ This class specifies inference options applied to an `InferenceEngine`, allowing
 -   **`boundOption`**: `uint32_t`. Selects the NPU core(s) to use within a device, using a value from the `BOUND_OPTION` enum. Default is `NPU_ALL`.  
 -   **`devices`**: `std::vector<int>`. A list of device IDs to be used for inference. If the list is empty (default), all available devices are used.  
 -   **`useORT`**: `bool`. If `true`, both NPU and CPU (via ONNX Runtime) tasks will be executed. If `false`, only NPU tasks will run.  
+-   **`bufferCount`**: `int`. Specifies the number of internal buffers allocated for inference. Higher values can improve throughput in pipelined inference scenarios by allowing more concurrent operations, but consume more memory. Default is `DXRT_TASK_MAX_LOAD_VALUE` (typically 6). Valid range is 1-100.
+    ```cpp
+    dxrt::InferenceOption option;
+    option.bufferCount = 8;  // Allocate 8 buffers for higher throughput
+    dxrt::InferenceEngine ie("model.dxnn", option);
+    ```
   
+  
+
 ---  
   
 ### class dxrt::Configuration  

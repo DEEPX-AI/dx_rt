@@ -91,7 +91,7 @@ class DXRT_API InferenceEngine
      * @endcode
      */
     explicit InferenceEngine(const std::string &modelPath, InferenceOption &option = DefaultInferenceOption);
-    
+
     /** @brief Loads a model from the provided memory buffer and configures the NPU to run it.
      * @param[in] modelBuffer A pointer to the compiled model data in memory.
      * @param[in] option A reference to an InferenceOption object to configure devices and NPU cores.
@@ -616,6 +616,8 @@ class DXRT_API InferenceEngine
      */
     size_t GetOutputTensorOffset(const std::string& tensorName) const;
 
+    friend class InferenceJob; // TODO: refactor to avoid friend class
+
  private:  // private functions
 
     void checkService();
@@ -624,7 +626,7 @@ class DXRT_API InferenceEngine
     void loadModelFromMemory(const std::string& name, const uint8_t* modelBuffer, size_t modelSize, InferenceOption &option);
 
     int runAsync(void *inputPtr, void *userArg, void *outputPtr, int batchIndex,
-        std::function<void(TensorPtrs &outputs, void *userArg, int jobId)> batchCallback);
+        std::function<int(TensorPtrs &outputs, void *userArg, int jobId)> batchCallback);
 
     void runSubBatch(std::vector<TensorPtrs>& result, int batchCount, int startIndex,
             const std::vector<void*>& inputPtrs,
@@ -636,6 +638,10 @@ class DXRT_API InferenceEngine
 
     // Helper method to check if user output buffer should be used for final output allocation
     bool shouldUseUserOutputBuffer() const;
+
+    //for internal use only
+    void onInferenceComplete(TensorPtrs &outputs, void *userArg, int jobId);
+
 
  private:
     std::string _modelFile;

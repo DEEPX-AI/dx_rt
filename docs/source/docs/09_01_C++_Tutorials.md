@@ -1312,42 +1312,101 @@ ie.RegisterCallback(nullptr);
 
 ### Examples
 
-The examples provided earlier are actual code samples that can be executed. Please refer to them for practical use.  
+The DX-RT SDK provides comprehensive C++ examples in the `examples/cpp/` directory. These examples demonstrate various inference patterns, configuration options, and performance optimization techniques. All examples are ready to build and run.
 
-- `display_async_pipe`  
-    : An example using `[CPU_1 → {NPU_1 + NPU_2} → CPU_2]` pattern  
-- `display_async_wait`  
-    : An example using `[CPU_1 → NPU_1 → CPU_2 → NPU_2 → CPU_3]` pattern  
-- `display_async_thread`  
-    : An example using single model and multi threads  
-- `display_async_models_1`  
-    : An example using multi models and multi threads (Inference Engine is created within each thread)  
-- `display_async_models_2`  
-    : An example using multi models and multi threads (Inference Engine is created in the main thread)  
-- `run_async_model`  
-    : A performance-optimized example using a callback function  
-- `run_async_model_thread`  
-    : An example using a single inference engine, callback function, and thread  
-    : Usage method when there is a single AI model and multiple inputs  
-- `run_async_model_wait`  
-    : An example using threads and waits  
-- `run_async_model_conf`  
-    : An example of using configuration  
-- `run_async_model_profiler`  
-    : An example of using profiler  
-- `run_async_model_conf`  
-    : An example of using configuration and device status  
-- `run_async_model_profiler`  
-    : An example of using profiler configuration 
-- `run_sync_model`  
-    : An example using a single thread  
-- `run_sync_model_thread`  
-    : An example running an inference engine on multiple threads  
-- `run_sync_model_bound`  
-    : An example of specifying an NPU using the bound option  
-- `run_batch_model`  
-    : An example of using batch inference  
-- `multi_input_model_inference`  
-    : An example of using multi-input model inference  
+**Location:** `examples/cpp/`
+
+#### Basic Inference Examples
+
+- **`run_sync_model`**  
+  Demonstrates synchronous inference using a single thread. This is the simplest way to perform inference, suitable for sequential processing.
+
+- **`run_async_model`**  
+  Performance-optimized asynchronous inference using callback functions. Demonstrates how to maximize NPU utilization with non-blocking execution.
+
+- **`run_async_model_wait`**  
+  Asynchronous inference using the `Wait()` method instead of callbacks, providing more control over output retrieval timing.
+
+- **`run_batch_model`**  
+  Shows how to perform batch inference to process multiple inputs simultaneously, improving throughput for batch-oriented workloads.
+
+#### Configuration Examples
+
+- **`run_sync_model_bound`**  
+  Demonstrates how to bind inference to specific NPU cores using `InferenceOption.boundOption` for fine-grained resource control.
+
+- **`run_async_model_bound`**  
+  Asynchronous version of NPU core binding, showing how to control which NPU cores execute async tasks.
+
+- **`run_sync_model_bufcount`**  
+  Illustrates buffer count configuration with `InferenceOption.bufferCount` to optimize memory usage in synchronous mode.
+
+- **`run_async_model_bufcount`**  
+  Shows buffer count tuning for asynchronous inference to balance throughput and memory consumption.
+
+- **`run_async_model_conf`**  
+  Comprehensive example of using `dxrt::Configuration` to set runtime parameters and monitor device status.
+
+#### Memory Management Examples
+
+- **`run_sync_model_memory`**  
+  Demonstrates loading models from memory buffers instead of files, useful for embedded systems or when models are loaded from custom sources.
+
+- **`run_sync_model_output`**  
+  Shows how to provide pre-allocated output buffers to the inference engine, giving you control over output memory management.
+
+- **`run_async_model_output`**  
+  Asynchronous inference with user-managed output buffers, demonstrating zero-copy output handling.
+
+#### Profiling Examples
+
+- **`run_async_model_profiler`**  
+  Demonstrates how to enable and use the DX-RT profiler to collect detailed timing information for performance analysis.
+
+#### Multi-Input Model Examples
+
+- **`multi_input_model_inference`**  
+  Shows how to handle models with multiple input tensors, including proper buffer preparation and data layout.
+
+#### Advanced Pipeline Examples
+
+- **`display_async_pipe`**  
+  Pipeline pattern: `[CPU_1 → {NPU_1 + NPU_2} → CPU_2]`  
+  Demonstrates preprocessing on CPU, parallel NPU execution, and postprocessing.
+
+- **`display_async_wait`**  
+  Sequential pattern: `[CPU_1 → NPU_1 → CPU_2 → NPU_2 → CPU_3]`  
+  Shows how to chain multiple processing stages with intermediate CPU tasks.
+
+- **`display_async_thread`**  
+  Single model with multiple threads, demonstrating concurrent inference requests to the same model.
+
+- **`display_async_models_1`**  
+  Multi-model multi-thread example where each thread creates its own `InferenceEngine` instance.
+
+- **`display_async_models_2`**  
+  Multi-model multi-thread example where `InferenceEngine` instances are created in the main thread and shared.
+
+#### Building and Running Examples
+
+All examples can be built using CMake:
+
+```bash
+cd examples/cpp
+mkdir build && cd build
+cmake ..
+make
+
+# Run an example (replace with actual model path)
+./run_sync_model -m /path/to/model.dxnn -l 100
+./run_async_model -m /path/to/model.dxnn -l 1000 -v
+./run_batch_model -m /path/to/model.dxnn -b 4 -l 100
+```
+
+Most examples support the following common options:
+- `-m, --model`: Path to the model file (.dxnn)
+- `-l, --loops`: Number of inference iterations
+- `-v, --verbose`: Enable verbose/debug logging
+- `-h, --help`: Display usage information
 
 ---

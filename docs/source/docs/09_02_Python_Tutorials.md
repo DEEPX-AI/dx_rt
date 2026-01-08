@@ -736,26 +736,92 @@ ie.register_callback(None)
 
 ### Examples
 
-The examples provided earlier are actual code samples that can be executed. Please refer to them for practical use. (`examples/python`)  
+The DX-RT SDK provides comprehensive Python examples in the `examples/python/` directory. These examples demonstrate various inference patterns, configuration options, and performance optimization techniques using the Python API. All examples are ready to run.
 
-- `run_async_model.py`  
-  : A performance-optimized example using a callback function  
-- `run_async_model_thread.py`  
-  : An example using a single inference engine, callback function, and thread  
-  : Usage method when there is a single AI model and multiple inputs  
-- `run_async_model_wait.py`  
-  : An example using threads and waits  
-- `run_async_model_conf.py`  
-  : An example using configuration and device status  
-- `run_async_model_profiler.py`  
-  : An example using profiler configuration 
-- `run_sync_model.py`  
-  : An example using a single thread  
-- `run_sync_model_thread.py`  
-  : An example running an inference engine on multiple threads  
-- `run_sync_model_bound.py`  
-  : An example of specifying an NPU using the bound option  
-- `multi_input_model_inference.py`  
-  : An example of using multi-input model inference  
+**Location:** `examples/python/`
+
+#### Basic Inference Examples
+
+- **`run_sync_model.py`**  
+  Demonstrates synchronous inference using a single thread. This is the simplest way to perform inference in Python, suitable for sequential processing and prototyping.
+
+- **`run_async_model.py`**  
+  Performance-optimized asynchronous inference using callback functions. Shows how to maximize NPU utilization with non-blocking execution and thread-safe callback handling.
+
+- **`run_async_model_callback.py`**  
+  Additional asynchronous inference example focusing on callback pattern variations and user argument passing for input-output synchronization.
+
+- **`run_async_model_wait.py`**  
+  Asynchronous inference using the `wait()` method instead of callbacks, providing more control over output retrieval timing and job management.
+
+- **`run_async_model_thread.py`**  
+  Single inference engine with multiple threads using callbacks. Demonstrates how to handle multiple concurrent inputs to a single model efficiently.
+
+- **`run_batch_model.py`**  
+  Shows how to perform batch inference to process multiple inputs simultaneously, improving throughput for batch-oriented workloads.
+
+#### Configuration Examples
+
+- **`run_sync_model_bound.py`**  
+  Demonstrates how to bind inference to specific NPU cores using `InferenceOption.bound_option` for fine-grained resource control.
+
+- **`run_sync_model_bufcount.py`**  
+  Illustrates buffer count configuration with `InferenceOption.buffer_count` to optimize memory usage and inference pipeline depth.
+
+- **`run_async_model_bufcount.py`**  
+  Shows buffer count tuning for asynchronous inference to balance throughput and memory consumption in high-performance scenarios.
+
+- **`run_async_model_conf.py`**  
+  Comprehensive example of using `dx_engine.Configuration` to set runtime parameters, monitor device status, and control logging behavior.
+
+#### Memory Management Examples
+
+- **`run_sync_model_memory.py`**  
+  Demonstrates loading models from memory buffers (bytes) instead of files, useful for embedded systems or when models are loaded from custom sources.
+
+#### Profiling Examples
+
+- **`run_async_model_profiler.py`**  
+  Demonstrates how to enable and use the DX-RT profiler to collect detailed timing information for performance analysis and bottleneck identification.
+
+#### Multi-Input Model Examples
+
+- **`multi_input_model_inference.py`**  
+  Shows how to handle models with multiple input tensors, including proper buffer preparation, numpy array handling, and correct data layout.
+
+#### Running Examples
+
+All examples support command-line arguments for flexibility:
+
+```bash
+# Basic synchronous inference
+python examples/python/run_sync_model.py -m /path/to/model.dxnn -l 100
+
+# Asynchronous inference with verbose output
+python examples/python/run_async_model.py -m /path/to/model.dxnn -l 1000 -v
+
+# Batch inference
+python examples/python/run_batch_model.py -m /path/to/model.dxnn -b 4 -l 100
+
+# Bound to specific NPU core
+python examples/python/run_sync_model_bound.py -m /path/to/model.dxnn
+
+# With profiling enabled
+python examples/python/run_async_model_profiler.py -m /path/to/model.dxnn -l 500
+```
+
+**Common Command-Line Options:**
+- `-m, --model`: Path to the model file (.dxnn) - **required**
+- `-l, --loops`: Number of inference iterations (default: 1)
+- `-b, --batch`: Batch count for batch inference (default: 1)
+- `-v, --verbose`: Enable verbose/debug logging
+- `-h, --help`: Display usage information
+
+**Prerequisites:**
+
+Ensure the DX-RT Python package is installed:
+```bash
+pip install dx_engine
+```
 
 ---

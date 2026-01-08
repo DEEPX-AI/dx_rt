@@ -89,9 +89,10 @@ public:
     std::string GetFwBinVersion();
     bool IsMatchSignature();
     std::string GetFwUpdateResult(uint32_t);
-    uint32_t GetBoardType();
-    std::string GetBoardTypeString();
-    std::string GetDdrTypeString();
+    uint32_t GetBoardType() const;
+    std::string GetBoardTypeString() const;
+    uint32_t GetDdrType() const;
+    std::string GetDdrTypeString() const;
 private:
     dx_fw_header_t fwHeader;
 };

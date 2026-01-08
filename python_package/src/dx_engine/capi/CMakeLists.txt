@@ -73,7 +73,7 @@ if (Python_EXECUTABLE MATCHES "pypy")
 endif()
 
 if(MSVC)
-    target_link_libraries(${target} PRIVATE ${CMAKE_SOURCE_DIR}/../../../build_dxrt/Release/dxrt.lib ${link_libs})
+    target_link_libraries(${target} PRIVATE ${CMAKE_SOURCE_DIR}/../../../../out/install/x64-Release/lib/dxrt.lib ${link_libs})
 else()
     target_link_libraries(${target} PRIVATE dxrt pthread ${link_libs})
 endif()
@@ -90,6 +90,17 @@ install(TARGETS _pydxrt
     LIBRARY DESTINATION ${DX_PYDXRT_TARGET_DIR}
     CONFIGURATIONS Release
 )
+
+# Install required DLLs to capi directory
+if(MSVC)
+    install(FILES 
+        ${CMAKE_SOURCE_DIR}/../../../../out/install/x64-Release/bin/dxrt.dll
+        ${CMAKE_SOURCE_DIR}/../../../../out/install/x64-Release/bin/onnxruntime.dll
+        DESTINATION ${DX_PYDXRT_TARGET_DIR}
+        CONFIGURATIONS Release
+        OPTIONAL
+    )
+endif()
 
 
 

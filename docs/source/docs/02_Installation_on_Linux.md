@@ -751,8 +751,37 @@ pip install .
 ```
 pip list | grep dx
 
-dx-engine          1.1.2
+dx-engine          1.1.4
 ```
+
+Alternatively, you can check the version programmatically:
+
+**Using Python Interactive Shell:**
+```python
+import dx_engine
+print(dx_engine.__version__)
+# Output: 1.1.4
+```
+
+**Using Command Line:**
+```bash
+python3 -c "import dx_engine; print(dx_engine.__version__)"
+# Output: 1.1.4
+```
+
+**Verify Available Modules and Classes:**
+```python
+import dx_engine
+print(dir(dx_engine))
+# Output: ['Configuration', 'DeviceStatus', 'InferenceEngine', 'InferenceOption', 
+#          'RuntimeEventDispatcher', '__version__', ...]
+```
+
+These methods are useful for:
+- Automated build scripts and CI/CD pipelines
+- Version compatibility checks before running applications
+- Debugging installation issues
+
 
 For details on using **DX-RT** with Python, refer to **Section. Python Tutorials**.
 
@@ -877,41 +906,39 @@ sudo ./SanityCheck.sh all
 ```
 ============================================================================
 ==== Sanity Check Date : ... ====
-Log file location : /.../dx_rt/dx_report/sanity/result/sanity_check_result_....log
+Log file location : /.../sanity_check_result_..._....log
 
 ==== PCI Link-up Check ====
-[OK] Vendor ID 1ff4 is present in the PCI devices.(num=2)
+[OK] Vendor ID 1ff4 is present in the PCI devices.(num=1)
 ==== Device File Check ====
 [OK] /dev/dxrt0 exists.
 [OK] /dev/dxrt0 is a character device.
 [OK] /dev/dxrt0 has correct permissions (0666).
-[OK] /dev/dxrt1 exists.
-[OK] /dev/dxrt1 is a character device.
-[OK] /dev/dxrt1 has correct permissions (0666).
 ==== Kernel Module Check ====
 [OK] dxrt_driver module is loaded.
 [OK] dx_dma module is loaded.
 [OK] PCIe 02:00.0 driver probe is success.
-[OK] PCIe 07:00.0 driver probe is success.
 ==== Legacy Driver Installed Check ====
-[INFO] /lib/modules/...-generic/kernel/drivers/dxrt_driver.ko ... NONE
-[INFO] /lib/modules/...-generic/kernel/drivers/dx_dma.ko ... NONE
+[INFO] /lib/modules/6.8.0-87-generic/kernel/drivers/dxrt_driver.ko ... NONE
+[INFO] /lib/modules/6.8.0-87-generic/kernel/drivers/dx_dma.ko ... NONE
 ==== DKMS Driver Installed Check ====
-[INFO] dxrt-driver-dkms/..., ...-generic, x86_64: installed
-[INFO] /lib/modules/...-generic/updates/dkms/dxrt_driver.ko ... OK
-[INFO] /lib/modules/...-generic/updates/dkms/dx_dma.ko ... OK
+[INFO] dxrt-driver-dkms/1.8.0-2, 6.8.0-87-generic, x86_64: installed
+[INFO] /lib/modules/6.8.0-87-generic/updates/dkms/dxrt_driver.ko ... OK
+[INFO] /lib/modules/6.8.0-87-generic/updates/dkms/dx_dma.ko ... OK
 ==== Runtime Version Dependency Check ====
 [OK] Version Dependency Check
-   Runtime Framework Version: 3.0.0
-   Device Driver Version: v1.7.1
-   PCIe Driver Version: v1.4.1
-   Firmware Version: device-id=0 v2.1.3
-   Firmware Version: device-id=1 v2.1.3
+   Runtime Framework Version: 3.2.0
+   Device Driver Version: v1.8.0
+   PCIe Driver Version: v1.5.1
+   Firmware Version: device-id=0 v2.4.0
    ONNX Runtime Version: v1.20.1
 ==== Runtime Executable File Check ====
 [OK] Executable File Check
-   libdxrt.so ...OK
-        libdxrt.so (libc6,x86-64) => /usr/local/lib/libdxrt.so
+   Runtime Framework Version: 3.2.0
+   Device Driver Version: v1.8.0
+   PCIe Driver Version: v1.5.1
+   Firmware Version: device-id=0 v2.4.0
+   ONNX Runtime Version: v1.20.1
    dxrt-cli ...OK
    run_model ...OK
    parse_model ...OK
@@ -937,20 +964,22 @@ sudo ./SanityCheck.sh dx_rt
 ```
 ============================================================================
 ==== Sanity Check Date : ... ====
-Log file location : /.../dx_rt/dx_report/sanity/result/sanity_check_result_....log
+Log file location : /.../sanity_check_result_..._....log
 
 ==== Runtime Version Dependency Check ====
 [OK] Version Dependency Check
-   Runtime Framework Version: 3.0.0
-   Device Driver Version: v1.7.1
-   PCIe Driver Version: v1.4.1
-   Firmware Version: device-id=0 v2.1.3
-   Firmware Version: device-id=1 v2.1.3
+   Runtime Framework Version: 3.2.0
+   Device Driver Version: v1.8.0
+   PCIe Driver Version: v1.5.1
+   Firmware Version: device-id=0 v2.4.0
    ONNX Runtime Version: v1.20.1
 ==== Runtime Executable File Check ====
 [OK] Executable File Check
-   libdxrt.so ...OK
-        libdxrt.so (libc6,x86-64) => /usr/local/lib/libdxrt.so
+   Runtime Framework Version: 3.2.0
+   Device Driver Version: v1.8.0
+   PCIe Driver Version: v1.5.1
+   Firmware Version: device-id=0 v2.4.0
+   ONNX Runtime Version: v1.20.1
    dxrt-cli ...OK
    run_model ...OK
    parse_model ...OK
@@ -975,29 +1004,25 @@ sudo ./SanityCheck.sh dx_driver
 ```
 ============================================================================
 ==== Sanity Check Date : ... ====
-Log file location : /.../dx_rt/dx_report/sanity/result/sanity_check_result_....log
+Log file location : /.../sanity_check_result_..._....log
 
 ==== PCI Link-up Check ====
-[OK] Vendor ID 1ff4 is present in the PCI devices.(num=2)
+[OK] Vendor ID 1ff4 is present in the PCI devices.(num=1)
 ==== Device File Check ====
 [OK] /dev/dxrt0 exists.
 [OK] /dev/dxrt0 is a character device.
 [OK] /dev/dxrt0 has correct permissions (0666).
-[OK] /dev/dxrt1 exists.
-[OK] /dev/dxrt1 is a character device.
-[OK] /dev/dxrt1 has correct permissions (0666).
 ==== Kernel Module Check ====
 [OK] dxrt_driver module is loaded.
 [OK] dx_dma module is loaded.
 [OK] PCIe 02:00.0 driver probe is success.
-[OK] PCIe 07:00.0 driver probe is success.
 ==== Legacy Driver Installed Check ====
-[INFO] /lib/modules/...-generic/kernel/drivers/dxrt_driver.ko ... NONE
-[INFO] /lib/modules/...-generic/kernel/drivers/dx_dma.ko ... NONE
+[INFO] /lib/modules/6.8.0-87-generic/kernel/drivers/dxrt_driver.ko ... NONE
+[INFO] /lib/modules/6.8.0-87-generic/kernel/drivers/dx_dma.ko ... NONE
 ==== DKMS Driver Installed Check ====
-[INFO] dxrt-driver-dkms/..., ...-generic, x86_64: installed
-[INFO] /lib/modules/...-generic/updates/dkms/dxrt_driver.ko ... OK
-[INFO] /lib/modules/...-generic/updates/dkms/dx_dma.ko ... OK
+[INFO] dxrt-driver-dkms/1.8.0-2, 6.8.0-87-generic, x86_64: installed
+[INFO] /lib/modules/6.8.0-87-generic/updates/dkms/dxrt_driver.ko ... OK
+[INFO] /lib/modules/6.8.0-87-generic/updates/dkms/dx_dma.ko ... OK
 
 ============================================================================
 ** Sanity check PASSED!

@@ -49,10 +49,50 @@ Choose one of the following options.
 
 ### Configure Inference Options  
 
-Create a `dxrt::InferenceOption` object to configure runtime settings for the inference engine.  
+Create a `dxrt::InferenceOption` object to configure runtime settings for the inference engine. This allows you to control device selection, NPU core binding, CPU task execution, and buffer allocation.
 
-!!! note "NOTE"  
-     This option is temporarily unsupported in the current version, and will be available in the next release.  
+**Available Configuration Options**
+
+- **`devices`** (default: empty = all devices)  
+  Specifies which device IDs to use for inference. If empty, all available devices are used.  
+  ```cpp
+  option.devices = {0, 1};  // Use device 0 and device 1 only
+  ```
+
+- **`boundOption`** (default: `NPU_ALL`)  
+  Selects which NPU core(s) inside the device to use for inference.  
+  - `NPU_ALL`: Uses all NPU cores simultaneously (recommended for maximum throughput)  
+  - `NPU_0`, `NPU_1`, `NPU_2`: Uses only a single specific NPU core  
+  - `NPU_01`, `NPU_12`, `NPU_02`: Uses a pair of NPU cores  
+  ```cpp
+  option.boundOption = dxrt::InferenceOption::NPU_ALL;
+  ```
+
+- **`useORT`** (default: depends on build configuration)  
+  Enables ONNX Runtime for executing CPU-side tasks that are not supported by the NPU.  
+  - `true`: Both NPU and CPU (via ONNX Runtime) tasks are executed  
+  - `false`: Only NPU tasks are executed  
+  ```cpp
+  option.useORT = true;  // Enable CPU fallback for unsupported operations
+  ```
+
+- **`bufferCount`** (default: `DXRT_TASK_MAX_LOAD_VALUE`)  
+  Specifies the number of internal buffers allocated for inference. Higher values may improve throughput in pipelined scenarios.  
+  ```cpp
+  option.bufferCount = 4;  // Allocate 4 inference buffers
+  ```
+
+**Example Usage**
+
+```cpp
+dxrt::InferenceOption option;
+option.devices = {0};                              // Use only device 0
+option.boundOption = dxrt::InferenceOption::NPU_ALL;  // Use all cores
+option.useORT = true;                              // Enable CPU tasks
+option.bufferCount = 4;                            // Use 4 buffers
+
+auto ie = dxrt::InferenceEngine("model.dxnn", &option);
+```
 
 ---
 
@@ -63,8 +103,23 @@ Create a `dxrt::InferenceEngine` instance using the path to the compiled model d
 If `dxrt::InferenceOption` is **not** provided, a default option is applied.  
 
 ```
+// Option 1: Load from file path
 auto ie = dxrt::InferenceEngine("yolov5s.dxnn");
+
+// Option 2: Load from file path with options
 auto ie = dxrt::InferenceEngine("yolov5s.dxnn", &option);
+
+// Option 3: Load from memory buffer
+std::ifstream file("yolov5s.dxnn", std::ios::binary | std::ios::ate);
+std::streamsize yolov5s_buffer_size = file.tellg();
+file.seekg(0, std::ios::beg);
+std::vector<uint8_t> yolov5s_buffer(yolov5s_buffer_size);
+if (file.read(reinterpret_cast<char*>(yolov5s_buffer.data()), yolov5s_buffer_size)) {
+    auto ie = dxrt::InferenceEngine(yolov5s_buffer.data(), yolov5s_buffer_size);
+}
+
+// Option 4: Load from memory buffer with options
+auto ie = dxrt::InferenceEngine(yolov5s_buffer.data(), yolov5s_buffer_size, &option);
 ```
 
 ---
@@ -199,6 +254,17 @@ As a result, applications no longer need to manually attach input dummy bytes or
 
 ## Profile Application
 
+### Extract Profiling Data Using `run_model`
+
+When you run a model with the `--profiler` option using `run_model`, a `profiler.json` file is automatically generated in the working directory.
+
+```
+run_model -m model.dxnn --profiler
+# Check the generated profiler.json file
+```
+
+This provides a quick way to collect profiling data without modifying your application code.
+
 ### Gather Timing Data per Event
 
 You can profile events within your application using the Profiler APIs. Please refer to **Section. API reference**.  
@@ -271,6 +337,154 @@ Please refer to usage of `tool/profiler/plot.py`.
 ```
 usage: plot.py [-h] [-i INPUT] [-o OUTPUT] [-s START] [-e END] [-g]
 ```
+
+---
+
+## RuntimeEventDispatcher
+
+The `RuntimeEventDispatcher` is a singleton class that provides a centralized event dispatching mechanism for monitoring and handling runtime events from the DX-RT system. It enables applications to receive notifications about device errors, warnings, and operational events through custom event handlers.
+
+### Overview
+
+Runtime events include device status changes, memory operations, core errors, and other operational notifications. The dispatcher supports different severity levels and event categories, allowing applications to filter and respond to events based on their importance.
+
+### Event Severity Levels
+
+Events are categorized by severity using `RuntimeEventDispatcher::LEVEL`:
+
+- **`LEVEL_INFO`** - Informational messages for normal operation events
+- **`LEVEL_WARNING`** - Warning messages for potential issues that don't stop execution  
+- **`LEVEL_ERROR`** - Error messages for recoverable failures
+- **`LEVEL_CRITICAL`** - Critical errors that may cause system instability
+
+### Event Types
+
+Events are classified by their source using `RuntimeEventDispatcher::TYPE`:
+
+- **`DEVICE_CORE`** - Events related to NPU core operations
+- **`DEVICE_STATUS`** - Device status change events
+- **`DEVICE_IO`** - Input/Output operation events
+- **`DEVICE_MEMORY`** - Memory management events
+- **`UNKNOWN`** - Unknown or unclassified event types
+
+### Event Codes
+
+Specific event codes identify the exact nature of events using `RuntimeEventDispatcher::CODE`:
+
+- **`WRITE_INPUT`** - Input data write operation event
+- **`READ_OUTPUT`** - Output data read operation event
+- **`MEMORY_OVERFLOW`** - Memory overflow or capacity exceeded
+- **`MEMORY_ALLOCATION`** - Memory allocation failure or issue
+- **`DEVICE_EVENT`** - General device event notification
+- **`RECOVERY_OCCURRED`** - Device recovery action taken
+- **`TIMEOUT_OCCURRED`** - Operation timeout event
+- **`THROTTLING_NOTICE`** - Device throttling notification
+- **`THROTTLING_EMERGENCY`** - Device throttling emergency notification
+- **`UNKNOWN`** - Unknown or unclassified event code
+
+### Usage Example
+
+**Basic Event Handler Registration**
+
+```cpp
+#include "dxrt/dxrt_api.h"
+#include <iostream>
+
+int main()
+{
+    // Get the singleton instance
+    auto& dispatcher = dxrt::RuntimeEventDispatcher::GetInstance();
+    
+    // Set the minimum event level threshold
+    dispatcher.SetCurrentLevel(dxrt::RuntimeEventDispatcher::LEVEL::LEVEL_WARNING);
+    
+    // Register a custom event handler
+    dispatcher.RegisterEventHandler(
+        [](dxrt::RuntimeEventDispatcher::LEVEL level,
+           dxrt::RuntimeEventDispatcher::TYPE type,
+           dxrt::RuntimeEventDispatcher::CODE code,
+           const std::string& message,
+           const std::string& timestamp)
+        {
+            std::cout << "[" << timestamp << "] ";
+            
+            // Handle different severity levels
+            switch (level) {
+                case dxrt::RuntimeEventDispatcher::LEVEL::LEVEL_INFO:
+                    std::cout << "INFO: ";
+                    break;
+                case dxrt::RuntimeEventDispatcher::LEVEL::LEVEL_WARNING:
+                    std::cout << "WARNING: ";
+                    break;
+                case dxrt::RuntimeEventDispatcher::LEVEL::LEVEL_ERROR:
+                    std::cout << "ERROR: ";
+                    break;
+                case dxrt::RuntimeEventDispatcher::LEVEL::LEVEL_CRITICAL:
+                    std::cout << "CRITICAL: ";
+                    break;
+            }
+            
+            std::cout << message << std::endl;
+            
+            // Take action based on event type or code
+            if (code == dxrt::RuntimeEventDispatcher::CODE::RECOVERY_OCCURRED) {
+                std::cout << "Device recovery detected - reinitializing..." << std::endl;
+                // Implement recovery logic here
+            }
+        }
+    );
+    
+    // Your inference code here
+    dxrt::InferenceEngine ie("model.dxnn");
+    // ... perform inference ...
+    
+    return 0;
+}
+```
+
+**Advanced Event Filtering**
+
+```cpp
+// Example: Filter events by type and severity
+dispatcher.RegisterEventHandler(
+    [](dxrt::RuntimeEventDispatcher::LEVEL level,
+       dxrt::RuntimeEventDispatcher::TYPE type,
+       dxrt::RuntimeEventDispatcher::CODE code,
+       const std::string& message,
+       const std::string& timestamp)
+    {
+        // Only handle critical device core events
+        if (level == dxrt::RuntimeEventDispatcher::LEVEL::LEVEL_CRITICAL &&
+            type == dxrt::RuntimeEventDispatcher::TYPE::DEVICE_CORE)
+        {
+            std::cerr << "CRITICAL DEVICE ERROR: " << message << std::endl;
+            // Log to file, send alert, etc.
+        }
+        
+        // Monitor memory events
+        if (type == dxrt::RuntimeEventDispatcher::TYPE::DEVICE_MEMORY)
+        {
+            std::cout << "Memory event: " << message << std::endl;
+            // Track memory usage statistics
+        }
+    }
+);
+```
+
+### Key Features
+
+- **Singleton Pattern** - Single instance accessible throughout the application
+- **Thread-Safe** - Uses mutexes and atomic operations for concurrent access
+- **Custom Handlers** - Register callback functions to process events
+- **Event Filtering** - Set minimum severity level threshold
+- **Automatic Logging** - Events are automatically logged with formatted output
+
+### Notes
+
+- Only one event handler can be registered at a time; subsequent registrations replace the previous handler
+- The event handler is invoked synchronously with minimal lock duration
+- Events below the current level threshold may be filtered by custom handlers
+- The dispatcher uses a copy-and-execute pattern to minimize mutex contention
 
 ---
 

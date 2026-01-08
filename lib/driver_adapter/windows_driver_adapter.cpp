@@ -35,14 +35,78 @@ WindowsDriverAdapter::WindowsDriverAdapter(const char* fileName)
 #endif
 }
 
-int32_t WindowsDriverAdapter::IOControl(dxrt_cmd_t request, void* data, uint32_t size , uint32_t sub_cmd)
+size_t g_eventPoolAllocCount = 0;
+size_t g_eventFullCount = 0;
+
+HANDLE WindowsDriverAdapter::AcquireEvent()
 {
-    OVERLAPPED overlappedSend1 = {};
-    overlappedSend1.hEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+    std::lock_guard<std::mutex> lock(_eventPoolMutex);
+
+    size_t pool_size = _eventPool.size();
+
+    if (pool_size > g_eventPoolAllocCount)
+    {
+        g_eventPoolAllocCount = pool_size;
+        LOG_DXRT_INFO("WindowsDriverAdapter::AcquireEvent() -> _eventPool.size() = " << pool_size);
+    }
+
+    if (!_eventPool.empty()) {
+        HANDLE hEvent = _eventPool.back();
+        _eventPool.pop_back();
+        ResetEvent(hEvent);
+        return hEvent;
+    }
+    
+    return CreateEvent(nullptr, TRUE, FALSE, nullptr);
+}
+
+void WindowsDriverAdapter::ReleaseEvent(HANDLE hEvent)
+{
+    if (hEvent == NULL) return;
+
+    std::lock_guard<std::mutex> lock(_eventPoolMutex);
+    
+    size_t pool_size = _eventPool.size();
+
+    if (pool_size < 64) {
+        _eventPool.push_back(hEvent);
+    }
+    else {
+        if (g_eventFullCount < 3)
+        {
+            LOG_DXRT_INFO("WindowsDriverAdapter::ReleaseEvent -> _eventPool.size() = " << pool_size);
+        }
+        else if(g_eventFullCount == 3)
+        {
+            LOG_DXRT_INFO("Further event pool full messages suppressed.");
+		}
+
+        g_eventFullCount++;
+
+        CloseHandle(hEvent);
+    }
+}
+
+int32_t WindowsDriverAdapter::IOControl(dxrt_cmd_t request, void* data, uint32_t size, uint32_t sub_cmd)
+{
+    if (_fd == INVALID_HANDLE_VALUE) {
+        LOG_DXRT_ERR("IOControl called with invalid handle. Device: " << _name);
+        return ERROR_INVALID_HANDLE;
+    }
+
+    HANDLE hEvent = AcquireEvent();
+    if (hEvent == NULL) {
+        LOG_DXRT_ERR("AcquireEvent failed. GLE=" << GetLastError());
+        return -1;
+    }
+
+    OVERLAPPED overlapped = {};
+    overlapped.hEvent = hEvent;
+
     int ret = 0;
     dxrt_message_t msg;
     msg.cmd = static_cast<int32_t>(request);
-    msg.sub_cmd = static_cast<int32_t>(sub_cmd),
+    msg.sub_cmd = static_cast<int32_t>(sub_cmd);
     msg.data = data;
     msg.size = size;
 
@@ -55,61 +119,53 @@ int32_t WindowsDriverAdapter::IOControl(dxrt_cmd_t request, void* data, uint32_t
         NULL,
         0,
         &bytesReturned,
-        &overlappedSend1);
-    if ( !success )
+        &overlapped);
+
+    DWORD lastError = GetLastError();
+
+    if (!success)
     {
-        if (GetLastError() == ERROR_IO_PENDING)
+        if (lastError == ERROR_IO_PENDING)
         {
-#if 0
-            for (int i = 0; i < 10000; i++) {
-                DWORD e = WaitForSingleObject(overlappedSend1.hEvent, 6);  // INFINITE
-                if (e == WAIT_OBJECT_0)
-                    break;
-                if (e == WAIT_TIMEOUT)
-                    continue;
-                break;  // error
-            }
-            GetOverlappedResult(_fd, &overlappedSend1, &bytesReturned, FALSE);
-            // CloseHandle(_fd.hEvent);
-            success = true;
-#endif
-            DWORD e = WaitForSingleObject(overlappedSend1.hEvent, INFINITE);
+            DWORD e = WaitForSingleObject(hEvent, INFINITE);
             if (e == WAIT_OBJECT_0) {
-                GetOverlappedResult(_fd, &overlappedSend1, &bytesReturned, FALSE);
+                GetOverlappedResult(_fd, &overlapped, &bytesReturned, FALSE);
                 success = true;
             }
-            if (e == WAIT_TIMEOUT)
+            else if (e == WAIT_TIMEOUT) {
+                ReleaseEvent(hEvent);
                 return -1;
+            }
         }
         else
         {
-            LOG_DXRT_ERR("e:" << GetLastError());
+            LOG_DXRT_ERR("DeviceIoControl failed. GLE=" << lastError
+                << ", cmd=" << static_cast<int>(request)
+                << ", handle=" << reinterpret_cast<uint64_t>(_fd));
+
+            if (lastError == ERROR_INVALID_HANDLE) {
+                LOG_DXRT_ERR("Handle appears to be invalid or closed. Device: " << _name);
+            }
         }
     }
-    CloseHandle(overlappedSend1.hEvent);
+
     switch (request)
     {
     case dxrt_cmd_t::DXRT_CMD_UPDATE_FIRMWARE:
-        if (!success) {
-            ret = bytesReturned;
-        }
-        else
-        {
-            ret = 0;
-        }
+        ret = success ? 0 : bytesReturned;
         break;
     default:
         if (!success) {
-            // PrintLastErrorString();
-            ret = GetLastError();
-            std::cout << "GetLastError() = " << ret  << std::endl;
+            ret = lastError;
+            std::cout << "GetLastError() = " << ret << std::endl;
         }
-        else
-        {
+        else {
             ret = 0;
-        }
+		}
         break;
     }
+
+    ReleaseEvent(hEvent);
     return ret;
 }
 
@@ -190,6 +246,11 @@ int32_t WindowsDriverAdapter::Poll()
 
 WindowsDriverAdapter::~WindowsDriverAdapter()
 {
+    for (HANDLE hEvent : _eventPool) {
+        CloseHandle(hEvent);
+    }
+    _eventPool.clear();
+
     CloseHandle(_fd);
 }
 

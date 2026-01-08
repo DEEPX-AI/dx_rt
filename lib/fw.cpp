@@ -183,13 +183,13 @@ Fw::~Fw()
 {
 }
 
-uint32_t Fw::GetBoardType()
+uint32_t Fw::GetBoardType() const
 {
     return fwHeader.board_type;
 }
 
 // constexpr std::array<pair_type, 3> board_types = {{{1, "SOM"}, {2, "M.2"}, {3, "H1"}}};
-std::string Fw::GetBoardTypeString()
+std::string Fw::GetBoardTypeString() const
 {
     switch (fwHeader.board_type) {
         case 1:
@@ -203,7 +203,12 @@ std::string Fw::GetBoardTypeString()
     }
 }
 
-std::string Fw::GetDdrTypeString()
+uint32_t Fw::GetDdrType() const
+{
+    return fwHeader.ddr_type;
+}
+
+std::string Fw::GetDdrTypeString() const
 {
     switch (fwHeader.ddr_type) {
         case 1:

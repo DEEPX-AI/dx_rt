@@ -267,81 +267,75 @@ void FWUpdateCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
     using std::cout;
     using std::endl;
 
-    // chieck exist firmware file
-    if ( fileExists(_fwUpdateFile) == false ) {
+    // Check if firmware file exists
+    if (!fileExists(_fwUpdateFile)) {
         std::cout << "Please check the firmware file: " << _fwUpdateFile << std::endl;
         exit(-1);
     }
 
     Fw fw(_fwUpdateFile);
 
-    if (fw.IsMatchSignature()) {
-
-        if (!_showLogOnce)
-        {
-            std::cout << dxrt::LogMessages::CLI_UpdatingFirmware(fw.GetBoardTypeString(), fw.GetFwBinVersion()) << std::endl;
-            _showLogOnce = true;
-        }
-
-        // Get device information
-        auto deviceInfo = devicePtr->info();
-
-        // check firmware versino >= 2.0.0
-        int major = deviceInfo.fw_ver / 100;
-        int minor = (deviceInfo.fw_ver % 100) / 10;
-        int patch = deviceInfo.fw_ver % 10;
-
-        // integer version to string
-        std::string device_fw_version =
-                        std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(patch);
-
-        if ( major >= 2 )
-        {
-            // check device board type and firmware file board type
-            if ( deviceInfo.bd_type == fw.GetBoardType() )
-            {
-                if ( IsVersionHigher(fw.GetFwBinVersion(), device_fw_version) || (_fwUpdateSubCmd & FWUPDATE_FORCE) )
-                {
-                    // show donot turn off message only once
-                    if (!_showDonotTunrOff) {
-                        std::cout << LogMessages::CLI_DonotTurnOffDuringUpdateFirmware() << std::endl;
-                        fw.Show();
-                        _showDonotTunrOff = true;
-                    }
-
-                    // update firmware
-                    int ret = UpdateFw(devicePtr, _fwUpdateFile, _fwUpdateSubCmd);
-
-                    std::cout << "    Device " << devicePtr->id() << ": Update firmware[" << fw.GetFwBinVersion() <<
-                                "] by " << _fwUpdateFile << ", SubCmd:" << getSubCmdString();
-                    if (ret == 0) {
-                        cout << " : SUCCESS" << endl;
-                    } else {
-                        cout << " : FAIL (" << ret << ")" << endl;
-                        cout << " === firmware update fail reason === " << endl;
-                        cout << fw.GetFwUpdateResult(ret) << endl;
-                    }
-                } // update firmware (firmware version is higher then device-fw-version)
-                else
-                {
-                    std::cout << "    Device " << devicePtr->id() <<
-                                ": " << LogMessages::CLI_UpdateFirmwareSkip() << std::endl;
-                }
-
-                _updateDeviceCount++;
-            }
-        } // >= 2.0.0
-        else
-        {
-            std::cout << "    Device " << devicePtr->id() << ": " << LogMessages::CLI_UpdateCondition(device_fw_version) << std::endl;
-        } // < 2.0.0
-    }
-    else
-    {
+    // Check firmware signature
+    if (!fw.IsMatchSignature()) {
         std::cout << "    Device " << devicePtr->id() << ": " << LogMessages::CLI_InvalidFirmwareFile(_fwUpdateFile) << std::endl;
+        return;
     }
 
+    // Show update message once
+    if (!_showLogOnce) {
+        std::cout << dxrt::LogMessages::CLI_UpdatingFirmware(fw.GetBoardTypeString(), fw.GetFwBinVersion()) << std::endl;
+        _showLogOnce = true;
+    }
 
+    // Get device information and version
+    auto deviceInfo = devicePtr->info();
+    int major = deviceInfo.fw_ver / 100;
+    int minor = (deviceInfo.fw_ver % 100) / 10;
+    int patch = deviceInfo.fw_ver % 10;
+    std::string device_fw_version = std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(patch);
+
+    // Check firmware version >= 2.0.0
+    if (major < 2) {
+        std::cout << "    Device " << devicePtr->id() << ": " << LogMessages::CLI_UpdateCondition(device_fw_version) << std::endl;
+        return;
+    }
+
+    // Check device board type and DDR type compatibility
+    bool isCompatible = (deviceInfo.bd_type == fw.GetBoardType()) && (deviceInfo.ddr_type == fw.GetDdrType());
+    if (!isCompatible) {
+        return;
+    }
+
+    // Check if firmware update is needed
+    bool shouldUpdate = IsVersionHigher(fw.GetFwBinVersion(), device_fw_version) || (_fwUpdateSubCmd & FWUPDATE_FORCE);
+    if (!shouldUpdate) {
+        std::cout << "    Device " << devicePtr->id() << ": " << LogMessages::CLI_UpdateFirmwareSkip() << std::endl;
+        _updateDeviceCount++;
+        return;
+    }
+
+    // Show warning message once
+    if (!_showDonotTunrOff) {
+        std::cout << LogMessages::CLI_DonotTurnOffDuringUpdateFirmware() << std::endl;
+        fw.Show();
+        _showDonotTunrOff = true;
+    }
+
+    // Perform firmware update
+    int ret = UpdateFw(devicePtr, _fwUpdateFile, _fwUpdateSubCmd);
+
+    // Display update result
+    std::cout << "    Device " << devicePtr->id() << ": Update firmware[" << fw.GetFwBinVersion()
+              << "] by " << _fwUpdateFile << ", SubCmd:" << getSubCmdString();
+    if (ret == 0) {
+        cout << " : SUCCESS" << endl;
+    } else {
+        cout << " : FAIL (" << ret << ")" << endl;
+        cout << " === firmware update fail reason === " << endl;
+        cout << fw.GetFwUpdateResult(ret) << endl;
+    }
+
+    _updateDeviceCount++;
 }
 
 void FWUpdateCommand::finish()

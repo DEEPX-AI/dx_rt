@@ -158,3 +158,9 @@ install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/dxrtConfigVersion.cmake
     DESTINATION lib/cmake/dxrt
 )
+
+# Install onnxruntime DLL to bin directory
+if(MSVC AND USE_ORT)
+    file(GLOB ORT_INSTALL_DLLS "${onnxruntime_LIB_DIRS}/*.dll")
+    install(FILES ${ORT_INSTALL_DLLS} DESTINATION bin)
+endif()
