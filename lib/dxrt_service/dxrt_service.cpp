@@ -1347,24 +1347,37 @@ static bool IsProcessRunning(pid_t procId)
 
 static bool IsProcessRunning(DWORD procId)
 {
+    // PID 0 is System Idle Process
+    if (procId == 0) {
+        return true;
+    }
+
     HANDLE hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, procId);
 
     if (hProcess == NULL) {
         DWORD error = GetLastError();
 
-        if (error == ERROR_INVALID_PARAMETER) {
+        switch (error) {
+        case ERROR_INVALID_PARAMETER:
+            // Process does not exist (already terminated)
             return false;
+
+        case ERROR_ACCESS_DENIED:
+            // Process exists but we don't have permission to access it
+            // This typically means the process is still running
+            return true;
+
+        default:
+            LOG_DXRT_ERR("OpenProcess failed for PID " << procId << ". Error: " << error);
+            // Conservative assumption: consider it running to avoid premature cleanup
+            return true;
         }
-
-        LOG_DXRT_ERR("OpenProcess failed for PID " << procId << ". Error: " << error)
-        return true;  // Assume running if we can't determine
     }
-
 
     DWORD dwResult = WaitForSingleObject(hProcess, 0);
     CloseHandle(hProcess);
-    if (dwResult == WAIT_OBJECT_0)
-    {
+
+    if (dwResult == WAIT_OBJECT_0) {
         return false;  // Process has terminated
     }
 

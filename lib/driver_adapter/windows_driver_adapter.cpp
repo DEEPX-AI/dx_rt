@@ -47,7 +47,7 @@ HANDLE WindowsDriverAdapter::AcquireEvent()
     if (pool_size > g_eventPoolAllocCount)
     {
         g_eventPoolAllocCount = pool_size;
-        LOG_DXRT_INFO("WindowsDriverAdapter::AcquireEvent() -> _eventPool.size() = " << pool_size);
+        //LOG_DXRT_INFO("WindowsDriverAdapter::AcquireEvent() -> _eventPool.size() = " << pool_size);
     }
 
     if (!_eventPool.empty()) {

@@ -1,0 +1,86 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "cache-base",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-windows",
+        "VCPKG_INSTALLED_DIR": "${sourceDir}/vcpkg_installed",
+        "VCPKG_MANIFEST_MODE": "ON",
+        "VCPKG_MANIFEST_INSTALL": "ON",
+        "VCPKG_CRT_LINKAGE": "dynamic",
+        "VCPKG_LIBRARY_LINKAGE": "dynamic",
+        "VCPKG_TARGET_ARCHITECTURE": "x64",
+        "ONNXRUNTIME_ROOTDIR": "${sourceDir}/extern/onnxruntime-win-x64-1.20.1",
+        "onnxruntime_LIB_DIRS": "${sourceDir}/extern/onnxruntime-win-x64-1.20.1/lib",
+        "onnxruntime_INCLUDE_DIRS": "${sourceDir}/extern/onnxruntime-win-x64-1.20.1/include",
+        "ONNXLIB_DIRS": "${sourceDir}/extern/onnxruntime-win-x64-1.20.1/lib/onnxruntime.lib",
+        "GTest_DIR": "${sourceDir}/vcpkg_installed/x64-windows/share/gtest",
+        "USE_ORT": "ON",
+        "USE_SERVICE": "ON",
+        "USE_PYTHON": "OFF"
+      }
+    },
+    {
+      "name": "base",
+      "hidden": true,
+      "inherits": "cache-base",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "installDir": "${sourceDir}/out/install/${presetName}",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "toolset": {
+        "value": "host=x64",
+        "strategy": "external"
+      }
+    },
+    {
+      "name": "x64-Debug",
+      "displayName": "x64 Debug",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "x64-Release",
+      "displayName": "x64 Release",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "x64-VS",
+      "displayName": "x64 (Visual Studio)",
+      "description": "Visual Studio 솔루션/프로젝트 파일 생성용 (빌드는 x64-Debug/Release 사용)",
+      "inherits": "cache-base",
+      "generator": "Visual Studio 17 2022",
+      "binaryDir": "${sourceDir}/build_vs",
+      "architecture": {
+        "value": "x64",
+        "strategy": "set"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "x64-Debug",
+      "configurePreset": "x64-Debug"
+    },
+    {
+      "name": "x64-Release",
+      "configurePreset": "x64-Release"
+    }
+  ]
+}
