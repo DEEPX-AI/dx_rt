@@ -18,6 +18,18 @@
 
 
 namespace dxrt {
+
+// lpddr type (1 = lpddr4, 2= lpddr5)
+const uint16_t M1_DDR_TYPE_LPDDR4 = 1;
+const uint16_t M1_DDR_TYPE_LPDDR5 = 2;
+const uint16_t M1_DDR_TYPE_LPDDR5X = 3;
+
+// M1 M.2 board type (2)
+// board type (1 = SOM, 2 = M.2, 3 = H1)
+const uint16_t BOARD_TYPE_M_dot_2 = 2;
+const uint16_t BOARD_TYPE_H1 = 3;
+
+
 class DXRT_API CLICommand
 {
  public:
@@ -150,5 +162,9 @@ class DXRT_API DDRErrorCLICommand : public CLICommand
     void doCommand(std::shared_ptr<DeviceCore> devicePtr) override;
 };
 
+const int CHECK_M1_DEVICE = 100;
+const int CHECK_M1M_DEVICE = 101;
 bool DXRT_API CheckH1Devices();
+bool DXRT_API CheckM1Devices(int deviceType);  
+
 }  // namespace dxrt

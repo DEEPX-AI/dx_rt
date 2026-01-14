@@ -411,7 +411,10 @@ int PDC_scr_open(int argc, char **argv)
         exit(1);
     }
 
+#pragma warning(push)
+#pragma warning(disable: 4996)
     is_nt = !(GetVersion() & 0x80000000);
+#pragma warning(pop)
 
     str = getenv("ConEmuANSI");
     pdc_conemu = !!str;

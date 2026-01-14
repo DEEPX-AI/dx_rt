@@ -50,7 +50,9 @@ int main(int argc, char *argv[])
         ("w, fwupload", "Upload firmware with deepx firmware file.[2nd_boot/rtos]", cxxopts::value<std::vector<std::string>>() )
         ("errorstat", "show internal error status")
         ("ddrerror", "show ddr error count")
-        ("check-h1", "check h1 status");
+        ("check-h1", "check h1 status")
+        ("check-m1", "check m1 status")
+        ("check-m1m", "check m1m status");
 
     try
     {
@@ -155,6 +157,24 @@ int main(int argc, char *argv[])
                 cout << "H1 devices are properly recognized." << endl;
             } else {
                 cout << "H1 devices are NOT properly recognized." << endl;
+                return 1;
+            }   
+        }
+        else if (cmd.count("check-m1"))
+        {
+            if ( dxrt::CheckM1Devices(dxrt::CHECK_M1_DEVICE) ) {
+                cout << "M1 devices are properly recognized." << endl;
+            } else {
+                cout << "M1 devices are NOT properly recognized." << endl;
+                return 1;
+            }   
+        }
+        else if (cmd.count("check-m1m"))
+        {
+            if ( dxrt::CheckM1Devices(dxrt::CHECK_M1M_DEVICE) ) {
+                cout << "M1M devices are properly recognized." << endl;
+            } else {
+                cout << "M1M devices are NOT properly recognized." << endl;
                 return 1;
             }   
         }

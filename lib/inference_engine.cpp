@@ -458,6 +458,15 @@ TensorPtrs InferenceEngine::Run(void *inputPtr, void *userArg, void *outputPtr)
 
     std::shared_ptr<InferenceJob> infJob = _inferenceJobPool->pick();
 
+    if (infJob == nullptr)
+    {
+        throw InvalidOperationException(
+            "Failed to acquire InferenceJob from pool. Pool exhausted after prolonged operation. "
+            "Possible causes: 1) Job completion callbacks not releasing resources, "
+            "2) _use_flag not being reset properly. "
+            "Pool size: " + std::to_string(INFERENCE_JOB_MAX_COUNT));
+    }
+
     infJob->SetInferenceJob(_tasks, _head, _lastOutputOrder, _modelInputOrder);
     infJob->setInferenceEngineInterface(this);
     infJob->SetStoreResult(true);
@@ -552,6 +561,15 @@ int InferenceEngine::RunAsyncMultiInput(const std::map<std::string, void*>& inpu
     }
 
     std::shared_ptr<InferenceJob> infJob = _inferenceJobPool->pick();
+
+    if (infJob == nullptr)
+    {
+        throw InvalidOperationException(
+            "Failed to acquire InferenceJob from pool. Pool exhausted after prolonged operation. "
+            "Possible causes: 1) Job completion callbacks not releasing resources, "
+            "2) _use_flag not being reset properly. "
+            "Pool size: " + std::to_string(INFERENCE_JOB_MAX_COUNT));
+    }
 
     // Use multi-head setup if we have multiple input tasks, otherwise use traditional setup
     if (_inputTasks.size() > 1)
@@ -800,6 +818,16 @@ int InferenceEngine::runAsync(void *inputPtr, void *userArg, void *outputPtr, in
     try
     {
         std::shared_ptr<InferenceJob> infJob = _inferenceJobPool->pick();
+        
+        if (infJob == nullptr)
+        {
+            throw InvalidOperationException(
+                "Failed to acquire InferenceJob from pool. Pool exhausted after prolonged operation. "
+                "Possible causes: 1) Job completion callbacks not releasing resources, "
+                "2) _use_flag not being reset properly. "
+                "Pool size: " + std::to_string(INFERENCE_JOB_MAX_COUNT));
+        }
+
         infJob->SetInferenceJob(_tasks, _head, _lastOutputOrder, _modelInputOrder);
         infJob->SetBatchIndex(batchIndex);
         infJob->setInferenceEngineInterface(this);
@@ -1700,6 +1728,15 @@ TensorPtrs InferenceEngine::RunMultiInput(const std::map<std::string, void*>& in
     }
 
     std::shared_ptr<InferenceJob> infJob = _inferenceJobPool->pick();
+
+    if (infJob == nullptr)
+    {
+        throw InvalidOperationException(
+            "Failed to acquire InferenceJob from pool. Pool exhausted after prolonged operation. "
+            "Possible causes: 1) Job completion callbacks not releasing resources, "
+            "2) _use_flag not being reset properly. "
+            "Pool size: " + std::to_string(INFERENCE_JOB_MAX_COUNT));
+    }
 
     // Use multi-head setup if we have multiple input tasks, otherwise use traditional setup
     if (_inputTasks.size() > 1)

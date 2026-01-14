@@ -170,12 +170,12 @@ int main(int argc, char *argv[])
         }
         catch (const std::invalid_argument& ia)
         {
-            std::cerr << "[ERR] Invalid number in '" << devices_spec << "' for 'count:N' format." << std::endl;
+            std::cerr << "[ERR] Invalid number in '" << devices_spec << "' for 'count:N' format: " << ia.what() << std::endl;
             return -1;
         }
         catch (const std::out_of_range& oor)
         {
-            std::cerr << "[ERR] Number out of range in '" << devices_spec << "' for 'count:N' format." << std::endl;
+            std::cerr << "[ERR] Number out of range in '" << devices_spec << "' for 'count:N' format: " << oor.what() << std::endl;
             return -1;
         }
     }

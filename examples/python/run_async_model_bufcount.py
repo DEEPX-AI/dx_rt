@@ -138,6 +138,8 @@ if __name__ == "__main__":
             # wait until all callback data processing is completed
             result_1 = q_1.get()
             result_2 = q_2.get()
+            if result_1 == 0 and result_2 == 0:
+                result = 0
             
             end = time.perf_counter()
             total_time_ms = (end -start) * 1000

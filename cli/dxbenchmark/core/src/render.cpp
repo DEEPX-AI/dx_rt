@@ -336,9 +336,9 @@ void Reporter::makeReport()
         if ((result.infTime.mean + result.infTime.sd) > maxNpuTime) maxNpuTime = result.infTime.mean + result.infTime.sd;
         if ((result.latency.mean + result.latency.sd) > maxLatency) maxLatency = result.latency.mean + result.latency.sd;
     }
-    maxFps *= 1.1;
-    maxNpuTime *= 1.1;
-    maxLatency *= 1.1;
+    maxFps *= 1.1f;
+    maxNpuTime *= 1.1f;
+    maxLatency *= 1.1f;
 
     size_t modelsPerChunk = std::min(chunkSize, _results.size());
     int barPlotHeight = std::min(250 + (int)modelsPerChunk * 30, 1200);

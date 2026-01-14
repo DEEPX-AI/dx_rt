@@ -72,11 +72,14 @@ void DeviceTaskLayer::Deallocate(uint64_t addr)
 
 void DeviceTaskLayer::CallBack()
 {
-    {
-        _load--;
-        _inferenceCnt++;
+    // Decrement load atomically
+    _load--;
+    _inferenceCnt++;
+    
+    // Notify device pool that this device is now available
+    if (_onCompleteInferenceHandler) {
+        _onCompleteInferenceHandler();
     }
-    _onCompleteInferenceHandler();
 }
 void DeviceTaskLayer::RegisterCallback(std::function<void()> f)
 {

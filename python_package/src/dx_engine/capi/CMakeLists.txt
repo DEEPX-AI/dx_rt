@@ -96,6 +96,7 @@ if(MSVC)
     install(FILES 
         ${CMAKE_SOURCE_DIR}/../../../../out/install/x64-Release/bin/dxrt.dll
         ${CMAKE_SOURCE_DIR}/../../../../out/install/x64-Release/bin/onnxruntime.dll
+        ${CMAKE_SOURCE_DIR}/../../../../out/install/x64-Release/bin/onnxruntime_providers_shared.dll
         DESTINATION ${DX_PYDXRT_TARGET_DIR}
         CONFIGURATIONS Release
         OPTIONAL

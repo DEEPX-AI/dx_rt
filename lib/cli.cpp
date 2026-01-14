@@ -301,7 +301,34 @@ void FWUpdateCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
     }
 
     // Check device board type and DDR type compatibility
-    bool isCompatible = (deviceInfo.bd_type == fw.GetBoardType()) && (deviceInfo.ddr_type == fw.GetDdrType());
+    //bool isCompatible = (deviceInfo.bd_type == fw.GetBoardType()) && (deviceInfo.ddr_type == fw.GetDdrType());
+    bool isCompatible = false;
+    if ( fw.GetBoardType() == BOARD_TYPE_M_dot_2
+        && deviceInfo.bd_type == BOARD_TYPE_M_dot_2 )
+    {
+        // M1 or M1M board type
+        if ( ((fw.GetDdrType() == M1_DDR_TYPE_LPDDR5) || (fw.GetDdrType() == M1_DDR_TYPE_LPDDR5X))
+            && ((deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR5) || (deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR5X)) )
+        {
+            isCompatible = true; // M1
+        }
+        else if ( fw.GetDdrType() == M1_DDR_TYPE_LPDDR4
+            && deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR4 )
+        {
+            isCompatible = true; // M1M
+        }
+        // else isCompatible is false;
+    }
+    else if ( fw.GetBoardType() == BOARD_TYPE_H1
+        && deviceInfo.bd_type == BOARD_TYPE_H1 )
+    {
+        // H1 board type
+        isCompatible = true; // H1
+        
+    }
+    //else isCompatible is false;
+    // compatibility check
+        
     if (!isCompatible) {
         return;
     }
@@ -523,7 +550,7 @@ bool CheckH1Devices()
         auto devicePtr = pool.GetDeviceCores(i);
         auto deviceInfo = devicePtr->info();
 
-        if (deviceInfo.bd_type == 3) // H1 board type (3)
+        if (deviceInfo.bd_type == BOARD_TYPE_H1) // H1 board type (3)
         {
             // count of devices recognized as H1
             h1_count ++;
@@ -543,6 +570,69 @@ bool CheckH1Devices()
     }
 
     return foundH1;
+}
+
+// Check M1 or M1M devices
+bool CheckM1Devices(int deviceType)
+{
+    bool foundM1 = false;
+    auto& pool = DevicePool::GetInstance();
+    auto device_total_count = static_cast<int>(pool.GetDeviceCount());
+
+    int m1_count = 0;
+
+    for (int i = 0; i < device_total_count; i++)
+    {
+        auto devicePtr = pool.GetDeviceCores(i);
+        auto deviceInfo = devicePtr->info();
+
+        // M1 M.2 board type (2)
+        // lpddr type (1 = lpddr4, 2= lpddr5, 3= lpddr5x)
+        // board type (1 = SOM, 2 = M.2, 3 = H1)
+        //if (deviceInfo.bd_type == BOARD_TYPE_M_dot_2 && deviceInfo.ddr_type == ddr_type) 
+        if ( deviceType == CHECK_M1_DEVICE 
+             && deviceInfo.bd_type == BOARD_TYPE_M_dot_2 
+             && (deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR5 || deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR5X) )
+        {
+            // count of devices recognized as M1
+            m1_count ++;
+        }
+        else if ( deviceType == CHECK_M1M_DEVICE 
+             && deviceInfo.bd_type == BOARD_TYPE_M_dot_2 
+             && deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR4 )
+        {
+            // count of devices recognized as M1 or M1M
+            m1_count ++;
+        }
+    }
+
+    // m1 device found
+    std::string device_name;
+    if ( deviceType == CHECK_M1_DEVICE )
+    {
+        device_name = "M1";
+    }
+    else if ( deviceType == CHECK_M1M_DEVICE )
+    {
+        device_name = "M1M";
+    }
+    else
+    {
+        device_name = "Unknown";
+        throw dxrt::DeviceIOException(EXCEPTION_MESSAGE("Invalid deviceType for M1 device check: " + std::to_string(deviceType)));
+    }
+
+    if (m1_count > 0 )
+    {
+        foundM1 = true;
+        LOG_DXRT << device_name << " devices found. (" << device_name << "-device-count=" << m1_count << ")" << std::endl;
+    }
+    else
+    {
+        LOG_DXRT << device_name << " devices not found." << std::endl;
+    }
+
+    return foundM1;
 }
 
 }  // namespace dxrt

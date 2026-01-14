@@ -32,7 +32,7 @@ void NpuCore::UpdateData(DXTopIPCClient& dxtopIPCClient, uint32_t voltage, uint3
     }
     else
     {
-        std::out_of_range(convertLiteralUTF8(u8"Temperature value out of valid range ( -40 ~ 125\u00B0C)"));
+        throw std::out_of_range(convertLiteralUTF8(u8"Temperature value out of valid range ( -40 ~ 125\u00B0C)"));
     }
 
     _voltage = voltage;

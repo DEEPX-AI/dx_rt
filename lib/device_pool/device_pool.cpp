@@ -137,32 +137,47 @@ int DevicePool::pickDeviceIndex(const std::vector<int> &device_ids)
     int curDeviceLoad;
     int device_id_size = device_ids.size();
     int block_count = 0;
+    
+    // Round-robin starting index (don't increment here to avoid side effect in predicate)
+    int startIdx = _curDevIdx % device_id_size;
+    
     for (int i = 0; i < device_id_size; i++)
     {
-        int idx = (i + _curDevIdx) % device_id_size;
+        int idx = (i + startIdx) % device_id_size;
         int device_id = device_ids[idx];
+        
         if (_taskLayers[device_id]->isBlocked())
         {
             block_count++;
+            LOG_DXRT_DBG << "Device " << device_id << " is blocked" << std::endl;
             continue;
         }
+        
         curDeviceLoad = _taskLayers[device_id]->load();
+        int fullLoad = _taskLayers[device_id]->getFullLoad();
+        
+        LOG_DXRT_DBG << "Device " << device_id 
+                     << " load=" << curDeviceLoad 
+                     << " fullLoad=" << fullLoad << std::endl;
+        
+        // Select device if it has capacity and lowest load
+        if (curDeviceLoad < fullLoad && curDeviceLoad < load)
         {
-            if (curDeviceLoad < _taskLayers[device_id]->getFullLoad() && curDeviceLoad < load)
-            {
-                load = curDeviceLoad;
-                device_index = device_id;
-            }
+            load = curDeviceLoad;
+            device_index = device_id;
         }
     }
-
-    _curDevIdx++;
 
     if (block_count >= device_id_size)
     {
         throw DeviceIOException(EXCEPTION_MESSAGE(LogMessages::AllDeviceBlocked()));
     }
-    // std::cout << "device-index=" << device_index << std::endl;
+    
+    if (device_index >= 0) {
+        LOG_DXRT_DBG << "Selected device: " << device_index << " with load=" << load << std::endl;
+    } else {
+        LOG_DXRT_DBG << "No available device (all at full load)" << std::endl;
+    }
 
     return device_index;
 }
@@ -196,11 +211,20 @@ std::shared_ptr<NFHLayer> DevicePool::PickOneNFHDevice(const std::vector<int> &d
 std::shared_ptr<DeviceTaskLayer> DevicePool::WaitDevice(const std::vector<int> &device_ids)
 {
     std::unique_lock<std::mutex> lock(_deviceMutex);
+    
+    LOG_DXRT_DBG << "Waiting for available device from " << device_ids.size() << " devices" << std::endl;
 
-    // 3600 second timeout to prevent deadlock
+    // 3000 second timeout to prevent deadlock
     bool success = _deviceCV.wait_for(lock, std::chrono::seconds(3000), [this, &device_ids]{
-        _currentPickDevice = pickDeviceIndex(device_ids);
-        return _currentPickDevice >= 0;
+        // Try to pick a device without side effects in predicate
+        int picked = pickDeviceIndex(device_ids);
+        if (picked >= 0) {
+            _currentPickDevice = picked;
+            return true;
+        }
+        // No device available, keep waiting
+        LOG_DXRT_DBG << "No available device, waiting for notification..." << std::endl;
+        return false;
     });
 
     if (!success) {
@@ -209,12 +233,34 @@ std::shared_ptr<DeviceTaskLayer> DevicePool::WaitDevice(const std::vector<int> &
             error_msg += std::to_string(id) + ",";
         }
         error_msg.pop_back();
+        
+        // Log current state of all devices
+        error_msg += "\\n  Current device states: ";
+        for (int id : device_ids) {
+            if (id < static_cast<int>(_taskLayers.size())) {
+                error_msg += "\\n    Device " + std::to_string(id) + 
+                             ": load=" + std::to_string(_taskLayers[id]->load()) +
+                             ", fullLoad=" + std::to_string(_taskLayers[id]->getFullLoad()) +
+                             ", blocked=" + std::string(_taskLayers[id]->isBlocked() ? "true" : "false");
+            }
+        }
+        
         LOG_DXRT_ERR(error_msg);
         throw std::runtime_error("Device allocation timeout - possible deadlock detected");
     }
 
     auto pick = _taskLayers[_currentPickDevice];
-    pick->pick();
+    pick->pick();  // Increment load counter
+    
+    // Update round-robin index after successful pick
+    // Prevent overflow by resetting after a large threshold
+    _curDevIdx++;
+    if (_curDevIdx > 1000000) {
+        _curDevIdx = 0;
+    }
+    
+    LOG_DXRT_DBG << "Successfully picked device " << _currentPickDevice 
+                 << " with new load=" << pick->load() << std::endl;
 
     return pick;
 }
@@ -222,9 +268,13 @@ std::shared_ptr<DeviceTaskLayer> DevicePool::WaitDevice(const std::vector<int> &
 void DevicePool::AwakeDevice(int devIndex)
 {
     std::unique_lock<std::mutex> lock(_deviceMutex);
-    // _curDevIdx = devIndex;
     std::ignore = devIndex;
-    _curDevIdx = 0;
+    // Don't reset _curDevIdx to maintain round-robin scheduling
+    // _curDevIdx is incremented in WaitDevice() after successful pick
+    
+    LOG_DXRT_DBG << "Device " << devIndex 
+                 << " completed task, notifying waiting threads" << std::endl;
+    
     _deviceCV.notify_all();
 }
 
