@@ -630,6 +630,9 @@ int main()
 }
 ```
 
+!!! warning "WARNING"
+     If multiple dxrt::InferenceEngine instances are initialized with specific NPU bindings (occupying NPUs 0, 1, and 2), any subsequent attempt to instantiate a new engine using BOUND_OPTION::NPU_ALL will enter a blocking state. The new instance will remain suspended until all required NPU resources become available. This synchronization behavior is consistent across both multi-threaded and multi-process environments.
+
 -----
 
 ### Configuration and Device Status

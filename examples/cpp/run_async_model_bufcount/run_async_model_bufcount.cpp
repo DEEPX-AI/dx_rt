@@ -110,12 +110,10 @@ int main(int argc, char* argv[])
         // inference loop
         for(int i = 0; i < loop_count; ++i)
         {
-            // user argument
-            std::pair<int, int> *userData = new std::pair<int, int>(i, loop_count);
 
             // inference asynchronously, use all npu cores
-            ie_1.RunAsync(inputPtr_1.data(), userData);
-            ie_2.RunAsync(inputPtr_2.data(), userData);
+            ie_1.RunAsync(inputPtr_1.data(), nullptr);
+            ie_2.RunAsync(inputPtr_2.data(), nullptr);
 
             log.Debug("Inference request submitted with user_arg(" + std::to_string(i) + ")");
         }
@@ -143,8 +141,8 @@ int main(int argc, char* argv[])
         log.Info("Average Latency: " + std::to_string(avg_latency) + " ms");
         log.Info("FPS: " + std::to_string(fps) + " frame/sec");
         log.Info("Total callback-count / loop-count: " + 
-            std::to_string(callback_count_1) + " / " + std::to_string(loop_count) + 
-            (callback_count_1 == loop_count ? " (Success)" : " (Failure)"));
+            std::to_string(callback_count_1 + callback_count_2) + " / " + std::to_string(loop_count*2) + 
+            ((callback_count_1 + callback_count_2 == loop_count*2) ? " (Success)" : " (Failure)"));
         log.Info("-----------------------------------");
   
     }
