@@ -1,12 +1,20 @@
-# DX-RT Build and Usage Guide for Windows
+This chapter describes the system requirements, source file structure, and the installation instructions for setting up **DX-RT** on a Windows-based host system.  
 
-This document describes system requirements and installation methods for building and using **DX-RT** on Windows.
+After you check the system requirements, follow these instructions.  
+
+- System Requirement Check  
+- DX-RT Windows Driver Installation  
+- Visual Studio 2022 Setup  
+- DX-RT Framework Build  
+- Runtime Service Setup  
+- Installation Verification  
 
 ---
 
-## Overview
+## Overview & System Requirements
 
-**DX-RT** is a runtime software package for operating DEEPX NPU. The main build outputs from this repository are:
+
+**DX-RT** is a runtime software package for operating DEEPX NPU. This software is compatible with multiple DEEPX NPU products, including **DX-M1**, **DX-M1M**, and **DX-H1**. The main build outputs from this repository are 
 
 | Output | Description |
 |--------|-------------|
@@ -21,13 +29,9 @@ This document describes system requirements and installation methods for buildin
 
 The built libraries are used by [dx_app](https://github.com/DEEPX-AI/dx_app), and users can also develop their own applications by referencing the dx_app code.
 
-> **📝 Pre-built Binaries**
-> 
-> To use pre-built binaries without building, refer to the [dx_rt_windows](https://github.com/DEEPX-AI/dx_rt_windows) repository.
+!!! note "NOTE. Pre-built Binaries"  
+    To use pre-built binaries without building, refer to the [dx_rt_windows](https://github.com/DEEPX-AI/dx_rt_windows) repository.  
 
----
-
-## System Requirements
 
 ### Hardware Requirements
 
@@ -38,7 +42,7 @@ The built libraries are used by [dx_app](https://github.com/DEEPX-AI/dx_app), an
 | **Storage** | 4GB or more | Free disk space |
 | **NPU Connection** | DEEPX NPU device (DX-M1) | Choose one of the connection methods below |
 
-**Supported NPU Connection Methods:**
+**Supported NPU Connection Methods**
 
 | Connection Method | Description |
 |-------------------|-------------|
@@ -54,99 +58,94 @@ The built libraries are used by [dx_app](https://github.com/DEEPX-AI/dx_app), an
 | **Visual Studio** | Visual Studio Community 2022 (Desktop development with C++ workload) |
 | **CMake** | Included with Visual Studio 2022 |
 | **VCPKG** | Included with Visual Studio 2022 |
-| **DEEPX M1 Driver** | v2.5.0 or later |
+| **DX_FW** | v2.5.0 or later |
 
-> **⚠️ Important**
-> 
-> The **NPU device driver** must be installed first. For driver installation instructions, see the [M1 Windows Driver Installation](#m1-windows-driver-installation) section below.
+!!! warning "IMPORTANT"  
+    **The NPU device driver must be installed first.** For driver installation instructions, see Section. **DX-RT Windows Driver Installation** below.  
 
 ---
 
-## M1 Windows Driver Installation
+## Pre-installation Setup
 
-Before building and running DX-RT, you need to install the M1 Windows driver.
+### DX-RT Windows Driver Installation
 
-### Driver Download
+Before building and running DX-RT, you need to install the DX-RT Windows driver.
 
-Drivers are provided in the [dx_rt_windows](https://github.com/DEEPX-AI/dx_rt_windows) repository.
+**Driver Download**  
+
+Drivers are provided in the [dx_rt_windows](https://github.com/DEEPX-AI/dx_rt_windows) repository.  
 
 ```
 dx_rt_windows/
-├── m1/v.3.2.0/
-│   ├── dxm1drv/           # PCIe driver package (dxm1drv.zip)
-│   ├── dx_rt/             # Runtime (bin/, include/, lib/)
-│   └── dx_app/            # Demo applications and examples
-└── docs/v.3.2.0/
-    └── Installation_on_Windows.md
+└── m1/v.3.2.0/
+    ├── dxm1drv/           # PCIe driver package (dxm1drv.zip)
+    ├── dx_rt/             # Runtime (bin/, include/, lib/)
+    └── dx_app/            # Demo applications and examples
 ```
 
-- `dxm1drv/`: M1 Windows driver (dxm1drv.zip archive)
-- `dx_rt/`: DLLs and executables built from DX-RT code
-- `dx_app/`: Executables built by linking dx_app repository with dxrt.lib
+- `dxm1drv/`: DX-RT Windows driver (dxm1drv.zip archive)  
+- `dx_rt/`: DLLs and executables built from DX-RT code  
+- `dx_app/`: Executables built by linking dx_app repository with dxrt.lib  
 
-### Driver Installation Steps
+**Driver Installation Steps**  
 
-**Step 1: Connect the Device**
+**Step 1.** Connect the Device  
 
-Connect the DEEPX NPU device to your system:
+Connect the DEEPX NPU device to your system.  
 
-- PCIe or M.2 connection: Install device in an available PCIe or M.2 slot
-- USB connection: Connect to a USB 4.0 port with PCIe tunneling support (regular USB 3.x ports are not supported)
+- **PCIe or M.2 connection:** Install device in an available PCIe or M.2 slot  
+- **USB connection:** Connect to a USB 4.0 port with PCIe tunneling support (regular USB 3.x ports are not supported)  
 
-**Step 2: Install the Driver**
+**Step 2.** Install the Driver
 
-1. Navigate to the `m1/v.3.2.0/dxm1drv/` directory
-2. Extract `dxm1drv.zip`
-3. Open the extracted `dxm1drv/` folder
-4. Right-click on the `dxm1drv.inf` file
-5. Select **Install** from the context menu
-6. If a security warning about the driver publisher appears, click **Install** or **Yes**
-7. Wait for installation to complete
+2-1. Navigate to the `m1/v.3.2.0/dxm1drv/` directory  
+2-2. Extract `dxm1drv.zip`  
+2-3. Open the extracted `dxm1drv/` folder  
+2-4. Right-click on the `dxm1drv.inf` file  
+2-5. Select **Install** from the context menu  
+2-6. If a security warning about the driver publisher appears, click **Install** or **Yes**  
+2-7. Wait for installation to complete  
 
-> **💻 Installation via Command Line (Advanced)**
-> 
-> Open Command Prompt or PowerShell as Administrator and run:
-> ```
-> pnputil /add-driver "path\to\extracted\dxm1drv\dxm1drv.inf" /install
-> ```
+**Advanced.** Installation via Command Line  
 
-**Step 3: Verify Installation**
+Open Command Prompt or PowerShell as Administrator and run.  
 
-1. Open Device Manager (right-click Start menu → Device Manager)
-2. Look for **M1 PCI CONTROLLER** device
-3. Verify that the device appears in the list without warning icons
+```
+pnputil /add-driver "path\to\extracted\dxm1drv\dxm1drv.inf" /install
+```
 
-For detailed driver installation instructions, refer to [Installation_on_Windows.md](https://github.com/DEEPX-AI/dx_rt_windows/blob/main/docs/v.3.2.0/Installation_on_Windows.md).
+**Step 3.** Verify Installation
 
----
+3-1. Open Device Manager (right-click Start menu → Device Manager)  
+3-2. Look for **M1 PCI CONTROLLER** device  
+3-3. Verify that the device appears in the list without warning icons  
 
-## Visual Studio 2022 Installation
+### Visual Studio 2022 Setup
 
 Visual Studio Community 2022 is required to build DX-RT.
 
-### Installation Steps
+**Installation Steps**  
 
-1. Download [Visual Studio Community 2022](https://visualstudio.microsoft.com/vs/community/)
-2. Run the installer and select the following workload: **Desktop development with C++**
-3. (Optional) Select any additional workloads or individual components as needed
-4. Click **Install** to proceed with installation
+Step 1. Download [Visual Studio Community 2022](https://visualstudio.microsoft.com/vs/community/)  
+Step 2. Run the installer and select the following workload: **Desktop development with C++**  
+Step 3. (Optional) Select any additional workloads or individual components as needed  
+Step 4. Click **Install** to proceed with installation  
 
-> **⚠️ Visual Studio 2022 Required**
-> 
-> **You must use Visual Studio 2022.** Visual Studio 2019 or earlier, or 2026 or later versions cannot build DX-RT due to compiler compatibility issues. Even if you have other versions installed, install Visual Studio 2022 separately.
+!!! warning "IMPORTANT. Visual Studio 2022 Required"  
+    **You must use Visual Studio 2022.** Visual Studio 2019 or earlier, or 2026 or later versions cannot build DX-RT due to compiler compatibility issues. Even if you have other versions installed, install Visual Studio 2022 separately.  
 
 ---
 
 ## DX-RT Build Methods
 
-DX-RT can be built using two methods:
+DX-RT can be built using two methods. 
 
-1. Build using Visual Studio 2022 IDE
-2. Build using Command Line Interface (CLI)
+- Build using Visual Studio 2022 IDE  
+- Build using Command Line Interface (CLI)  
 
 ### CMake Presets Configuration
 
-DX-RT provides the following build presets via `CMakePresets.json`:
+DX-RT provides the following build presets via `CMakePresets.json`
 
 | Preset | Description | Generator |
 |--------|-------------|-----------|
@@ -160,58 +159,57 @@ DX-RT provides the following build presets via `CMakePresets.json`:
 
 You can build the CMake project directly using Visual Studio 2022's Open Folder feature.
 
-#### Step 1: Open Project Folder
+**Step 1.** Open Project Folder  
 
-1. Launch Visual Studio Community 2022
-2. Select **Open a local folder** from the start screen
-3. Select the DX-RT project folder (`dx_rt`)
+1-1. Launch Visual Studio Community 2022  
+1-2. Select **Open a local folder** from the start screen  
+1-3. Select the DX-RT project folder (`dx_rt`)  
 
-> **⚠️ Important**
-> 
-> You must use Visual Studio 2022. Compatibility with other versions (VS 2019, VS Code, etc.) is not guaranteed.
+!!! warning "IMPORTANT"  
+    **You must use Visual Studio 2022.** Compatibility with other versions (VS 2019, VS Code, etc.) is not guaranteed.  
 
-#### Step 2: CMake Configuration
+**Step 2.** CMake Configuration  
 
-When you open the project:
+When you open the projec.  
 
-- Dependencies specified in `vcpkg.json` are automatically downloaded and installed in the `vcpkg_installed` directory.
-- CMake automatically generates the build cache and configuration.
+- Dependencies specified in `vcpkg.json` are automatically downloaded and installed in the `vcpkg_installed` directory.  
+- CMake automatically generates the build cache and configuration.  
 
-#### Step 3: Select Build Configuration
+**Step 3.** Select Build Configuration  
 
-1. Click the build configuration dropdown in the top toolbar
-2. Select the desired preset:
-   - **x64-Debug**: For debugging builds
-   - **x64-Release**: For release builds
+3-1. Click the build configuration dropdown in the top toolbar  
+3-2. Select the desired preset  
+- **x64-Debug**: For debugging builds  
+- **x64-Release**: For release builds  
 
-#### Step 4: Run Build
+**Step 4.** Run Build  
 
-1. Go to the **Build** menu
-2. Click **Build All** (or **Rebuild All**)
+4-1. Go to the **Build** menu  
+4-2. Click **Build All** (or **Rebuild All**)  
 
-When the build succeeds, outputs are generated in:
+When the build succeeds, outputs are generated in  
 
-- Debug: `out/build/x64-Debug/`
-- Release: `out/build/x64-Release/`
+- Debug: `out/build/x64-Debug/`  
+- Release: `out/build/x64-Release/`  
 
-#### Step 5: Install
+**Step 5.** Install  
 
-To copy built outputs to the install directory:
+To copy built outputs to the install directory.
 
-1. **Build** menu → Select **Install**
+5-1. **Build** menu → Select **Install**  
 
-Install paths:
+Install paths  
 
-- Debug: `out/install/x64-Debug/`
-- Release: `out/install/x64-Release/`
+- Debug: `out/install/x64-Debug/`  
+- Release: `out/install/x64-Release/`  
 
 ---
 
 ### Method 2: Build Using build.bat
 
-Using the `build.bat` script, you can automatically handle Visual Studio environment setup, CMake configuration, build, and installation all at once.
+Using the `build.bat` script, you can automatically handle Visual Studio environment setup, CMake configuration, build, and installation all at once.  
 
-#### build.bat Overview
+**build.bat Overview**
 
 `build.bat` automatically handles the following:
 
@@ -219,49 +217,48 @@ Using the `build.bat` script, you can automatically handle Visual Studio environ
 - CMake configuration and build execution
 - Installation and cleanup tasks
 
-> **💡 Installing Visual Studio Build Tools (For CLI-only builds without IDE)**
-> 
-> To build using only the command line without Visual Studio IDE, you can install just the Build Tools:
-> ```batch
-> build.bat install-tools
-> ```
-> This command automatically installs Visual Studio Build Tools 2022 via winget.
+!!! note "NOTE. Installing Visual Studio Build Tools (For CLI-only builds without IDE)"  
+    To build using only the command line without Visual Studio IDE, you can install just the Build Tools. 
+    ```batch
+    build.bat install-tools
+    ```
+    This command automatically installs Visual Studio Build Tools 2022 via winget.  
 
-#### Step 1: Open Command Prompt
+**Step 1.** Open Command Prompt  
 
-Open a regular Command Prompt (cmd.exe). **Developer Command Prompt is not required** - `build.bat` automatically sets up the Visual Studio environment.
+Open a regular Command Prompt (`cmd.exe`). **Developer Command Prompt is not required** - `build.bat` automatically sets up the Visual Studio environment.
 
-#### Step 2: Navigate to Project Directory
+**Step 2.** Navigate to Project Directory
 
 ```batch
 cd C:\path\to\dx_rt
 ```
 
-#### Step 3: Run Build
+**Step 3.** Run Build
 
-**Default build (Release configuration + build):**
+Default build (Release configuration + build)
 ```batch
 build.bat
 ```
 
-**Debug build:**
+Debug build
 ```batch
 build.bat debug
 ```
 
-**Build and install:**
+Build and install
 ```batch
 build.bat install
 build.bat debug install
 ```
 
-**Full build (clean + configure + build + install):**
+Full build (clean + configure + build + install)
 ```batch
 build.bat all
 build.bat debug all
 ```
 
-#### build.bat Command Options
+**build.bat Command Options**  
 
 | Command | Description |
 |---------|-------------|
@@ -278,7 +275,7 @@ build.bat debug all
 | `build.bat install-tools` | Install VS Build Tools 2022 (using winget) |
 | `build.bat help` | Show help |
 
-#### Usage Examples
+**Usage Examples**  
 
 ```batch
 :: Release build (configure + build)
@@ -324,16 +321,15 @@ build.bat vs
 build.bat distclean
 ```
 
-> **💡 Generate Visual Studio Solution**
-> 
-> Running `build.bat vs` generates the `build_vs\dx_rt.sln` file. You can open this file in Visual Studio to build in the IDE environment:
-> ```batch
-> start build_vs\dx_rt.sln
-> ```
+!!! note "NOTE. Generate Visual Studio Solution"  
+    Running `build.bat vs` generates the `build_vs\dx_rt.sln` file. You can open this file in Visual Studio to build in the IDE environment.
+    ```batch
+    start build_vs\dx_rt.sln
+    ```
 
-### Build Output Structure
+### Build Output & Directory Layout
 
-Directory structure generated after build and installation:
+Directory structure generated after build and installation. 
 
 ```
 dx_rt/
@@ -354,63 +350,84 @@ dx_rt/
     └── dxrt.sln
 ```
 
+
+!!! warning "WARNING. DLL Placement for Execution"  
+    The executables (`.exe`) and the DLLs (`dxrt.dll, onnxruntime.dll`) **must reside in the same folder.**  
+    - **Issue:** Windows may prioritize an older version of `onnxruntime.dll` found in `C:\Windows\System32`.  
+    - **Solution:** Always keep the DLLs in the local bin folder to ensure the correct version is loaded first and avoid runtime crashes.  
+
 ---
 
-## Runtime Environment Setup
+##  Runtime Setup (Service Configuration)
 
-After the build completes, you need to set up the runtime environment.
+After the build is complete, you must configure the runtime environment. The most critical component in this stage is the DEEPX Runtime Daemon (`dxrtd.exe`).
 
-### dxrtd Service Configuration
+**Understanding the DX-RT Architecture**  
 
-`dxrtd.exe` (DEEPX Runtime Daemon) must be running for the NPU to function properly.
+Before proceeding with the setup, it is important to understand how the application interacts with the NPU hardware. The `dxrtd.exe` acts as a middleman (daemon) that manages the communication between your software and the physical device.  
 
-#### Method A: Register as Windows Service (Recommended)
+- **User Application:** Links with `dxrt.lib` and calls functions from `dxrt.dll`.  
+- **dxrtd.exe (Daemon):** A background service that manages NPU resource scheduling, memory allocation, and concurrency.  
+- **Multi-Process Support:** Because `dxrtd` manages the hardware access, multiple applications can perform inference on the NPU simultaneously without resource conflicts.  
 
-1. Open Command Prompt or PowerShell as Administrator
-2. Navigate to the built `bin/` directory:
+!!! warning "IMPORTANT. Why is the Daemon Required?"  
+     Without dxrtd.exe running in the background, dxrt.dll cannot establish a connection to the DX-RT driver. Therefore, **the service must be active** before you run any inference tasks or CLI tools.
+
+### Option A: Register as Windows Service (Recommended)
+
+This method ensures the daemon starts automatically with Windows and runs efficiently in the background.
+
+A-1. Open Command Prompt or PowerShell as Administrator  
+
+A-2. Navigate to the built `bin/` directory  
    ```batch
    cd out\install\x64-Release\bin
    ```
-3. Install Windows service:
+
+A-3. Install Windows service  
    ```batch
    dxrtd.exe --install
    ```
-4. Start the service:
+
+A-4. Start the service  
    ```batch
    dxrtd.exe --start
    ```
-5. Verify service is running:
-   - Check DeepX runtime service in Windows Services list (`services.msc`)
-   - Or verify `dxrtd.exe` process in Task Manager
 
-**To remove the service:**
+A-5. Verify service is running  
+     : Check DeepX runtime service in Windows Services list (`services.msc`)  
+     : Or verify `dxrtd.exe` process in Task Manager  
+
+To remove the service
 ```batch
 dxrtd.exe --stop
 dxrtd.exe --uninstall
 ```
 
-#### Method B: Manual Execution
+### Option B: Manual Execution (Debug Mode)
 
-For development and testing purposes, you can run manually. In this case, you need to keep the terminal window open:
+For development and testing purposes, you can run manually. In this case, you need to keep the terminal window open. 
 
 ```batch
 cd out\install\x64-Release\bin
 dxrtd.exe
 ```
 
-> **⚠️ Caution**
-> 
-> When running manually, closing the terminal window will terminate the service. For production environments, **Method A (Windows Service registration)** is recommended.
+!!! warning "IMPORTANT"  
+    When running manually, closing the terminal window will terminate the service. For production environments, **Method A (Windows Service registration)** is recommended.  
 
-> **📝 Note**
-> 
-> `dxrtd.exe --run` (or `-r`) is for Windows SCM (Service Control Manager) and should not be used for regular interactive execution.
+!!! note "NOTE"  
+    `dxrtd.exe --run` (or `-r`) is for Windows SCM (Service Control Manager) and should not be used for regular interactive execution.  
 
 ---
 
-## Verify Installation
+## Installation Verification (Sanity Check)
 
-### Step 1: Check Device Status
+After completing the installation and service setup, follow these steps to verify that the DEEPX NPU and runtime environment are functioning correctly.
+
+### Device Status & Daemon Verification
+
+**Step 1.** Check Device Status  
 
 ```batch
 cd out\install\x64-Release\bin
@@ -419,49 +436,51 @@ dxrt-cli.exe -s
 
 If device information is displayed without errors, the driver is installed correctly.
 
-### Step 2: Verify Runtime Daemon
+**Step 2.** Verify Runtime Daemon  
 
-Verify that `dxrtd.exe` is running:
+Verify that `dxrtd.exe` is running.  
 
-**Using Task Manager:**
+**Using Task Manager**  
 
-1. Open Task Manager with `Ctrl + Shift + Esc`
-2. Go to the **Details** tab
-3. Verify that `dxrtd.exe` is in the process list
+2-1. Open Task Manager with `Ctrl + Shift + Esc`  
+2-2. Go to the **Details** tab  
+2-3. Verify that `dxrtd.exe` is in the process list  
 
-**Using command line:**
+Using command line
 ```batch
 tasklist | findstr dxrtd.exe
 ```
 
-### Step 3: Check Detailed Device Information
+**Step 3.** Check Detailed Device Information  
 
-Check detailed information including hardware info, temperature, and utilization:
+Check detailed information including hardware info, temperature, and utilization. 
 
 ```batch
 dxrt-cli.exe -i
 ```
 
-### Step 4: Real-time NPU Monitoring (Optional)
+### Performance & Model Inference Test
 
-Monitor NPU core utilization, memory usage, and device temperature in real-time:
+**Step 4.** Real-time NPU Monitoring (Optional)  
+
+Monitor NPU core utilization, memory usage, and device temperature in real-time.  
 
 ```batch
 dxtop.exe
 ```
 
-Press `q` to exit the monitoring tool
+Press `q` to exit the monitoring tool. 
 
-### Step 5: Model Inference Test
+**Step 5.** Model Inference Test
 
-If you have a `.dxnn` model file:
+If you have a `.dxnn` model file.
 
-**Parse model:**
+Parse model
 ```batch
 parse_model.exe -m your_model.dxnn
 ```
 
-**Run inference:**
+Run inference
 ```batch
 run_model.exe -m your_model.dxnn -l 10
 ```
@@ -470,15 +489,9 @@ This command runs 10 inference loops and displays performance metrics.
 
 ---
 
-## Integration with dx_app
+## Tool Descriptions & Integration
 
-The built DX-RT library can be used with [dx_app](https://github.com/DEEPX-AI/dx_app). For integration instructions with dx_app, refer to the [DX-APP Installation and Build](https://github.com/DEEPX-AI/dx_app/blob/main/docs/source/docs/02_DX-APP_Installation_and_Build.md) documentation.
-
----
-
-## Tool Descriptions
-
-### Core Libraries
+### Core Libraries & DLL Placement Warning
 
 | File | Description |
 |------|-------------|
@@ -486,19 +499,21 @@ The built DX-RT library can be used with [dx_app](https://github.com/DEEPX-AI/dx
 | `dxrt.lib` | Library for application linking |
 | `onnxruntime.dll` | ONNX Runtime library for CPU operations |
 
-> **⚠️ DLL Placement Note**
-> 
-> `onnxruntime.dll` and `dxrt.dll` **must be placed in the same folder as the executable**. A lower version of `onnxruntime.dll` may already exist in Windows' `System32` folder, but `dxrt.dll` requires a higher version of ONNX Runtime. Placing the DLLs in the same folder as the executable ensures they are loaded first.
-> 
-> *This issue will be resolved in the next regular release.*
+!!! warning "WARNING. DLL Placement and Version Conflict"  
+    To ensure correct operation, `dxrt.dll` and `onnxruntime.dll` **must be located in the same directory as your executable** (`.exe`).  
+    - **The Reason:** Windows may prioritize an older version of `onnxruntime.dll` located in `C:\Windows\System32`.  
+    - **The Consequence:** DX-RT requires a specific higher version; using the system's default version will lead to runtime crashes or entry-point errors.  
+    - **Status:** A permanent fix for this search-order dependency is scheduled for the next release.  
 
-### System Services
+### Command Line Tool Reference
+
+System Services
 
 | File | Description |
 |------|-------------|
 | `dxrtd.exe` | DEEPX Runtime Daemon - manages multi-process/device support |
 
-### Command Line Tools
+Command Line Tools
 
 | Tool | Description | Key Options |
 |------|-------------|-------------|
@@ -508,11 +523,18 @@ The built DX-RT library can be used with [dx_app](https://github.com/DEEPX-AI/dx
 | `dxbenchmark.exe` | Batch performance benchmarking | `--dir` model directory, `-l` loop count |
 | `dxtop.exe` | Real-time NPU monitoring | - |
 
-For detailed usage of each tool, check the `-h` option:
+For detailed usage of each tool, check the `-h` option
 ```batch
 run_model.exe -h
 dxbenchmark.exe -h
 ```
+
+### Integration with dx_app
+
+The built **DX-RT** library can be used with [dx_app](https://github.com/DEEPX-AI/dx_app).  
+
+- Role: `dx_app` provides practical reference code and demo applications using the dxrt framework.  
+- For integration instructions with dx_app, refer to the [DX-APP Installation and Build](https://github.com/DEEPX-AI/dx_app/blob/main/docs/source/docs/02_DX-APP_Installation_and_Build.md) documentation.  
 
 ---
 
@@ -549,4 +571,5 @@ dxbenchmark.exe -h
 
 - [dx_rt_windows](https://github.com/DEEPX-AI/dx_rt_windows) - Pre-built Windows binaries and drivers
 - [dx_app](https://github.com/DEEPX-AI/dx_app) - Demo applications using DX-RT
-- [Installation_on_Windows.md](https://github.com/DEEPX-AI/dx_rt_windows/blob/main/docs/v.3.2.0/Installation_on_Windows.md) - Detailed installation guide
+
+---
