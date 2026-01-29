@@ -14,7 +14,7 @@ After you check the system requirements, follow these instructions.
 ## Overview & System Requirements
 
 
-**DX-RT** is a runtime software package for operating DEEPX NPU. This software is compatible with multiple DEEPX NPU products, including **DX-M1**, **DX-M1M**, and **DX-H1**. The main build outputs from this repository are 
+**DX-RT** is a runtime software package for operating DEEPX NPU. This software is compatible with multiple DEEPX NPU products, including **DX-M1**, **DX-M1M**, and **DX-H1 Quattro**. The main build outputs from this repository are 
 
 | Output | Description |
 |--------|-------------|
