@@ -33,6 +33,11 @@ license = {text="MIT"}
 authors = [{name="DEEPX-RT", email="rt@deepx.ai"}]
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
 ]
 requires-python = ">= 3.8"
@@ -51,4 +56,29 @@ Homepage = "https://deepx.ai"
 [tool.scikit-build]
 cmake.source-dir = "src/dx_engine/capi" 
 wheel.packages = ["src/dx_engine"]
+
+
+# cibuildwheel configuration for building wheels across multiple Python versions
+[tool.cibuildwheel]
+# Build for Python 3.10, 3.11, 3.12, 3.13, 3.14
+build = ["cp310-*", "cp311-*", "cp312-*", "cp313-*", "cp314-*"]
+
+# Skip 32-bit builds and musllinux
+skip = ["*-win32", "*-manylinux_i686", "*-musllinux_*"]
+
+# Test command to verify the wheel works
+test-command = "python -c \"import dx_engine; print(dx_engine.__version__)\""
+
+[tool.cibuildwheel.linux]
+# Use manylinux2014 for broader compatibility
+manylinux-x86_64-image = "manylinux2014"
+manylinux-aarch64-image = "manylinux2014"
+
+[tool.cibuildwheel.macos]
+# Build for both x86_64 and arm64 on macOS
+archs = ["x86_64", "arm64"]
+
+[tool.cibuildwheel.windows]
+# Build for 64-bit Windows only
+archs = ["AMD64"]
 

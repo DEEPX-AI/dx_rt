@@ -53,14 +53,14 @@ nav:
 
 plugins:
   - search
-  - with-pdf:
+  - to-pdf:
       author: DEEPX.ai
-      copyright: ⓒ Copyright 2025 DEEPX All Rights Reserved.
+      copyright: ⓒ Copyright 2026 DEEPX All Rights Reserved.
       cover_title: DXNN Runtime (DX-RT) User Manual
-      cover_subtitle: v3.2.0 (Dec 2025)
+      cover_subtitle: 2026/01/23 (v3.2.0)
       cover_logo: source/img/deepx.png
       custom_template_path: source/stylesheets
-      output_path: ../DEEPX_DX-RT_UM_v3.2.0_Dec_2025.pdf
+      output_path: ../DEEPX_DX-RT_UM_v3.2.0_JAN_2026.pdf
 extra:
   homepage: https://developer.deepx.ai
   generator: false
@@ -97,4 +97,4 @@ extra_javascript:
   - javascripts/mathjax.js
   - https://polyfill.io/v3/polyfill.min.js?features=es6
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
-copyright: ⓒ Copyright 2025 <a href="http://deepx.ai">DEEPX</a>. All Rights Reserved.
+copyright: ⓒ Copyright 2026 <a href="http://deepx.ai">DEEPX</a>. All Rights Reserved.
