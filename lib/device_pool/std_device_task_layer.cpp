@@ -20,11 +20,13 @@
 #include "dxrt/task.h"
 #include "dxrt/profiler.h"
 #include "dxrt/request_response_class.h"
+#include "dxrt/model_type.h"
+#include "dxrt/safe_cast.h"
 
 namespace dxrt {
 
 // Local constant (mirrors original macro usage)
-#define DEVICE_NUM_BUF 2
+static constexpr int DEVICE_NUM_BUF = 2;
 
 int StdDeviceTaskLayer::RegisterTask(TaskData* task)
 {
@@ -40,8 +42,8 @@ int StdDeviceTaskLayer::RegisterTask(TaskData* task)
     DXRT_ASSERT(task->input_size() > 0, "Input size is 0");
     DXRT_ASSERT(task->output_size() > 0, "Output size is 0");
 
-    model.rmap.base = _core->info().mem_addr;
-    model.weight.base = _core->info().mem_addr;
+    model.rmap.base = core()->info().mem_addr;
+    model.weight.base = core()->info().mem_addr;
 
     {
         model.rmap.offset = static_cast<uint32_t>(Allocate(model.rmap.size));
@@ -53,7 +55,7 @@ int StdDeviceTaskLayer::RegisterTask(TaskData* task)
 
     for (int j = 0; j < DEVICE_NUM_BUF; ++j) {
         uint32_t inference_offset = 0;
-        const uint64_t aligned_in = ((static_cast<uint64_t>(task->input_size()) + 63ull) & ~63ull);
+        const uint64_t aligned_in = ((static_cast<uint64_t>(task->input_size()) + 63ULL) & ~63ULL);
         const uint64_t input_block = (model.output_all_offset == 0) ? aligned_in
                                                                     : static_cast<uint64_t>(model.output_all_offset);
         inference_offset = static_cast<uint32_t>(Allocate(input_block));
@@ -85,47 +87,47 @@ int StdDeviceTaskLayer::RegisterTask(TaskData* task)
         {
             inf.input.data = _memoryMapBuffer + inf.input.offset;
             inf.output.data = _memoryMapBuffer + inf.output.offset + inf.last_output_offset;
-            void *start = static_cast<void*>(reinterpret_cast<uint8_t*>(_memoryMapBuffer) + inf.output.offset);
-            void *end = static_cast<void*>(static_cast<uint8_t*>(start) + model.output_all_size);
-            // LOG_VALUE_HEX(start);
-            // LOG_VALUE_HEX(end);
-            // _outputValidateBuffers[id] = vector<uint8_t>((uint8_t*)(_memory->data()) + inference.output.offset, (uint8_t*)(_memory->data()) + model.output_all_size);
+            auto start = static_cast<void*>(SafeCast::IntegerToPointer<uint8_t*>(_memoryMapBuffer) + inf.output.offset);
+            auto end = static_cast<void*>(static_cast<uint8_t*>(start) + model.output_all_size);
+
+
+
             if (model.output_all_size == 0) {
                 LOG_DXRT_WARN("Task " << tId << " output_all_size is 0, allocating minimum buffer" << std::endl);
                 _outputValidateBuffers[tId] = std::vector<uint8_t>(1);  // Prevent empty vector
             } else {
                 _outputValidateBuffers[tId] = std::vector<uint8_t>(static_cast<uint8_t*>(start), static_cast<uint8_t*>(end));
             }
-            // LOG_VALUE_HEX(inference
         }
+
 
         _npuInference[tId].emplace_back(inf);
 
-        DXRT_ASSERT(_core->Write(model.rmap) == 0, "failed to write model parameters(rmap)");
-        DXRT_ASSERT(_core->Write(model.weight) == 0, "failed to write model parameters(weight)");
+        DXRT_ASSERT(core()->Write(model.rmap) == 0, "failed to write model parameters(rmap)");
+        DXRT_ASSERT(core()->Write(model.weight) == 0, "failed to write model parameters(weight)");
     }
 
     {
         std::vector<std::vector<uint8_t>> readData;
-        readData.emplace_back(std::vector<uint8_t>(model.rmap.size));
-        readData.emplace_back(std::vector<uint8_t>(model.weight.size));
+        readData.emplace_back(model.rmap.size);
+        readData.emplace_back(model.weight.size);
         dxrt_meminfo_t cmd(model.rmap);
         dxrt_meminfo_t weight(model.weight);
-        cmd.data = reinterpret_cast<uint64_t>(readData[0].data());
-        weight.data = reinterpret_cast<uint64_t>(readData[1].data());
-        if (_core->Read(cmd) == 0) {
-            ret += memcmp(reinterpret_cast<void*>(cmd.data), readData[0].data(), cmd.size);
+        cmd.data = SafeCast::PointerToInteger<uint8_t*>(readData[0].data());
+        weight.data = SafeCast::PointerToInteger<uint8_t*>(readData[1].data());
+        if (core()->Read(cmd) == 0) {
+            ret += memcmp(SafeCast::IntegerToPointer<void*>(cmd.data), readData[0].data(), cmd.size);
         }
-        if (_core->Read(weight) == 0) {
-            ret += memcmp(reinterpret_cast<void*>(weight.data), readData[1].data(), weight.size);
+        if (core()->Read(weight) == 0) {
+            ret += memcmp(SafeCast::IntegerToPointer<void*>(weight.data), readData[1].data(), weight.size);
         }
         DXRT_ASSERT(ret == 0, "failed to check data integrity of model parameters" + std::to_string(ret));
     }
 
-    for (auto &inf : _npuInference[tId]) {
-        _inputTensors[tId].emplace_back(task->inputs(reinterpret_cast<void*>(inf.input.data),
+    for (const auto &inf : _npuInference[tId]) {
+        _inputTensors[tId].emplace_back(task->inputs(SafeCast::IntegerToPointer<void*>(inf.input.data),
             inf.input.base + inf.input.offset));
-        _outputTensors[tId].emplace_back(task->outputs(reinterpret_cast<void*>(inf.output.data),
+        _outputTensors[tId].emplace_back(task->outputs(SafeCast::IntegerToPointer<void*>(inf.output.data),
             inf.output.base + inf.output.offset));
     }
 
@@ -141,7 +143,7 @@ int StdDeviceTaskLayer::RegisterTask(TaskData* task)
 
 void StdDeviceTaskLayer::StartThread()
 {
-    _memoryMapBuffer = reinterpret_cast<uint64_t>(core()->CreateMemoryMap());
+    _memoryMapBuffer = SafeCast::PointerToInteger<void*>(core()->CreateMemoryMap());
     LOG_DXRT_DBG << "StartThread: Memory Map buffer " << std::hex << _memoryMapBuffer << std::dec << std::endl;
     _thread = std::thread(&StdDeviceTaskLayer::ThreadImpl, this);
 }
@@ -149,10 +151,15 @@ void StdDeviceTaskLayer::StartThread()
 void StdDeviceTaskLayer::ThreadImpl()
 {
     int ret = 0;
+    bool shouldExit = false;
     LOG_DXRT_DBG << "Device " << id() << " thread start. " << std::endl;
-    while (true)
+    while (!shouldExit)
     {
-        if (_stop.load()) break;
+        if (isStopFlag())
+        {
+            shouldExit = true;
+            continue;
+        }
         dxrt_response_t response;
         response.req_id = 0;
         LOG_DXRT_DBG << "Device " << id() << " wait. " << std::endl;
@@ -161,52 +168,52 @@ void StdDeviceTaskLayer::ThreadImpl()
         std::string profile_name_wait = "ThreadImpl Wait[device "+std::to_string(id())+"]";
         profiler.Start(profile_name_wait);
 #endif
-        ret = core()->Wait();
+        std::ignore = core()->Wait();
 
 #ifdef USE_PROFILER
         profiler.End(profile_name_wait);
 #endif
-        if (_stop.load()) break;
-        // LOG_VALUE(ret);
-        ret = core()->ReadDriverData(&response, sizeof(dxrt_response_t));
-        if (_stop.load()) break;
-        LOG_DXRT_DBG << "Device " << id() << " got response " << response.req_id << std::endl;
-        if ((ret == 0) & (response.req_id != 0xFFFFFFFF))  // 0xFFFFFFFF: clear value
+        if (isStopFlag())
         {
-            // cout << "response " << response.req_id << ", inf time " << response.inf_time << ", load " << load() << endl;
+            shouldExit = true;
+            continue;
+        }
+
+        ret = core()->ReadDriverData(&response, sizeof(dxrt_response_t));
+        if (isStopFlag())
+        {
+            shouldExit = true;
+            continue;
+        }
+        LOG_DXRT_DBG << "Device " << id() << " got response " << response.req_id << std::endl;
+        if ((ret == 0) && (response.req_id != 0xFFFFFFFF))  // 0xFFFFFFFF: clear value
+        {
+
             auto req = Request::GetById(response.req_id);
-            // LOG_VALUE(req.use_count());
+
             if (req != nullptr)
             {
-                // LOG_VALUE(req->model_type());
-                if (req->model_type() == 1)
-                {
-                    // LOG_VALUE(resp.argmax);
-                    *(static_cast<uint16_t *>(req->getData()->outputs.front().data())) = response.argmax;
-                    // if (DEBUG_DATA > 0)
-                    //    DataDumpBin(req->taskData()->name() + "_output.argmax.bin", req->outputs());
-                }
-                else if (req->model_type() == 2)
-                {
-                    // LOG_VALUE(resp.ppu_filter_num);
 
+                if (req->modelType() == ModelType::MODEL_TYPE_ARGMAX)
+                {
+
+                    *(static_cast<uint16_t *>(req->getData()->outputs.front().data())) = response.argmax;
+                }
+                else if (req->modelType() == ModelType::MODEL_TYPE_PPU)
+                {
                     std::vector<int64_t> shape{1, response.ppu_filter_num};
                     Tensors newOutput;
                     Tensors oldOutput = req->outputs();
                     auto fronts = oldOutput.front();
                     newOutput.emplace_back(fronts.name(), shape, fronts.type(), fronts.data());
-                    for(size_t i = 1; i < oldOutput.size(); i++)
+                    for (size_t i = 1; i < oldOutput.size(); i++)
                     {
                         newOutput.push_back(oldOutput[i]);
                     }
                     req->setOutputs(newOutput);
                     DXRT_ASSERT(req->getData()->outputs.front().shape()[1] == response.ppu_filter_num, "PPU MODEL OUTPUT NOT VALID SET");
-
-                    // req->task()->getData()->_outputSize = req->getData()->outputs.front().shape()[1]*32;//task->output_size() setting
-
-                    //if (DEBUG_DATA > 0)
-                    //    DataDumpBin(req->taskData()->name() + "_output.ppu.bin", req->outputs());
                 }
+
 
                 RequestResponse::ProcessResponse(req, response, 1);
                 CallBack();
@@ -220,15 +227,15 @@ int StdDeviceTaskLayer::Release(TaskData* task)
 {
     UniqueLock lock(_taskDataLock);
     int taskId = task->id();
-    auto &model = _npuModel[taskId];
-    _serviceLayer->DeAllocate(id(), model.rmap.offset);
-    _serviceLayer->DeAllocate(id(), model.weight.offset);
-    for (auto &inf : _npuInference[taskId])
+    const auto& model = npuModelMap()[taskId];
+    serviceLayer()->DeAllocate(id(), model.rmap.offset);
+    serviceLayer()->DeAllocate(id(), model.weight.offset);
+    for (const auto &inf : _npuInference[taskId])
     {
-        _serviceLayer->DeAllocate(id(), inf.input.offset);
-        _serviceLayer->DeAllocate(id(), inf.output.offset);
+        serviceLayer()->DeAllocate(id(), inf.input.offset);
+        serviceLayer()->DeAllocate(id(), inf.output.offset);
     }
-    _npuModel.erase(taskId);
+    npuModelMap().erase(taskId);
     return 0;
 }
 
@@ -241,7 +248,7 @@ int StdDeviceTaskLayer::InferenceRequest(RequestData* req, npu_bound_op boundOp)
     int bufId = 0;
     auto task = req->taskData;
     int taskId = task->id();
-    std::unique_lock<std::mutex> lk(_lock);
+    std::unique_lock<std::mutex> lk(stateLock());
     bufId = _bufIdx[taskId];
     (++_bufIdx[taskId]) %= DEVICE_NUM_BUF;
 
@@ -254,7 +261,7 @@ int StdDeviceTaskLayer::InferenceRequest(RequestData* req, npu_bound_op boundOp)
         int pick = -1;
         for (size_t i = 0; i < inferences.size(); i++)
         {
-            if (reinterpret_cast<void*>(inferences[i].input.data) == reqInputPtr)
+            if (SafeCast::IntegerToPointer<void*>(inferences[i].input.data) == reqInputPtr)
             {
                 pick = static_cast<int>(i);
                 req->outputs = _outputTensors[taskId][i];
@@ -264,7 +271,7 @@ int StdDeviceTaskLayer::InferenceRequest(RequestData* req, npu_bound_op boundOp)
         if (pick == -1)
         {
             pick = bufId;
-            void *dest = reinterpret_cast<void*>(inferences[pick].input.data);
+            void *dest = SafeCast::IntegerToPointer<void*>(inferences[pick].input.data);
             if (reqInputPtr == nullptr)
             {
                 reqInputPtr = dest;
@@ -278,14 +285,16 @@ int StdDeviceTaskLayer::InferenceRequest(RequestData* req, npu_bound_op boundOp)
                 profiler.Start(profile_name);
 #endif
                 memcpy(dest, reqInputPtr, task->_encodedInputSize);
-                //Process(dxrt::dxrt_cmd_t::DXRT_CMD_CPU_CACHE_FLUSH, reinterpret_cast<void*>(&inferences[pick].input));
+
 #ifdef USE_PROFILER
                 profiler.End(profile_name);
 #endif
-                _core->Process(dxrt::dxrt_cmd_t::DXRT_CMD_CPU_CACHE_FLUSH, reinterpret_cast<void*>(&inferences[pick].input));
+                core()->Process(dxrt::dxrt_cmd_t::DXRT_CMD_CPU_CACHE_FLUSH, static_cast<void*>(&inferences[pick].input));
             }
             req->outputs = _outputTensors[taskId][pick];
         }
+        std::ignore = ret;
+        std::ignore = reqInputPtr;
         auto npu_inference = inferences[pick];
         npu_inference.req_id = req->requestId;
         {
@@ -302,10 +311,11 @@ int StdDeviceTaskLayer::InferenceRequest(RequestData* req, npu_bound_op boundOp)
 #endif
 
 #ifdef __linux__
-        ret = _core->WriteData(&npu_inference, sizeof(dxrt_request_t));
+        ret = core()->WriteData(&npu_inference, sizeof(dxrt_request_t));
 #elif _WIN32
-        ret = _core->WriteData(&npu_inference, sizeof(dxrt_request_t));
+        ret = core()->WriteData(&npu_inference, sizeof(dxrt_request_t));
 #endif
+        std::ignore = ret;
         LOG_DXRT_DBG << "written " << ret << std::endl;
 #ifdef USE_PROFILER
         profiler.End(profile_name_write);
@@ -322,7 +332,7 @@ void StdDeviceTaskLayer::ProcessResponseFromService(const dxrt::_dxrt_response_t
 
 StdDeviceTaskLayer::~StdDeviceTaskLayer()
 {
-    _stop = true;
+    setStopFlag(true);
     Terminate();
     if (_thread.joinable())
         _thread.join();

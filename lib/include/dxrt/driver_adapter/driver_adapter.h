@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -54,11 +54,19 @@ public:
     //note : nfds_t __nfds = 1, int __timeout = DEVICE_POLL_LIMIT_MS
     virtual int32_t Poll() = 0;
 
+    DriverAdapter() = default;
+
     virtual ~DriverAdapter() = default;
+    DriverAdapter(const DriverAdapter&) = delete;
+    DriverAdapter& operator=(const DriverAdapter&) = delete;
+    DriverAdapter(DriverAdapter&&) = delete;
+    DriverAdapter& operator=(DriverAdapter&&) = delete;
 
     virtual int GetFd() const = 0;
 
     virtual std::string GetName() const = 0;
+
+    virtual void Close() = 0;
 };
 
 }  // namespace dxrt

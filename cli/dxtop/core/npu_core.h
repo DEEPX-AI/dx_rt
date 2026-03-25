@@ -11,8 +11,9 @@
 
 #include <cstdint>
 #include <stdexcept>
+#include <memory>
 
-#include "ipc/dxtop_ipc_client.h"
+#include "data_source/data_source_interface.h"
 
 namespace dxrt {
 
@@ -22,7 +23,7 @@ namespace dxrt {
         explicit NpuCore(uint8_t coreNumber, uint8_t deviceNumber);
         virtual ~NpuCore() = default;
 
-        void UpdateData(DXTopIPCClient& dxtopIPCClient, uint32_t voltage, uint32_t clock, uint32_t temperature);
+        void UpdateData(IDataSource& dataSource, uint32_t voltage, uint32_t clock, uint32_t temperature);
         
         uint8_t GetCoreNumber() const;
         uint64_t GetUtilization() const;
@@ -39,7 +40,7 @@ namespace dxrt {
         int32_t _temperature;
 
     private:
-        uint64_t updateUtilizationByIPC(DXTopIPCClient& dxtopIPCClient);
+        void updateUtilization(IDataSource& dataSource);
     };
 
 }

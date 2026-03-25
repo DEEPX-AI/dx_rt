@@ -19,11 +19,13 @@
 
 // C++ headers
 #include <atomic>
+#include <condition_variable>
 #include <functional>
 #include <memory>
 #include <mutex>
 #include <unordered_map>
 #include <vector>
+#include <array>
 
 // project headers
 #include "dxrt/device_core.h"
@@ -42,15 +44,21 @@ class Device;
 class TaskData;
 class RequestData;
 
-class DXRT_API DeviceTaskLayer {
+// TODO: Refactor DeviceTaskLayer to reduce field count. Consider extracting
+//       service layer, memory cache, and inference state into separate classes.
+class DXRT_API DeviceTaskLayer { // NOSONAR: Too many fields - stable as-is, refactoring deferred
  public:
     explicit DeviceTaskLayer(std::shared_ptr<DeviceCore> core, std::shared_ptr<ServiceLayerInterface> service_interface);
 
     virtual ~DeviceTaskLayer() = default;
+    DeviceTaskLayer(const DeviceTaskLayer&) = delete;
+    DeviceTaskLayer& operator=(const DeviceTaskLayer&) = delete;
+    DeviceTaskLayer(DeviceTaskLayer&&) = delete;
+    DeviceTaskLayer& operator=(DeviceTaskLayer&&) = delete;
 
-    int load();
+    int load() const;
     void pick();
-    int infCnt();
+    int infCnt() const;
 
     // connection
     int id() const { return core()->id(); }
@@ -68,8 +76,8 @@ class DXRT_API DeviceTaskLayer {
     void Terminate();
     void Reset(int opt);
     void ResetBuffer(int opt);
-    int64_t Allocate(uint64_t size);
-    void Deallocate(uint64_t addr);
+    int64_t Allocate(uint64_t size) const;
+    void Deallocate(uint64_t addr) const;
 
     void RegisterCallback(std::function<void()> f);
 
@@ -77,7 +85,7 @@ class DXRT_API DeviceTaskLayer {
     virtual std::vector<Tensors> inputs(int taskId) = 0;
     Tensors outputs(int taskId);
 
-    //virtual void *peekInference(uint32_t requestId) = 0;
+
     void popInferenceStruct(uint32_t requestId);
     void signalToWorker(int channel);
     void Deallocate_npuBuf(int64_t addr, int taskId);
@@ -91,15 +99,38 @@ class DXRT_API DeviceTaskLayer {
     void CallBack();
 
     virtual void ProcessResponseFromService(const dxrt_response_t &resp) = 0;
-    void ProcessErrorFromService(dxrt_server_err_t err, int value);
-    void SetProcessResponseHandler(std::function<void(int deviceId, int reqId, dxrt_response_t *response)> handler) {
+    [[noreturn]] void ProcessErrorFromService(dxrt_server_err_t err, int value);
+
+    // DMA Abort Recovery
+    bool isRecoveryInProgress() const { return _recoveryInProgress.load(std::memory_order_acquire); }
+    void setRecoveryFlag(bool value) { _recoveryInProgress.store(value, std::memory_order_release); }
+    uint32_t recoveryEpoch() const { return _recoveryEpoch.load(std::memory_order_acquire); }
+    void waitForInflightDmaCompletion(uint32_t timeoutMs);
+    int triggerRecovery();
+    void reloadModelsIfNeeded();
+    void SetProcessResponseHandler(const std::function<void(int deviceId, int reqId, const dxrt_response_t *response)>& handler) {
         _processResponseHandler = handler;
     }
     std::shared_ptr<DeviceCore> core() { return _core; }
 
-    const std::shared_ptr<DeviceCore> core() const { return _core; }
+    std::shared_ptr<DeviceCore> core() const { return _core; }
+
  protected:
-    // Accessor for derived classes
+     bool isStopFlag(std::memory_order order = std::memory_order_seq_cst) const { return _stop.load(order); }
+     void setStopFlag(bool value = true, std::memory_order order = std::memory_order_seq_cst) { _stop.store(value, order); }
+    std::mutex& stateLock() { return _lock; }
+    std::mutex& npuInferenceLock() { return _npuInferenceLock; }
+    std::shared_ptr<ServiceLayerInterface>& serviceLayer() { return _serviceLayer; }
+    std::unordered_map<int, dxrt::dxrt_model_t>& npuModelMap() { return _npuModel; }
+    NpuMemoryCacheManager& memoryCacheManager() { return _npuMemoryCacheManager; }
+    std::function<void(int deviceId, int reqId, const dxrt_response_t *response)>& processResponseHandler() {
+        return _processResponseHandler;
+    }
+    std::atomic<int>& loadCounter() { return _load; }
+    std::condition_variable& recoveryCondVar() { return _recoveryCondVar; }
+    std::mutex& recoveryMutex() { return _recoveryMutex; }
+
+ private:
     std::shared_ptr<DeviceCore> _core;
     std::atomic<int> _load{0};
     std::atomic<int> _inferenceCnt{0};
@@ -108,9 +139,17 @@ class DXRT_API DeviceTaskLayer {
     std::shared_ptr<ServiceLayerInterface> _serviceLayer;
     std::mutex _npuInferenceLock;
     std::unordered_map<int, dxrt::dxrt_model_t> _npuModel;
-    std::function<void()> _onCompleteInferenceHandler;
+    std::function<void()> _onCompleteInferenceHandler = [](){
+        // Default no-op handler
+    };
     NpuMemoryCacheManager _npuMemoryCacheManager;
-    std::function<void(int deviceId, int reqId, dxrt_response_t *response)> _processResponseHandler;
+    std::function<void(int deviceId, int reqId, const dxrt_response_t *response)> _processResponseHandler;
+
+    // DMA Abort Recovery state
+    std::atomic<bool> _recoveryInProgress{false};
+    std::atomic<uint32_t> _recoveryEpoch{0};
+    std::mutex _recoveryMutex;
+    std::condition_variable _recoveryCondVar;
 };
 
 class DXRT_API StdDeviceTaskLayer : public DeviceTaskLayer {
@@ -118,7 +157,11 @@ public:
     explicit StdDeviceTaskLayer(std::shared_ptr<DeviceCore> dev, std::shared_ptr<ServiceLayerInterface> service_interface) : DeviceTaskLayer(dev,service_interface) {}
     int RegisterTask(TaskData* task) override;
     int InferenceRequest(RequestData* req, npu_bound_op boundOp) override;
-    ~StdDeviceTaskLayer();
+    ~StdDeviceTaskLayer() override;
+    StdDeviceTaskLayer(const StdDeviceTaskLayer&) = delete;
+    StdDeviceTaskLayer& operator=(const StdDeviceTaskLayer&) = delete;
+    StdDeviceTaskLayer(StdDeviceTaskLayer&&) = delete;
+    StdDeviceTaskLayer& operator=(StdDeviceTaskLayer&&) = delete;
 
     int Release(TaskData *task) override;
     void StartThread() override;
@@ -176,10 +219,23 @@ class DXRT_API AccDeviceTaskLayer : public DeviceTaskLayer {
     int InputHandler(const int &reqId, int ch);
     int OutputHandler(const dxrt_response_t &resp, int ch);
 
+    // DMA Abort Recovery
+    void HandleDmaAbortError(const dx_pcie_dev_err_t *err);
+    void HandleDmaFailError(const dx_pcie_dev_err_t *err);
+    void HandleFwTimeoutError(const dx_pcie_dev_err_t *err);
+    void LogAbortDiagnostics(int channel, const dx_pcie_dev_err_t *err);
+    void LogDmaFailDiagnostics(int channel, const dx_pcie_dev_err_t *err);
+    void LogFwTimeoutDiagnostics(const dx_pcie_dev_err_t *err);
+    void DmaAbortRecoveryThread();
+
     int Release(TaskData *task) override;
     void StartThread() override;
 
-    virtual ~AccDeviceTaskLayer();
+    ~AccDeviceTaskLayer() override;
+    AccDeviceTaskLayer(const AccDeviceTaskLayer&) = delete;
+    AccDeviceTaskLayer& operator=(const AccDeviceTaskLayer&) = delete;
+    AccDeviceTaskLayer(AccDeviceTaskLayer&&) = delete;
+    AccDeviceTaskLayer& operator=(AccDeviceTaskLayer&&) = delete;
 
     // Test accessors
     const dxrt_request_acc_t *test_getInferenceAcc(int taskId) const
@@ -205,7 +261,7 @@ class DXRT_API AccDeviceTaskLayer : public DeviceTaskLayer {
      dxrt_meminfo_t SetMemInfo_PPCPU(const dxrt_meminfo_t& rmap_output,
                                       size_t ppu_filter_num,
                                       DataType dtype,
-                                      void* output_ptr);
+                                      void* output_ptr) const;
 
      std::unordered_map<int, dxrt_request_acc_t> _npuInferenceAcc;
      std::unordered_map<int, dxrt_request_acc_t> _ongoingRequests;
@@ -214,6 +270,10 @@ class DXRT_API AccDeviceTaskLayer : public DeviceTaskLayer {
      // Track response receive timestamps for queueing delay measurement
      std::unordered_map<uint32_t, uint64_t> _responseReceiveTimestamps;
      std::mutex _responseTimestampLock;
+
+     // Track PCIe Write completion timestamps for accurate NPU Core timing
+     std::unordered_map<uint32_t, uint64_t> _writeCompleteTimestamps;
+     std::mutex _writeTimestampLock;
 #endif
 
      SharedMutex requestsLock;
@@ -225,13 +285,17 @@ class DXRT_API AccDeviceTaskLayer : public DeviceTaskLayer {
      std::atomic<bool> _eventThreadStartFlag{false};
      std::vector<std::thread> _outputDispatcher;
 
+     // DMA Abort Recovery thread
+     std::thread _recoveryThread;
+     std::atomic<bool> _recoveryPending{false};
+
      HandlerQueueThread<int> _inputHandlerQueue;
      HandlerQueueThread<dxrt_response_t> _outputHandlerQueue;
 
     std::unordered_map<int, Tensors> _inputTensorFormats;
     std::unordered_map<int, Tensors> _outputTensorFormats;
 
-    std::atomic<bool> _outputDispatcherTerminateFlag[4];
+    std::array<std::atomic<bool>, 4> _outputDispatcherTerminateFlag;
 
 #ifdef DXRT_USE_DEVICE_VALIDATION
     void ReadValidationOutput(std::shared_ptr<Request> req);

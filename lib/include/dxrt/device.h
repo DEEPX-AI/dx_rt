@@ -38,7 +38,7 @@ namespace dxrt {
 
 using DevicePtr = std::shared_ptr<Device>;
 
-enum SkipMode
+enum class SkipMode
 {
     NONE            = 0,
     VERSION_CHECK,

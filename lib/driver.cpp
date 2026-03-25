@@ -35,20 +35,27 @@ using std::pair;
 
 namespace dxrt {
 
-DXRT_API vector<pair<int,string>> ioctlTable = {
+DXRT_API vector<pair<int,string>> ioctlTable = {  // NOSONAR due to external usage
     { dxrt::dxrt_ioctl_t::DXRT_IOCTL_MESSAGE, "IOCTL_MESSAGE" },
     { dxrt::dxrt_ioctl_t::DXRT_IOCTL_DUMMY, "IOCTL_DUMMY" },
 };
-static constexpr std::array<pair_type, 9> errTable = {{
+static constexpr std::array<pair_type, 16> errTable = {{
     {dxrt::dxrt_error_t::ERR_NPU0_HANG, "NPU0 Hang"},
     {dxrt::dxrt_error_t::ERR_NPU1_HANG, "NPU1 Hang"},
     {dxrt::dxrt_error_t::ERR_NPU2_HANG, "NPU2 Hang"},
     {dxrt::dxrt_error_t::ERR_NPU_BUS, "NPU BUS Error"},
-    {dxrt::dxrt_error_t::ERR_PCIE_DMA_CH0_FAIL, "PCIe-DMA Fail in ch0"},
-    {dxrt::dxrt_error_t::ERR_PCIE_DMA_CH1_FAIL, "PCIe-DMA Fail in ch1"},
-    {dxrt::dxrt_error_t::ERR_PCIE_DMA_CH2_FAIL, "PCIe-DMA Fail in ch2"},
+    {dxrt::dxrt_error_t::ERR_PCIE_DMA_CH0_FAIL, "PCIe-DMA Soft Reset Fail in ch0"},
+    {dxrt::dxrt_error_t::ERR_PCIE_DMA_CH1_FAIL, "PCIe-DMA Soft Reset Fail in ch1"},
+    {dxrt::dxrt_error_t::ERR_PCIE_DMA_CH2_FAIL, "PCIe-DMA Soft Reset Fail in ch2"},
+    {dxrt::dxrt_error_t::ERR_PCIE_DMA_CH3_FAIL, "PCIe-DMA Soft Reset Fail in ch3"},
     {dxrt::dxrt_error_t::ERR_LPDDR_DED_WR, "LPDDR Link-ECC Write Error"},
     {dxrt::dxrt_error_t::ERR_LPDDR_DED_RD, "LPDDR Link-ECC Read Error"},
+    {dxrt::dxrt_error_t::ERR_FW_TIMEOUT, "Firmware Timeout"},
+    {dxrt::dxrt_error_t::ERR_PCIE_DMA_CH0_ABORT, "PCIe-DMA HW Abort in ch0"},
+    {dxrt::dxrt_error_t::ERR_PCIE_DMA_CH1_ABORT, "PCIe-DMA HW Abort in ch1"},
+    {dxrt::dxrt_error_t::ERR_PCIE_DMA_CH2_ABORT, "PCIe-DMA HW Abort in ch2"},
+    {dxrt::dxrt_error_t::ERR_PCIE_DMA_CH3_ABORT, "PCIe-DMA HW Abort in ch3"},
+    {dxrt::dxrt_error_t::ERR_DEVICE_ERR, "Device Error"},
 }};
 
 std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_err_t& error) {
@@ -93,7 +100,17 @@ std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_err_t& error) {
 
     // Print device information
     os << "* Device Information" << endl;
-    os << "  - NPU DMA Status : " << error.dma_err << endl;
+    os << "  - NPU DMA Status : 0x" << hex << error.dma_err << dec << endl;
+    os << "  - DMA WR ch sts  : ["
+       << error.dma_wr_ch_sts[0] << ", "
+       << error.dma_wr_ch_sts[1] << ", "
+       << error.dma_wr_ch_sts[2] << ", "
+       << error.dma_wr_ch_sts[3] << "]" << endl;
+    os << "  - DMA RD ch sts  : ["
+       << error.dma_rd_ch_sts[0] << ", "
+       << error.dma_rd_ch_sts[1] << ", "
+       << error.dma_rd_ch_sts[2] << ", "
+       << error.dma_rd_ch_sts[3] << "]" << endl;
     os << "  - Temperature    : ";
 
     for (const auto& temp : error.temperature) {
@@ -122,15 +139,15 @@ std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_err_t& error) {
     // Print LPDDR information
     os << "* LPDDR Information (" << "LPDDR" << error.ddr_type << " , Frequency: " << error.ddr_freq << "MHz)" << endl;
     os << "  - LPDDR MR Register Info ch[0, 1, 2, 3] : [";
-    for (int ddr_ch = 0; ddr_ch < 4; ddr_ch++) {
-        os << error.ddr_mr_reg[ddr_ch] << ", ";
+    for (auto mr_reg :  error.ddr_mr_reg) {
+        os << mr_reg << ", ";
     }
     os << "]" << endl;
 
     if (error.dbe_cnt[0] || error.dbe_cnt[1] || error.dbe_cnt[2] || error.dbe_cnt[3]) {
         os << "  - LPDDR double bit error count ch[0, 1, 2, 3] : [";
-        for (int ddr_ch = 0; ddr_ch < 4; ddr_ch++) {
-            os << error.dbe_cnt[ddr_ch] << ", ";
+        for (auto dbe : error.dbe_cnt) {
+            os << dbe << ", ";
         }
         os << "]" << endl;
     }
@@ -310,7 +327,7 @@ std::ostream& operator<<(std::ostream& os, const dxrt_fct_result_t& info)
         << left << setw(20) << "DDR Margin:" << (info.ddr_margin == 1 ? "PASS" : "FAIL") << "\n"
         << left << setw(20) << "I2C Fail:" << (info.i2c_fail == 1 ? "FAIL" : "PASS") << "\n"
         << left << setw(20) << "Test Done:" << static_cast<int>(info.test_done) << "\n";
-        // << left << setw(20) << "Test Done:" << (info.test_done == 1 ? "PASS" : "FAIL") << "\n";
+
     os << "=====================================\n";
 
     return os;

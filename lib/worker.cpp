@@ -17,7 +17,7 @@ using std::endl;
 
 namespace dxrt {
 
-Worker::Worker(string name_, Type type_, int bufferCount, int numThreads, Device *device_, CpuHandle *cpuHandle_)
+Worker::Worker(const string& name_, Type type_, int bufferCount, int numThreads, Device *device_, CpuHandle *cpuHandle_)
 : _device(device_), _cpuHandle(cpuHandle_), _threads(numThreads), _name(name_), _type(type_), _bufferCount(bufferCount)
 {
     LOG_DXRT_DBG << name_ << " will be created." << endl;
@@ -37,7 +37,7 @@ void Worker::DoThread(int id)
         LOG_DXRT << "worker error " << _name <<  endl;
     }catch (std::exception& e) {
         LOG_DXRT << e.what() << " std callback error " << _name << endl;
-    } catch (...) {
+    } catch (...) {  // NOSONAR: S2738 due to no throw
         LOG_DXRT << "callback error unknown " << _name << endl;
     }
     _stopCount++;
@@ -53,7 +53,7 @@ void Worker::InitializeThread()
 
 float Worker::GetAverageLoad() {
     std::unique_lock<std::mutex> lk(_statsLock);
-    return (_checkQueueCnt.load() > 0) ? static_cast<float>(_accumulatedQueueSize.load()) / _checkQueueCnt.load() : 0.0f;
+    return (_checkQueueCnt.load() > 0) ? static_cast<float>(_accumulatedQueueSize.load()) / static_cast<float>(_checkQueueCnt.load()) : 0.0f;
 }
 
 Worker::~Worker()
@@ -68,9 +68,9 @@ Worker::~Worker()
             std::unique_lock<std::mutex> lk(_lock);
             _cv.notify_all();
         }
-        if ((_useSystemCall) && (_type == Worker::Type::DEVICE_OUTPUT))
+        if (_useSystemCall && (_type == Worker::Type::DEVICE_OUTPUT))
         {
-            t.detach();
+            t.detach();  // NOSONAR:S5962 due to system call usage
         }
         else
         {
@@ -106,7 +106,7 @@ void Worker::UpdateQueueStats(int queueSize) {
     _accumulatedQueueSize.fetch_add(queueSize);
 }
 
-bool Worker::isStopped()
+bool Worker::isStopped() const
 {
     return (_stopCount.load() > 0);
 }

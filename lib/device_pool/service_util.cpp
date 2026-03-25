@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -12,11 +12,17 @@
 #include <algorithm>
 #include "dxrt/common.h"
 
-namespace dxrt {
-
 #ifdef __linux__
 #include <dirent.h>
 #include <unistd.h>
+#elif _WIN32
+#include <windows.h>
+#include <tlhelp32.h>
+#endif
+
+namespace dxrt {
+
+#ifdef __linux__
 bool DXRT_API isDxrtServiceRunning() {
     const std::string& processName = "dxrtd";
     pid_t myPid = getpid();  // Get Current Process PID
@@ -28,7 +34,7 @@ bool DXRT_API isDxrtServiceRunning() {
         return false;
     }
 
-    struct dirent* entry;
+    const struct dirent* entry;
     while ((entry = readdir(procDir)) != nullptr) {
         // Check if directory name is digit(process)
         std::string dirName(entry->d_name);
@@ -63,8 +69,7 @@ bool DXRT_API isDxrtServiceRunning() {
     return false;
 }
 #elif _WIN32
-#include <windows.h>
-#include <tlhelp32.h>
+
 // Check for other process with has same name
 bool DXRT_API isDxrtServiceRunning() {
     const std::string processName = "dxrtd.exe";

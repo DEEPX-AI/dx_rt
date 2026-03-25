@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -13,6 +13,7 @@
 #include <csignal>
 #include <cstdlib>
 #include <cstdio>
+#include <array>
 
 #ifdef __linux__
     #include <execinfo.h>
@@ -26,19 +27,19 @@
 namespace dxrt {
 
 #ifdef __linux__
+[[noreturn]]
 static void signalHandler(int signo)
 {
     std::ignore = signo;
 #ifdef DXRT_SHOW_STACKTRACE_ON_HANDLER
-    void* array[22];
+    std::array<void*, 22> array;
     size_t size;
     char** strings;
-    size_t i;
 
-    size = backtrace(array, 22);
-    strings = backtrace_symbols(array, size);
+    size = backtrace(array.data(), 22);
+    strings = backtrace_symbols(array.data(), static_cast<int>(size));
     printf("Exception: Caught signal %d:\n", signo);
-    for (i = 0; i < size; i++)
+    for (size_t i = 0; i < size; i++)
     {
         printf("[%lu] %s\n", i, strings[i]);
     }
@@ -47,6 +48,7 @@ static void signalHandler(int signo)
     exit(EXIT_FAILURE);
 }
 #elif _WIN32
+[[noreturn]]
 void windows_print_stacktrace(CONTEXT* context)
 {
     HANDLE process = GetCurrentProcess();
@@ -105,7 +107,7 @@ LONG WINAPI windows_exception_handler(EXCEPTION_POINTERS* ExceptionInfo)
     windows_print_stacktrace(ExceptionInfo->ContextRecord);
     return EXCEPTION_EXECUTE_HANDLER;
 }
-#endif 
+#endif
 
 ExceptionHandler::ExceptionHandler()
 {
@@ -117,6 +119,5 @@ ExceptionHandler::ExceptionHandler()
     SetUnhandledExceptionFilter(windows_exception_handler);
 #endif
 }
-ExceptionHandler exceptionHandler;
 
 } // namespace dxrt

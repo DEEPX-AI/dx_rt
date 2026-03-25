@@ -10,9 +10,11 @@
 #include "dxrt/common.h"
 #include "dxrt/driver.h"
 #include "dxrt/memory.h"
+#include <algorithm>
 #include <iostream>
 #include <iomanip>
 #include <mutex>
+#include "dxrt/safe_cast.h"
 using std::endl;
 using std::hex;
 using std::dec;
@@ -20,17 +22,12 @@ using std::dec;
 namespace dxrt {
 
 Memory::Memory(dxrt_device_info_t &info, void *data_)
+: _start(info.mem_addr), _cur(info.mem_addr), _end(info.mem_addr + info.mem_size), _size(info.mem_size),
+  _data(SafeCast::PointerToInteger<const void*>(data_)), _dataEnd(_data + info.mem_size)
 {
-    _start = info.mem_addr;
-    _cur = info.mem_addr;
-    _end = info.mem_addr + info.mem_size;
-    _size = info.mem_size;
-    _data = reinterpret_cast<uint64_t>(data_);
-    _dataEnd = _data + _size;
     _pool[0].addr = 0;
     _pool[0].size = _size;
     _pool[0].status = 0;
-    _used_size = 0;
 }
 
 uint64_t Memory::AlignSize(uint64_t size) const
@@ -45,14 +42,11 @@ std::map<uint64_t, MemoryNode>::iterator Memory::FindBestFit(uint64_t required)
 
     for (auto it = _pool.begin(); it != _pool.end(); ++it)
     {
-        auto &node = it->second;
-        if (node.status == 0 && node.size >= required)
+        const auto &node = it->second;
+        if ((node.status == 0) && (node.size >= required) && (node.size < best_size))
         {
-            if (node.size < best_size)
-            {
-                best_size = node.size;
-                best_it = it;
-            }
+            best_size = node.size;
+            best_it = it;
         }
     }
 
@@ -77,26 +71,24 @@ int64_t Memory::Allocate(uint64_t required)
     // First attempt: Try normal Best-Fit allocation
     auto best_it = FindBestFit(required);
 
-    if (best_it == _pool.end())
+    if ((best_it == _pool.end()) && (required >= MemoryConfig::LARGE_ALLOCATION_THRESHOLD))
     {
         // Second attempt: Check if defragmentation can help for large allocations
-        if (required >= MemoryConfig::LARGE_ALLOCATION_THRESHOLD)
+
+        auto fragInfo = GetFragmentationInfoNoLock();
+        if (fragInfo.fragmentation_ratio > MemoryConfig::MEDIUM_FRAGMENTATION_THRESHOLD)
         {
-            auto fragInfo = GetFragmentationInfoNoLock();
-            if (fragInfo.fragmentation_ratio > MemoryConfig::MEDIUM_FRAGMENTATION_THRESHOLD)
+            LOG_DXRT_DBG << "Attempting defragmentation for " << (required / (1024*1024)) << "MB allocation" << endl;
+            if (TryDefragmentation(required))
             {
-                LOG_DXRT_DBG << "Attempting defragmentation for " << (required / (1024*1024)) << "MB allocation" << endl;
-                if (TryDefragmentation(required))
-                {
-                    best_it = FindBestFit(required);
-                }
+                best_it = FindBestFit(required);
             }
         }
     }
 
     if (best_it != _pool.end())
     {
-        auto &node = best_it->second;
+        const auto &node = best_it->second;
         uint64_t addr = node.addr;
 
         if (required < node.size)
@@ -115,10 +107,10 @@ int64_t Memory::Allocate(uint64_t required)
 
     // Memory allocation failed - provide detailed diagnosis
     auto fragInfo = GetFragmentationInfoNoLock();
-    LOG_DXRT_ERR("Failed to allocate " + std::to_string(required / (1024*1024)) + "MB. " +
-                 "Free: " + std::to_string(fragInfo.total_free_size / (1024*1024)) + "MB, " +
-                 "Largest block: " + std::to_string(fragInfo.largest_free_block / (1024*1024)) + "MB, " +
-                 "Fragmentation: " + std::to_string(fragInfo.fragmentation_ratio * 100.0) + "%")
+    LOG_DXRT_ERR("Failed to allocate " + std::to_string(required / (1024 * 1024)) + "MB. " +
+                 "Free: " + std::to_string(fragInfo.total_free_size / (1024 * 1024)) + "MB, " +
+                 "Largest block: " + std::to_string(fragInfo.largest_free_block / (1024 * 1024)) + "MB, " +
+                 "Fragmentation: " + std::to_string(fragInfo.fragmentation_ratio * 100.0) + "%");
 
     return -1;
 }
@@ -137,15 +129,12 @@ int64_t Memory::BackwardAllocate(uint64_t required)
 
     for (auto it = _pool.rbegin(); it != _pool.rend(); ++it)
     {
-        auto &node = it->second;
-        if (node.status == 0 && node.size >= required)
+        const auto &node = it->second;
+        if ((node.status == 0) && (node.size >= required) && (node.size < best_size))
         {
-            if (node.size < best_size)
-            {
-                best_size = node.size;
-                best_it = it.base();
-                --best_it;
-            }
+            best_size = node.size;
+            best_it = it.base();
+            --best_it;
         }
     }
 
@@ -155,20 +144,21 @@ int64_t Memory::BackwardAllocate(uint64_t required)
         auto fragInfo = GetFragmentationInfoNoLock();
         if (fragInfo.fragmentation_ratio > MemoryConfig::MEDIUM_FRAGMENTATION_THRESHOLD)
         {
-            if (TryDefragmentation(required))
+            bool defrag_result = TryDefragmentation(required);
+            LOG_DXRT_DBG << "Defragmentation " << (defrag_result ? "succeeded" : "failed")
+                << " for backward allocation of "
+                << (static_cast<double>(required) / (1024.0*1024.0)) << "MiB" << endl;
+            if (defrag_result)
             {
                 // Retry after defragmentation
                 for (auto it = _pool.rbegin(); it != _pool.rend(); ++it)
                 {
-                    auto &node = it->second;
-                    if (node.status == 0 && node.size >= required)
+                    const auto &node = it->second;
+                    if ((node.status == 0) && (node.size >= required) && (node.size < best_size))
                     {
-                        if (node.size < best_size)
-                        {
-                            best_size = node.size;
-                            best_it = it.base();
+                        best_size = node.size;
+                        best_it = it.base();
                             --best_it;
-                        }
                     }
                 }
             }
@@ -177,7 +167,7 @@ int64_t Memory::BackwardAllocate(uint64_t required)
 
     if (best_it != _pool.end())
     {
-        auto &node = best_it->second;
+        const auto &node = best_it->second;
         uint64_t addr = node.addr;
 
         if (required < node.size)
@@ -199,9 +189,9 @@ int64_t Memory::BackwardAllocate(uint64_t required)
 
     // Memory allocation failed
     auto fragInfo = GetFragmentationInfoNoLock();
-    LOG_DXRT_ERR("Failed to backward allocate " + std::to_string(required / (1024*1024)) + "MB. " +
-                 "Free: " + std::to_string(fragInfo.total_free_size / (1024*1024)) + "MB, " +
-                 "Largest block: " + std::to_string(fragInfo.largest_free_block / (1024*1024)) + "MB")
+    LOG_DXRT_ERR("Failed to backward allocate " + std::to_string(required / (1024 * 1024)) + "MB. " +
+                 "Free: " + std::to_string(fragInfo.total_free_size / (1024 * 1024)) + "MB, " +
+                 "Largest block: " + std::to_string(fragInfo.largest_free_block / (1024 * 1024)) + "MB");
 
     return -1;
 }
@@ -214,7 +204,7 @@ int64_t Memory::Allocate(dxrt_meminfo_t &meminfo)
         /* allocate, new */
         LOG_DXRT_DBG << "allocate, new" << endl;
         meminfo.base = _start;
-        meminfo.offset = Allocate(meminfo.size);
+        meminfo.offset = static_cast<uint32_t>(Allocate(meminfo.size));
         meminfo.data = _data + meminfo.offset;
     }
     else if (meminfo.data < _data || meminfo.data >_dataEnd)
@@ -225,14 +215,14 @@ int64_t Memory::Allocate(dxrt_meminfo_t &meminfo)
         {
             meminfo.base = _start;
         }
-        meminfo.offset = Allocate(meminfo.size);
+        meminfo.offset = static_cast<uint32_t>(Allocate(meminfo.size));
     }
     else
     {
         LOG_DXRT_DBG << "skip allocate, update base, offset" << endl;
         /* no allocate, just compute base, offset */
         meminfo.base = _start;
-        meminfo.offset = meminfo.data - _data;
+        meminfo.offset = static_cast<uint32_t>(meminfo.data - _data);
     }
 
     return 0;
@@ -278,8 +268,8 @@ void Memory::Deallocate(dxrt_request_t &inf)
     Deallocate(input);
     Deallocate(output);
 }
-void Memory::MergeAdjacentNodes(std::map<uint64_t, MemoryNode>::iterator it) {
-    // LOG_DXRT_DBG << endl;
+void Memory::MergeAdjacentNodes(std::map<uint64_t, MemoryNode>::iterator it)
+{
     if (it != _pool.begin()) {
         auto prev_it = prev(it);
         if (prev_it->second.status == 0) {
@@ -340,7 +330,7 @@ uint64_t Memory::used_size(void) const
 
 MemoryFragmentationInfo Memory::GetFragmentationInfo() const
 {
-    std::unique_lock<std::mutex> lk(const_cast<std::mutex&>(_lock));
+    std::unique_lock<std::mutex> lk(_lock);
     return GetFragmentationInfoNoLock();
 }
 MemoryFragmentationInfo Memory::GetFragmentationInfoNoLock() const
@@ -370,7 +360,9 @@ MemoryFragmentationInfo Memory::GetFragmentationInfoNoLock() const
     }
     else if (info.total_free_size > 0)
     {
-        info.fragmentation_ratio = (double)(info.total_free_size - info.largest_free_block) / info.total_free_size;
+        info.fragmentation_ratio =
+            static_cast<double>(info.total_free_size - info.largest_free_block)
+            / static_cast<double>(info.total_free_size);
     }
     else
     {
@@ -383,21 +375,17 @@ MemoryFragmentationInfo Memory::GetFragmentationInfoNoLock() const
 
 bool Memory::CanAllocateContiguous(uint64_t required) const
 {
-    std::unique_lock<std::mutex> lk(const_cast<std::mutex&>(_lock));
-    for (const auto &pair : _pool)
+    std::unique_lock<std::mutex> lk(_lock);
+    return std::any_of(_pool.begin(), _pool.end(), [required](const auto& pair)
     {
-        const auto &node = pair.second;
-        if (node.status == 0 && node.size >= required)
-        {
-            return true;
-        }
-    }
-    return false;
+        const auto& node = pair.second;
+        return node.status == 0 && node.size >= required;
+    });
 }
 
 void Memory::PrintMemoryMap() const
 {
-    std::unique_lock<std::mutex> lk(const_cast<std::mutex&>(_lock));
+    std::unique_lock<std::mutex> lk(_lock);
     LOG_DXRT << "Memory Map (Start: 0x" << hex << _start << ", Size: " << dec << _size << " bytes)" << endl;
     LOG_DXRT << "Used: " << _used_size << " bytes, Free: " << (_size - _used_size) << " bytes" << endl;
 

@@ -22,8 +22,8 @@ namespace dxrt {
 
 NpuMonitor* NpuMonitor::s_instance = nullptr;
 
-NpuMonitor::NpuMonitor()
-: _running(false), _currentPage(0), _currentView(ViewState::MAIN)
+NpuMonitor::NpuMonitor(IDataSource& dataSource)
+: _running(false), _currentPage(0), _currentView(ViewState::MAIN), _dataSource(dataSource)
 {
     DevicePool::GetInstance().InitCores();
     int deviceCount = DevicePool::GetInstance().GetDeviceCount();
@@ -38,7 +38,7 @@ NpuMonitor::NpuMonitor()
     for (int i = 0; i < deviceCount; i++)
     {
         auto deviceCore = DevicePool::GetInstance().GetDeviceCores(i);
-        _devices.emplace_back(std::make_shared<dxrt::NpuDevice>(index++, deviceCore, _ipcClient));
+        _devices.emplace_back(std::make_shared<dxrt::NpuDevice>(index++, deviceCore, _dataSource));
     }
 
     _totalDeviceCount = _devices.size();
@@ -116,11 +116,11 @@ void NpuMonitor::updateDevices(MonitorViewModel& monitorViewModel)
 {
     for (const auto& device : _devices)
     {
-        // IPC Call
-        device->UpdateDramUsageByIPC(_ipcClient);
+        // Update via data source
+        device->UpdateDramUsage(_dataSource);
         // cout<<"Device Variant = "<<device->GetDeviceVariant()<< endl;
 
-        device->UpdateCoreData(_ipcClient);
+        device->UpdateCoreData(_dataSource);
     }
     monitorViewModel = createMonitorViewModel();
 }

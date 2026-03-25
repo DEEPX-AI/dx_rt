@@ -49,7 +49,13 @@ if __name__ == "__main__":
         logger.info("Creating InferenceEngine from model buffer")
         with InferenceEngine.from_buffer(model_buffer) as ie:
 
-            input = [np.zeros(ie.get_input_size(), dtype=np.uint8)]
+            # NOTE: np.zeros() uses COW zero pages — all virtual pages share one
+            # physical page. PCIe DMA driver's get_user_pages() then sees duplicate
+            # physical pages in the SG list and fails with EFAULT.
+            # np.empty() + explicit fill forces unique physical page allocation.
+            _buf = np.empty(ie.get_input_size(), dtype=np.uint8)
+            _buf.fill(0)
+            input = [_buf]
 
             start = time.perf_counter()
             # inference loop

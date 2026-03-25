@@ -33,17 +33,25 @@ const uint16_t BOARD_TYPE_H1 = 3;
 class DXRT_API CLICommand
 {
  public:
-    explicit CLICommand(cxxopts::ParseResult &);
+    explicit CLICommand(const cxxopts::ParseResult &);
     virtual ~CLICommand();
     void Run();
+
  protected:
-    cxxopts::ParseResult _cmd;
-    int _deviceId = -1;
-    bool _withDevice = true;
-    dxrt::dxrt_ident_sub_cmd_t _subCmd = dxrt::dxrt_ident_sub_cmd_t::DX_IDENTIFY_NONE;
-    // dxrt::SkipMode _checkDeviceSkip = dxrt::SkipMode::COMMON_SKIP;
+   cxxopts::ParseResult& cmdResult() { return _cmd; }
+   bool& withDevice() { return _withDevice; }
+   dxrt::dxrt_ident_sub_cmd_t& subCmd() { return _subCmd; }
+   int& deviceId() { return _deviceId; }
+
     virtual void doCommand(std::shared_ptr<DeviceCore> devicePtr) = 0;
-    virtual void finish() { }
+    virtual void finish() { /* Default: no post-processing needed. Override in subclass if required. */ }
+
+ private:
+   cxxopts::ParseResult _cmd;
+   bool _withDevice = true;
+   dxrt::dxrt_ident_sub_cmd_t _subCmd = dxrt::dxrt_ident_sub_cmd_t::DX_IDENTIFY_NONE; // NOSONAR: Set by FWUploadCommand
+   int _deviceId = -1;
+    
 };
 
 class DXRT_API DeviceStatusCLICommand : public CLICommand
@@ -89,12 +97,12 @@ class DXRT_API FWUpdateCommand : public CLICommand
     void doCommand(std::shared_ptr<DeviceCore> devicePtr) override;
     void finish() override;
 
-    std::string getSubCmdString();
-    uint32_t _fwUpdateSubCmd;
+    std::string getSubCmdString() const;
+    uint32_t _fwUpdateSubCmd = 0;
     std::string _fwUpdateFile;
-    bool _showLogOnce;
-    bool _showDonotTunrOff;
-    int _updateDeviceCount;
+    bool _showLogOnce = false;
+    bool _showDonotTunrOff = false;
+    int _updateDeviceCount = 0;
 };
 
 class DXRT_API FWUploadCommand : public CLICommand
@@ -165,6 +173,6 @@ class DXRT_API DDRErrorCLICommand : public CLICommand
 const int CHECK_M1_DEVICE = 100;
 const int CHECK_M1M_DEVICE = 101;
 bool DXRT_API CheckH1Devices();
-bool DXRT_API CheckM1Devices(int deviceType);  
+bool DXRT_API CheckM1Devices(int deviceType);
 
 }  // namespace dxrt

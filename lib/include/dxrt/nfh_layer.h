@@ -22,10 +22,7 @@
 #include "dxrt/driver.h"
 #include "dxrt/handler_que_template.h"
 #include "dxrt/nfh_request.h"
-
-
-
-
+#include "dxrt/request_response_class.h"
 
 namespace dxrt {
 class DeviceTaskLayer;
@@ -35,24 +32,23 @@ class DXRT_API NFHLayer {
     explicit NFHLayer(std::shared_ptr<DeviceTaskLayer> devicePtr, bool isDynamic);
 
     int InferenceRequest(int deviceId, std::shared_ptr<Request> req, npu_bound_op boundOp);
-    int ProcessResponse(int deviceId, int reqId, dxrt_response_t *response);
+    int ProcessResponse(int deviceId, int reqId, const dxrt_response_t *response);
 
     // Test/support hook: override response processing callback (default: RequestResponse::ProcessByData)
     void SetResponseCallback(std::function<void(int, const dxrt_response_t&, int)> cb);
 
  private:
     int _deviceId;
+    bool _isDynamic = false;
     std::shared_ptr<DeviceTaskLayer> _device;
 
     HandlerQueueThread<NfhInputRequest> _inputHandler;
     HandlerQueueThread<NfhOutputRequest> _outputHandler;
 
-    int handleInput(const NfhInputRequest&, int);
-    int handleOutput(const NfhOutputRequest &, int);
+    int handleInput(const NfhInputRequest&, int) const;
+    int handleOutput(const NfhOutputRequest &, int) const;
 
-    bool _isDynamic = false;
-
-    std::function<void(int reqId, const dxrt_response_t& response, int deviceId)> _responseCallback;
+    std::function<void(int reqId, const dxrt_response_t& response, int deviceId)> _responseCallback{RequestResponse::ProcessByData};
 };
 
 }  // namespace dxrt

@@ -10,10 +10,11 @@
 #include "ppcpu.h"
 #include "dxrt/common.h"
 #include <iostream>
+#include <cstdint>
+#include <array>
 
 
-extern unsigned char ppcpu_bin[];
-extern unsigned int ppcpu_bin_len;
+#include "ppcpu_data.inl"
 
 namespace dxrt {
 
@@ -25,7 +26,7 @@ uint8_t *PPCPUDataLoader::GetData(size_t &size)
 
 uint8_t *PPCPUDataLoader::GetData()
 {
-    return ppcpu_bin;
+    return ppcpu_bin.data();
 }
 
 int PPCPUDataLoader::GetDataSize()
@@ -36,7 +37,8 @@ int PPCPUDataLoader::GetDataSize()
 dx_ppcpu_image_header_t PPCPUDataLoader::GetHeader()
 {
     dx_ppcpu_image_header_t header;
-    dx_ppcpu_image_header_t* ptr = static_cast<dx_ppcpu_image_header_t*>(static_cast<void*>(ppcpu_bin));
+    const auto* ptr =
+        static_cast<const dx_ppcpu_image_header_t*>(static_cast<const void*>(ppcpu_bin.data()));
     header = *ptr;
     return header;
 }

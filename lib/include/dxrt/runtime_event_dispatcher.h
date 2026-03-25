@@ -13,7 +13,7 @@
 #include <atomic>
 #include "dxrt/common.h"
 
-#undef ERROR
+#undef ERROR // NOSONAR: Required to prevent Windows wingdi.h ERROR macro from breaking enum class LEVEL
 
 namespace dxrt {
 
@@ -74,8 +74,6 @@ namespace dxrt {
             UNKNOWN                 ///< Unknown or unclassified event code
         };
 
-
-    public:
         /**
          * @brief Gets the singleton instance of RuntimeEventDispatcher.
          * @return Reference to the singleton RuntimeEventDispatcher instance.
@@ -104,7 +102,7 @@ namespace dxrt {
          * Note: Only one handler can be registered at a time; subsequent calls will replace the previous handler.
          * The handler is invoked synchronously but with minimal lock holding time to avoid blocking.
          */
-        void RegisterEventHandler(std::function<void(LEVEL, TYPE, CODE, const std::string& message, const std::string& timestamp)> handler);
+        void RegisterEventHandler(const std::function<void(LEVEL, TYPE, CODE, const std::string& message, const std::string& timestamp)>& handler);
 
         /**
          * @brief Sets the minimum event level threshold.
@@ -120,7 +118,6 @@ namespace dxrt {
          */
         LEVEL GetCurrentLevel() const { return _currentLevel.load(); }
 
-    public:
         /**
          * @brief Destructor for RuntimeEventDispatcher.
          */
@@ -130,7 +127,7 @@ namespace dxrt {
         /**
          * @brief Private constructor to enforce singleton pattern.
          */
-        RuntimeEventDispatcher() {}
+        RuntimeEventDispatcher() = default;
 
         /**
          * @brief Deleted copy constructor to prevent copying.
@@ -167,9 +164,8 @@ namespace dxrt {
          * Converts enum values to human-readable strings for better log readability.
          * Output format: [Runtime Event] level=LEVEL_STRING type=TYPE_STRING code=CODE_STRING message=MSG timestamp=TIMESTAMP
          */
-        void handleEventLogging(LEVEL level, TYPE type, CODE code, const std::string& eventMessage, const std::string& timestamp);
+        void handleEventLogging(LEVEL level, TYPE type, CODE code, const std::string& eventMessage, const std::string& timestamp) const;
 
-    private:
         static RuntimeEventDispatcher* _staticInstance;  ///< Singleton instance pointer
         std::function<void(LEVEL, TYPE, CODE, const std::string& message, const std::string& timestamp)> _eventHandler{nullptr};  ///< Custom event handler callback
         std::atomic<LEVEL> _currentLevel{LEVEL::WARNING};  ///< Current minimum event level threshold

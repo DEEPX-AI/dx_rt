@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -11,29 +11,31 @@
 
 #include <stdint.h>
 #include <cstdint>
-#include <map>
-#include <chrono>
 #include <cstring>
+#include <map>
+#include <string>
+#include <chrono>
+
 
 #include "dxrt/common.h"
 #include "dxrt/driver.h"
 #include "dxrt/device_struct.h"
 
-namespace dxrt 
+namespace dxrt
 {
     enum class IPC_TYPE : int {
         //SOCKET_SYNC = 1,        // socket sync read/write
         //SOCKET_CB = 2,          // socket read callback & write sync
-        MESSAE_QUEUE = 3,       // message queue (FIFO)
+        MESSAGE_QUEUE = 3,       // message queue (FIFO)
         //MSG_QUEUE = 4,          // message queue (POSIX)
         WIN_PIPE = 5            // windows named pipe
     };
     IPC_TYPE inline IPCDefaultType()
     {
 #ifdef __linux__
-    	return IPC_TYPE::MESSAE_QUEUE ;
+        return IPC_TYPE::MESSAGE_QUEUE;
 #elif _WIN32
-    	return IPC_TYPE::WIN_PIPE ;
+        return IPC_TYPE::WIN_PIPE ;
 #endif
     }
 
@@ -62,11 +64,11 @@ namespace dxrt
         TASK_DEINIT = 8,
         DEALLOCATE_TASK_MEMORY = 9,
         PROCESS_DEINIT = 10,        //process cleanup
-        VIEW_FREE_MEMORY = 11, 
+        VIEW_FREE_MEMORY = 11,
         VIEW_USED_MEMORY = 12,
         VIEW_AVAILABLE_DEVICE = 15,
-        GET_USAGE = 17, 
-    
+        GET_USAGE = 17,
+
         MEMORY_ALLOCATION_AND_TRANSFER_MODEL = 100,
         COMPLETE_TRANSFER_MODEL = 101,
         MEMORY_ALLOCATION_INPUT_AND_OUTPUT = 102,
@@ -84,6 +86,7 @@ namespace dxrt
         VIEW_USED_MEMORY_RESULT = 14,
         VIEW_AVAILABLE_DEVICE_RESULT = 16,
         GET_USAGE_RESULT = 18,
+        TASK_INIT_SUCCESS = 19,
         CONFIRM_MEMORY_ALLOCATION_AND_TRANSFER_MODEL = 200,
         CONFIRM_MEMORY_ALLOCATION = 201,
         CONFIRM_TRANSFER_INPUT_AND_RUN = 202,
@@ -92,6 +95,7 @@ namespace dxrt
         DO_SCHEDULED_INFERENCE_CH1 = 401,
         DO_SCHEDULED_INFERENCE_CH2 = 402,
         ERROR_REPORT = 900,
+        TASK_INIT_FAILED = 901,
         CLOSE = 1001,
         INVALID_REQUEST_CODE = 1234,
     };
@@ -101,38 +105,30 @@ namespace dxrt
 
     struct IPCClientMessage
     {
-        REQUEST_CODE code;
-        uint32_t deviceId;
-        uint64_t data;
-        pid_t pid;
-        long msgType; // for message queue
-        int seqId;
-        dxrt::dxrt_request_acc_t npu_acc;
-        
-        int taskId;
-        uint64_t modelMemorySize;
-        
-        IPCClientMessage()
-        : code(REQUEST_CODE::REGISTER_PROCESS), deviceId(0), data(0), pid(0), msgType(0), seqId(0), taskId(-1), modelMemorySize(0)
-        {
-            npu_acc = dxrt::dxrt_request_acc_t{};
-        }
+        REQUEST_CODE code = REQUEST_CODE::REGISTER_PROCESS;
+        uint32_t deviceId = 0;
+        uint64_t data = 0;
+        pid_t pid = 0;
+        long msgType = 0; // for message queue
+        int seqId = 0;
+        dxrt::dxrt_request_acc_t npu_acc = dxrt::dxrt_request_acc_t{};
+
+        int taskId = -1;
+        uint64_t modelMemorySize = 0;
+
+        IPCClientMessage() = default;
     };
 
     struct IPCServerMessage
     {
-        RESPONSE_CODE code;
-        uint32_t deviceId;
-        uint32_t result;
-        uint64_t data;
-        long msgType; // for message queue
-        int seqId;
-        dxrt::dxrt_response_t npu_resp;
-        IPCServerMessage()
-        : code(RESPONSE_CODE::CLOSE), deviceId(0), result(0), data(0), msgType(0), seqId(0)
-        {
-            npu_resp = dxrt::dxrt_response_t{};
-        }
+        RESPONSE_CODE code = RESPONSE_CODE::CLOSE;
+        uint32_t deviceId = 0;
+        uint32_t result = 0;
+        uint64_t data = 0;
+        long msgType = 0; // for message queue
+        int seqId = 0;
+        dxrt::dxrt_response_t npu_resp = dxrt::dxrt_response_t{};
+        IPCServerMessage() = default;
     };
 
     struct IPCRegisterTask
@@ -182,56 +178,60 @@ namespace dxrt
     // for tracing
     inline DXRT_API std::string _s(dxrt::REQUEST_CODE c)
     {
-        static std::map<dxrt::REQUEST_CODE, std::string> m;
-        if (m.size() == 0) {
-            m[dxrt::REQUEST_CODE::REGISTER_PROCESS] = "REGISTER_PROCESS";
-            m[dxrt::REQUEST_CODE::GET_MEMORY] = "GET_MEMORY";
-            m[dxrt::REQUEST_CODE::FREE_MEMORY] = "FREE_MEMORY";
-            m[dxrt::REQUEST_CODE::GET_MEMORY_FOR_MODEL] = "GET_MEMORY_FOR_MODEL";
-            m[dxrt::REQUEST_CODE::DEVICE_INIT] = "DEVICE_INIT";
-            m[dxrt::REQUEST_CODE::DEVICE_RESET] = "DEVICE_RESET";
-            m[dxrt::REQUEST_CODE::DEVICE_DEINIT] = "DEVICE_DEINIT";
-            
-            m[dxrt::REQUEST_CODE::TASK_INIT] = "TASK_INIT";
-            m[dxrt::REQUEST_CODE::TASK_DEINIT] = "TASK_DEINIT";
-            m[dxrt::REQUEST_CODE::DEALLOCATE_TASK_MEMORY] = "DEALLOCATE_TASK_MEMORY";
-            m[dxrt::REQUEST_CODE::PROCESS_DEINIT] = "PROCESS_DEINIT";
-            
-            m[dxrt::REQUEST_CODE::VIEW_FREE_MEMORY] = "VIEW_FREE_MEMORY";
-            m[dxrt::REQUEST_CODE::VIEW_USED_MEMORY] = "VIEW_USED_MEMORY";
-            m[dxrt::REQUEST_CODE::VIEW_AVAILABLE_DEVICE] = "VIEW_AVAILABLE_DEVICE"; 
-            m[dxrt::REQUEST_CODE::GET_USAGE] = "GET_USAGE";  
-            
-            m[dxrt::REQUEST_CODE::MEMORY_ALLOCATION_AND_TRANSFER_MODEL] = "MEMORY_ALLOCATION_AND_TRANSFER_MODEL";
-            m[dxrt::REQUEST_CODE::COMPLETE_TRANSFER_MODEL] = "COMPLETE_TRANSFER_MODEL";
-            m[dxrt::REQUEST_CODE::MEMORY_ALLOCATION_INPUT_AND_OUTPUT] = "MEMORY_ALLOCATION_INPUT_AND_OUTPUT";
-            m[dxrt::REQUEST_CODE::TRANSFER_INPUT_AND_RUN] = "TRANSFER_INPUT_AND_RUN";
-            m[dxrt::REQUEST_CODE::COMPLETE_TRANSFER_AND_RUN] = "COMPLETE_TRANSFER_AND_RUN";
-            m[dxrt::REQUEST_CODE::COMPLETE_TRANSFER_OUTPUT] = "COMPLETE_TRANSFER_OUTPUT";
-            m[dxrt::REQUEST_CODE::REQUEST_SCHEDULE_INFERENCE] = "REQUEST_SCHEDULE_INFERENCE";
-            m[dxrt::REQUEST_CODE::INFERENCE_COMPLETED] = "INFERENCE_COMPLETED";
-            m[dxrt::REQUEST_CODE::CLOSE] = "CLOSE";
-        }
-        return m.find(c) == m.end() ? "REQUEST_Unknown" : m[c];
+        static const std::map<dxrt::REQUEST_CODE, std::string> m = {
+            {dxrt::REQUEST_CODE::REGISTER_PROCESS, "REGISTER_PROCESS"},
+            {dxrt::REQUEST_CODE::GET_MEMORY, "GET_MEMORY"},
+            {dxrt::REQUEST_CODE::FREE_MEMORY, "FREE_MEMORY"},
+            {dxrt::REQUEST_CODE::GET_MEMORY_FOR_MODEL, "GET_MEMORY_FOR_MODEL"},
+            {dxrt::REQUEST_CODE::DEVICE_INIT, "DEVICE_INIT"},
+            {dxrt::REQUEST_CODE::DEVICE_RESET, "DEVICE_RESET"},
+            {dxrt::REQUEST_CODE::DEVICE_DEINIT, "DEVICE_DEINIT"},
+            {dxrt::REQUEST_CODE::TASK_INIT, "TASK_INIT"},
+            {dxrt::REQUEST_CODE::TASK_DEINIT, "TASK_DEINIT"},
+            {dxrt::REQUEST_CODE::DEALLOCATE_TASK_MEMORY, "DEALLOCATE_TASK_MEMORY"},
+            {dxrt::REQUEST_CODE::PROCESS_DEINIT, "PROCESS_DEINIT"},
+            {dxrt::REQUEST_CODE::VIEW_FREE_MEMORY, "VIEW_FREE_MEMORY"},
+            {dxrt::REQUEST_CODE::VIEW_USED_MEMORY, "VIEW_USED_MEMORY"},
+            {dxrt::REQUEST_CODE::VIEW_AVAILABLE_DEVICE, "VIEW_AVAILABLE_DEVICE"},
+            {dxrt::REQUEST_CODE::GET_USAGE, "GET_USAGE"},
+            {
+                dxrt::REQUEST_CODE::MEMORY_ALLOCATION_AND_TRANSFER_MODEL,
+                "MEMORY_ALLOCATION_AND_TRANSFER_MODEL"
+            },
+            {dxrt::REQUEST_CODE::COMPLETE_TRANSFER_MODEL, "COMPLETE_TRANSFER_MODEL"},
+            {dxrt::REQUEST_CODE::MEMORY_ALLOCATION_INPUT_AND_OUTPUT, "MEMORY_ALLOCATION_INPUT_AND_OUTPUT"},
+            {dxrt::REQUEST_CODE::TRANSFER_INPUT_AND_RUN, "TRANSFER_INPUT_AND_RUN"},
+            {dxrt::REQUEST_CODE::COMPLETE_TRANSFER_AND_RUN, "COMPLETE_TRANSFER_AND_RUN"},
+            {dxrt::REQUEST_CODE::COMPLETE_TRANSFER_OUTPUT, "COMPLETE_TRANSFER_OUTPUT"},
+            {dxrt::REQUEST_CODE::REQUEST_SCHEDULE_INFERENCE, "REQUEST_SCHEDULE_INFERENCE"},
+            {dxrt::REQUEST_CODE::INFERENCE_COMPLETED, "INFERENCE_COMPLETED"},
+            {dxrt::REQUEST_CODE::CLOSE, "CLOSE"},
+        };
+        const auto it = m.find(c);
+        return it == m.end() ? "REQUEST_Unknown" : it->second;
     }
     inline DXRT_API std::string _s(dxrt::RESPONSE_CODE c)
     {
-        static std::map<dxrt::RESPONSE_CODE, std::string> m;
-        if (m.size() == 0) {
-            m[dxrt::RESPONSE_CODE::VIEW_FREE_MEMORY_RESULT] = "VIEW_FREE_MEMORY_RESULT";
-            m[dxrt::RESPONSE_CODE::VIEW_USED_MEMORY_RESULT] = "VIEW_USED_MEMORY_RESULT";
-            m[dxrt::RESPONSE_CODE::CONFIRM_MEMORY_ALLOCATION_AND_TRANSFER_MODEL] = "CONFIRM_MEMORY_ALLOCATION_AND_TRANSFER_MODEL";
-            m[dxrt::RESPONSE_CODE::CONFIRM_MEMORY_ALLOCATION] = "CONFIRM_MEMORY_ALLOCATION";
-            m[dxrt::RESPONSE_CODE::CONFIRM_TRANSFER_INPUT_AND_RUN] = "CONFIRM_TRANSFER_INPUT_AND_RUN";
-            m[dxrt::RESPONSE_CODE::CONFIRM_MEMORY_FREE] = "CONFIRM_MEMORY_FREE";
-            m[dxrt::RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH0] = "DO_SCHEDULED_INFERENCE_CH0";
-            m[dxrt::RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH1] = "DO_SCHEDULED_INFERENCE_CH1";
-            m[dxrt::RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH2] = "DO_SCHEDULED_INFERENCE_CH2";
-            m[dxrt::RESPONSE_CODE::ERROR_REPORT] = "ERROR_REPORT";
-            m[dxrt::RESPONSE_CODE::CLOSE] = "CLOSE";
-            m[dxrt::RESPONSE_CODE::INVALID_REQUEST_CODE] = "INVALID_REQUEST_CODE";
-        }
-        return m.find(c) == m.end() ? "RESPONSE_Unknown" : m[c];
+        static const std::map<dxrt::RESPONSE_CODE, std::string> m = {
+            {dxrt::RESPONSE_CODE::VIEW_FREE_MEMORY_RESULT, "VIEW_FREE_MEMORY_RESULT"},
+            {dxrt::RESPONSE_CODE::VIEW_USED_MEMORY_RESULT, "VIEW_USED_MEMORY_RESULT"},
+            {
+                dxrt::RESPONSE_CODE::CONFIRM_MEMORY_ALLOCATION_AND_TRANSFER_MODEL,
+                "CONFIRM_MEMORY_ALLOCATION_AND_TRANSFER_MODEL"
+            },
+            {dxrt::RESPONSE_CODE::CONFIRM_MEMORY_ALLOCATION, "CONFIRM_MEMORY_ALLOCATION"},
+            {dxrt::RESPONSE_CODE::CONFIRM_TRANSFER_INPUT_AND_RUN, "CONFIRM_TRANSFER_INPUT_AND_RUN"},
+            {dxrt::RESPONSE_CODE::CONFIRM_MEMORY_FREE, "CONFIRM_MEMORY_FREE"},
+            {dxrt::RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH0, "DO_SCHEDULED_INFERENCE_CH0"},
+            {dxrt::RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH1, "DO_SCHEDULED_INFERENCE_CH1"},
+            {dxrt::RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH2, "DO_SCHEDULED_INFERENCE_CH2"},
+            {dxrt::RESPONSE_CODE::ERROR_REPORT, "ERROR_REPORT"},
+            {dxrt::RESPONSE_CODE::CLOSE, "CLOSE"},
+            {dxrt::RESPONSE_CODE::TASK_INIT_SUCCESS, "TASK_INIT_SUCCESS"},
+            {dxrt::RESPONSE_CODE::INVALID_REQUEST_CODE, "INVALID_REQUEST_CODE"},
+        };
+        const auto it = m.find(c);
+        return it == m.end() ? "RESPONSE_Unknown" : it->second;
     }
 
 

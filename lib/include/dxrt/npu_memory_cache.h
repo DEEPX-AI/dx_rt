@@ -31,8 +31,14 @@ public:
     TaskNpuMemoryCacheManager(int64_t size, int count, int64_t offset);
     int64_t getNpuMemoryCache();
     void returnNpuMemoryCache(int64_t addr);
-    int64_t getOffset();
+    int64_t getOffset() const;
     ~TaskNpuMemoryCacheManager();
+
+    TaskNpuMemoryCacheManager(const TaskNpuMemoryCacheManager&) = delete;
+    TaskNpuMemoryCacheManager& operator=(const TaskNpuMemoryCacheManager&) = delete;
+    TaskNpuMemoryCacheManager(TaskNpuMemoryCacheManager&&) = delete;
+    TaskNpuMemoryCacheManager& operator=(TaskNpuMemoryCacheManager&&) = delete;
+
 private:
     std::vector<int64_t> _npuMemoryCaches;
     int64_t _npuMemoryCacheOffset;

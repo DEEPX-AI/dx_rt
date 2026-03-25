@@ -13,7 +13,7 @@
 namespace dxrt {
 
 InferenceTimer::InferenceTimer()
-: _latency(30), _infTime(30)
+: _latency(30), _infTime(30)  // NOSONAR:S3230
 {
 
 }

@@ -56,7 +56,7 @@ HANDLE WindowsDriverAdapter::AcquireEvent()
         ResetEvent(hEvent);
         return hEvent;
     }
-    
+
     return CreateEvent(nullptr, TRUE, FALSE, nullptr);
 }
 
@@ -65,7 +65,7 @@ void WindowsDriverAdapter::ReleaseEvent(HANDLE hEvent)
     if (hEvent == NULL) return;
 
     std::lock_guard<std::mutex> lock(_eventPoolMutex);
-    
+
     size_t pool_size = _eventPool.size();
 
     if (pool_size < 64) {
@@ -251,7 +251,14 @@ WindowsDriverAdapter::~WindowsDriverAdapter()
     }
     _eventPool.clear();
 
-    CloseHandle(_fd);
+    Close();
+}
+void WindowsDriverAdapter::Close()
+{
+    if (_fd != INVALID_HANDLE_VALUE) {
+        CloseHandle(_fd);
+        _fd = INVALID_HANDLE_VALUE;
+    }
 }
 
 

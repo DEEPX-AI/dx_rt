@@ -28,7 +28,8 @@ namespace MemoryConfig {
     constexpr uint64_t LARGE_ALLOCATION_THRESHOLD = 100 * 1024 * 1024;  // 100MB - considered large
 
     // Memory alignment for better performance
-    constexpr uint64_t MEMORY_ALIGNMENT = 64;  // 64-byte alignment for NPU efficiency
+    // Change align to 64bytes to 4096-byte to eliminate PCIe latency issue
+    constexpr uint64_t MEMORY_ALIGNMENT = 4096;
 }
 
 struct device_info;
@@ -93,7 +94,7 @@ private:
     uint64_t _data;  // pointer to addr
     uint64_t _dataEnd;  // pointer to addr
     uint64_t _used_size = 0;
-    std::mutex _lock;
+    mutable std::mutex _lock;
 
     // Helper functions
     uint64_t AlignSize(uint64_t size) const;

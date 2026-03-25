@@ -26,9 +26,12 @@
 
 namespace dxrt {
 
+std::mutex LinuxDriverAdapter::_fd_mutex;
+
 LinuxDriverAdapter::LinuxDriverAdapter(const char* fileName)
 : _name(fileName)
 {
+    std::lock_guard<std::mutex> lock(_fd_mutex);
     _fd = open(fileName, O_RDWR|O_SYNC);
 
 }
@@ -36,7 +39,7 @@ LinuxDriverAdapter::LinuxDriverAdapter(const char* fileName)
 int32_t LinuxDriverAdapter::IOControl(dxrt_cmd_t request, void* data, uint32_t size , uint32_t sub_cmd)
 {
     int ret = 0;
-    dxrt_message_t msg = dxrt_message_t{};
+    auto msg = dxrt_message_t{};
     // memset(&msg, 0, sizeof(dxrt_message_t));  // for valgrind
     msg.cmd = static_cast<::int32_t>(request);
     msg.sub_cmd = static_cast<::int32_t>(sub_cmd);
@@ -45,7 +48,7 @@ int32_t LinuxDriverAdapter::IOControl(dxrt_cmd_t request, void* data, uint32_t s
 
     ret = ioctl(_fd, static_cast<unsigned long>(dxrt::dxrt_ioctl_t::DXRT_IOCTL_MESSAGE), &msg);
 
-    /*
+#if 0
     if (ret < 0) {
             std::string req_info = "";
 
@@ -73,16 +76,16 @@ int32_t LinuxDriverAdapter::IOControl(dxrt_cmd_t request, void* data, uint32_t s
     } else {
         LOG_DXRT_S_DBG << "IOControl SUCCESS - ret: " << ret << std::endl;
     }
-    */
+#endif
     return ret;
 
 }
 
 int32_t LinuxDriverAdapter::Write(const void* buffer, uint32_t size)
 {
-    int ret = write(_fd, buffer, size);
+    ssize_t ret = write(_fd, buffer, size);
     if (ret < 0)
-        return ret;
+        return static_cast<int32_t>(ret);
     else
         return 0;
 }
@@ -90,9 +93,9 @@ int32_t LinuxDriverAdapter::Write(const void* buffer, uint32_t size)
 
 int32_t LinuxDriverAdapter::Read(void* buffer, uint32_t size)
 {
-    int ret = read(_fd, buffer, size);
+    ssize_t ret = read(_fd, buffer, size);
     if (ret < 0)
-        return ret;
+        return static_cast<int32_t>(ret);
     else
         return 0;
 }
@@ -109,18 +112,31 @@ int32_t LinuxDriverAdapter::Poll()
     pollfd _devPollFd = {
         .fd = _fd,
         .events = POLLIN,
-        // .events = POLLIN|POLLHUP,
+
         .revents = 0,
     };
-    return poll(&_devPollFd, 1, -1); // wait indefinitely
+    return poll(&_devPollFd, 1, -1);  // wait indefinitely
 }
 
 LinuxDriverAdapter::~LinuxDriverAdapter()
 {
-    close(_fd);
+    close_internal();
 }
 
+void LinuxDriverAdapter::close_internal()
+{
+    std::lock_guard<std::mutex> lock(_fd_mutex);
+    if (_fd >= 0)
+    {
+        close(_fd);
+        _fd = -1;
+    }
+}
+void LinuxDriverAdapter::Close()
+{
+    close_internal();
+}
 
 }  // namespace dxrt
 
-#endif // __linux__
+#endif  // __linux__

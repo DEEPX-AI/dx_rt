@@ -10,23 +10,36 @@
 import dx_engine.capi._pydxrt as C
 from enum import IntEnum
 
+# Acceleration feature availability (set at compile time in C++)
+_NFH_ACCEL_AVAILABLE = getattr(C, '_NFH_ACCEL_AVAILABLE', False)
+_CPU_ACCEL_AVAILABLE = getattr(C, '_CPU_ACCEL_AVAILABLE', False)
+
 class Configuration:
 
     # Class variable to store the singleton instance
     _instance = None
 
     # IntEnum class to define configuration items with explicit synchronization to C++
-    class ITEM(IntEnum):
-        DEBUG = 1
-        PROFILER = 2
-        SERVICE = 3
-        DYNAMIC_CPU_THREAD = 4
-        TASK_FLOW = 5
-        SHOW_THROTTLING = 6
-        SHOW_PROFILE = 7
-        SHOW_MODEL_INFO = 8
-        CUSTOM_INTRA_OP_THREADS = 9
-        CUSTOM_INTER_OP_THREADS = 10   
+    # Acceleration items are only included when the corresponding feature is compiled in.
+    _item_members = {
+        'DEBUG': 1,
+        'PROFILER': 2,
+        'SERVICE': 3,
+        'DYNAMIC_CPU_THREAD': 4,
+        'TASK_FLOW': 5,
+        'SHOW_THROTTLING': 6,
+        'SHOW_PROFILE': 7,
+        'SHOW_MODEL_INFO': 8,
+        'CUSTOM_INTRA_OP_THREADS': 9,
+        'CUSTOM_INTER_OP_THREADS': 10,
+        'NFH_ASYNC': 11,
+    }
+    if _NFH_ACCEL_AVAILABLE:
+        _item_members['NFH_ACCELERATION'] = 12
+    if _CPU_ACCEL_AVAILABLE:
+        _item_members['CPU_OP_ACCELERATION'] = 13
+
+    ITEM = IntEnum('ITEM', _item_members)
 
     # IntEnum class to define attributes for configuration items with explicit synchronization to C++
     class ATTRIBUTE(IntEnum):

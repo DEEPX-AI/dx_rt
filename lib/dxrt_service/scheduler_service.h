@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -32,7 +32,7 @@ class SchedulerService
     virtual ~SchedulerService();
     void AddScheduler(const dxrt::dxrt_request_acc_t& packet_data, int deviceId);
     void FinishJobs(int deviceId, const dxrt::dxrt_response_t& response_data);
-    void SendError(int deviceId, dxrt::dxrt_server_err_t err, uint32_t errCode);
+    void SendError(int deviceId, dxrt::dxrt_server_err_t err, uint32_t errCode) const;
 
 
     int Load(int deviceId) const {return _loads[deviceId];}
@@ -42,25 +42,25 @@ class SchedulerService
     void cleanDiedProcess(int pid);
     void StopScheduler(int procId);
     void StartScheduler(int procId);
-   //  int GetProcLoad(int procId);
+
     void ClearAllLoad();
     void ClearProcLoad(int procId);
-    
+
     // Task validity verification callback
     void SetTaskValidator(std::function<bool(pid_t, int, int)> validator);
-    
+
     // Stop inference requests for a specific task
     void StopTaskInference(pid_t pid, int deviceId, int taskId);
     void StopAllInferenceForProcess(pid_t pid, int deviceId);
 
     int GetRunningRequestCount(pid_t pid, int deviceId);
-    bool IsRequestRunning(pid_t pid, int deviceId, int reqId); 
+    bool IsRequestRunning(pid_t pid, int deviceId, int reqId);
     void AddRunningRequest(pid_t pid, int deviceId, int reqId);
     void RemoveRunningRequest(pid_t pid, int deviceId, int reqId);
     void ClearRunningRequests(pid_t pid, int deviceId);
     std::vector<int> GetRunningRequestIds(pid_t pid, int deviceId);
 
- protected:
+ protected:  // NOSONAR
     virtual void schedule(int deviceId) = 0;
     virtual void pushRequest(int deviceId, int procId, int reqId, int taskId) = 0;
     virtual void updateTaskInferenceTime(int procId, int taskId, uint32_t time);
@@ -68,6 +68,7 @@ class SchedulerService
     virtual void cleanTaskInferenceTime(int procId);
     void doInference(int deviceId, int procId, int reqId);
 
+ private:
     std::vector<std::atomic<int> > _loads;
     std::map<int,std::atomic<int>> _loadsProc;
     std::map<int,std::map<int, dxrt::dxrt_request_acc_t>> _map;
@@ -79,7 +80,7 @@ class SchedulerService
     // Tracking running requests per (pid, deviceId)
     std::map<std::pair<pid_t, int>, std::set<int>> _runningRequests;
     std::mutex _runningRequestsMutex;
-    
+
     // Task validity verification callback
     std::function<bool(pid_t, int, int)> _taskValidator;
 };
@@ -90,7 +91,7 @@ class FIFOSchedulerService : public SchedulerService
     explicit FIFOSchedulerService(std::vector<std::shared_ptr<dxrt::ServiceDevice>> devices_);
     ~FIFOSchedulerService() override;
 
- protected:
+ private:
     void schedule(int deviceId) override;
     void pushRequest(int deviceId, int procId, int reqId, int taskId) override;
 
@@ -104,7 +105,7 @@ class RoundRobinSchedulerService : public SchedulerService
     explicit RoundRobinSchedulerService(std::vector<std::shared_ptr<dxrt::ServiceDevice>> devices_);
     ~RoundRobinSchedulerService() override;
 
- protected:
+ private:
     void schedule(int deviceId) override;
     void pushRequest(int deviceId, int procId, int reqId, int taskId) override;
 
@@ -121,6 +122,7 @@ class InferenceTimeCheckSchedulerService : public SchedulerService
     void updateTaskInferenceTime(int procId, int taskId, uint32_t time) override;
     uint32_t getTaskInferenceTime(int procId, int taskId) override;
     void cleanTaskInferenceTime(int procId) override;
+ private:
     std::map<std::pair<int, int>, uint32_t> task_time_map;
 };
 
@@ -135,11 +137,11 @@ class SJFSchedulerService : public InferenceTimeCheckSchedulerService
        int procId;
        uint32_t time;
     };
- protected:
+ private:
 
     void schedule(int deviceId) override;
     void pushRequest(int deviceId, int procId, int reqId, int taskId) override;
-    //void updateTaskInferenceTime(int procId, int taskId, uint32_t time) override;
+
     std::vector<std::priority_queue<request_elem> > request_map;
     std::multimap<int, std::pair<int, int> > key_less_map;
 };

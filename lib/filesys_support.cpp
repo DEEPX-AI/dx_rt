@@ -2,16 +2,17 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
- 
+
 #include "dxrt/filesys_support.h"
 #include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <cstring>
+#include <array>
 #ifdef __linux__
     #include <sys/stat.h>
     #include <unistd.h>
@@ -28,18 +29,18 @@ using std::string;
 string dxrt::getCurrentPath()
 {
 #ifdef __linux__
-    char buffer[PATH_MAX];
-    if (getcwd(buffer, sizeof(buffer)) != NULL) {
-        // std::cout << "Current working directory: " << buffer << std::endl;
-        return string(buffer);
+    std::array<char, PATH_MAX> buffer;
+    if (getcwd(buffer.data(), buffer.size()) != nullptr)
+    {
+        return std::string(buffer.data());
     } else {
         cout <<"getcwd() error" << endl;
         return "";
     }
 #elif _WIN32
-    TCHAR buffer[MAX_PATH];
-    GetCurrentDirectory(MAX_PATH, buffer);
-    return std::string(buffer);
+    std::array<TCHAR, MAX_PATH> buffer;
+    GetCurrentDirectory(MAX_PATH, buffer.data());
+    return std::string(buffer.data());
 #endif
 }
 
@@ -53,15 +54,15 @@ string dxrt::getPath(const string& path)
         return path;
     else if (path.substr(0, 2) == "./" || path.substr(0, 3) == "../")
     {
-        char cwd[1024];
+        std::array<char, 1024> cwd;
 #ifdef __linux__
-        if (getcwd(cwd, sizeof(cwd)) != nullptr)
-            return string(cwd) + '/' + path;
+        if (getcwd(cwd.data(), cwd.size()) != nullptr)
+            return string(cwd.data()) + '/' + path;
         else
             return path;
 #elif _WIN32
-        if (GetCurrentDirectory(sizeof(cwd), cwd) != 0)
-            return string(cwd) + '/' + path;
+        if (GetCurrentDirectory(sizeof(cwd), cwd.data()) != 0)
+            return string(cwd.data()) + '/' + path;
         else
             return path;
 #endif
@@ -74,9 +75,9 @@ string dxrt::getAbsolutePath(const string& path)
     if (path.length() < 1)return "";
 #ifdef __linux__
     if (path[0] == '\\')return path;
-    char path_buffer [PATH_MAX];
-    char* resolvedPath = realpath(path.c_str(), path_buffer);
-    if (resolvedPath == NULL)
+    std::array<char, PATH_MAX> path_buffer;
+    const char* resolvedPath = realpath(path.c_str(), path_buffer.data());
+    if (resolvedPath == nullptr)
     {
         return "";
     }
@@ -115,7 +116,7 @@ string dxrt::getParentPath(const string& path)
 #endif
 }
 
-int dxrt::getFileSize(const string& filename)
+uint64_t dxrt::getFileSize(const string& filename)
 {
     struct stat stat_buf;
     int rc = stat(filename.c_str(), &stat_buf);
@@ -123,7 +124,7 @@ int dxrt::getFileSize(const string& filename)
     {
         return -1;
     }
-    return stat_buf.st_size;
+    return static_cast<uint64_t>(stat_buf.st_size);
 }
 
 bool dxrt::fileExists(const string& path)

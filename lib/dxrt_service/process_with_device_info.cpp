@@ -2,13 +2,14 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
 #include "dxrt/common.h"
 #include "process_with_device_info.h"
+#include <vector>
 #include <unordered_set>
 #include <array>
 #include "dxrt/driver.h"
@@ -82,7 +83,7 @@ void ProcessWithDeviceInfo::InsertTaskInfo(int taskId, const eachTaskInfo& info)
 std::vector<int> ProcessWithDeviceInfo::getTaskIds() const
 {
     std::vector<int> retval;
-    for (auto it : _taskInfo)
+    for (const auto& it : _taskInfo)
     {
         retval.push_back(it.first);
     }
@@ -93,7 +94,7 @@ std::array<int, ProcessWithDeviceInfo::BOUND_NUM> ProcessWithDeviceInfo::getBoun
     std::array<int, BOUND_NUM> retval;
     retval.fill(0);
 
-    for (auto it : _taskInfo)
+    for (const auto& it : _taskInfo)
     {
         int bound = it.second.bound;
         retval[bound]++;

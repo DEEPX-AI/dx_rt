@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    
+    <!-- Package Information -->
+    <PackageId>DxEngine</PackageId>
+    <Version>1.1.4</Version>
+    <Authors>DEEPX-RT</Authors>
+    <Company>DEEPX Ltd.</Company>
+    <Description>C# wrapper class for dx_rt - DEEPX NPU Inference Engine</Description>
+    <Copyright>Copyright (C) 2018- DEEPX Ltd. All rights reserved.</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://deepx.ai</PackageProjectUrl>
+    <PackageTags>deepx;dxrt;npu;inference;ai</PackageTags>
+    
+    <!-- Build Settings -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Native library reference -->
+    <None Include="runtimes\**\*">
+      <Pack>true</Pack>
+      <PackagePath>runtimes</PackagePath>
+    </None>
+  </ItemGroup>
+
+</Project>

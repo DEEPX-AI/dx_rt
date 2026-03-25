@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -31,29 +31,34 @@ class DXRT_API IPCClientWrapper
     std::shared_ptr<IPCClient> _ipcClient;
 
  public:
-    explicit IPCClientWrapper(IPC_TYPE type = IPC_TYPE::MESSAE_QUEUE, long msgType = 0);  // msgType only for MessageQueue
+    explicit IPCClientWrapper(IPC_TYPE type = IPC_TYPE::MESSAGE_QUEUE, long msgType = 0);  // msgType only for MessageQueue
     virtual ~IPCClientWrapper();
+
+    IPCClientWrapper(const IPCClientWrapper&) = delete;
+    IPCClientWrapper& operator=(const IPCClientWrapper&) = delete;
+    IPCClientWrapper(IPCClientWrapper&&) = delete;
+    IPCClientWrapper& operator=(IPCClientWrapper&&) = delete;
 
     // Intitialize IPC
     int32_t Initialize(bool enableInternalCB = true);
 
     // Send message to server
-    int32_t SendToServer(IPCClientMessage& clientMessage);
+    int32_t SendToServer(IPCClientMessage& clientMessage) const;
 
     // Send message to server
-    int32_t SendToServer(IPCServerMessage& outResponseServerMessage, IPCClientMessage& inRequestClientMessage);
+    int32_t SendToServer(IPCServerMessage& outResponseServerMessage, IPCClientMessage& inRequestClientMessage) const;
 
     // Receive message from server
-    int32_t ReceiveFromServer(IPCServerMessage& serverMessage);
+    int32_t ReceiveFromServer(IPCServerMessage& serverMessage) const;
 
     // register receive message callback function
-    int32_t RegisterReceiveCB(std::function<int32_t(const IPCServerMessage&,void*)> receiveCB, void* usrData);
+    int32_t RegisterReceiveCB(std::function<int32_t(const IPCServerMessage&,void*)> receiveCB, void* usrData) const;
 
     // clear all messages
-    int32_t ClearMessages();
+    int32_t ClearMessages() const;
 
     // close the connection
-    int32_t Close();
+    int32_t Close() const;
 };
 
 }  // namespace dxrt

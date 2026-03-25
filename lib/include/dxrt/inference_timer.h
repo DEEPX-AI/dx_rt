@@ -18,7 +18,7 @@
 
 namespace dxrt {
 
-class InferenceTimer
+class DXRT_API InferenceTimer
 {
  public:
     InferenceTimer();

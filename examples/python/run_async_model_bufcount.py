@@ -2,8 +2,8 @@
 # Copyright (C) 2018- DEEPX Ltd.
 # All rights reserved.
 #
-# This software is the property of DEEPX and is provided exclusively to customers 
-# who are supplied with DEEPX NPU (Neural Processing Unit). 
+# This software is the property of DEEPX and is provided exclusively to customers
+# who are supplied with DEEPX NPU (Neural Processing Unit).
 # Unauthorized sharing or usage is strictly prohibited by law.
 #
 
@@ -25,20 +25,20 @@ gLoopCount_2 = 0
 
 lock = threading.Lock()
 
-def onInferenceCallbackFunc_1(outputs, user_arg):
+def on_inference_callback_func_1(outputs, user_arg):
     # the outputs are guaranteed to be valid only within this callback function
-    # processing this callback functions as quickly as possible is beneficial 
+    # processing this callback functions as quickly as possible is beneficial
     # for improving inference performance
 
     global gLoopCount_1
     logger = Logger()
-    # Mutex locks should be properly adjusted 
+    # Mutex locks should be properly adjusted
     # to ensure that callback functions are thread-safe.
     with lock:
 
         # user data type casting
         index, loop_count = user_arg
-    
+
 
         # post processing
         #postProcessing(outputs);
@@ -54,20 +54,20 @@ def onInferenceCallbackFunc_1(outputs, user_arg):
 
     return 0
 
-def onInferenceCallbackFunc_2(outputs, user_arg):
+def on_inference_callback_func_2(outputs, user_arg):
     # the outputs are guaranteed to be valid only within this callback function
-    # processing this callback functions as quickly as possible is beneficial 
+    # processing this callback functions as quickly as possible is beneficial
     # for improving inference performance
 
     global gLoopCount_2
     logger = Logger()
-    # Mutex locks should be properly adjusted 
+    # Mutex locks should be properly adjusted
     # to ensure that callback functions are thread-safe.
     with lock:
 
         # user data type casting
         index, loop_count = user_arg
-    
+
 
         # post processing
         #postProcessing(outputs);
@@ -92,22 +92,22 @@ def parse_args():
 
     if not os.path.exists(args.model):
         parser.error(f"Model path '{args.model}' does not exist.")
-    
+
     if args.verbose:
         logger = Logger()
         logger.set_level(LogLevel.DEBUG)
-    
+
     return args
 
 
 if __name__ == "__main__":
     args = parse_args()
     logger = Logger()
-    
+
     result = -1
     logger.info(f"Start run_async_model test for model: {args.model}")
     # create inference engine instance with model
-    
+
     try:
         ie_1_option = InferenceOption()
         ie_1_option.buffer_count = 6
@@ -118,18 +118,26 @@ if __name__ == "__main__":
         with InferenceEngine(args.model, ie_1_option) as ie_1, InferenceEngine(args.model, ie_2_option) as ie_2:
 
             # register call back function
-            ie_1.register_callback(onInferenceCallbackFunc_1)
-            ie_2.register_callback(onInferenceCallbackFunc_2)
+            ie_1.register_callback(on_inference_callback_func_1)
+            ie_2.register_callback(on_inference_callback_func_2)
 
-            input_1 = [np.zeros(ie_1.get_input_size(), dtype=np.uint8)]
-            input_2 = [np.zeros(ie_2.get_input_size(), dtype=np.uint8)]
+            # NOTE: np.zeros() uses COW zero pages — all virtual pages share one
+            # physical page. PCIe DMA driver's get_user_pages() then sees duplicate
+            # physical pages in the SG list and fails with EFAULT.
+            # np.empty() + explicit fill forces unique physical page allocation.
+            _buf_1 = np.empty(ie_1.get_input_size(), dtype=np.uint8)
+            _buf_1.fill(0)
+            input_1 = [_buf_1]
+            _buf_2 = np.empty(ie_2.get_input_size(), dtype=np.uint8)
+            _buf_2.fill(0)
+            input_2 = [_buf_2]
 
             start = time.perf_counter()
             # inference loop
             for i in range(args.loops):
 
                 # inference asynchronously, use all npu cores
-                # if device-load >= max-load-value, this function will block  
+                # if device-load >= max-load-value, this function will block
                 ie_1.run_async(input_1, user_arg=[i, args.loops])
                 ie_2.run_async(input_2, user_arg=[i, args.loops])
 
@@ -140,19 +148,19 @@ if __name__ == "__main__":
             result_2 = q_2.get()
             if result_1 == 0 and result_2 == 0:
                 result = 0
-            
+
             end = time.perf_counter()
             total_time_ms = (end -start) * 1000
             avg_latency = total_time_ms / args.loops
             fps = 1000.0/ avg_latency if avg_latency > 0 else 0.0
-            
+
             logger.info("-----------------------------------")
             logger.info(f"Total Time: {total_time_ms:.3f} ms")
             logger.info(f"Average Latency: {avg_latency:.3f} ms")
             logger.info(f"FPS: {fps:.2f} frame/sec")
             logger.info("Success")
             logger.info("-----------------------------------")
-            
+
     except Exception as e:
         logger.error(f"Exception: {str(e)}")
         exit(-1)

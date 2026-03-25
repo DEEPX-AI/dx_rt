@@ -1,0 +1,25 @@
+#!/bin/bash
+set -e
+
+case "$1" in
+    configure)
+        # Update library cache
+        ldconfig
+        
+        echo "dx-vnpu-rt-ep has been installed successfully."
+        echo "Binaries are available in /usr/local/bin"
+        echo "Libraries are available in /usr/local/lib"
+    ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

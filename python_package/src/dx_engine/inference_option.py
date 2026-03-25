@@ -21,7 +21,7 @@ class InferenceOption:
     interface to its members.
     """
 
-    class BOUND_OPTION(Enum):
+    class BOUND_OPTION(Enum): # NOSONAR
         """
         Defines how NPU cores are bound or utilized for inference.
         The values should correspond to the C++ enum/integer values.
@@ -112,7 +112,7 @@ class InferenceOption:
     def get_use_ort(self):
         return self.instance.useORT
     
-    def set_bound_option(self, boundOption):
+    def set_bound_option(self, boundOption): # NOSONAR : S1845
         if not isinstance(boundOption, self.BOUND_OPTION):
             raise TypeError("bound_option must be an instance of InferenceOption.BOUND_OPTION.")
         self.instance.boundOption = boundOption.value

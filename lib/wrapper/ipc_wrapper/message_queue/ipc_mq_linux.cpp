@@ -28,15 +28,10 @@ std::string getErrorString(int error_code);
 std::string getErrorString();
 
 
-IPCMessageQueueLinux::IPCMessageQueueLinux()
-{
+IPCMessageQueueLinux::IPCMessageQueueLinux() = default;
 
-}
+IPCMessageQueueLinux::~IPCMessageQueueLinux() = default;
 
-IPCMessageQueueLinux::~IPCMessageQueueLinux()
-{
-
-}
 
 // Intitialize IPC (Message Queue)
 int32_t IPCMessageQueueLinux::Initialize(long msgType, IPCMessageQueueDirection direction)
@@ -47,11 +42,11 @@ int32_t IPCMessageQueueLinux::Initialize(long msgType, IPCMessageQueueDirection 
     errno = 0;
     if (direction == IPCMessageQueueDirection::TO_SERVER)
     {
-        key = 0x2a020467;
+        key = 0x2a020467;  // fixed key for TO_SERVER
     }
     else
     {
-        key = 0x54020467;
+        key = 0x54020467;  // fixed key for TO_CLIENT
     }
     if (errno != 0)
     {
@@ -59,7 +54,6 @@ int32_t IPCMessageQueueLinux::Initialize(long msgType, IPCMessageQueueDirection 
         return -1;
     }
     // connect
-    //_msgId = msgget(QUEUE_KEY, IPC_CREAT | 0666);
     _msgId = msgget(key, IPC_CREAT | 0666);
     if (_msgId == -1) {
         LOG_DXRT_I_ERR("[IPCMessageQueueLinux] msgget failed" + getErrorString(errno));
@@ -73,7 +67,7 @@ int32_t IPCMessageQueueLinux::Initialize(long msgType, IPCMessageQueueDirection 
     int result = 0;
     while(true)
     {
-        result = msgrcv(_msgId, &message, sizeof(message.data), msgType, IPC_NOWAIT);
+        result = static_cast<int>(msgrcv(_msgId, &message, sizeof(message.data), msgType, IPC_NOWAIT));
         if ( result == -1 )
         {
             if ( errno == ENOMSG )
@@ -92,19 +86,20 @@ int32_t IPCMessageQueueLinux::Initialize(long msgType, IPCMessageQueueDirection 
             LOG_DXRT_I_DBG << "[IPCMessageQueueLinux] dequeue remained message(s) msgType=" << msgType << std::endl;
 
         }
-        usleep(1000);
+        struct timespec ts;
+        ts.tv_sec = 0;
+        ts.tv_nsec = 1000 * 1000;
+        nanosleep(&ts, nullptr);
     }
 
     return 0;
 }
 
 // send message
-int32_t IPCMessageQueueLinux::Send(const Message& message, size_t size)
+int32_t IPCMessageQueueLinux::Send(const Message& message, size_t size) const
 {
     if ( _msgId >= 0 )
     {
-        // std::cout << "[IPCMessageQueueLinux] Send:" << _msgId << ", " << message.msgType << std::endl;
-
         // send except message type
         if ( msgsnd(_msgId, &message, size, 0) == -1 )
         {
@@ -121,13 +116,12 @@ int32_t IPCMessageQueueLinux::Send(const Message& message, size_t size)
 }
 
 // receive message
-int32_t IPCMessageQueueLinux::Receive(Message& message, size_t size, long msgType)
+int32_t IPCMessageQueueLinux::Receive(Message& message, size_t size, long msgType) const
 {
     if ( _msgId >= 0 )
     {
-
         // receive except message type
-        //if (msgrcv(_msgId, &message, sizeof(Message) - sizeof(long), msgType, 0) == -1)
+
         if ( msgrcv(_msgId, &message, size, msgType, 0) == -1 )
         {
             LOG_DXRT_I_ERR("[IPCMessageQueueLinux] msgrcv(receive) failed" + getErrorString(errno));
@@ -145,7 +139,7 @@ int32_t IPCMessageQueueLinux::Delete()
 {
     if ( _msgId >= 0 )
     {
-        if (msgctl(_msgId, IPC_RMID, NULL) == -1) {
+        if (msgctl(_msgId, IPC_RMID, nullptr) == -1) {
             LOG_DXRT_I_ERR("[IPCMessageQueueLinux] fail to delete"  + getErrorString(errno));
             return -1;
         }
@@ -154,4 +148,4 @@ int32_t IPCMessageQueueLinux::Delete()
     return 0;
 }
 
-#endif // linux
+#endif // __linux__

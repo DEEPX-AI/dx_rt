@@ -18,6 +18,13 @@ if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/data/CMakeLists.txt")
     list(REMOVE_ITEM srcs "${CMAKE_CURRENT_SOURCE_DIR}/data/ppcpu_data.cpp")
 endif()
 
+# Exclude ARM-specific files on x86_64
+if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64")
+    list(FILTER srcs EXCLUDE REGEX "xnn_kernel\\.cpp$")
+    list(FILTER headers EXCLUDE REGEX "xnn_kernel\\.h$")
+    message(STATUS "Excluded ARM-specific files (xnn_kernel.cpp/h) from build on x86_64")
+endif()
+
 
 message("DXRT LIB Source files : " ${srcs})
 message("DXRT LIB Header files : " ${headers})
@@ -50,7 +57,7 @@ if (MSVC)
 else()
     if (USE_SHARED_DXRT_LIB)
         add_library(${target} SHARED ${srcs})
-        #target_link_libraries(${target} rt) # for memssage queue (POSIX)
+        target_link_libraries(${target} PRIVATE rt) # for shared memory and message queue (POSIX)
         set_target_properties(${target} PROPERTIES
             LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
         )
@@ -73,6 +80,7 @@ target_include_directories(
     PUBLIC
     ${CMAKE_SOURCE_DIR}/extern/include
     ${CMAKE_SOURCE_DIR}/lib/dxrt_service
+    ${CMAKE_SOURCE_DIR}/lib/device_shm
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 if (MSVC AND USE_ORT)
@@ -94,6 +102,212 @@ if (USE_ORT)
     target_link_libraries(${target} PUBLIC ${ONNXLIB_DIRS})
 endif()
 
+if (USE_VNPU)
+    # Link Rockchip MPI library for ARM platforms
+    if (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64" OR CMAKE_SYSTEM_PROCESSOR MATCHES "arm")
+        set(EXTERNAL_DIR ${CMAKE_SOURCE_DIR}/external)
+        set(EP_LIB_PATH ${EXTERNAL_DIR}/dx_vnpu_core_lib/linux/ep/lib)
+        set(EXTERN_LIB_PATH ${EXTERNAL_DIR}/dx_vnpu_core_lib/linux/extern/lib)
+        
+        target_include_directories(${target} PUBLIC
+            ${EXTERNAL_DIR}/dx_vnpu_core_lib/linux/ep/include
+            ${EXTERNAL_DIR}/dx_vnpu_core_lib/linux/extern/include/mpi
+        )
+        
+        # Explicitly add link directory
+        link_directories(${EP_LIB_PATH})
+        link_directories(${EXTERN_LIB_PATH})
+        target_link_directories(${target} PUBLIC ${EP_LIB_PATH})
+        target_link_directories(${target} PUBLIC ${EXTERN_LIB_PATH})
+
+        find_library(ROCKIT_LIB rockit PATHS ${EXTERN_LIB_PATH} NO_DEFAULT_PATH)
+        find_library(ROCKCHIP_MPP_LIB rockchip_mpp PATHS ${EXTERN_LIB_PATH} NO_DEFAULT_PATH)
+        find_library(DX_VNPU_CORE_EP_LIB dx_vnpu_core_ep PATHS ${EP_LIB_PATH} NO_DEFAULT_PATH)
+        find_library(DRM_LIB drm PATHS ${EXTERN_LIB_PATH} NO_DEFAULT_PATH)
+        find_library(ASOUND_LIB asound PATHS ${EXTERN_LIB_PATH} NO_DEFAULT_PATH)
+        find_library(AVFORMAT_LIB avformat PATHS ${EXTERN_LIB_PATH} NO_DEFAULT_PATH)
+        find_library(AVCODEC_LIB avcodec PATHS ${EXTERN_LIB_PATH} NO_DEFAULT_PATH)
+        find_library(AVUTIL_LIB avutil PATHS ${EXTERN_LIB_PATH} NO_DEFAULT_PATH)
+        find_library(SWRESAMPLE_LIB swresample PATHS ${EXTERN_LIB_PATH} NO_DEFAULT_PATH)
+        
+        # Verify required libraries are found
+        if (NOT ROCKIT_LIB)
+            message(FATAL_ERROR "librockit.so not found in ${EXTERN_LIB_PATH} - Required for ARM platform")
+        endif()
+        
+        if (NOT ROCKCHIP_MPP_LIB)
+            message(FATAL_ERROR "librockchip_mpp.so not found in ${EXTERN_LIB_PATH} - Required for ARM platform")
+        endif()
+        
+        if (NOT DX_VNPU_CORE_EP_LIB)
+            message(FATAL_ERROR "libdx_vnpu_core_ep.so not found in ${EP_LIB_PATH} - Required for ARM platform")
+        endif()
+        
+        message(STATUS "Found librockit: ${ROCKIT_LIB}")
+        message(STATUS "Found librockchip_mpp: ${ROCKCHIP_MPP_LIB}")
+        message(STATUS "Found libdx_vnpu_core_ep: ${DX_VNPU_CORE_EP_LIB}")
+        
+        # Use names instead of full paths to ensure proper linking
+        target_link_libraries(${target} PUBLIC 
+            rockit
+            rockchip_mpp
+            dx_vnpu_core_ep
+            drm
+            asound
+            avformat
+            avcodec
+            avutil
+            swresample
+        )
+        target_compile_definitions(${target} PUBLIC USE_ROCKCHIP_MPI)
+    endif()
+
+endif() # USE_VNPU
+
+# ============================================================================
+# NPU Format Conversion Acceleration: detect libraries, validate environment, link
+# ============================================================================
+if (USE_NPU_FORMAT_CONVERSION_ACCELERATION)
+    if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64")
+        # x86_64: Use Intel IPP — find the library
+        if(DEFINED ENV{IPPROOT})
+            set(IPP_ROOT "$ENV{IPPROOT}")
+        elseif(MSVC)
+            if(EXISTS "C:/Program Files (x86)/Intel/oneAPI/ipp/latest")
+                set(IPP_ROOT "C:/Program Files (x86)/Intel/oneAPI/ipp/latest")
+            elseif(EXISTS "C:/Program Files/Intel/oneAPI/ipp/latest")
+                set(IPP_ROOT "C:/Program Files/Intel/oneAPI/ipp/latest")
+            elseif(EXISTS "C:/Intel/oneAPI/ipp/latest")
+                set(IPP_ROOT "C:/Intel/oneAPI/ipp/latest")
+            endif()
+        else()
+            if(EXISTS "/opt/intel/oneapi/ipp/latest")
+                set(IPP_ROOT "/opt/intel/oneapi/ipp/latest")
+            elseif(EXISTS "/opt/intel/ipp")
+                set(IPP_ROOT "/opt/intel/ipp")
+            endif()
+        endif()
+
+        set(IPP_FOUND FALSE)
+        if(IPP_ROOT)
+            set(IPP_INCLUDE_DIR "${IPP_ROOT}/include")
+            set(IPP_LIB_DIR "${IPP_ROOT}/lib/intel64")
+            if(EXISTS "${IPP_INCLUDE_DIR}/ipp.h" AND EXISTS "${IPP_LIB_DIR}")
+                message(STATUS "Intel IPP found at: ${IPP_ROOT}")
+                set(IPP_FOUND TRUE)
+                if(MSVC)
+                    set(IPP_LIBRARIES
+                        "${IPP_LIB_DIR}/ippi.lib"
+                        "${IPP_LIB_DIR}/ipps.lib"
+                        "${IPP_LIB_DIR}/ippcore.lib")
+                else()
+                    set(IPP_LIBRARIES
+                        "${IPP_LIB_DIR}/libippi.a"
+                        "${IPP_LIB_DIR}/libipps.a"
+                        "${IPP_LIB_DIR}/libippcore.a")
+                endif()
+            else()
+                message(WARNING "Intel IPP header or libraries not found at ${IPP_ROOT}. NFH acceleration will be disabled.")
+            endif()
+        else()
+            message(WARNING "Intel IPP root not found. Set IPPROOT environment variable or install Intel oneAPI. NFH acceleration will be disabled.")
+        endif()
+
+        if (IPP_FOUND)
+            target_include_directories(${target} PUBLIC ${IPP_INCLUDE_DIR})
+            target_link_libraries(${target} PUBLIC ${IPP_LIBRARIES})
+            target_compile_definitions(${target} PUBLIC USE_IPP)
+            message(STATUS "Intel IPP enabled for dxrt library (x86_64)")
+        else()
+            message(WARNING "IPP not found. NPU format conversion acceleration will use fallback implementation on x86_64")
+            set(USE_NPU_FORMAT_CONVERSION_ACCELERATION OFF CACHE BOOL "Accelerate NPU data format conversion (transpose/padding)" FORCE)
+        endif()
+
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
+        # ARM64 (ARMv8): NEON/ASIMD is always available (built-in)
+        set(ARM_NEON_FOUND TRUE)
+        target_compile_definitions(${target} PUBLIC USE_NEON)
+        message(STATUS "ARM NEON/ASIMD enabled for NFH acceleration (${CMAKE_SYSTEM_PROCESSOR})")
+
+    else()
+        message(WARNING "Unsupported architecture for NPU format conversion acceleration: ${CMAKE_SYSTEM_PROCESSOR}. Disabling.")
+        set(USE_NPU_FORMAT_CONVERSION_ACCELERATION OFF CACHE BOOL "Accelerate NPU data format conversion (transpose/padding)" FORCE)
+    endif()
+endif()
+
+if (USE_NPU_FORMAT_CONVERSION_ACCELERATION AND FORCE_NPU_FORMAT_CONVERSION_ACCELERATION)
+    target_compile_definitions(${target} PUBLIC FORCE_NFH_ACCELERATION)
+    message(STATUS "FORCE_NPU_FORMAT_CONVERSION_ACCELERATION enabled - env var check will be skipped at runtime")
+endif()
+
+# ============================================================================
+# CPU Op Acceleration: glibc check, detect libraries, validate, link
+# ============================================================================
+# Pre-built ORT with acceleration EPs has glibc requirements:
+#   x86_64: built on Ubuntu 22.04 (glibc >= 2.35)
+#   aarch64: built on Debian 11 (glibc >= 2.31)
+if(USE_CPU_OP_ACCELERATION AND NOT WIN32)
+    execute_process(
+        COMMAND ldd --version
+        OUTPUT_VARIABLE _LDD_OUTPUT
+        ERROR_VARIABLE _LDD_OUTPUT
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    string(REGEX MATCH "[0-9]+\\.[0-9]+" _GLIBC_VERSION "${_LDD_OUTPUT}")
+    if(_GLIBC_VERSION)
+        message(STATUS "Detected glibc version: ${_GLIBC_VERSION}")
+        if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND _GLIBC_VERSION VERSION_LESS "2.35")
+            message(WARNING "glibc ${_GLIBC_VERSION} < 2.35. CPU op acceleration on x86_64 requires glibc >= 2.35 (Ubuntu 22.04+). Disabling.")
+            set(USE_CPU_OP_ACCELERATION OFF CACHE BOOL "Accelerate CPU-side ONNX operations" FORCE)
+        elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$" AND _GLIBC_VERSION VERSION_LESS "2.31")
+            message(WARNING "glibc ${_GLIBC_VERSION} < 2.31. CPU op acceleration on aarch64 requires glibc >= 2.31 (Ubuntu 20.04+/Debian 11+). Disabling.")
+            set(USE_CPU_OP_ACCELERATION OFF CACHE BOOL "Accelerate CPU-side ONNX operations" FORCE)
+        endif()
+    else()
+        message(WARNING "Could not detect glibc version. CPU Task acceleration compatibility unknown.")
+    endif()
+    unset(_LDD_OUTPUT)
+    unset(_GLIBC_VERSION)
+endif()
+
+if (USE_CPU_OP_ACCELERATION)
+    if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64")
+        # x86_64: Try to find OpenVINO for CPU op acceleration
+        message(STATUS "x86_64 architecture detected. Searching for OpenVINO...")
+        find_package(OpenVINO QUIET COMPONENTS Runtime)
+
+        if(OpenVINO_FOUND)
+            message(STATUS "OpenVINO found - CPU op acceleration enabled with OpenVINO")
+            target_link_libraries(${target} PUBLIC openvino::runtime)
+            target_compile_definitions(${target} PUBLIC USE_OPENVINO)
+            message(STATUS "OpenVINO library linked for CPU op acceleration (x86_64)")
+        else()
+            message(WARNING "OpenVINO not found - CPU op acceleration will be disabled on x86_64")
+            message(WARNING "  Install OpenVINO toolkit or set OpenVINO_DIR environment variable")
+            set(USE_CPU_OP_ACCELERATION OFF CACHE BOOL "Accelerate CPU-side ONNX operations" FORCE)
+        endif()
+
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
+        # ARM: Enable XNNPACK EP for CPU Task acceleration (via ONNX Runtime)
+        if(NOT DEFINED ARM_NEON_FOUND)
+            set(ARM_NEON_FOUND TRUE)
+            message(STATUS "ARM NEON/ASIMD enabled for CPU Task (mandatory on ARMv8/aarch64)")
+        else()
+            message(STATUS "Reusing NEON detection from NFH acceleration for CPU Task")
+        endif()
+        target_compile_definitions(${target} PUBLIC USE_XNNPACK)
+        message(STATUS "XNNPACK EP enabled for CPU Task acceleration (${CMAKE_SYSTEM_PROCESSOR})")
+
+    else()
+        message(WARNING "Unsupported architecture for CPU op acceleration: ${CMAKE_SYSTEM_PROCESSOR}. Disabling.")
+        set(USE_CPU_OP_ACCELERATION OFF CACHE BOOL "Accelerate CPU-side ONNX operations" FORCE)
+    endif()
+endif()
+
+if (USE_CPU_OP_ACCELERATION AND FORCE_CPU_OP_ACCELERATION)
+    target_compile_definitions(${target} PUBLIC FORCE_CPU_TASK_ACCELERATION)
+    message(STATUS "FORCE_CPU_OP_ACCELERATION enabled - env var check will be skipped at runtime")
+endif()
 
 # if (USE_PYTHON)
 #     set_target_properties(${target} PROPERTIES
@@ -107,6 +321,26 @@ endif()
 #     )
 # endif()
 
+# Propagate acceleration compile definitions into gen.h for out-of-tree builds (e.g. Python package)
+get_target_property(_dxrt_compile_defs ${target} COMPILE_DEFINITIONS)
+set(USE_IPP_DEFINE "")
+set(USE_NEON_DEFINE "")
+set(USE_OPENVINO_DEFINE "")
+set(USE_XNNPACK_DEFINE "")
+if(_dxrt_compile_defs)
+    if("USE_IPP" IN_LIST _dxrt_compile_defs)
+        set(USE_IPP_DEFINE "#ifndef USE_IPP\n#define USE_IPP\n#endif")
+    endif()
+    if("USE_NEON" IN_LIST _dxrt_compile_defs)
+        set(USE_NEON_DEFINE "#ifndef USE_NEON\n#define USE_NEON\n#endif")
+    endif()
+    if("USE_OPENVINO" IN_LIST _dxrt_compile_defs)
+        set(USE_OPENVINO_DEFINE "#ifndef USE_OPENVINO\n#define USE_OPENVINO\n#endif")
+    endif()
+    if("USE_XNNPACK" IN_LIST _dxrt_compile_defs)
+        set(USE_XNNPACK_DEFINE "#ifndef USE_XNNPACK\n#define USE_XNNPACK\n#endif")
+    endif()
+endif()
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/include/dxrt/gen.h.in ${CMAKE_CURRENT_SOURCE_DIR}/include/dxrt/gen.h @ONLY)
 
 if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/data/CMakeLists.txt")

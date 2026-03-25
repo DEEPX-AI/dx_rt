@@ -19,7 +19,7 @@ using pair_type = std::pair<int, const char*>;
 template<typename T, size_t size>
 static std::string map_lookup(const std::array<pair_type, size>& m, T n)
 {
-    int key = static_cast<int>(n);
+    auto key = static_cast<int>(n);
     for (const auto& pair : m)
     {
         if (pair.first == key)
@@ -31,7 +31,7 @@ static std::string map_lookup(const std::array<pair_type, size>& m, T n)
 template<typename T, size_t size, typename STRTYPE>
 static std::string map_lookup(const std::array<pair_type, size>& m, T n, STRTYPE defaultStr)
 {
-    int key = static_cast<int>(n);
+    auto key = static_cast<int>(n);
     for (const auto& pair : m)
     {
         if (pair.first == key)

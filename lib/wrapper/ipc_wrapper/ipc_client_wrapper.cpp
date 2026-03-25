@@ -3,8 +3,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -28,7 +28,7 @@ constexpr long IPCClientWrapper::MAX_PID = 0x20000000;  // default max pid value
 IPCClientWrapper::IPCClientWrapper(IPC_TYPE type, long msgType)
 {
 #ifdef __linux__
-    if (type == IPC_TYPE::MESSAE_QUEUE)
+    if (type == IPC_TYPE::MESSAGE_QUEUE)
     {
         _ipcClient = std::make_shared<IPCMessageQueueClientLinux>(msgType);
     }
@@ -43,7 +43,6 @@ IPCClientWrapper::IPCClientWrapper(IPC_TYPE type, long msgType)
     {
         LOG_DXRT_I_ERR("[ERROR] IPCClientWrapper No implementation");
     }
-    // _ipcClient = std::make_shared<IPCClientWindows>();
 }
 
 IPCClientWrapper::~IPCClientWrapper()
@@ -52,40 +51,35 @@ IPCClientWrapper::~IPCClientWrapper()
 }
 
 // Intitialize IPC
-int32_t IPCClientWrapper::Initialize(bool enableInternalCB)
+int32_t IPCClientWrapper::Initialize(bool enableInternalCB)  // NOSONAR:S5817
 {
     int32_t ret = _ipcClient->Initialize();
 
-    if ( enableInternalCB )
+    if (enableInternalCB && ret == 0)
     {
-        if (ret == 0)
-        {
-            LOG_DXRT_I_DBG << "Registering internal callback" << std::endl;
-            RegisterReceiveCB(ipc_callBack, nullptr);
-        }
+        LOG_DXRT_I_DBG << "Registering internal callback" << std::endl;
+        RegisterReceiveCB(ipc_callBack, nullptr);
     }  // register internal callback
     return ret;
 }
-// std::mutex sendLock;
+
 // Send to server
-int32_t IPCClientWrapper::SendToServer(IPCClientMessage& clientMessage)
+int32_t IPCClientWrapper::SendToServer(IPCClientMessage& clientMessage) const
 {
-    // std::unique_lock<std::mutex> lock(sendLock);
     if (_ipcClient == nullptr)
         return -1;
     return _ipcClient->SendToServer(clientMessage);
 }
 
-int32_t IPCClientWrapper::SendToServer(IPCServerMessage& outServerMessage, IPCClientMessage& inClientMessage)
+int32_t IPCClientWrapper::SendToServer(IPCServerMessage& outServerMessage, IPCClientMessage& inClientMessage) const
 {
     if (_ipcClient == nullptr)
         return -1;
-    // std::unique_lock<std::mutex> lock(sendLock);
     return _ipcClient->SendToServer(outServerMessage, inClientMessage);
 }
 
 // Receive message from server
-int32_t IPCClientWrapper::ReceiveFromServer(IPCServerMessage& serverMessage)
+int32_t IPCClientWrapper::ReceiveFromServer(IPCServerMessage& serverMessage) const
 {
     LOG_DXRT_I_DBG << serverMessage.code << std::endl;
     if (_ipcClient == nullptr)
@@ -94,24 +88,21 @@ int32_t IPCClientWrapper::ReceiveFromServer(IPCServerMessage& serverMessage)
 }
 
 // register receive message callback function
-int32_t IPCClientWrapper::RegisterReceiveCB(std::function<int32_t(const IPCServerMessage&, void*)> receiveCB, void* usrData)
+int32_t IPCClientWrapper::RegisterReceiveCB(std::function<int32_t(const IPCServerMessage&, void*)> receiveCB, void* usrData) const
 {
     if (_ipcClient == nullptr)
         return -1;
     return _ipcClient->RegisterReceiveCB(receiveCB, usrData);
 }
 
-int32_t IPCClientWrapper::ClearMessages()
+int32_t IPCClientWrapper::ClearMessages() const
 {
     // no need callback, only initialize
     return _ipcClient->Initialize();
 }
 
-int32_t IPCClientWrapper::Close()
+int32_t IPCClientWrapper::Close() const
 {
-    // IPCClientMessage clientMessage;
-    // clientMessage.code = REQUEST_CODE::CLOSE;
-    // SendToServer(clientMessage);
     return _ipcClient->Close();
 }
 

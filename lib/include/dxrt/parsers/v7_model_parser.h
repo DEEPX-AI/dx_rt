@@ -11,6 +11,7 @@
 
 #include "dxrt/model_parser.h"
 #include "dxrt/model.h"
+#include "dxrt/parsers/parser_common_utils.h"
 
 namespace dxrt {
 
@@ -25,13 +26,12 @@ class V7ModelParser : public IModelParser {
 public:
     V7ModelParser() = default;
     ~V7ModelParser() override = default;
-    
-    std::string ParseModel(const std::string& filePath, ModelDataBase& modelData) override;
-    std::string ParseModel(const uint8_t* modelBuffer, size_t modelSize, ModelDataBase& modelData) override;
+
     int GetSupportedVersion() const override { return 7; }
     std::string GetParserName() const override { return "DXNN V7 Parser"; }
 
-private:
+protected:
+    // Override virtual methods from IModelParser
     /**
      * @brief Load binary information from the model file
      * @param param Output parameter for binary info
@@ -39,23 +39,23 @@ private:
      * @param fileSize Size of the file
      * @return File format version
      */
-    int LoadBinaryInfo(deepx_binaryinfo::BinaryInfoDatabase& param, char* buffer, int fileSize);
-    
+    int loadBinaryInfo(deepx_binaryinfo::BinaryInfoDatabase& param, const char* buffer, int fileSize) const override;
+
     /**
      * @brief Load graph information from the model data
      * @param param Output parameter for graph info
      * @param data Model data containing binary info
      * @return 0 on success, -1 on failure
      */
-    int LoadGraphInfo(deepx_graphinfo::GraphInfoDatabase& param, ModelDataBase& data);
-    
+    int loadGraphInfo(deepx_graphinfo::GraphInfoDatabase& param, ModelDataBase& data) const override;
+
     /**
      * @brief Load rmap information from the model data
      * @param param Output parameter for rmap info
      * @param data Model data containing binary info
      * @return Compile type string
      */
-    std::string LoadRmapInfo(deepx_rmapinfo::rmapInfoDatabase& param, ModelDataBase& data);
+    std::string loadRmapInfo(deepx_rmapinfo::rmapInfoDatabase& param, ModelDataBase& data) const override;
 };
 
 } // namespace dxrt 

@@ -22,6 +22,7 @@
 #include <thread>
 #include <vector>
 #include <mutex>
+#include <array>
 
 #include "dxrt/device_core.h"
 #include "dxrt/driver.h"
@@ -30,6 +31,7 @@
 #include "dxrt/multiprocess_memory.h"
 #include "dxrt/memory.h"
 #include "dxrt/service_util.h"
+#include "dxrt/usage_timer.h"
 
 #ifdef __linux__
 #include <sys/socket.h>
@@ -39,6 +41,8 @@
 #endif
 
 namespace dxrt {
+
+class SharedMemoryWriter;
 
 class DXRT_API ServiceLayerInterface {
 public:
@@ -53,6 +57,8 @@ public:
     virtual void RegisterDeviceCore(DeviceCore *core) = 0;
     virtual void SignalTaskInit(int deviceId, int taskId, npu_bound_op bound, uint64_t modelMemorySize) = 0;
     virtual void SignalTaskDeInit(int deviceId, int taskId, npu_bound_op bound) = 0;
+    
+    virtual ~ServiceLayerInterface() = default;
 };
 
 class DXRT_API ServiceLayer : public ServiceLayerInterface {
@@ -69,6 +75,8 @@ public:
     void RegisterDeviceCore(DeviceCore *core) override;
     void SignalTaskInit(int deviceId, int taskId, npu_bound_op bound, uint64_t modelMemorySize) override;
     void SignalTaskDeInit(int deviceId, int taskId, npu_bound_op bound) override;
+    
+    ~ServiceLayer() override = default;
 private:
     std::shared_ptr<MultiprocessMemory> _mem;
     std::mutex _lock;
@@ -76,6 +84,9 @@ private:
 
 class DXRT_API NoServiceLayer : public ServiceLayerInterface {
 public:
+    NoServiceLayer();
+    ~NoServiceLayer() override;
+    
     void HandleInferenceAcc(const dxrt_request_acc_t &acc, int deviceId) override;
     void SignalDeviceReset(int id) override;
     uint64_t Allocate(int deviceId, uint64_t size) override;
@@ -87,9 +98,25 @@ public:
     void RegisterDeviceCore(DeviceCore *core) override;
     void SignalTaskInit(int deviceId, int taskId, npu_bound_op bound, uint64_t modelMemorySize) override;
     void SignalTaskDeInit(int deviceId, int taskId, npu_bound_op bound) override;
+    
+    // NPU utilization tracking (NoService mode only)
+    void addUsage(int deviceId, int coreId, double value);
+    double getUsage(int deviceId, int coreId);
+    void onTick(int deviceId, int coreId);
 private:
     std::map<int, std::shared_ptr<Memory>> _mems;
     std::map<int, DeviceCore*> _ptr;
+    
+    // NPU utilization tracking per device (NoService mode)
+    std::map<int, std::array<UsageTimer, 3>> _usageTimers;  // deviceId -> [3 DMA channels]
+    
+    // Shared memory writer for external monitoring tools
+    std::unique_ptr<SharedMemoryWriter> _shmWriter;
+    
+    // Usage monitoring thread (0.5-second periodic onTick() calls)
+    std::thread _usageMonitorThread;
+    std::atomic<bool> _usageMonitorRunning{false};
+    void UsageMonitorThread();  // Thread function for periodic monitoring
 };
 
 } // namespace dxrt

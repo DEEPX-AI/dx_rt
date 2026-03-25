@@ -13,7 +13,7 @@ import argparse
 from dx_engine.utils import parse_model
 
 
-def parseArgs():
+def parseArgs(): # NOSONAR
     parser = argparse.ArgumentParser(
         prog="parse_model",
         description="parse model",

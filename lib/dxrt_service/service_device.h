@@ -37,6 +37,8 @@
 #include <atomic>
 #include <thread>
 #include <vector>
+#include <chrono>
+#include <array>
 #include <condition_variable>
 
 #include "dxrt/request.h"
@@ -56,7 +58,7 @@
 #include "dxrt/fw.h"
 #include "dxrt/multiprocess_memory.h"
 #include "dxrt/driver_adapter/linux_driver_adapter.h"
-#include "usage_timer.h"
+#include "dxrt/usage_timer.h"
 
 #ifdef __linux__
     #include <poll.h>
@@ -75,24 +77,29 @@ class TaskData;
 class Profiler;
 class Buffer;
 class FwLog;
-class DXRT_API ServiceDevice
+class DXRT_API ServiceDevice  // NOSONAR:S1820
 {
  public:
     explicit ServiceDevice(const std::string &);
     virtual ~ServiceDevice(void);
+    ServiceDevice(const ServiceDevice&) = delete;
+    ServiceDevice& operator=(const ServiceDevice&) = delete;
+    ServiceDevice(ServiceDevice&&) = delete;
+    ServiceDevice& operator=(ServiceDevice&&) = delete;
+
     std::string name() const { return _name; }
     int id() const { return _id; }
 
     dxrt_device_info_t info() const{ return _info;}
     dxrt_device_status_t status();
-    int Process(dxrt_cmd_t, void*, uint32_t size = 0, uint32_t sub_cmd = 0);
+    int Process(dxrt_cmd_t, void*, uint32_t size = 0, uint32_t sub_cmd = 0) const;
 
 
     virtual int InferenceRequest(dxrt_request_acc_t* req);
 
     void Identify(int id_, uint32_t subCmd = 0);
     void SetSubMode(uint32_t cmd) { _subCmd = cmd; }
-    void Terminate();
+    void Terminate() const;
 
     int AddBound(npu_bound_op boundOp);
     int DeleteBound(npu_bound_op boundOp);
@@ -106,22 +113,24 @@ class DXRT_API ServiceDevice
 
 
     //void Identify(int id_, dxrt::SkipMode skip);
-    void SetCallback(std::function<void(const dxrt_response_t&)> f);
-    void SetErrorCallback(std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)> f);
+    void SetCallback(const std::function<void(const dxrt_response_t&)>& f);
+    void SetErrorCallback(const std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)>& f);
+    void SetRecoveryCallback(const std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)>& f);
+
     static std::vector<shared_ptr<ServiceDevice>> CheckServiceDevices(uint32_t subCmd = 0);
-    bool isBlocked(){return _isBlocked;}
+    bool isBlocked () const {return _isBlocked;}
 
     double getUsage(int core_id);
 
     void usageTimerTick();
-    void DoCustomCommand(void *data, uint32_t subCmd, uint32_t size);
+    void DoCustomCommand(void *data, uint32_t subCmd, uint32_t size) const;
     void LoadPPCPUFirmware(uint64_t offset);
 
- protected:
+ private:
     int _id = 0;
     DeviceType _type = DeviceType::ACC_TYPE; /* 0: ACC type, 1: STD type */
 
-    int _bound_count[static_cast<int>(npu_bound_op::N_BOUND_INF_MAX)];
+    std::array<int, static_cast<int>(npu_bound_op::N_BOUND_INF_MAX)> _bound_count;
 
     uint32_t _variant;
     int _devFd = -1;
@@ -140,7 +149,7 @@ class DXRT_API ServiceDevice
     bool _hasWorkers = false;
     Profiler &_profiler;
 
-    std::thread _thread[3];
+    std::array<std::thread, 3> _thread;
     std::thread _eventThread;
 
     std::mutex _lock;
@@ -154,14 +163,17 @@ class DXRT_API ServiceDevice
     std::function<void(const dxrt_response_t&)> _callBack;
 
     std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)> _errCallBack;
+    std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)> _recoveryCallBack;
     bool _isBlocked = false;
-    UsageTimer _timer[3];
+    std::array<UsageTimer, 3> _timer;
 
-    int BoundOption(dxrt_sche_sub_cmd_t subCmd, npu_bound_op boundOp);
-    int GetBoundTypeCountInternal();
+    int BoundOption(dxrt_sche_sub_cmd_t subCmd, npu_bound_op boundOp) const;
+    int GetBoundTypeCountInternal() const;
 
     int WaitThread(int ids);
     int EventThread();
+
+    void LogDmaChannelStatus(const dx_pcie_dev_err_t *err) const;
 
 };
 

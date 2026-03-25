@@ -2,8 +2,8 @@
 # Copyright (C) 2018- DEEPX Ltd.
 # All rights reserved.
 #
-# This software is the property of DEEPX and is provided exclusively to customers 
-# who are supplied with DEEPX NPU (Neural Processing Unit). 
+# This software is the property of DEEPX and is provided exclusively to customers
+# who are supplied with DEEPX NPU (Neural Processing Unit).
 # Unauthorized sharing or usage is strictly prohibited by law.
 #
 
@@ -21,20 +21,20 @@ gLoopCount = 0
 
 lock = threading.Lock()
 
-def onInferenceCallbackFunc(outputs, user_arg):
+def on_inference_callback_func(outputs, user_arg):
     # the outputs are guaranteed to be valid only within this callback function
-    # processing this callback functions as quickly as possible is beneficial 
+    # processing this callback functions as quickly as possible is beneficial
     # for improving inference performance
 
     global gLoopCount
 
-    # Mutex locks should be properly adjusted 
+    # Mutex locks should be properly adjusted
     # to ensure that callback functions are thread-safe.
     with lock:
 
         # user data type casting
         index, loop_count = user_arg
-    
+
 
         # post processing
         #postProcessing(outputs);
@@ -59,7 +59,7 @@ def parse_args():
 
     if not os.path.exists(args.model):
         parser.error(f"Model path '{args.model}' does not exist.")
-    
+
     return args
 
 
@@ -70,11 +70,11 @@ if __name__ == "__main__":
     config.set_enable(Configuration.ITEM.PROFILER, True)
 
     # print profiling infomation
-    config.set_attribute(Configuration.ITEM.PROFILER, 
+    config.set_attribute(Configuration.ITEM.PROFILER,
                             Configuration.ATTRIBUTE.PROFILER_SHOW_DATA, "ON")
 
     # save profiling infomation to file
-    config.set_attribute(Configuration.ITEM.PROFILER, 
+    config.set_attribute(Configuration.ITEM.PROFILER,
                             Configuration.ATTRIBUTE.PROFILER_SAVE_DATA, "ON")
 
     print('Runtime framework version:', config.get_version())
@@ -92,15 +92,21 @@ if __name__ == "__main__":
     with InferenceEngine(args.model) as ie:
 
         # register call back function
-        ie.register_callback(onInferenceCallbackFunc)
+        ie.register_callback(on_inference_callback_func)
 
-        input = [np.zeros(ie.get_input_size(), dtype=np.uint8)]
+        # NOTE: np.zeros() uses COW zero pages — all virtual pages share one
+        # physical page. PCIe DMA driver's get_user_pages() then sees duplicate
+        # physical pages in the SG list and fails with EFAULT.
+        # np.empty() + explicit fill forces unique physical page allocation.
+        _buf = np.empty(ie.get_input_size(), dtype=np.uint8)
+        _buf.fill(0)
+        input = [_buf]
 
         # inference loop
         for i in range(args.loops):
 
             # inference asynchronously, use all npu cores
-            # if device-load >= max-load-value, this function will block  
+            # if device-load >= max-load-value, this function will block
             ie.run_async(input, user_arg=[i, args.loops])
 
             print("Inference start (async)", i)

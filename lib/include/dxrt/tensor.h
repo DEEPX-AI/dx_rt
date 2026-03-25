@@ -35,14 +35,15 @@ public:
     Tensor(std::string name_, std::vector<int64_t> shape_, DataType type_, 
            void *data_, void* ortValuePtr);
 #endif
-    Tensor& operator=(const dxrt::Tensor&) = default;
-    Tensor& operator= (Tensor&& tensor) = default;
-    Tensor (Tensor&& tensor) = default;
+    Tensor& operator=(const Tensor& other);
+    Tensor& operator=(Tensor&& other) noexcept;
+    Tensor(Tensor&& other) noexcept;
     ~Tensor();    
     const std::string &name() const;
     std::vector<int64_t> &shape();
     const std::vector<int64_t> &shape() const;
     DataType &type();    
+    const DataType &type() const;
     void* &data(); // data pointer
     uint64_t &phy_addr(); // physical address of data
     uint32_t &elem_size();
@@ -91,7 +92,6 @@ public:
 private:
     void setDataReleaseFlag(bool flag);
 
-private:
     std::string _name;
     std::vector<int64_t> _shape;
     DataType _type;

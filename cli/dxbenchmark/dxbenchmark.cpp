@@ -110,15 +110,15 @@ int main(int argc, char *argv[])
 
     try
     {
-        std::cout << "Runtime Framework Version: v" << dxrt::Configuration::GetInstance().GetVersion() << std::endl; 
-        std::cout << "Device Driver Version: v" << dxrt::Configuration::GetInstance().GetDriverVersion() << std::endl; 
-        std::cout << "PCIe Driver Version: v" << dxrt::Configuration::GetInstance().GetPCIeDriverVersion() << std::endl; 
+        std::cout << "Runtime Framework Version: v" << dxrt::Configuration::GetInstance().GetVersion() << std::endl;
+        std::cout << "Device Driver Version: v" << dxrt::Configuration::GetInstance().GetDriverVersion() << std::endl;
+        std::cout << "PCIe Driver Version: v" << dxrt::Configuration::GetInstance().GetPCIeDriverVersion() << std::endl;
         std::cout << std::endl;
-    } 
+    }
     catch (const dxrt::Exception &e)
     {
         std::cout << e.what() << std::endl;
-    } 
+    }
 
     // print host info
     if ( verbose )
@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
         }
         catch (const dxrt::Exception& e)
         {
-            std::cerr << e.what() << " error-code=" << e.code() << std::endl;
+            std::cerr << e.what() << " error-code=" << static_cast<int>(e.code()) << std::endl;
             return -1;
         }
         catch (const std::exception& e)
@@ -225,7 +225,7 @@ int main(int argc, char *argv[])
             std::cerr << "Exception" << std::endl;
             return -1;
         }
-        
+
         cout << "}" << endl;
         if (op.devices.empty() && !devices_spec.empty() && devices_spec != "all")
         {
@@ -235,7 +235,7 @@ int main(int argc, char *argv[])
 
     if (bounding >= 0 && bounding < dxrt::N_BOUND_INF_MAX)
     {
-        op.boundOption = bounding;
+        op.boundOption = static_cast<dxrt::InferenceOption::BOUND_OPTION>(bounding);
     }
     else
     {
@@ -249,7 +249,7 @@ int main(int argc, char *argv[])
 #ifdef __linux__
         vector<std::pair<string, string>> fileList = getModelLinux(modelDir, recursive);
         findDuplicates(fileList);
-        
+
         if(fileList.size() == 0)
         {
             cout << "[ERR] The model directory is empty" << endl;
@@ -260,7 +260,7 @@ int main(int argc, char *argv[])
 #elif _WIN32
         vector<std::pair<string, string>> fileList = getModelWindows(modelDir, recursive);
         findDuplicates(fileList);
-        
+
         if(fileList.size() == 0)
         {
             cout << "[ERR] The model directory is empty" << endl;
@@ -301,7 +301,7 @@ int main(int argc, char *argv[])
             if(i != fileList.size()-1)
             {
                 profiler.Flush();
-            } 
+            }
         }
 
         sortModels(results, criteria, order);
@@ -318,7 +318,7 @@ int main(int argc, char *argv[])
 
     catch (const dxrt::Exception& e)
     {
-        std::cerr << e.what() << " error-code=" << e.code() << std::endl;
+        std::cerr << e.what() << " error-code=" << static_cast<int>(e.code()) << std::endl;
         return -1;
     }
     catch (const std::exception& e)

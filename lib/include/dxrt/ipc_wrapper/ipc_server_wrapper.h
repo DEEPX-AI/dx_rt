@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -19,10 +19,10 @@
 #include "ipc_message.h"
 #include "ipc_server.h"
 
-namespace dxrt 
+namespace dxrt
 {
 
-    class DXRT_API IPCServerWrapper 
+    class DXRT_API IPCServerWrapper
     {
 
     private:
@@ -30,36 +30,35 @@ namespace dxrt
 
     public:
 
-        IPCServerWrapper(IPC_TYPE type = IPC_TYPE::MESSAE_QUEUE);
+        explicit IPCServerWrapper(IPC_TYPE type = IPC_TYPE::MESSAGE_QUEUE);
         virtual ~IPCServerWrapper();
 
         // Intitialize IPC Server
         // return error code
-        int32_t Initialize();
+        int32_t Initialize() const;
 
         // listen
-        int32_t Listen();
+        int32_t Listen() const;
 
         // Select
-        int32_t Select(int64_t& connectedFd);
+        int32_t Select(int64_t& connectedFd) const;
 
         // ReceiveFromClient
-        int32_t ReceiveFromClient(IPCClientMessage& clientMessage);
+        int32_t ReceiveFromClient(IPCClientMessage& clientMessage) const;
 
         // SendToClient
-        int32_t SendToClient(IPCServerMessage& serverMessage);
+        int32_t SendToClient(IPCServerMessage& serverMessage) const;
 
         // register receive message callback function
         // reciveCB(message, usrData, result)
         // result: -1:error else recevied data size
-        int32_t RegisterReceiveCB(std::function<int32_t(IPCClientMessage&,void*,int32_t)> receiveCB, void* usrData);
+        int32_t RegisterReceiveCB(std::function<int32_t(IPCClientMessage&,void*,int32_t)> receiveCB, void* usrData) const;
 
         // remove client connection (link)
-        int32_t RemoveClient(long msgType); // Only for Message Queue (POSIX)
+        int32_t RemoveClient(long msgType) const; // Only for Message Queue (POSIX)
 
         // Close
-        int32_t Close();
-            
+        int32_t Close() const;
     };
 
 }  // namespace dxrt

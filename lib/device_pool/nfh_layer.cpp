@@ -15,11 +15,13 @@
 #include <string>
 
 #include "dxrt/common.h"
+#include "dxrt/tsan_annotations.h"
 #include "dxrt/device_task_layer.h"
 #include "dxrt/nfh_request.h"
 #include "dxrt/npu_format_handler.h"
 #include "dxrt/request_response_class.h"
 #include "dxrt/device_pool.h"
+#include "dxrt/inference_job.h"
 
 namespace dxrt
 {
@@ -28,16 +30,18 @@ static constexpr int COMMON_NFH_LAYER_DEVICE_ID = -1;
 
 NFHLayer::NFHLayer(std::shared_ptr<DeviceTaskLayer> devicePtr, bool isDynamic)
     : _deviceId((devicePtr == nullptr) ? COMMON_NFH_LAYER_DEVICE_ID : devicePtr->id()),
+        _isDynamic(isDynamic),
         _device(devicePtr),
         _inputHandler("NFHLayer::handleInput", GetNfhInputWorkerThreads(), std::bind(&NFHLayer::handleInput, this, std::placeholders::_1, std::placeholders::_2)),
-        _outputHandler("NFHLayer::handleOutput", GetNfhOutputWorkerThreads(), std::bind(&NFHLayer::handleOutput, this, std::placeholders::_1, std::placeholders::_2)),
-        _isDynamic(isDynamic),
-        _responseCallback(RequestResponse::ProcessByData) // Default callback
+        _outputHandler("NFHLayer::handleOutput", GetNfhOutputWorkerThreads(), std::bind(&NFHLayer::handleOutput, this, std::placeholders::_1, std::placeholders::_2))
 {
     if (isDynamic)
     {
+        // TSAN annotation: thread creation synchronized by constructor
+        ANNOTATE_HAPPENS_BEFORE(this);
         _inputHandler.Start();
         _outputHandler.Start();
+        ANNOTATE_HAPPENS_AFTER(this);
     }
 }
 
@@ -92,7 +96,7 @@ static int processInputNfh(const NfhInputRequest& work, int threadId)
     return 0;
 }
 
-int NFHLayer::handleInput(const NfhInputRequest &inputReq, int threadId)
+int NFHLayer::handleInput(const NfhInputRequest &inputReq, int threadId) const
 {
     try
     {
@@ -101,6 +105,28 @@ int NFHLayer::handleInput(const NfhInputRequest &inputReq, int threadId)
         {
             LOG_DXRT_ERR("Failed to process input NFH for request " << inputReq.requestId);
         }
+#ifdef USE_VNPU
+        // User Input Early Release: NFH input encoding complete, user input buffer can be released
+        if (inputReq.req)
+        {
+            LOG_DXRT_DBG << "[NFHLayer] inputReq.req is valid for request " << inputReq.requestId << std::endl;
+            auto inferenceJob = inputReq.req->inferenceJob();
+            if (inferenceJob)
+            {
+                LOG_DXRT_DBG << "[NFHLayer] inferenceJob is valid, triggering release for request " << inputReq.requestId << std::endl;
+                LOG_DXRT_DBG << "[NFHLayer] Triggering user input release for request " << inputReq.requestId << std::endl;
+                inferenceJob->TriggerUserInputRelease();
+            }
+            else
+            {
+                LOG_DXRT_DBG << "[NFHLayer] inferenceJob is NULL for request " << inputReq.requestId << std::endl;
+            }
+        }
+        else
+        {
+            LOG_DXRT_ERR("[NFHLayer] inputReq.req is NULL for request " << inputReq.requestId);
+        }
+#endif
         // InferenceRequest_ACC trigger
         if (inputReq.req)
         {
@@ -157,7 +183,7 @@ int processOutputNfh(const NfhOutputRequest& work, int threadId)
 
     return 0;
 }
-int NFHLayer::handleOutput(const NfhOutputRequest &outputReq, int threadId)
+int NFHLayer::handleOutput(const NfhOutputRequest &outputReq, int threadId) const
 {
 #ifdef DXRT_USE_DEVICE_VALIDATION
     if (outputReq.req->is_validate_request())
@@ -179,9 +205,9 @@ int NFHLayer::handleOutput(const NfhOutputRequest &outputReq, int threadId)
             // NFH processing completed, proceed to direct subsequent processing (prevent circular calls)
             if (outputReq.req)
             {
-                try
+                try  // NOSONAR:S1141
                 {
-                    //auto request_acc = _device->peekInferenceAcc(outputReq.requestId);
+
 
                     // direct subsequent processing
                     TASK_FLOW("[" + std::to_string(outputReq.req->job_id()) + "]" +
@@ -190,9 +216,9 @@ int NFHLayer::handleOutput(const NfhOutputRequest &outputReq, int threadId)
                                 std::to_string(0)
                                 );
 
-                    //_device->Deallocate_npuBuf(request_acc.input.offset, outputReq.req->taskData()->id());
-                    //ProcessResponse(outputReq.req, const_cast<dxrt_response_t*>(&outputReq.response), 0);
-                    //_device->popInferenceStruct(outputReq.requestId);
+
+
+
                     _responseCallback(outputReq.req->id(), outputReq.response, outputReq.deviceId);
 
                     LOG_DXRT_DBG << "NFH Output processing completed for request " << outputReq.requestId << std::endl;
@@ -211,7 +237,7 @@ int NFHLayer::handleOutput(const NfhOutputRequest &outputReq, int threadId)
     return 0;
 }
 
-int NFHLayer::ProcessResponse(int deviceId, int reqId, dxrt_response_t *response)
+int NFHLayer::ProcessResponse(int deviceId, int reqId, const dxrt_response_t *response)
 {
     if ((_deviceId !=COMMON_NFH_LAYER_DEVICE_ID) && (deviceId != _deviceId))
     {

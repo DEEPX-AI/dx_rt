@@ -50,11 +50,17 @@ if __name__ == "__main__":
             # register call back function
             #ie.register_callback(onInferenceCallbackFunc)
 
+            # NOTE: np.zeros() uses COW zero pages — all virtual pages share one
+            # physical page. PCIe DMA driver's get_user_pages() then sees duplicate
+            # physical pages in the SG list and fails with EFAULT.
+            # np.empty() + explicit fill forces unique physical page allocation.
             input_buffers = []
             output_buffers = []
             index = 0
             for b in range(args.batch):
-                input_buffers.append([np.zeros(ie.get_input_size(), dtype=np.uint8)])
+                _in_buf = np.empty(ie.get_input_size(), dtype=np.uint8)
+                _in_buf.fill(0)
+                input_buffers.append([_in_buf])
                 output_buffers.append([np.zeros(ie.get_output_size(), dtype=np.uint8)])
                 index = index + 1
 

@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -51,16 +51,16 @@ int main(int argc, char* argv[])
 
     log.Info("Start run_sync_model_bound test for model: " + model_path);
 
-    try 
+    try
     {
-        // select bound option BOUND_OPTION::NPU_0~2 per device  
+        // select bound option BOUND_OPTION::NPU_0~2 per device
         dxrt::InferenceOption op;
 
         // first device only, default null
-        op.devices.push_back(0); 
+        op.devices.push_back(0);
 
         // NPU0 to NPU2
-        op.boundOption = dxrt::InferenceOption::BOUND_OPTION::NPU_0; 
+        op.boundOption = dxrt::InferenceOption::BOUND_OPTION::NPU_0;
 
         // Use ORT
         op.useORT = false;
@@ -76,13 +76,13 @@ int main(int argc, char* argv[])
         // inference loop
         for(int i = 0; i < loop_count; ++i)
         {
-            
+
             // inference synchronously, use one npu core
             auto outputs = ie.Run(inputPtr.data());
-            
+
             log.Debug("Inference outputs (" + std::to_string(i) + ")");
-            // poset processing
-            // postProcessing(outputs);
+
+            // now there is no post processing
             (void)outputs;
 
         }
@@ -116,6 +116,6 @@ int main(int argc, char* argv[])
         log.Error("Exception");
         return -1;
     }
-    
+
     return 0;
 }

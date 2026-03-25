@@ -11,6 +11,7 @@
 
 #include <cstdint>
 #include <vector>
+#include "dxrt/common.h"
 #include "dxrt/datatype.h"
 
 namespace dxrt {
@@ -22,12 +23,12 @@ namespace dxrt {
  * The header contains metadata about the number of tensors and format information.
  */
 #pragma pack(push, 1)
-typedef struct {
+struct ppu_info_header_t {
     uint8_t version;      ///< PPU binary format version
     uint8_t tensor_num;   ///< Number of PPU tensor configurations
     uint8_t size;         ///< Size of each ppu_info_t structure
     uint8_t checksum;     ///< Checksum for validation
-} ppu_info_header_t;
+};
 
 /**
  * @brief PPU tensor configuration structure
@@ -35,7 +36,7 @@ typedef struct {
  * This structure contains configuration parameters for a single PPU tensor,
  * including grid dimensions, filtering parameters, and data format information.
  */
-typedef struct {
+struct ppu_info_t {
     uint16_t _PPU_OUT_FEATURE_CHANNEL;  ///< Output feature channel count
     uint16_t _PPU_ARG_CLASS_NUM;        ///< Number of classes for argmax
     float    _PPU_FILTER_THR;           ///< Filtering threshold
@@ -47,7 +48,7 @@ typedef struct {
     uint8_t  _PPU_GRID_WIDTH;           ///< Grid width
     uint8_t  _PPU_GRID_HEIGHT;          ///< Grid height
     uint8_t  reserved;                  ///< Reserved for alignment
-} ppu_info_t;
+};
 #pragma pack(pop)
 
 /**
@@ -71,15 +72,15 @@ struct PpuOutputSizeInfo {
  * @param outputDataType The output data type (BBOX, FACE, or POSE)
  * @return PpuOutputSizeInfo containing size information, or nullopt if parsing fails
  */
-PpuOutputSizeInfo CalculatePpuOutputSize(const std::vector<uint8_t>& ppuBinaryData, 
+DXRT_API PpuOutputSizeInfo CalculatePpuOutputSize(const std::vector<uint8_t>& ppuBinaryData,
                                          DataType outputDataType);
 
 /**
  * @brief Get the size of one box data based on DataType
- * 
+ *
  * @param dataType The output data type (BBOX, FACE, or POSE)
  * @return Size in bytes for one box
  */
-uint32_t GetPpuBoxDataSize(DataType dataType);
+DXRT_API uint32_t GetPpuBoxDataSize(DataType dataType);
 
 } // namespace dxrt

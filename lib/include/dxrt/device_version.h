@@ -15,12 +15,12 @@
 #include "dxrt/device_core.h"
 
 #if _WIN32
-#define RT_DRV_VERSION_CHECK (1800) // 1.3.1 --> 1.8.0 for windows signed driver
+#define RT_DRV_VERSION_CHECK (1800) // 1.8.0
 #else
-#define RT_DRV_VERSION_CHECK (1800) // 1.7.1 --> 1.8.0
+#define RT_DRV_VERSION_CHECK (2400) // 2.4.0
 #endif
-#define PCIE_VERSION_CHECK   (1501) // 1.4.1 --> 1.5.1
-#define FW_VERSION_CHECK     (240)  // 2.1.0 --> 2.4.0./bui
+#define PCIE_VERSION_CHECK   (2200) // 2.2.0
+#define FW_VERSION_CHECK     (252)  // 2.5.2
 
 #define RT_DRIVER_WRITE_CHANNEL_CHANGE_VERSION 2000
 #define PCIE_DRIVER_WRITE_CHANNEL_CHANGE_VERSION 2000
@@ -38,7 +38,7 @@ public:
     dxrt_dev_info_t GetVersion(void);
     void CheckVersion(void);
 
-protected:
+private:
     DeviceCore* _dev;
     dxrt_dev_info_t         devInfo;
     uint16_t                _fw_ver;
@@ -49,7 +49,7 @@ protected:
 };
 
 
-bool IsVersionEqualOrHigher(const std::string& currentVersion, const std::string& minVersion);
-bool IsVersionHigher(const std::string& currentVersion, const std::string& minVersion);
+DXRT_API bool IsVersionEqualOrHigher(const std::string& currentVersion, const std::string& minVersion);
+DXRT_API bool IsVersionHigher(const std::string& currentVersion, const std::string& minVersion);
 
 } /* namespace dxrt */

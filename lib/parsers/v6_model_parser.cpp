@@ -7,18 +7,25 @@
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
-#include "dxrt/parsers/v6_model_parser.h"
 #include <fstream>
 #include <cstring>
 #include <memory>
 #include <set>
+
+#include "dxrt/parsers/v6_model_parser.h"
+#include "dxrt/common.h"
 #include "dxrt/filesys_support.h"
 #include "dxrt/exception/exception.h"
 #include "dxrt/util.h"
-#include "../resource/log_messages.h"
 #include "dxrt/extern/rapidjson/writer.h"
 #include "dxrt/extern/rapidjson/stringbuffer.h"
-#include "dxrt/common.h"
+#include "../resource/log_messages.h"
+
+// <windows.h> defines GetObject as a macro (GetObjectA/GetObjectW) which conflicts
+// with rapidjson's Value::GetObject(). Undefine it after windows.h is pulled in.
+#ifdef _WIN32
+#undef GetObject
+#endif
 
 using std::vector;
 using std::string;
@@ -30,54 +37,444 @@ using rapidjson::Writer;
 using rapidjson::kObjectType;
 using rapidjson::kArrayType;
 
-
-// Add missing constants
-#ifndef MAX_CHECKPOINT_COUNT
-#define MAX_CHECKPOINT_COUNT 3
-#endif
-
-#ifndef DXRT_TASK_MAX_LOAD
-#define DXRT_TASK_MAX_LOAD 6
-#endif
-
-#undef GetObject
-
 namespace dxrt {
 
-std::string V6ModelParser::ParseModel(const std::string& filePath, ModelDataBase& modelData) {
-    if (!fileExists(filePath) || getExtension(filePath) != "dxnn") {
-        throw FileNotFoundException(EXCEPTION_MESSAGE("Invalid model path : " + filePath));
+namespace {
+    
+    // Basic Utility Functions
+    using parser_common::parseInt64FromValue;
+    using parser_common::parseStringArray;
+    
+    // Models and BinaryInfo Related Functions
+    using parser_common::copyBinaryDataToModels;
+    using parser_common::copyStringDataToModels;
+    using parser_common::parseModelsOffsetSize;
+    using parser_common::parseCpuModels;
+
+    // RmapInfo Related Functions
+    using parser_common::parseMemoryObject;
+    using parser_common::parseCheckpoints;
+    using parser_common::assignMemoryToModelMemory;
+
+    // GraphInfo Related Functions
+    using parser_common::parseGraphInfoTensor;
+    using parser_common::parseTensorArray;
+
+    // Helper: Parse TensorInfo fields from JSON object (V6 specific)
+    // isOutput=false: inputs parse shape_encoded normally
+    // isOutput=true: outputs apply GetAlign() to last shape_encoded dim, may override align_unit to 16
+    void parseTensorInfoFields(const Value& tensorObj, deepx_rmapinfo::TensorInfo& tensor, bool isOutput)
+    {
+        // name
+        if (tensorObj.HasMember("name") && tensorObj["name"].IsString())
+        {
+            tensor.name() = tensorObj["name"].GetString();
+        }
+
+        // dtype
+        if (tensorObj.HasMember("dtype") && tensorObj["dtype"].IsString()) 
+        {
+            tensor.dtype() = deepx_rmapinfo::GetDataTypeNum(tensorObj["dtype"].GetString());
+            tensor.elem_size() = GetDataSize_Datatype(static_cast<DataType>(tensor.dtype()));
+        }
+
+        // shape
+        if (tensorObj.HasMember("shape") && tensorObj["shape"].IsArray()) 
+        {
+            const Value& shapeArr = tensorObj["shape"];
+            for (SizeType j = 0; j < shapeArr.Size(); j++) 
+            {
+                tensor.shape().push_back(shapeArr[j].GetInt64());
+            }
+        }
+
+        // name_encoded
+        if (tensorObj.HasMember("name_encoded") && tensorObj["name_encoded"].IsString())
+        {
+            tensor.name_encoded() = tensorObj["name_encoded"].GetString();
+        }
+
+        // dtype_encoded
+        if (tensorObj.HasMember("dtype_encoded") && tensorObj["dtype_encoded"].IsString())
+        {
+            tensor.dtype_encoded() = deepx_rmapinfo::GetDataTypeNum(tensorObj["dtype_encoded"].GetString());
+        }
+
+        // align_unit (V6: both inputs and outputs read this at same position)
+        if (tensorObj.HasMember("align_unit") && tensorObj["align_unit"].IsInt())
+        {
+            tensor.align_unit() = tensorObj["align_unit"].GetInt();
+        }
+
+        // shape_encoded (V6: outputs apply GetAlign to last dimension)
+        if (tensorObj.HasMember("shape_encoded") && tensorObj["shape_encoded"].IsArray()) 
+        {
+            const Value& shapeArr = tensorObj["shape_encoded"];
+            for (SizeType j = 0; j < shapeArr.Size(); j++) 
+            {
+                int64_t value = shapeArr[j].GetInt64();
+                // V6-specific: outputs apply GetAlign() to last dimension and may override align_unit
+                if (isOutput && j == shapeArr.Size() - 1)
+                {
+                    value = GetAlign(value);
+                    if (value < 64)
+                    {
+                        tensor.align_unit() = 16;
+                    }
+                }
+                tensor.shape_encoded().push_back(value);
+            }
+        }
+
+        // layout
+        if (tensorObj.HasMember("layout") && tensorObj["layout"].IsString())
+        {
+            tensor.layout() = deepx_rmapinfo::GetLayoutNum(tensorObj["layout"].GetString());
+        }
+
+        // transpose
+        if (tensorObj.HasMember("transpose") && tensorObj["transpose"].IsString())
+        {
+            tensor.transpose() = deepx_rmapinfo::GetTransposeNum(tensorObj["transpose"].GetString());
+        }
+
+        // scale and bias (quantization)
+        if (tensorObj.HasMember("scale") && tensorObj["scale"].IsFloat()) 
+        {
+            tensor.scale() = tensorObj["scale"].GetFloat();
+            if (tensorObj.HasMember("bias") && tensorObj["bias"].IsFloat()) 
+            {
+                tensor.bias() = tensorObj["bias"].GetFloat();
+                tensor.use_quantization() = true;
+            } 
+            else
+            {
+                tensor.use_quantization() = false;
+            }
+        }
+
+        // memory
+        if (tensorObj.HasMember("memory") && tensorObj["memory"].IsObject()) 
+        {
+            const Value& memObj = tensorObj["memory"];
+            deepx_rmapinfo::Memory mem;
+            if (memObj.HasMember("name") && memObj["name"].IsString())
+            {
+                mem.name() = memObj["name"].GetString();
+            }
+            if (memObj.HasMember("offset") && memObj["offset"].IsInt64())
+            {
+                mem.offset() = memObj["offset"].GetInt64();
+            }
+            if (memObj.HasMember("size") && memObj["size"].IsInt64())
+            {
+                mem.size() = memObj["size"].GetInt64();
+            }
+            if (memObj.HasMember("type") && memObj["type"].IsString())
+            {
+                mem.type() = deepx_rmapinfo::GetMemoryTypeNum(memObj["type"].GetString());
+            }
+            tensor.memory() = mem;
+        }
     }
 
-    int fileSize = getFileSize(filePath);
-    vector<char> vbuf(fileSize);
-    char *buf = vbuf.data();
+    // ============================================================================
+    // Top-level Parser Functions
+    // ============================================================================
 
-    FILE *fp = fopen(filePath.c_str(), "rb");
-    if (!fp) {
-        throw FileNotFoundException(EXCEPTION_MESSAGE("Failed to open file: " + filePath));
+    // Helper: Parse compiled data for NPU from header (V6 specific)
+    void parseCompiledDataForNpu(const Value& npuData, const std::string& npuName, deepx_binaryinfo::BinaryInfoDatabase& param)
+    {
+        for (Value::ConstMemberIterator iter = npuData.MemberBegin(); iter != npuData.MemberEnd(); ++iter) 
+        {
+            if (!iter->name.IsString()) 
+            {
+                continue;
+            }
+
+            const string modelName = iter->name.GetString();
+            const Value& value2 = iter->value;
+
+            deepx_binaryinfo::Models rmap;
+            deepx_binaryinfo::Models weight;
+            deepx_binaryinfo::Models rmap_info;
+            deepx_binaryinfo::Models bitmatch_mask;
+            
+            rmap.npu() = weight.npu() = rmap_info.npu() = bitmatch_mask.npu() = npuName;
+            rmap.name() = weight.name() = rmap_info.name() = bitmatch_mask.name() = modelName;
+
+            // [Sub-Field] - rmap
+            if (value2.HasMember("rmap") && value2["rmap"].IsObject()) 
+            {
+                parseModelsOffsetSize(value2["rmap"], rmap);
+                param.rmap().push_back(rmap);
+            }
+
+            // [Sub-Field] - weight
+            if (value2.HasMember("weight") && value2["weight"].IsObject()) 
+            {
+                parseModelsOffsetSize(value2["weight"], weight);
+                param.weight().push_back(weight);
+            }
+
+            // [Sub-Field] - rmap info
+            if (value2.HasMember("rmap_info") && value2["rmap_info"].IsObject()) 
+            {
+                parseModelsOffsetSize(value2["rmap_info"], rmap_info);
+                param.rmap_info().push_back(rmap_info);
+            }
+
+            // [Sub-Field] - bit match mask
+            if (value2.HasMember("bitmatch") && value2["bitmatch"].IsObject()) 
+            {
+                parseModelsOffsetSize(value2["bitmatch"], bitmatch_mask);
+                param.bitmatch_mask().push_back(bitmatch_mask);
+            }
+        }
     }
 
-    std::ignore = fread(static_cast<void*>(buf), fileSize, 1, fp);
-    fclose(fp);
+    // Helper: Parse data section from header document (V6 specific)
+    void parseDataSection(const Value& dataObj, deepx_binaryinfo::BinaryInfoDatabase& param, const char* buffer, int offset)
+    {
+        // [Field] - cpu models
+#ifdef USE_ORT
+        if (dataObj.HasMember("cpu_models") && dataObj["cpu_models"].IsObject()) 
+        {
+            parseCpuModels(dataObj["cpu_models"], param);
+        }
+#endif
 
-    return V6ModelParser::ParseModel((const uint8_t*)buf, fileSize, modelData);
-}
+        // [Field] - compile config
+        if (dataObj.HasMember("compile_config") && dataObj["compile_config"].IsObject()) 
+        {
+            const Value &compileConfiglObj = dataObj["compile_config"];
+            int64_t cc_offset = 0;
+            int64_t cc_size = 0;
 
-std::string V6ModelParser::ParseModel(const uint8_t* modelBuffer, size_t modelSize, ModelDataBase& modelData)
-{
+            if (compileConfiglObj.HasMember("offset")) 
+            {
+                cc_offset = parseInt64FromValue(compileConfiglObj["offset"]);
+            }
+            if (compileConfiglObj.HasMember("size")) 
+            {
+                cc_size = parseInt64FromValue(compileConfiglObj["size"]);
+            }
 
-    LoadBinaryInfo(modelData.deepx_binary, (char*)modelBuffer, modelSize);
+            Document compile_config_document;
+            std::string compile_config_str(buffer + cc_offset + offset, cc_size);
+            compile_config_document.Parse(compile_config_str.c_str());
+            if (compile_config_document.HasMember("compile_version") && compile_config_document["compile_version"].IsString()) 
+            {
+                const Value &compileVersionObj = compile_config_document["compile_version"];
+                param._compilerVersion = compileVersionObj.GetString();
+            }
+        }
+
+        // [Field] - graph info
+        if (dataObj.HasMember("graph_info") && dataObj["graph_info"].IsObject()) 
+        {
+            const Value &graphInfolObj = dataObj["graph_info"];
+            if (graphInfolObj.HasMember("offset")) 
+            {
+                param.graph_info().offset() = parseInt64FromValue(graphInfolObj["offset"]);
+            }
+
+            if (graphInfolObj.HasMember("size")) 
+            {
+                param.graph_info().size() = parseInt64FromValue(graphInfolObj["size"]);
+            }
+        }
+
+        // [Field] - compiled data
+        if (dataObj.HasMember("compiled_data") && dataObj["compiled_data"].IsObject()) 
+        {
+            const Value& compiledData = dataObj["compiled_data"];
+            for (Value::ConstMemberIterator iter = compiledData.MemberBegin(); iter != compiledData.MemberEnd(); ++iter) 
+            {
+                if (!iter->name.IsString()) 
+                {
+                    continue;
+                }
+                parseCompiledDataForNpu(iter->value, iter->name.GetString(), param);
+            }
+        }
+    }
+
+    // Helper: Parse single rmap_info document into RegisterInfoDatabase (V6 specific)
+    void parseSingleRmapInfo(const Document& document, deepx_rmapinfo::RegisterInfoDatabase& regMap, 
+                             string& modelCompileType, size_t taskBufferCount)
+    {
+        // version
+        if (document.HasMember("version") && document["version"].IsObject()) 
+        {
+            const rapidjson::Value& versionObj = document["version"];
+            if (versionObj.HasMember("npu") && versionObj["npu"].IsString())
+            {
+                regMap.version().npu() = versionObj["npu"].GetString();
+            }
+            if (versionObj.HasMember("rmap") && versionObj["rmap"].IsString())
+            {
+                regMap.version().rmap() = versionObj["rmap"].GetString();
+            }
+            if (versionObj.HasMember("rmapInfo") && versionObj["rmapInfo"].IsString())
+            {
+                regMap.version().rmap_info() = versionObj["rmapInfo"].GetString();
+            }
+            if (versionObj.HasMember("opt_level") && versionObj["opt_level"].IsString())
+            {
+                regMap.version().opt_level() = versionObj["opt_level"].GetString();
+            }
+        }
+
+        // name
+        if (document.HasMember("name") && document["name"].IsString())
+        {
+            regMap.name() = document["name"].GetString();
+        }
+
+        // mode
+        if (document.HasMember("mode") && document["mode"].IsString()) 
+        {
+            modelCompileType = document["mode"].GetString();
+            regMap.mode() = modelCompileType;
+        }
+
+        // npu
+        if (document.HasMember("npu") && document["npu"].IsObject()) 
+        {
+            const rapidjson::Value& npuObj = document["npu"];
+            if (npuObj.HasMember("mac") && npuObj["mac"].IsInt64())
+            {
+                regMap.npu().mac() = npuObj["mac"].GetInt64();
+            }
+        }
+
+        // size
+        if (document.HasMember("size") && document["size"].IsInt64()) 
+        {
+            regMap.size() = document["size"].GetInt64();
+        } 
+        else 
+        {
+            regMap.size() = 0;
+        }
+
+        // counts
+        if (document.HasMember("counts") && document["counts"].IsObject()) 
+        {
+            const rapidjson::Value& countsObj = document["counts"];
+            if (countsObj.HasMember("layer") && countsObj["layer"].IsInt64())
+            {
+                regMap.counts().layer() = countsObj["layer"].GetInt64();
+            }
+
+            if (countsObj.HasMember("cmd") && countsObj["cmd"].IsInt64())
+            {
+                regMap.counts().cmd() = countsObj["cmd"].GetInt64();
+            }
+
+            if (countsObj.HasMember("checkpoints") && countsObj["checkpoints"].IsArray()) 
+            {
+                parseCheckpoints(countsObj["checkpoints"], regMap.counts());
+            } 
+            else 
+            {
+                regMap.counts()._op_mode = 0;
+            }
+        }
+
+        // memory: List[MemoryInfo]
+        if (document.HasMember("memory") && document["memory"].IsArray()) 
+        {
+            const rapidjson::Value& memArray = document["memory"];
+            for (rapidjson::SizeType mi = 0; mi < memArray.Size(); mi++) 
+            {
+                const rapidjson::Value& memObj = memArray[mi];
+                if (!memObj.HasMember("name") || !memObj["name"].IsString()) 
+                {
+                    continue;
+                }
+
+                deepx_rmapinfo::Memory memory = parseMemoryObject(memObj);
+                assignMemoryToModelMemory(memory, regMap, taskBufferCount);
+            }
+        }
+
+        // inputs: List[TensorInfo]
+        if (document.HasMember("inputs") && document["inputs"].IsArray()) 
+        {
+            const rapidjson::Value& tensorArray = document["inputs"];
+            regMap.inputs().clear();
+            for (rapidjson::SizeType ti = 0; ti < tensorArray.Size(); ti++) 
+            {
+                const rapidjson::Value& tensorObj = tensorArray[ti];
+                deepx_rmapinfo::TensorInfo tensor;
+                parseTensorInfoFields(tensorObj, tensor, false);
+                regMap.inputs().push_back(tensor);
+            }
+        }
+
+        // outputs: List[TensorInfo]
+        if (document.HasMember("outputs") && document["outputs"].IsArray())
+        {
+            const rapidjson::Value& tensorArray = document["outputs"];
+            regMap.outputs().clear();
+            for (rapidjson::SizeType ti = 0; ti < tensorArray.Size(); ti++) 
+            {
+                const rapidjson::Value& tensorObj = tensorArray[ti];
+                deepx_rmapinfo::TensorInfo tensor;
+                parseTensorInfoFields(tensorObj, tensor, true);                // V6-specific: PPU output special handling
+                if (tensor.memory().type() == deepx_rmapinfo::MemoryType::PPU) 
+                {
+                    if (tensor.layout() == deepx_rmapinfo::Layout::PPU_YOLO)
+                    {
+                        tensor.name() = "BBOX";
+                    }
+                    else if (tensor.layout() == deepx_rmapinfo::Layout::PPU_FD)
+                    {
+                        tensor.name() = "FACE";
+                    }
+                    else if (tensor.layout() == deepx_rmapinfo::Layout::PPU_POSE)
+                    {
+                        tensor.name() = "POSE";
+                    }
+                    else
+                    {
+                        throw ModelParsingException(EXCEPTION_MESSAGE("PPU Output format is invalid"));
+                    }
+                    tensor.shape().clear();
+                    tensor.shape().push_back(1);
+                    tensor.shape().push_back(-1);
+                    tensor.shape_encoded().clear();
+                    tensor.shape_encoded().push_back(1);
+                    tensor.shape_encoded().push_back(-1);
+                    int dataType = DataType::BBOX;
+                    dataType += tensor.layout();
+                    dataType -= deepx_rmapinfo::Layout::PPU_YOLO;
+                    tensor.dtype() = dataType;
+                }
+                regMap.outputs().push_back(tensor);
+            }
+        }
+    }
+} // namespace
+
+void V6ModelParser::PreProcessModel(ModelDataBase& modelData) const {
     // Store original v6 graph_info and rmap_info
     string v6GraphInfo = "";
     for (const auto& str : modelData.deepx_binary.graph_info().str())
+    {
         v6GraphInfo += str;
+    }
 
     vector<string> v6RmapInfos;
-    for (size_t i = 0; i < modelData.deepx_binary.rmap_info().size(); i++) {
+    for (size_t i = 0; i < modelData.deepx_binary.rmap_info().size(); i++) 
+    {
         string v6RmapInfo = "";
-        for (const auto& str : modelData.deepx_binary.rmap_info(i).str())
+        for (const auto& str : modelData.deepx_binary.rmap_info(static_cast<int>(i)).str())
+        {
             v6RmapInfo += str;
+        }
         v6RmapInfos.push_back(v6RmapInfo);
     }
 
@@ -90,36 +487,35 @@ std::string V6ModelParser::ParseModel(const uint8_t* modelBuffer, size_t modelSi
     // Convert rmap_info to v7 format
     for (size_t i = 0; i < modelData.deepx_binary.rmap_info().size(); i++) {
         string v7RmapInfo = ConvertRmapInfoV6ToV7(v6RmapInfos[i], v6GraphInfo);
-        modelData.deepx_binary.rmap_info(i).str() = v7RmapInfo;
+        modelData.deepx_binary.rmap_info(static_cast<int>(i)).str() = v7RmapInfo;
     }
-
-    LoadGraphInfo(modelData.deepx_graph, modelData);
-    string modelCompileType = LoadRmapInfo(modelData.deepx_rmap, modelData);
-
-    return modelCompileType;
 }
 
-int V6ModelParser::LoadBinaryInfo(deepx_binaryinfo::BinaryInfoDatabase& param, char *buffer, int fileSize) {
+int V6ModelParser::loadBinaryInfo(deepx_binaryinfo::BinaryInfoDatabase& param, const char *buffer, int fileSize) const {
     Document document;
     std::ignore = fileSize;
 
-    int offset = 0, sizeInfo = 8192;
-    string signInfo, headerInfo;
+    int offset = 0;
+    int sizeInfo = 8192;
+    string signInfo;
+    string headerInfo;
 
     signInfo = string(buffer, 4);
     offset += 8;
-    if (signInfo != "DXNN") {
+    if (signInfo != "DXNN") 
+    {
         throw InvalidModelException(EXCEPTION_MESSAGE(LogMessages::InvalidDXNNFileFormat()));
     }
 
     // dxnn file format version 4byte integer little-endian
-    int32_t dxnnFileFormatVersion = (int32_t)(buffer[4] |
+    int32_t dxnnFileFormatVersion = buffer[4] |
                 buffer[5] << 8  |
                 buffer[6] << 16 |
-                buffer[7] << 24);
+                buffer[7] << 24;
     param._dxnnFileFormatVersion = dxnnFileFormatVersion;
 
-    if (dxnnFileFormatVersion != 6) {
+    if (dxnnFileFormatVersion != 6) 
+    {
         throw ModelParsingException(EXCEPTION_MESSAGE("V6ModelParser can only parse version 6 files"));
     }
 
@@ -128,257 +524,47 @@ int V6ModelParser::LoadBinaryInfo(deepx_binaryinfo::BinaryInfoDatabase& param, c
     offset = sizeInfo;
 
     document.Parse(headerInfo.c_str());
-    if (document.HasParseError()) {
+    if (document.HasParseError()) 
+    {
         throw ModelParsingException(
             EXCEPTION_MESSAGE(LogMessages::InvalidDXNNModelHeader(static_cast<int>(document.GetParseError())))
         );
     }
 
-    if (document.HasMember("data") && document["data"].IsObject()) {
-        const Value &dataObj = document["data"];
-
-        // [Field] - cpu models
-#ifdef USE_ORT
-        if (dataObj.HasMember("cpu_models") && dataObj["cpu_models"].IsObject()) {
-            const Value &cpuModelsObj = dataObj["cpu_models"];
-            int i = 0;
-            for (Value::ConstMemberIterator iter = cpuModelsObj.MemberBegin(); iter != cpuModelsObj.MemberEnd(); ++iter) {
-                if (iter->name.IsString()) {
-                    deepx_binaryinfo::Models model;
-                    model.name() = iter->name.GetString();
-                    const Value& value = iter->value;
-                    if (value.HasMember("offset")) {
-                        if (value["offset"].IsInt64())
-                            model.offset() = value["offset"].GetInt64();
-                        else if (value["offset"].IsInt())
-                            model.offset() = value["offset"].GetInt();
-                        else if (value["offset"].IsString())
-                            model.offset() = std::stoll(value["offset"].GetString());
-                    }
-                    if (value.HasMember("size")) {
-                        if (value["size"].IsInt64())
-                            model.size() = value["size"].GetInt64();
-                        else if (value["size"].IsInt())
-                            model.size() = value["size"].GetInt();
-                        else if (value["size"].IsString())
-                            model.size() = std::stoll(value["size"].GetString());
-                    }
-                    param.cpu_models().push_back(model);
-                }
-                i++;
-            }
-        }
-#endif
-
-        // [Field] - compile config
-        if (dataObj.HasMember("compile_config") && dataObj["compile_config"].IsObject()) {
-            const Value &compileConfiglObj = dataObj["compile_config"];
-            int64_t cc_offset = 0, cc_size = 0;
-            if (compileConfiglObj.HasMember("offset")) {
-                if (compileConfiglObj["offset"].IsInt64())
-                    cc_offset = compileConfiglObj["offset"].GetInt64();
-                else if (compileConfiglObj["offset"].IsInt())
-                    cc_offset = compileConfiglObj["offset"].GetInt();
-                else if (compileConfiglObj["offset"].IsString())
-                    cc_offset = std::stoll(compileConfiglObj["offset"].GetString());
-            }
-            if (compileConfiglObj.HasMember("size")) {
-                if (compileConfiglObj["size"].IsInt64())
-                    cc_size = compileConfiglObj["size"].GetInt64();
-                else if (compileConfiglObj["size"].IsInt())
-                    cc_size = compileConfiglObj["size"].GetInt();
-                else if (compileConfiglObj["size"].IsString())
-                    cc_size = std::stoll(compileConfiglObj["size"].GetString());
-            }
-
-            Document compile_config_document;
-            std::string compile_config_str = string(buffer+cc_offset+offset, cc_size);
-            compile_config_document.Parse(compile_config_str.c_str());
-            if (compile_config_document.HasMember("compile_version") && compile_config_document["compile_version"].IsString()) {
-                const Value &compileVersionObj = compile_config_document["compile_version"];
-                param._compilerVersion = compileVersionObj.GetString();
-            }
-        }
-
-        // [Field] - graph info
-        if (dataObj.HasMember("graph_info") && dataObj["graph_info"].IsObject()) {
-            const Value &graphInfolObj = dataObj["graph_info"];
-            if (graphInfolObj.HasMember("offset")) {
-                if (graphInfolObj["offset"].IsInt64())
-                    param.graph_info().offset() = graphInfolObj["offset"].GetInt64();
-                else if (graphInfolObj["offset"].IsInt())
-                    param.graph_info().offset() = graphInfolObj["offset"].GetInt();
-                else if (graphInfolObj["offset"].IsString())
-                    param.graph_info().offset() = std::stoll(graphInfolObj["offset"].GetString());
-            }
-            if (graphInfolObj.HasMember("size")) {
-                if (graphInfolObj["size"].IsInt64())
-                    param.graph_info().size() = graphInfolObj["size"].GetInt64();
-                else if (graphInfolObj["size"].IsInt())
-                    param.graph_info().size() = graphInfolObj["size"].GetInt();
-                else if (graphInfolObj["size"].IsString())
-                    param.graph_info().size() = std::stoll(graphInfolObj["size"].GetString());
-            }
-        }
-
-        // [Field] - compiled data
-        if (dataObj.HasMember("compiled_data") && dataObj["compiled_data"].IsObject()) {
-            const Value &compiledData = dataObj["compiled_data"];
-            for (Value::ConstMemberIterator iter = compiledData.MemberBegin(); iter != compiledData.MemberEnd(); ++iter) {
-                if (iter->name.IsString()) {
-                    deepx_binaryinfo::Models rmap;
-                    deepx_binaryinfo::Models weight;
-                    deepx_binaryinfo::Models rmap_info;
-                    deepx_binaryinfo::Models bitmatch_mask;
-                    rmap.npu() = weight.npu() = rmap_info.npu() = bitmatch_mask.npu() = iter->name.GetString();
-                    const Value& value = iter->value;
-
-                    for (Value::ConstMemberIterator iter2 = value.MemberBegin(); iter2 != value.MemberEnd(); ++iter2) {
-                        if (iter2->name.IsString()) {
-                            rmap.name() = weight.name() = rmap_info.name() = bitmatch_mask.name() = iter2->name.GetString();
-                            const Value& value2 = iter2->value;
-
-                            // [Sub-Field] - rmap
-                            if (value2.HasMember("rmap") && value2["rmap"].IsObject()) {
-                                const Value &rmapObj = value2["rmap"];
-                                if (rmapObj.HasMember("offset")) {
-                                    if (rmapObj["offset"].IsInt64())
-                                        rmap.offset() = rmapObj["offset"].GetInt64();
-                                    else if (rmapObj["offset"].IsInt())
-                                        rmap.offset() = rmapObj["offset"].GetInt();
-                                    else if (rmapObj["offset"].IsString())
-                                        rmap.offset() = std::stoll(rmapObj["offset"].GetString());
-                                }
-                                if (rmapObj.HasMember("size")) {
-                                    if (rmapObj["size"].IsInt64())
-                                        rmap.size() = rmapObj["size"].GetInt64();
-                                    else if (rmapObj["size"].IsInt())
-                                        rmap.size() = rmapObj["size"].GetInt();
-                                    else if (rmapObj["size"].IsString())
-                                        rmap.size() = std::stoll(rmapObj["size"].GetString());
-                                }
-                                param.rmap().push_back(rmap);
-                            }
-
-                            // [Sub-Field] - weight
-                            if (value2.HasMember("weight") && value2["weight"].IsObject()) {
-                                const Value &weightObj = value2["weight"];
-                                if (weightObj.HasMember("offset")) {
-                                    if (weightObj["offset"].IsInt64())
-                                        weight.offset() = weightObj["offset"].GetInt64();
-                                    else if (weightObj["offset"].IsInt())
-                                        weight.offset() = weightObj["offset"].GetInt();
-                                    else if (weightObj["offset"].IsString())
-                                        weight.offset() = std::stoll(weightObj["offset"].GetString());
-                                }
-                                if (weightObj.HasMember("size")) {
-                                    if (weightObj["size"].IsInt64())
-                                        weight.size() = weightObj["size"].GetInt64();
-                                    else if (weightObj["size"].IsInt())
-                                        weight.size() = weightObj["size"].GetInt();
-                                    else if (weightObj["size"].IsString())
-                                        weight.size() = std::stoll(weightObj["size"].GetString());
-                                }
-                                param.weight().push_back(weight);
-                            }
-
-                            // [Sub-Field] - rmap info
-                            if (value2.HasMember("rmap_info") && value2["rmap_info"].IsObject()) {
-                                const Value &rmapInfoObj = value2["rmap_info"];
-                                if (rmapInfoObj.HasMember("offset")) {
-                                    if (rmapInfoObj["offset"].IsInt64())
-                                        rmap_info.offset() = rmapInfoObj["offset"].GetInt64();
-                                    else if (rmapInfoObj["offset"].IsInt())
-                                        rmap_info.offset() = rmapInfoObj["offset"].GetInt();
-                                    else if (rmapInfoObj["offset"].IsString())
-                                        rmap_info.offset() = std::stoll(rmapInfoObj["offset"].GetString());
-                                }
-                                if (rmapInfoObj.HasMember("size")) {
-                                    if (rmapInfoObj["size"].IsInt64())
-                                        rmap_info.size() = rmapInfoObj["size"].GetInt64();
-                                    else if (rmapInfoObj["size"].IsInt())
-                                        rmap_info.size() = rmapInfoObj["size"].GetInt();
-                                    else if (rmapInfoObj["size"].IsString())
-                                        rmap_info.size() = std::stoll(rmapInfoObj["size"].GetString());
-                                }
-                                param.rmap_info().push_back(rmap_info);
-                            }
-
-                            // [Sub-Field] - bit match mask
-                            if (value2.HasMember("bitmatch") && value2["bitmatch"].IsObject()) {
-                                const Value &bitmatchObj = value2["bitmatch"];
-                                if (bitmatchObj.HasMember("offset")) {
-                                    if (bitmatchObj["offset"].IsInt64())
-                                        bitmatch_mask.offset() = bitmatchObj["offset"].GetInt64();
-                                    else if (bitmatchObj["offset"].IsInt())
-                                        bitmatch_mask.offset() = bitmatchObj["offset"].GetInt();
-                                    else if (bitmatchObj["offset"].IsString())
-                                        bitmatch_mask.offset() = std::stoll(bitmatchObj["offset"].GetString());
-                                }
-                                if (bitmatchObj.HasMember("size")) {
-                                    if (bitmatchObj["size"].IsInt64())
-                                        bitmatch_mask.size() = bitmatchObj["size"].GetInt64();
-                                    else if (bitmatchObj["size"].IsInt())
-                                        bitmatch_mask.size() = bitmatchObj["size"].GetInt();
-                                    else if (bitmatchObj["size"].IsString())
-                                        bitmatch_mask.size() = std::stoll(bitmatchObj["size"].GetString());
-                                }
-                                param.bitmatch_mask().push_back(bitmatch_mask);
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    if (document.HasMember("data") && document["data"].IsObject()) 
+    {
+        parseDataSection(document["data"], param, buffer, offset);
     }
 
     // [Buffer] - CPU Binary Data
-    for (size_t i = 0; i < param.cpu_models().size(); i++) {
-        param.cpu_models(i)._buffer.resize(param.cpu_models(i).size());
-        memcpy(param.cpu_models(i)._buffer.data(), buffer + (offset + param.cpu_models(i).offset()), param.cpu_models(i).size());
-    }
+    copyBinaryDataToModels(param.cpu_models(), buffer, offset);
 
     // [Buffer] - Graph Info.
-    std::unique_ptr<char[]> graphInfoBuf(new char[param.graph_info().size()]);
-    memcpy(graphInfoBuf.get(), buffer + (offset + param.graph_info().offset()), param.graph_info().size());
-    string graphInfoStr(&graphInfoBuf[0], param.graph_info().size());
+    string graphInfoStr(buffer + offset + param.graph_info().offset(), param.graph_info().size());
     param.graph_info().str() = graphInfoStr;
 
     // [Buffer] - RMAP Binary Data
-    for (size_t i = 0; i < param.rmap().size(); i++) {
-        param.rmap(i)._buffer.resize(param.rmap(i).size());
-        memcpy(param.rmap(i)._buffer.data(), buffer + (offset + param.rmap(i).offset()), param.rmap(i).size());
-    }
+    copyBinaryDataToModels(param.rmap(), buffer, offset);
 
     // [Buffer] - Weight Binary Data
-    for (size_t i = 0; i < param.weight().size(); i++) {
-        param.weight(i)._buffer.resize(param.weight(i).size());
-        memcpy(param.weight(i)._buffer.data(), buffer + (offset + param.weight(i).offset()), param.weight(i).size());
-    }
+    copyBinaryDataToModels(param.weight(), buffer, offset);
 
     // [Buffer] - RMAP Info.
-    for (size_t i = 0; i < param.rmap_info().size(); i++) {
-        std::unique_ptr<char[]> rmapInfoBuf(new char[param.rmap_info(i).size()]);
-        memcpy(rmapInfoBuf.get(), buffer + (offset + param.rmap_info(i).offset()), param.rmap_info(i).size());
-        string rmapInfoStr(&rmapInfoBuf[0], param.rmap_info(i).size());
-        param.rmap_info(i).str() = rmapInfoStr;
-    }
+    copyStringDataToModels(param.rmap_info(), buffer, offset);
 
     // [Buffer] - Bitmatch Mask.
-    for (size_t i = 0; i < param.bitmatch_mask().size(); i++) {
-        param.bitmatch_mask(i)._buffer.resize(param.bitmatch_mask(i).size());
-        memcpy(param.bitmatch_mask(i)._buffer.data(), buffer + (offset + param.bitmatch_mask(i).offset()), param.bitmatch_mask(i).size());
-    }
+    copyBinaryDataToModels(param.bitmatch_mask(), buffer, offset);
 
     return dxnnFileFormatVersion;
 }
 
-std::string V6ModelParser::ConvertGraphInfoV6ToV7(const std::string& v6GraphInfo) {
+std::string V6ModelParser::ConvertGraphInfoV6ToV7(const std::string& v6GraphInfo) const {
 
     Document v6Doc;
     v6Doc.Parse(v6GraphInfo.c_str());
 
-    if (v6Doc.HasParseError()) {
+    if (v6Doc.HasParseError()) 
+    {
         throw ModelParsingException(EXCEPTION_MESSAGE("Failed to parse V6 graph info"));
     }
 
@@ -386,30 +572,39 @@ std::string V6ModelParser::ConvertGraphInfoV6ToV7(const std::string& v6GraphInfo
     v7Doc.SetObject();
     Document::AllocatorType& allocator = v7Doc.GetAllocator();
 
-    if (v6Doc.HasMember("offloading")) {
+    if (v6Doc.HasMember("offloading")) 
+    {
         v7Doc.AddMember("offloading", v6Doc["offloading"], allocator);
     }
 
-    std::set<std::string> modelInputs, modelOutputs;
-    if (v6Doc.HasMember("origin_input") && v6Doc["origin_input"].IsArray()) {
-        for (auto& inp : v6Doc["origin_input"].GetArray()) {
-            if (inp.IsString()) {
-                modelInputs.insert(inp.GetString());
+    std::set<std::string> modelInputs;
+    std::set<std::string> modelOutputs;
+    if (v6Doc.HasMember("origin_input") && v6Doc["origin_input"].IsArray()) 
+    {
+        for (const auto& inp : v6Doc["origin_input"].GetArray()) 
+        {
+            if (inp.IsString())
+            {
+                modelInputs.emplace(inp.GetString());
                 LOG_DXRT_DBG << "[V6→V7] Model input: " << inp.GetString() << std::endl;
             }
         }
     }
-    if (v6Doc.HasMember("origin_output") && v6Doc["origin_output"].IsArray()) {
-        for (auto& out : v6Doc["origin_output"].GetArray()) {
-            if (out.IsString()) {
-                modelOutputs.insert(out.GetString());
+    if (v6Doc.HasMember("origin_output") && v6Doc["origin_output"].IsArray()) 
+    {
+        for (const auto& out : v6Doc["origin_output"].GetArray()) 
+        {
+            if (out.IsString()) 
+            {
+                modelOutputs.emplace(out.GetString());
                 LOG_DXRT_DBG << "[V6→V7] Model output: " << out.GetString() << std::endl;
             }
         }
     }
     LOG_DXRT_DBG << "[V6→V7] Collected " << modelInputs.size() << " model inputs, " << modelOutputs.size() << " model outputs" << std::endl;
 
-    if (v6Doc.HasMember("origin_input")) {
+    if (v6Doc.HasMember("origin_input")) 
+    {
         v7Doc.AddMember("inputs", v6Doc["origin_input"], allocator);
     }
 
@@ -421,19 +616,24 @@ std::string V6ModelParser::ConvertGraphInfoV6ToV7(const std::string& v6GraphInfo
         v7Doc.AddMember("toposort_order", v6Doc["toposort_order"], allocator);
     }
 
-    if (v6Doc.HasMember("graphs") && v6Doc["graphs"].IsArray()) {
+    if (v6Doc.HasMember("graphs") && v6Doc["graphs"].IsArray()) 
+    {
         Value v7Graphs(kArrayType);
 
-        for (auto& v6Graph : v6Doc["graphs"].GetArray()) {
+        for (auto& v6Graph : v6Doc["graphs"].GetArray()) 
+        {
             Value v7Graph(kObjectType);
 
             // name, device copy
             std::string taskName;
-            if (v6Graph.HasMember("name")) {
+            if (v6Graph.HasMember("name")) 
+            {
                 taskName = v6Graph["name"].GetString();
                 v7Graph.AddMember("name", v6Graph["name"], allocator);
             }
-            if (v6Graph.HasMember("type")) {
+
+            if (v6Graph.HasMember("type")) 
+            {
                 v7Graph.AddMember("device", v6Graph["type"], allocator);
             }
             
@@ -442,10 +642,12 @@ std::string V6ModelParser::ConvertGraphInfoV6ToV7(const std::string& v6GraphInfo
             bool isTail = false;
             LOG_DXRT_DBG << "[V6→V7] Processing task: " << taskName << std::endl;
 
-            if (v6Graph.HasMember("inputs") && v6Graph["inputs"].IsObject()) {
+            if (v6Graph.HasMember("inputs") && v6Graph["inputs"].IsObject()) 
+            {
                 Value v7Inputs(kArrayType);
 
-                for (auto& input : v6Graph["inputs"].GetObject()) {
+                for (auto& input : v6Graph["inputs"].GetObject()) 
+                {
                     Value inputObj(kObjectType);
                     Value nameVal;
                     nameVal.SetString(input.name.GetString(), allocator);
@@ -454,8 +656,9 @@ std::string V6ModelParser::ConvertGraphInfoV6ToV7(const std::string& v6GraphInfo
                     std::string inputName = input.name.GetString();
                     bool hasOwner = false;
                     std::string ownerStr = "";
-                    
-                    if (input.value.IsObject() && input.value.HasMember("source") && input.value["source"].IsString()) {
+
+                    if (input.value.IsObject() && input.value.HasMember("source") && input.value["source"].IsString()) 
+                    {
                         ownerStr = input.value["source"].GetString();
                         hasOwner = !ownerStr.empty();
                     }
@@ -466,7 +669,8 @@ std::string V6ModelParser::ConvertGraphInfoV6ToV7(const std::string& v6GraphInfo
                     
                     // If input has no owner and is a model input, this task is a head
                     bool isTensorHead = (modelInputs.count(inputName) > 0);
-                    if (!hasOwner && isTensorHead) {
+                    if (!hasOwner && isTensorHead) 
+                    {
                         isHead = true;
                         LOG_DXRT_DBG << "[V6→V7]   Input '" << inputName << "' is model input -> task is HEAD" << std::endl;
                     }
@@ -479,7 +683,8 @@ std::string V6ModelParser::ConvertGraphInfoV6ToV7(const std::string& v6GraphInfo
                     inputObj.AddMember("tail", false, allocator);
 
                     Value users(kArrayType);
-                    if (v6Graph.HasMember("name") && v6Graph["name"].IsString()) {
+                    if (v6Graph.HasMember("name") && v6Graph["name"].IsString()) 
+                    {
                         Value taskNameVal;
                         taskNameVal.SetString(v6Graph["name"].GetString(), allocator);
                         users.PushBack(taskNameVal, allocator);
@@ -492,17 +697,20 @@ std::string V6ModelParser::ConvertGraphInfoV6ToV7(const std::string& v6GraphInfo
                 v7Graph.AddMember("inputs", v7Inputs, allocator);
             }
 
-            if (v6Graph.HasMember("outputs") && v6Graph["outputs"].IsObject()) {
+            if (v6Graph.HasMember("outputs") && v6Graph["outputs"].IsObject()) 
+            {
                 Value v7Outputs(kArrayType);
 
-                for (auto& output : v6Graph["outputs"].GetObject()) {
+                for (auto& output : v6Graph["outputs"].GetObject()) 
+                {
                     Value outputObj(kObjectType);
                     Value nameVal;
                     std::string outputName = output.name.GetString();
                     nameVal.SetString(outputName.c_str(), allocator);
                     outputObj.AddMember("name", nameVal, allocator);
 
-                    if (v6Graph.HasMember("name") && v6Graph["name"].IsString()) {
+                    if (v6Graph.HasMember("name") && v6Graph["name"].IsString()) 
+                    {
                         Value ownerTaskVal;
                         ownerTaskVal.SetString(v6Graph["name"].GetString(), allocator);
                         outputObj.AddMember("owner", ownerTaskVal, allocator);
@@ -510,7 +718,8 @@ std::string V6ModelParser::ConvertGraphInfoV6ToV7(const std::string& v6GraphInfo
                     
                     // Check if this output is a model output
                     bool isModelOutput = (modelOutputs.count(outputName) > 0);
-                    if (isModelOutput) {
+                    if (isModelOutput) 
+                    {
                         isTail = true;
                         LOG_DXRT_DBG << "[V6→V7]   Output '" << outputName << "' is model output -> task is TAIL" << std::endl;
                     }
@@ -523,9 +732,12 @@ std::string V6ModelParser::ConvertGraphInfoV6ToV7(const std::string& v6GraphInfo
                     LOG_DXRT_DBG << "[V6→V7]   Output '" << outputName << "' tail=" << (isModelOutput ? "true" : "false") << std::endl;
 
                     Value users(kArrayType);
-                    if (output.value.IsObject() && output.value.HasMember("next_layers") && output.value["next_layers"].IsArray()) {
-                        for (auto& nextLayer : output.value["next_layers"].GetArray()) {
-                            if (nextLayer.IsString()) {
+                    if (output.value.IsObject() && output.value.HasMember("next_layers") && output.value["next_layers"].IsArray()) 
+                    {
+                        for (const auto& nextLayer : output.value["next_layers"].GetArray()) 
+                        {
+                            if (nextLayer.IsString()) 
+                            {
                                 Value nextLayerVal;
                                 nextLayerVal.SetString(nextLayer.GetString(), allocator);
                                 users.PushBack(nextLayerVal, allocator);
@@ -560,15 +772,17 @@ std::string V6ModelParser::ConvertGraphInfoV6ToV7(const std::string& v6GraphInfo
     return result;
 }
 
-std::string V6ModelParser::ConvertRmapInfoV6ToV7(const std::string& v6RmapInfo, const std::string& v6GraphInfo) {
+std::string V6ModelParser::ConvertRmapInfoV6ToV7(const std::string& v6RmapInfo, const std::string& v6GraphInfo) const {
     // Convert V6 rmap info to V7 format.
     // This implements the logic of the `convert_rmap_info` function from v6_converter.py in C++.
 
-    Document v6RmapDoc, v6GraphDoc;
+    Document v6RmapDoc;
+    Document v6GraphDoc;
     v6RmapDoc.Parse(v6RmapInfo.c_str());
     v6GraphDoc.Parse(v6GraphInfo.c_str());
 
-    if (v6RmapDoc.HasParseError() || v6GraphDoc.HasParseError()) {
+    if (v6RmapDoc.HasParseError() || v6GraphDoc.HasParseError()) 
+    {
         throw ModelParsingException(EXCEPTION_MESSAGE("Failed to parse V6 rmap/graph info"));
     }
 
@@ -582,27 +796,32 @@ std::string V6ModelParser::ConvertRmapInfoV6ToV7(const std::string& v6RmapInfo, 
     Value input_shape = ExtractInputShapeFromV6Graph(v6GraphDoc, allocator);
     
     // 2. Convert version information
-    if (v6RmapDoc.HasMember("version") && v6RmapDoc["version"].IsObject()) {
+    if (v6RmapDoc.HasMember("version") && v6RmapDoc["version"].IsObject()) 
+    {
         const Value& v6Version = v6RmapDoc["version"];
         Value versionObj(kObjectType);
 
-        if (v6Version.HasMember("npu") && v6Version["npu"].IsString()) {
+        if (v6Version.HasMember("npu") && v6Version["npu"].IsString()) 
+        {
             Value npuVal;
             npuVal.SetString(v6Version["npu"].GetString(), allocator);
             versionObj.AddMember("npu", npuVal, allocator);
         }
-        if (v6Version.HasMember("rmap") && v6Version["rmap"].IsString()) {
+        if (v6Version.HasMember("rmap") && v6Version["rmap"].IsString()) 
+        {
             Value rmapVal;
             rmapVal.SetString(v6Version["rmap"].GetString(), allocator);
             versionObj.AddMember("rmap", rmapVal, allocator);
         }
 
         // Separate version and optimization level from rmapInfo
-        if (v6Version.HasMember("rmapInfo") && v6Version["rmapInfo"].IsString()) {
+        if (v6Version.HasMember("rmapInfo") && v6Version["rmapInfo"].IsString()) 
+        {
             auto versionPair = ParseV6Version(v6Version["rmapInfo"].GetString());
             std::string cg_version = versionPair.first;
             std::string opt_level = versionPair.second;
-            Value rmapInfoVal, optLevelVal;
+            Value rmapInfoVal;
+            Value optLevelVal;
             rmapInfoVal.SetString(cg_version.c_str(), allocator);
             optLevelVal.SetString(opt_level.c_str(), allocator);
             versionObj.AddMember("rmapInfo", rmapInfoVal, allocator);
@@ -613,20 +832,24 @@ std::string V6ModelParser::ConvertRmapInfoV6ToV7(const std::string& v6RmapInfo, 
     }
 
     // 3. Basic information
-    if (v6RmapDoc.HasMember("model") && v6RmapDoc["model"].IsString()) {
+    if (v6RmapDoc.HasMember("model") && v6RmapDoc["model"].IsString()) 
+    {
         Value nameVal;
         nameVal.SetString(v6RmapDoc["model"].GetString(), allocator);
         v7Doc.AddMember("name", nameVal, allocator);
     }
-    if (v6RmapDoc.HasMember("mode") && v6RmapDoc["mode"].IsString()) {
+    if (v6RmapDoc.HasMember("mode") && v6RmapDoc["mode"].IsString()) 
+    {
         Value modeVal;
         modeVal.SetString(v6RmapDoc["mode"].GetString(), allocator);
         v7Doc.AddMember("mode", modeVal, allocator);
     }
-    if (v6RmapDoc.HasMember("npu") && v6RmapDoc["npu"].IsObject()) {
+    if (v6RmapDoc.HasMember("npu") && v6RmapDoc["npu"].IsObject()) 
+    {
         Value npuObj(kObjectType);
         const Value& v6Npu = v6RmapDoc["npu"];
-        if (v6Npu.HasMember("mac") && v6Npu["mac"].IsInt64()) {
+        if (v6Npu.HasMember("mac") && v6Npu["mac"].IsInt64()) 
+        {
             rapidjson::Value macVal;
             macVal.SetInt64(v6Npu["mac"].GetInt64());
             npuObj.AddMember(rapidjson::StringRef("mac"), macVal, allocator);
@@ -635,17 +858,23 @@ std::string V6ModelParser::ConvertRmapInfoV6ToV7(const std::string& v6RmapInfo, 
     }
 
     if (v6RmapDoc.HasMember("size")) {
-        if (v6RmapDoc["size"].IsString()) {
+        if (v6RmapDoc["size"].IsString()) 
+        {
             int64_t sizeVal = std::stoll(v6RmapDoc["size"].GetString());
             v7Doc.AddMember("size", sizeVal, allocator);
-        } else if (v6RmapDoc["size"].IsInt()) {
+        } 
+        else if (v6RmapDoc["size"].IsInt()) 
+        {
             v7Doc.AddMember("size", v6RmapDoc["size"], allocator);
-        } else if (v6RmapDoc["size"].IsInt64()) {
+        } 
+        else if (v6RmapDoc["size"].IsInt64()) 
+        {
             v7Doc.AddMember("size", v6RmapDoc["size"], allocator);
         }
     }
 
-    if (v6RmapDoc.HasMember("counts") && v6RmapDoc["counts"].IsObject()) {
+    if (v6RmapDoc.HasMember("counts") && v6RmapDoc["counts"].IsObject()) 
+    {
         Value countsVal;
         countsVal.CopyFrom(v6RmapDoc["counts"], allocator);
         v7Doc.AddMember("counts", countsVal, allocator);
@@ -655,34 +884,24 @@ std::string V6ModelParser::ConvertRmapInfoV6ToV7(const std::string& v6RmapInfo, 
     Value memoryArray(kArrayType);
 
     // INPUT memory (from v6 input.memory)
-    if (v6RmapDoc.HasMember("input") && v6RmapDoc["input"].HasMember("memory")) {
+    if (v6RmapDoc.HasMember("input") && v6RmapDoc["input"].HasMember("memory")) 
+    {
         Value inputMem(kObjectType);
         const Value& v6InputMem = v6RmapDoc["input"]["memory"];
         Value nameVal;
         nameVal.SetString("INPUT", allocator);
         inputMem.AddMember(rapidjson::StringRef("name"), nameVal, allocator);
 
-        if (v6InputMem.HasMember("offset")) {
-            rapidjson::Value offsetVal;
-            if (v6InputMem["offset"].IsInt64())
-                offsetVal.SetInt64(v6InputMem["offset"].GetInt64());
-            else if (v6InputMem["offset"].IsInt())
-                offsetVal.SetInt(v6InputMem["offset"].GetInt());
-            else if (v6InputMem["offset"].IsString())
-                offsetVal.SetInt64(std::stoll(v6InputMem["offset"].GetString()));
-            inputMem.AddMember(rapidjson::StringRef("offset"), offsetVal, allocator);
+        if (v6InputMem.HasMember("offset")) 
+        {
+            inputMem.AddMember(rapidjson::StringRef("offset"), parseInt64FromValue(v6InputMem["offset"]), allocator);
         }
-        if (v6InputMem.HasMember("size")) {
-            rapidjson::Value sizeVal;
-            if (v6InputMem["size"].IsInt64())
-                sizeVal.SetInt64(v6InputMem["size"].GetInt64());
-            else if (v6InputMem["size"].IsInt())
-                sizeVal.SetInt(v6InputMem["size"].GetInt());
-            else if (v6InputMem["size"].IsString())
-                sizeVal.SetInt64(std::stoll(v6InputMem["size"].GetString()));
-            inputMem.AddMember(rapidjson::StringRef("size"), sizeVal, allocator);
+        if (v6InputMem.HasMember("size")) 
+        {
+            inputMem.AddMember(rapidjson::StringRef("size"), parseInt64FromValue(v6InputMem["size"]), allocator);
         }
-        if (v6InputMem.HasMember("type")) {
+        if (v6InputMem.HasMember("type"))
+        {
             Value typeVal;
             typeVal.SetString(v6InputMem["type"].GetString(), allocator);
             inputMem.AddMember(rapidjson::StringRef("type"), typeVal, allocator);
@@ -691,7 +910,8 @@ std::string V6ModelParser::ConvertRmapInfoV6ToV7(const std::string& v6RmapInfo, 
     }
 
     // OUTPUT memory (from v6 outputs.memory)
-    if (v6RmapDoc.HasMember("outputs") && v6RmapDoc["outputs"].HasMember("memory")) {
+    if (v6RmapDoc.HasMember("outputs") && v6RmapDoc["outputs"].HasMember("memory")) 
+    {
         Value outputMem(kObjectType);
         const Value& v6OutputMem = v6RmapDoc["outputs"]["memory"];
         Value nameVal;
@@ -699,24 +919,10 @@ std::string V6ModelParser::ConvertRmapInfoV6ToV7(const std::string& v6RmapInfo, 
         outputMem.AddMember(rapidjson::StringRef("name"), nameVal, allocator);
 
         if (v6OutputMem.HasMember("offset")) {
-            rapidjson::Value offsetVal;
-            if (v6OutputMem["offset"].IsInt64())
-                offsetVal.SetInt64(v6OutputMem["offset"].GetInt64());
-            else if (v6OutputMem["offset"].IsInt())
-                offsetVal.SetInt(v6OutputMem["offset"].GetInt());
-            else if (v6OutputMem["offset"].IsString())
-                offsetVal.SetInt64(std::stoll(v6OutputMem["offset"].GetString()));
-            outputMem.AddMember(rapidjson::StringRef("offset"), offsetVal, allocator);
+            outputMem.AddMember(rapidjson::StringRef("offset"), parseInt64FromValue(v6OutputMem["offset"]), allocator);
         }
         if (v6OutputMem.HasMember("size")) {
-            rapidjson::Value sizeVal;
-            if (v6OutputMem["size"].IsInt64())
-                sizeVal.SetInt64(v6OutputMem["size"].GetInt64());
-            else if (v6OutputMem["size"].IsInt())
-                sizeVal.SetInt(v6OutputMem["size"].GetInt());
-            else if (v6OutputMem["size"].IsString())
-                sizeVal.SetInt64(std::stoll(v6OutputMem["size"].GetString()));
-            outputMem.AddMember(rapidjson::StringRef("size"), sizeVal, allocator);
+            outputMem.AddMember(rapidjson::StringRef("size"), parseInt64FromValue(v6OutputMem["size"]), allocator);
         }
         if (v6OutputMem.HasMember("type")) {
             Value typeVal;
@@ -740,24 +946,10 @@ std::string V6ModelParser::ConvertRmapInfoV6ToV7(const std::string& v6RmapInfo, 
                 mem.AddMember(rapidjson::StringRef("name"), nameVal, allocator);
             }
             if (v6Mem.HasMember("offset")) {
-                rapidjson::Value offsetVal;
-                if (v6Mem["offset"].IsInt64())
-                    offsetVal.SetInt64(v6Mem["offset"].GetInt64());
-                else if (v6Mem["offset"].IsInt())
-                    offsetVal.SetInt(v6Mem["offset"].GetInt());
-                else if (v6Mem["offset"].IsString())
-                    offsetVal.SetInt64(std::stoll(v6Mem["offset"].GetString()));
-                mem.AddMember(rapidjson::StringRef("offset"), offsetVal, allocator);
+                mem.AddMember(rapidjson::StringRef("offset"), parseInt64FromValue(v6Mem["offset"]), allocator);
             }
             if (v6Mem.HasMember("size")) {
-                rapidjson::Value sizeVal;
-                if (v6Mem["size"].IsInt64())
-                    sizeVal.SetInt64(v6Mem["size"].GetInt64());
-                else if (v6Mem["size"].IsInt())
-                    sizeVal.SetInt(v6Mem["size"].GetInt());
-                else if (v6Mem["size"].IsString())
-                    sizeVal.SetInt64(std::stoll(v6Mem["size"].GetString()));
-                mem.AddMember(rapidjson::StringRef("size"), sizeVal, allocator);
+                mem.AddMember(rapidjson::StringRef("size"), parseInt64FromValue(v6Mem["size"]), allocator);
             }
             Value typeVal;
             typeVal.SetString("DRAM", allocator);
@@ -790,7 +982,8 @@ std::string V6ModelParser::ConvertRmapInfoV6ToV7(const std::string& v6RmapInfo, 
         }
         
         // Use input_shape from v6 graph_info (extracted at the beginning) and apply alignment
-        Value shapeVal, shapeEncodedVal;
+        Value shapeVal;
+        Value shapeEncodedVal;
         shapeVal.CopyFrom(input_shape, allocator);
         shapeEncodedVal.CopyFrom(input_shape, allocator);
         
@@ -804,13 +997,13 @@ std::string V6ModelParser::ConvertRmapInfoV6ToV7(const std::string& v6RmapInfo, 
                 // Round up to multiple of 16
                 //int64_t alignedLastDim = ((lastDim + 15) / 16) * 16;
                 //shapeVal[shapeVal.Size() - 1].SetInt64(alignedLastDim);
-                //shapeEncodedVal[shapeEncodedVal.Size() - 1].SetInt64(alignedLastDim);
+                //shapeEncodedVal[shapeEncodedVal.Size() - 1].SetInt64(alignedLastDim)
             } else {
                 alignUnit = 64;
                 // Round up to multiple of 64
                 //int64_t alignedLastDim = ((lastDim + 63) / 64) * 64;
                 //shapeVal[shapeVal.Size() - 1].SetInt64(alignedLastDim);
-                //shapeEncodedVal[shapeEncodedVal.Size() - 1].SetInt64(alignedLastDim);
+                //shapeEncodedVal[shapeEncodedVal.Size() - 1].SetInt64(alignedLastDim)
             }
         }
         
@@ -832,7 +1025,8 @@ std::string V6ModelParser::ConvertRmapInfoV6ToV7(const std::string& v6RmapInfo, 
         transposeVal.SetNull();
         inputTensor.AddMember("transpose", transposeVal, allocator);
 
-        Value scaleVal, biasVal;
+        Value scaleVal;
+        Value biasVal;
         scaleVal.SetNull();
         biasVal.SetNull();
         inputTensor.AddMember("scale", scaleVal, allocator);
@@ -850,20 +1044,10 @@ std::string V6ModelParser::ConvertRmapInfoV6ToV7(const std::string& v6RmapInfo, 
         if (v6Input.HasMember("memory") && v6Input["memory"].IsObject()) {
             const Value& v6InputMem = v6Input["memory"];
             if (v6InputMem.HasMember("offset")) {
-                if (v6InputMem["offset"].IsInt64())
-                    inputOffset = v6InputMem["offset"].GetInt64();
-                else if (v6InputMem["offset"].IsInt())
-                    inputOffset = v6InputMem["offset"].GetInt();
-                else if (v6InputMem["offset"].IsString())
-                    inputOffset = std::stoll(v6InputMem["offset"].GetString());
+                inputOffset = parseInt64FromValue(v6InputMem["offset"]);
             }
             if (v6InputMem.HasMember("size")) {
-                if (v6InputMem["size"].IsInt64())
-                    inputSize = v6InputMem["size"].GetInt64();
-                else if (v6InputMem["size"].IsInt())
-                    inputSize = v6InputMem["size"].GetInt();
-                else if (v6InputMem["size"].IsString())
-                    inputSize = std::stoll(v6InputMem["size"].GetString());
+                inputSize = parseInt64FromValue(v6InputMem["size"]);
             }
             if (v6InputMem.HasMember("type") && v6InputMem["type"].IsString()) {
                 inputTypeStr = v6InputMem["type"].GetString();
@@ -939,7 +1123,8 @@ std::string V6ModelParser::ConvertRmapInfoV6ToV7(const std::string& v6RmapInfo, 
             Value outputShapeVal(kArrayType);
             Value outputShapeEncodedVal(kArrayType);
             int outputAlignUnit = 64;
-            if (isPPUOutput) {
+            if (isPPUOutput) 
+            {
                 // PPU outputs have dynamic size, represented as [1, -1]
                 outputShapeVal.PushBack(1, allocator);
                 outputShapeVal.PushBack(-1, allocator);
@@ -953,18 +1138,21 @@ std::string V6ModelParser::ConvertRmapInfoV6ToV7(const std::string& v6RmapInfo, 
                 // Align both shape and shape_encoded based on last dimension and compute align_unit
                 if (outputShapeVal.IsArray() && outputShapeVal.Size() > 0) {
                     int64_t lastDim = outputShapeVal[outputShapeVal.Size() - 1].GetInt64();
-                    if (lastDim < 64) {
+                    if (lastDim < 64) 
+                    {
                         outputAlignUnit = 16;
                         // Round up to multiple of 16
                         //int64_t alignedLastDim = ((lastDim + 15) / 16) * 16;
                         //outputShapeVal[outputShapeVal.Size() - 1].SetInt64(alignedLastDim);
-                        //outputShapeEncodedVal[outputShapeEncodedVal.Size() - 1].SetInt64(alignedLastDim);
-                    } else {
+                        //outputShapeEncodedVal[outputShapeEncodedVal.Size() - 1].SetInt64(alignedLastDim)
+                    } 
+                    else 
+                    {
                         outputAlignUnit = 64;
                         // Round up to multiple of 64
                         //int64_t alignedLastDim = ((lastDim + 63) / 64) * 64;
                         //outputShapeVal[outputShapeVal.Size() - 1].SetInt64(alignedLastDim);
-                        //outputShapeEncodedVal[outputShapeEncodedVal.Size() - 1].SetInt64(alignedLastDim);
+                        //outputShapeEncodedVal[outputShapeEncodedVal.Size() - 1].SetInt64(alignedLastDim)
                     }
                 }
             }
@@ -977,7 +1165,8 @@ std::string V6ModelParser::ConvertRmapInfoV6ToV7(const std::string& v6RmapInfo, 
             transposeVal.SetNull();
             outputTensor.AddMember("transpose", transposeVal, allocator);
 
-            Value scaleVal, biasVal;
+            Value scaleVal;
+            Value biasVal;
             scaleVal.SetNull();
             biasVal.SetNull();
             outputTensor.AddMember("scale", scaleVal, allocator);
@@ -992,25 +1181,19 @@ std::string V6ModelParser::ConvertRmapInfoV6ToV7(const std::string& v6RmapInfo, 
             int64_t outputOffset = 0;
             int64_t outputSize = 0;
             const char* outputTypeStr = "DRAM";
-            if (v6Output.HasMember("memory") && v6Output["memory"].IsObject()) {
+            if (v6Output.HasMember("memory") && v6Output["memory"].IsObject()) 
+            {
                 const Value& v6OutputMem = v6Output["memory"];
-                if (v6OutputMem.HasMember("offset")) {
-                    if (v6OutputMem["offset"].IsInt64())
-                        outputOffset = v6OutputMem["offset"].GetInt64();
-                    else if (v6OutputMem["offset"].IsInt())
-                        outputOffset = v6OutputMem["offset"].GetInt();
-                    else if (v6OutputMem["offset"].IsString())
-                        outputOffset = std::stoll(v6OutputMem["offset"].GetString());
+                if (v6OutputMem.HasMember("offset")) 
+                {
+                    outputOffset = parseInt64FromValue(v6OutputMem["offset"]);
                 }
-                if (v6OutputMem.HasMember("size")) {
-                    if (v6OutputMem["size"].IsInt64())
-                        outputSize = v6OutputMem["size"].GetInt64();
-                    else if (v6OutputMem["size"].IsInt())
-                        outputSize = v6OutputMem["size"].GetInt();
-                    else if (v6OutputMem["size"].IsString())
-                        outputSize = std::stoll(v6OutputMem["size"].GetString());
+                if (v6OutputMem.HasMember("size")) 
+                {
+                    outputSize = parseInt64FromValue(v6OutputMem["size"]);
                 }
-                if (v6OutputMem.HasMember("type") && v6OutputMem["type"].IsString()) {
+                if (v6OutputMem.HasMember("type") && v6OutputMem["type"].IsString()) 
+                {
                     outputTypeStr = v6OutputMem["type"].GetString();
                 }
             }
@@ -1041,7 +1224,7 @@ std::string V6ModelParser::ConvertRmapInfoV6ToV7(const std::string& v6RmapInfo, 
 }
 
 // Helper function implementations
-std::string V6ModelParser::ParseV6GraphInfo(const rapidjson::Document& v6GraphInfo) {
+std::string V6ModelParser::ParseV6GraphInfo(const rapidjson::Document& v6GraphInfo) const {
     // Parse V6 graph info
     StringBuffer buffer;
     Writer<StringBuffer> writer(buffer);
@@ -1049,12 +1232,15 @@ std::string V6ModelParser::ParseV6GraphInfo(const rapidjson::Document& v6GraphIn
     return buffer.GetString();
 }
 
-std::string V6ModelParser::ParseV6RmapInfo(const rapidjson::Document& v6RmapInfo, const rapidjson::Document& v6GraphInfo) {
+std::string V6ModelParser::ParseV6RmapInfo(const rapidjson::Document& v6RmapInfo, const rapidjson::Document& v6GraphInfo) const {
     // Parse V6 rmap info
-    string v6RmapStr, v6GraphStr;
+    string v6RmapStr;
+    string v6GraphStr;
 
-    StringBuffer rmapBuffer, graphBuffer;
-    Writer<StringBuffer> rmapWriter(rmapBuffer), graphWriter(graphBuffer);
+    StringBuffer rmapBuffer;
+    StringBuffer graphBuffer;
+    Writer<StringBuffer> rmapWriter(rmapBuffer);
+    Writer<StringBuffer> graphWriter(graphBuffer);
     v6RmapInfo.Accept(rmapWriter);
     v6GraphInfo.Accept(graphWriter);
 
@@ -1064,25 +1250,26 @@ std::string V6ModelParser::ParseV6RmapInfo(const rapidjson::Document& v6RmapInfo
     return ConvertRmapInfoV6ToV7(v6RmapStr, v6GraphStr);
 }
 
-std::string V6ModelParser::ExtractInputNameFromV6Graph(const rapidjson::Document& v6GraphInfo) {
+std::string V6ModelParser::ExtractInputNameFromV6Graph(const rapidjson::Document& v6GraphInfo) const {
     // Extract input name from V6 graph.
     // Python equivalent:
     // for graph in graph_info["graphs"]:
     //     if graph["name"] == "npu_0":
     //         input_name = list(graph["inputs"].keys())[0]
 
-    if (v6GraphInfo.HasMember("graphs") && v6GraphInfo["graphs"].IsArray()) {
+    if (v6GraphInfo.HasMember("graphs") && v6GraphInfo["graphs"].IsArray()) 
+    {
         const Value& graphs = v6GraphInfo["graphs"];
-        for (SizeType i = 0; i < graphs.Size(); i++) {
-            const Value& graph = graphs[i];
+
+        for(const auto& graph : graphs.GetArray()) 
+        {
             if (graph.HasMember("name") && graph["name"].IsString() &&
-                string(graph["name"].GetString()) == "npu_0") {
-                if (graph.HasMember("inputs") && graph["inputs"].IsObject()) {
-                    const Value& inputs = graph["inputs"];
-                    if (inputs.MemberCount() > 0) 
-                    {
-                        return inputs.MemberBegin()->name.GetString(); // Return the first input name
-                    }
+                string(graph["name"].GetString()) == "npu_0" && graph.HasMember("inputs") && graph["inputs"].IsObject())
+            {
+                const Value& inputs = graph["inputs"];
+                if (inputs.MemberCount() > 0)
+                {
+                    return inputs.MemberBegin()->name.GetString(); // Return the first input name
                 }
             }
         }
@@ -1092,7 +1279,7 @@ std::string V6ModelParser::ExtractInputNameFromV6Graph(const rapidjson::Document
     return "input";
 }
 
-Value V6ModelParser::ExtractInputShapeFromV6Graph(const rapidjson::Document& v6GraphInfo, Document::AllocatorType& allocator) {
+Value V6ModelParser::ExtractInputShapeFromV6Graph(const rapidjson::Document& v6GraphInfo, Document::AllocatorType& allocator) const {
     // Extract input shape from V6 graph.
     // Python equivalent:
     // for graph in graph_info["graphs"]:
@@ -1106,23 +1293,23 @@ Value V6ModelParser::ExtractInputShapeFromV6Graph(const rapidjson::Document& v6G
         const Value& graphs = v6GraphInfo["graphs"];
         for (SizeType i = 0; i < graphs.Size(); i++) {
             const Value& graph = graphs[i];
-            if (graph.HasMember("name") && graph["name"].IsString() && 
-                string(graph["name"].GetString()) == "npu_0") {
-                if (graph.HasMember("inputs") && graph["inputs"].IsObject()) {
-                    const Value& inputs = graph["inputs"];
-                    if (inputs.MemberCount() > 0)
+            if (graph.HasMember("name") && graph["name"].IsString() &&
+                string(graph["name"].GetString()) == "npu_0" && graph.HasMember("inputs") && graph["inputs"].IsObject()) {
+                const Value& inputs = graph["inputs"];
+                if (inputs.MemberCount() > 0)
+                {
+                    const Value& inputTensor = inputs.MemberBegin()->value;
+                    if (inputTensor.HasMember("shape") && inputTensor["shape"].IsArray()) 
                     {
-                        const Value& inputTensor = inputs.MemberBegin()->value;
-                        if (inputTensor.HasMember("shape") && inputTensor["shape"].IsArray()) {
-                            Value shape(kArrayType);
-                            const Value& inputShape = inputTensor["shape"];
-                            for (SizeType j = 0; j < inputShape.Size(); j++) {
-                                Value val;
-                                val.CopyFrom(inputShape[j], allocator);
-                                shape.PushBack(val, allocator);
-                            }
-                            return shape;
+                        Value shape(kArrayType);
+                        const Value& inputShape = inputTensor["shape"];
+                        for (SizeType j = 0; j < inputShape.Size(); j++) 
+                        {
+                            Value val;
+                            val.CopyFrom(inputShape[j], allocator);
+                            shape.PushBack(val, allocator);
                         }
+                        return shape;
                     }
                 }
             }
@@ -1135,7 +1322,7 @@ Value V6ModelParser::ExtractInputShapeFromV6Graph(const rapidjson::Document& v6G
     return defaultShape;
 }
 
-Value V6ModelParser::ExtractOutputShapeFromV6Graph(const rapidjson::Document& v6GraphInfo, const std::string& outputName, Document::AllocatorType& allocator) {
+Value V6ModelParser::ExtractOutputShapeFromV6Graph(const rapidjson::Document& v6GraphInfo, const std::string& outputName, Document::AllocatorType& allocator) const {
     // Extract output shape from V6 graph for specific output name.
     // Python equivalent:
     // shape = npu_graph["outputs"][value["name"]]["shape"]
@@ -1146,14 +1333,18 @@ Value V6ModelParser::ExtractOutputShapeFromV6Graph(const rapidjson::Document& v6
             const Value& graph = graphs[i];
             if (graph.HasMember("name") && graph["name"].IsString() && 
                 string(graph["name"].GetString()) == "npu_0") {
-                if (graph.HasMember("outputs") && graph["outputs"].IsObject()) {
+                if (graph.HasMember("outputs") && graph["outputs"].IsObject()) 
+                {
                     const Value& outputs = graph["outputs"];
-                    if (outputs.HasMember(outputName.c_str()) && outputs[outputName.c_str()].IsObject()) {
+                    if (outputs.HasMember(outputName.c_str()) && outputs[outputName.c_str()].IsObject()) 
+                    {
                         const Value& outputTensor = outputs[outputName.c_str()];
-                        if (outputTensor.HasMember("shape") && outputTensor["shape"].IsArray()) {
+                        if (outputTensor.HasMember("shape") && outputTensor["shape"].IsArray()) 
+                        {
                             Value shape(kArrayType);
                             const Value& outputShape = outputTensor["shape"];
-                            for (SizeType j = 0; j < outputShape.Size(); j++) {
+                            for (SizeType j = 0; j < outputShape.Size(); j++) 
+                            {
                                 Value val;
                                 val.CopyFrom(outputShape[j], allocator);
                                 shape.PushBack(val, allocator);
@@ -1173,17 +1364,19 @@ Value V6ModelParser::ExtractOutputShapeFromV6Graph(const rapidjson::Document& v6
     return defaultShape;
 }
 
-std::pair<std::string, std::string> V6ModelParser::ParseV6Version(const std::string& versionStr) {
+std::pair<std::string, std::string> V6ModelParser::ParseV6Version(const std::string& versionStr) const {
     // Separate version and optimization level from a V6 version string.
     // e.g., "1.0.0(opt_level)" -> {"1.0.0", "opt_level"}
 
     auto pos = versionStr.find('(');
-    if (pos != std::string::npos) {
+    if (pos != std::string::npos) 
+    {
         std::string version = versionStr.substr(0, pos);
         std::string optLevel = versionStr.substr(pos + 1);
 
         // Remove trailing ')'
-        if (!optLevel.empty() && optLevel.back() == ')') {
+        if (!optLevel.empty() && optLevel.back() == ')') 
+        {
             optLevel.pop_back();
         }
 
@@ -1193,116 +1386,70 @@ std::pair<std::string, std::string> V6ModelParser::ParseV6Version(const std::str
     return {versionStr, ""};
 }
 
-int V6ModelParser::LoadGraphInfo(deepx_graphinfo::GraphInfoDatabase& param, ModelDataBase& data) {
+int V6ModelParser::loadGraphInfo(deepx_graphinfo::GraphInfoDatabase& param, ModelDataBase& data) const {
     Document document;
     string graphInfoBuffer;
 
     for (const auto& str : data.deepx_binary.graph_info().str())
+    {
         graphInfoBuffer += str;
+    }
     document.Parse(graphInfoBuffer.c_str());
 
-    if (document.HasParseError()) {
+    if (document.HasParseError()) 
+    {
         LOG_DXRT_ERR("No graphinfo (" << document.GetParseError() << ")");
         return -1;
     }
 
     // offloading
     if (document.HasMember("offloading") && document["offloading"].IsBool())
+    {
         param._use_offloading = document["offloading"].GetBool();
-
-    if (document.HasMember("inputs") && document["inputs"].IsArray()) {
-        const rapidjson::Value& inputsArray = document["inputs"];
-        param.inputs().clear();
-        for (rapidjson::SizeType i = 0; i < inputsArray.Size(); i++) {
-            if (inputsArray[i].IsString())
-                param.inputs().push_back(inputsArray[i].GetString());
-        }
+    }
+    
+    if (document.HasMember("inputs") && document["inputs"].IsArray()) 
+    {
+        parseStringArray(document["inputs"], param.inputs());
     }
 
-    if (document.HasMember("outputs") && document["outputs"].IsArray()) {
-        const rapidjson::Value& outputsArray = document["outputs"];
-        param.outputs().clear();
-        for (rapidjson::SizeType i = 0; i < outputsArray.Size(); i++) {
-            if (outputsArray[i].IsString())
-                param.outputs().push_back(outputsArray[i].GetString());
-        }
+    if (document.HasMember("outputs") && document["outputs"].IsArray()) 
+    {
+        parseStringArray(document["outputs"], param.outputs());
     }
 
-    if (document.HasMember("toposort_order") && document["toposort_order"].IsArray()) {
-        const rapidjson::Value& orderArray = document["toposort_order"];
-        param.topoSort_order().clear();
-        for (rapidjson::SizeType i = 0; i < orderArray.Size(); i++) {
-            if (orderArray[i].IsString())
-                param.topoSort_order().push_back(orderArray[i].GetString());
-        }
+    if (document.HasMember("toposort_order") && document["toposort_order"].IsArray()) 
+    {
+        parseStringArray(document["toposort_order"], param.topoSort_order());
     }
 
-    if (document.HasMember("graphs") && document["graphs"].IsArray()) {
+    if (document.HasMember("graphs") && document["graphs"].IsArray()) 
+    {
         const rapidjson::Value& graphsArray = document["graphs"];
         param.subgraphs().clear();
-        for (rapidjson::SizeType i = 0; i < graphsArray.Size(); i++) {
+        for (rapidjson::SizeType i = 0; i < graphsArray.Size(); i++) 
+        {
             const rapidjson::Value& subGraphObj = graphsArray[i];
             deepx_graphinfo::SubGraph subGraph;
 
             if (subGraphObj.HasMember("name") && subGraphObj["name"].IsString())
+            {
                 subGraph.name() = subGraphObj["name"].GetString();
+            }
 
             if (subGraphObj.HasMember("device") && subGraphObj["device"].IsString())
+            {
                 subGraph.device() = subGraphObj["device"].GetString();
+            }
 
             if (subGraphObj.HasMember("inputs") && subGraphObj["inputs"].IsArray())
             {
-                const rapidjson::Value& tensorArray = subGraphObj["inputs"];
-                for (rapidjson::SizeType j = 0; j < tensorArray.Size(); j++)
-                {
-                    const rapidjson::Value& tensorObj = tensorArray[j];
-                    deepx_graphinfo::Tensor tensor;
-
-                    if (tensorObj.HasMember("name") && tensorObj["name"].IsString())
-                    {
-                        tensor.name() = tensorObj["name"].GetString();
-                    }
-
-                    if (tensorObj.HasMember("owner") && tensorObj["owner"].IsString())
-                    {
-                        tensor.owner() = tensorObj["owner"].GetString();
-                    }
-
-                    if (tensorObj.HasMember("users") && tensorObj["users"].IsArray())
-                    {
-                        const rapidjson::Value& usersArray = tensorObj["users"];
-                        for (rapidjson::SizeType k = 0; k < usersArray.Size(); k++) {
-                            if (usersArray[k].IsString())
-                                tensor.users().push_back(usersArray[k].GetString());
-                        }
-                    }
-
-                    subGraph.inputs().push_back(tensor);
-                }
+                parseTensorArray(subGraphObj["inputs"], subGraph.inputs());
             }
 
-            if (subGraphObj.HasMember("outputs") && subGraphObj["outputs"].IsArray()) {
-                const rapidjson::Value& tensorArray = subGraphObj["outputs"];
-                for (rapidjson::SizeType j = 0; j < tensorArray.Size(); j++) {
-                    const rapidjson::Value& tensorObj = tensorArray[j];
-                    deepx_graphinfo::Tensor tensor;
-
-                    if (tensorObj.HasMember("name") && tensorObj["name"].IsString())
-                        tensor.name() = tensorObj["name"].GetString();
-
-                    if (tensorObj.HasMember("owner") && tensorObj["owner"].IsString())
-                        tensor.owner() = tensorObj["owner"].GetString();
-
-                    if (tensorObj.HasMember("users") && tensorObj["users"].IsArray()) {
-                        const rapidjson::Value& usersArray = tensorObj["users"];
-                        for (rapidjson::SizeType k = 0; k < usersArray.Size(); k++) {
-                            if (usersArray[k].IsString())
-                                tensor.users().push_back(usersArray[k].GetString());
-                        }
-                    }
-
-                    subGraph.outputs().push_back(tensor);
-                }
+            if (subGraphObj.HasMember("outputs") && subGraphObj["outputs"].IsArray()) 
+            {
+                parseTensorArray(subGraphObj["outputs"], subGraph.outputs());
             }
 
             param.subgraphs().push_back(subGraph);
@@ -1310,16 +1457,35 @@ int V6ModelParser::LoadGraphInfo(deepx_graphinfo::GraphInfoDatabase& param, Mode
     }
 
     bool hasTailFlag = false;
-    for (auto &sg : param.subgraphs()) { if (sg.tail()) { hasTailFlag = true; break; } }
-    if (!hasTailFlag) {
+    for (auto &sg : param.subgraphs()) 
+    { 
+        if (sg.tail()) 
+        { 
+            hasTailFlag = true; 
+            break; 
+        }
+    }
+    if (!hasTailFlag) 
+    {
         std::set<std::string> modelInputs(param.inputs().begin(), param.inputs().end());
         std::set<std::string> modelOutputs(param.outputs().begin(), param.outputs().end());
-        for (auto &sg : param.subgraphs()) {
-            for (auto &t : sg.outputs()) {
-                if (modelOutputs.count(t.name()) > 0) { sg.tail() = true; break; }
+        for (auto &sg : param.subgraphs()) 
+        {
+            for (auto &t : sg.outputs()) 
+            {
+                if (modelOutputs.count(t.name()) > 0) 
+                { 
+                    sg.tail() = true; 
+                    break;
+                }
             }
-            for (auto &t : sg.inputs()) {
-                if (t.owner().empty() && modelInputs.count(t.name()) > 0) { sg.head() = true; break; }
+            for (auto &t : sg.inputs()) 
+            {
+                if (t.owner().empty() && modelInputs.count(t.name()) > 0) 
+                { 
+                    sg.head() = true; 
+                    break; 
+                }
             }
         }
     }
@@ -1327,335 +1493,35 @@ int V6ModelParser::LoadGraphInfo(deepx_graphinfo::GraphInfoDatabase& param, Mode
     return 0;
 }
 
-std::string V6ModelParser::LoadRmapInfo(deepx_rmapinfo::rmapInfoDatabase& param, ModelDataBase& data) {
+std::string V6ModelParser::loadRmapInfo(deepx_rmapinfo::rmapInfoDatabase& param, ModelDataBase& data) const 
+{
     Document document;
     string modelCompileType;
 
-    for (size_t i = 0; i < data.deepx_binary.rmap_info().size(); i++) {
+    for (size_t i = 0; i < data.deepx_binary.rmap_info().size(); i++) 
+    {
         string rmapBuffer = "";
-        for (const auto& str : data.deepx_binary.rmap_info(i).str())
+        for (const auto& str : data.deepx_binary.rmap_info(static_cast<int>(i)).str())
+        {
             rmapBuffer += str;
+        }
 
         document.Parse(rmapBuffer.c_str());
-        if (document.HasParseError()) {
+        if (document.HasParseError()) 
+        {
             throw ModelParsingException(EXCEPTION_MESSAGE("rmapinfo parsing failed"));
         }
 
         deepx_rmapinfo::RegisterInfoDatabase regMap;
-
-        // version
-        if (document.HasMember("version") && document["version"].IsObject()) {
-            const rapidjson::Value& versionObj = document["version"];
-            if (versionObj.HasMember("npu") && versionObj["npu"].IsString())
-                regMap.version().npu() = versionObj["npu"].GetString();
-            if (versionObj.HasMember("rmap") && versionObj["rmap"].IsString())
-                regMap.version().rmap() = versionObj["rmap"].GetString();
-            if (versionObj.HasMember("rmapInfo") && versionObj["rmapInfo"].IsString())
-                regMap.version().rmap_info() = versionObj["rmapInfo"].GetString();
-            if (versionObj.HasMember("opt_level") && versionObj["opt_level"].IsString())
-                regMap.version().opt_level() = versionObj["opt_level"].GetString();
-        }
-
-        // name
-        if (document.HasMember("name") && document["name"].IsString())
-            regMap.name() = document["name"].GetString();
-
-        // mode
-        if (document.HasMember("mode") && document["mode"].IsString()) {
-            modelCompileType = document["mode"].GetString();
-            regMap.mode() = modelCompileType;
-        }
-
-        // npu
-        if (document.HasMember("npu") && document["npu"].IsObject()) {
-            const rapidjson::Value& npuObj = document["npu"];
-            if (npuObj.HasMember("mac") && npuObj["mac"].IsInt64())
-                regMap.npu().mac() = npuObj["mac"].GetInt64();
-        }
-
-        // size
-        if (document.HasMember("size") && document["size"].IsInt64()) {
-            regMap.size() = document["size"].GetInt64();
-        } else {
-            regMap.size() = 0;
-        }
-
-        // counts
-        if (document.HasMember("counts") && document["counts"].IsObject()) {
-            const rapidjson::Value& countsObj = document["counts"];
-            if (countsObj.HasMember("layer") && countsObj["layer"].IsInt64())
-                regMap.counts().layer() = countsObj["layer"].GetInt64();
-            if (countsObj.HasMember("cmd") && countsObj["cmd"].IsInt64())
-                regMap.counts().cmd() = countsObj["cmd"].GetInt64();
-            if (countsObj.HasMember("checkpoints") && countsObj["checkpoints"].IsArray()) {
-                regMap.counts()._op_mode = 1;
-                const Value& listObj = countsObj["checkpoints"];
-                for (SizeType j = 0; j < MAX_CHECKPOINT_COUNT; j++) {
-                    if (j >= listObj.Size()) break;
-                    regMap.counts()._checkpoints[j] = listObj[j].GetUint64();
-                }
-            } else {
-                regMap.counts()._op_mode = 0;
-            }
-        }
-
-        // memory: List[MemoryInfo]
-        if (document.HasMember("memory") && document["memory"].IsArray()) {
-            const rapidjson::Value& memArray = document["memory"];
-            for (rapidjson::SizeType mi = 0; mi < memArray.Size(); mi++) {
-                const rapidjson::Value& memObj = memArray[mi];
-                if (memObj.HasMember("name") && memObj["name"].IsString()) {
-                    deepx_rmapinfo::Memory memory;
-                    memory.name() = memObj["name"].GetString();
-
-                    if (memObj.HasMember("offset") && memObj["offset"].IsInt64()) {
-                        memory.offset() = memObj["offset"].GetInt64();
-                        if (memory.offset() != 0 && memory.name() != "TEMP")
-                            LOG_DXRT_ERR(LogMessages::ModelParser_OutputOffsetIsNotZero());
-                    }
-
-                    if (memObj.HasMember("size") && memObj["size"].IsInt64()) {
-                        memory.size() = memObj["size"].GetInt64();
-                    }
-
-                    if (memObj.HasMember("type") && memObj["type"].IsString())
-                        memory.type() = deepx_rmapinfo::GetMemoryTypeNum(memObj["type"].GetString());
-
-                    if (memory.name() == "RMAP") {
-                        regMap.model_memory().rmap() = memory;
-                        regMap.model_memory().model_memory_size() += memory.size();
-                    }
-                    else if (memory.name() == "WEIGHT")
-                    {
-                        regMap.model_memory().weight() = memory;
-                        regMap.model_memory().model_memory_size() += memory.size();
-                    }
-                    else if (memory.name() == "INPUT")
-                    {
-                        regMap.model_memory().input() = memory;
-                        regMap.model_memory().model_memory_size() += memory.size() * _taskBufferCount; // DXRT_TASK_MAX_LOAD;
-                    }
-                    else if (memory.name() == "OUTPUT")
-                    {
-                        regMap.model_memory().output() = memory;
-                        regMap.model_memory().model_memory_size() += memory.size() * _taskBufferCount; // DXRT_TASK_MAX_LOAD;
-                    }
-                    else if (memory.name() == "TEMP")
-                    {
-                        regMap.model_memory().temp() = memory;
-                        regMap.model_memory().model_memory_size() += memory.size();
-                    }
-                }
-            }
-        }
-
-        // inputs: List[TensorInfo]
-        if (document.HasMember("inputs") && document["inputs"].IsArray()) {
-            const rapidjson::Value& tensorArray = document["inputs"];
-            regMap.inputs().clear();
-            for (rapidjson::SizeType ti = 0; ti < tensorArray.Size(); ti++) {
-                const rapidjson::Value& tensorObj = tensorArray[ti];
-                deepx_rmapinfo::TensorInfo tensor;
-
-                if (tensorObj.HasMember("name") && tensorObj["name"].IsString())\
-                {
-                    tensor.name() = tensorObj["name"].GetString();
-                }
-
-                if (tensorObj.HasMember("dtype") && tensorObj["dtype"].IsString())
-                {
-                    tensor.dtype() = deepx_rmapinfo::GetDataTypeNum(tensorObj["dtype"].GetString());
-                    tensor.elem_size() = GetDataSize_Datatype(static_cast<DataType>(tensor.dtype()));
-                }
-
-
-                if (tensorObj.HasMember("shape") && tensorObj["shape"].IsArray())
-                {
-                    const rapidjson::Value& shapeArr = tensorObj["shape"];
-                    for (rapidjson::SizeType j = 0; j < shapeArr.Size(); j++) {
-                        tensor.shape().push_back(shapeArr[j].GetInt64());
-                    }
-                }
-
-                if (tensorObj.HasMember("name_encoded") && tensorObj["name_encoded"].IsString())
-                {
-                    tensor.name_encoded() = tensorObj["name_encoded"].GetString();
-                }
-
-                if (tensorObj.HasMember("dtype_encoded") && tensorObj["dtype_encoded"].IsString())
-                {
-                    tensor.dtype_encoded() = deepx_rmapinfo::GetDataTypeNum(tensorObj["dtype_encoded"].GetString());
-                }
-
-                if (tensorObj.HasMember("shape_encoded") && tensorObj["shape_encoded"].IsArray())
-                {
-                    const rapidjson::Value& shapeArr = tensorObj["shape_encoded"];
-                    for (rapidjson::SizeType j = 0; j < shapeArr.Size(); j++) {
-                        tensor.shape_encoded().push_back(shapeArr[j].GetInt64());
-                    }
-                }
-
-                if (tensorObj.HasMember("layout") && tensorObj["layout"].IsString())
-                {
-                    tensor.layout() = deepx_rmapinfo::GetLayoutNum(tensorObj["layout"].GetString());
-                }
-
-                if (tensorObj.HasMember("align_unit") && tensorObj["align_unit"].IsInt())
-                {
-                    tensor.align_unit() = tensorObj["align_unit"].GetInt();
-                }
-
-                if (tensorObj.HasMember("transpose") && tensorObj["transpose"].IsString())
-                {
-                    tensor.transpose() = deepx_rmapinfo::GetTransposeNum(tensorObj["transpose"].GetString());
-                }
-
-                if (tensorObj.HasMember("scale") && tensorObj["scale"].IsFloat())
-                {
-                    tensor.scale() = tensorObj["scale"].GetFloat();
-                    if (tensorObj.HasMember("bias") && tensorObj["bias"].IsFloat())
-                    {
-                        tensor.bias() = tensorObj["bias"].GetFloat();
-                        tensor.use_quantization() = true;
-                    }
-                    else
-                    {
-                        tensor.use_quantization() = false;
-                    }
-                }
-
-                if (tensorObj.HasMember("memory") && tensorObj["memory"].IsObject())
-                {
-                    const rapidjson::Value& memObj = tensorObj["memory"];
-                    deepx_rmapinfo::Memory mem;
-                    if (memObj.HasMember("name") && memObj["name"].IsString())
-                        mem.name() = memObj["name"].GetString();
-                    if (memObj.HasMember("offset") && memObj["offset"].IsInt64())
-                        mem.offset() = memObj["offset"].GetInt64();
-                    if (memObj.HasMember("size") && memObj["size"].IsInt64())
-                        mem.size() = memObj["size"].GetInt64();
-                    if (memObj.HasMember("type") && memObj["type"].IsString())
-                        mem.type() = deepx_rmapinfo::GetMemoryTypeNum(memObj["type"].GetString());
-                    tensor.memory() = mem;
-                }
-
-                regMap.inputs().push_back(tensor);
-            }
-        }
-
-        // outputs: List[TensorInfo]
-        if (document.HasMember("outputs") && document["outputs"].IsArray())
-        {
-            const rapidjson::Value& tensorArray = document["outputs"];
-            regMap.outputs().clear();
-            for (rapidjson::SizeType ti = 0; ti < tensorArray.Size(); ti++)
-            {
-                const rapidjson::Value& tensorObj = tensorArray[ti];
-                deepx_rmapinfo::TensorInfo tensor;
-
-                if (tensorObj.HasMember("name") && tensorObj["name"].IsString())
-                    tensor.name() = tensorObj["name"].GetString();
-
-                if (tensorObj.HasMember("dtype") && tensorObj["dtype"].IsString()) {
-                    tensor.dtype() = deepx_rmapinfo::GetDataTypeNum(tensorObj["dtype"].GetString());
-                    tensor.elem_size() = GetDataSize_Datatype(static_cast<DataType>(tensor.dtype()));
-                }
-
-                if (tensorObj.HasMember("shape") && tensorObj["shape"].IsArray()) {
-                    const rapidjson::Value& shapeArr = tensorObj["shape"];
-                    for (rapidjson::SizeType j = 0; j < shapeArr.Size(); j++) {
-                        tensor.shape().push_back(shapeArr[j].GetInt64());
-                    }
-                }
-
-                if (tensorObj.HasMember("name_encoded") && tensorObj["name_encoded"].IsString())
-                    tensor.name_encoded() = tensorObj["name_encoded"].GetString();
-
-                if (tensorObj.HasMember("dtype_encoded") && tensorObj["dtype_encoded"].IsString())
-                    tensor.dtype_encoded() = deepx_rmapinfo::GetDataTypeNum(tensorObj["dtype_encoded"].GetString());
-
-                if (tensorObj.HasMember("align_unit") && tensorObj["align_unit"].IsInt())
-                    tensor.align_unit() = tensorObj["align_unit"].GetInt();
-
-                if (tensorObj.HasMember("shape_encoded") && tensorObj["shape_encoded"].IsArray()) {
-                    const rapidjson::Value& shapeArr = tensorObj["shape_encoded"];
-                    for (rapidjson::SizeType j = 0; j < shapeArr.Size(); j++) {
-                        int64_t value = shapeArr[j].GetInt64();
-                        if (j == shapeArr.Size() - 1)
-                        {
-                            value = GetAlign(value);
-                            if (value < 64)
-                                tensor.align_unit() = 16;
-                        }
-                        tensor.shape_encoded().push_back(value);
-                    }
-                }
-
-                if (tensorObj.HasMember("layout") && tensorObj["layout"].IsString())
-                    tensor.layout() = deepx_rmapinfo::GetLayoutNum(tensorObj["layout"].GetString());
-
-
-
-                if (tensorObj.HasMember("transpose") && tensorObj["transpose"].IsString())
-                    tensor.transpose() = deepx_rmapinfo::GetTransposeNum(tensorObj["transpose"].GetString());
-
-                if (tensorObj.HasMember("scale") && tensorObj["scale"].IsFloat()) {
-                    tensor.scale() = tensorObj["scale"].GetFloat();
-                    if (tensorObj.HasMember("bias") && tensorObj["bias"].IsFloat()) {
-                        tensor.bias() = tensorObj["bias"].GetFloat();
-                        tensor.use_quantization() = true;
-                    } else {
-                        tensor.use_quantization() = false;
-                    }
-                }
-
-                if (tensorObj.HasMember("memory") && tensorObj["memory"].IsObject()) {
-                    const rapidjson::Value& memObj = tensorObj["memory"];
-                    deepx_rmapinfo::Memory mem;
-                    if (memObj.HasMember("name") && memObj["name"].IsString())
-                        mem.name() = memObj["name"].GetString();
-                    if (memObj.HasMember("offset") && memObj["offset"].IsInt64())
-                        mem.offset() = memObj["offset"].GetInt64();
-                    if (memObj.HasMember("size") && memObj["size"].IsInt64())
-                        mem.size() = memObj["size"].GetInt64();
-                    if (memObj.HasMember("type") && memObj["type"].IsString())
-                        mem.type() = deepx_rmapinfo::GetMemoryTypeNum(memObj["type"].GetString());
-                    tensor.memory() = mem;
-                }
-
-                if (tensor.memory().type() == deepx_rmapinfo::MemoryType::PPU) {
-                    if (tensor.layout() == deepx_rmapinfo::Layout::PPU_YOLO)
-                        tensor.name() = "BBOX";
-                    else if (tensor.layout() == deepx_rmapinfo::Layout::PPU_FD)
-                        tensor.name() = "FACE";
-                    else if (tensor.layout() == deepx_rmapinfo::Layout::PPU_POSE)
-                        tensor.name() = "POSE";
-                    else
-                    {
-                        throw ModelParsingException(EXCEPTION_MESSAGE("PPU Output format is invalid"));
-                    }
-                    // PPU outputs have dynamic size: shape and shape_encoded both set to [1, -1]
-                    tensor.shape().clear();
-                    tensor.shape().push_back(1);
-                    tensor.shape().push_back(-1);
-                    tensor.shape_encoded().clear();
-                    tensor.shape_encoded().push_back(1);
-                    tensor.shape_encoded().push_back(-1);
-                    int dataType = DataType::BBOX;
-                    dataType += tensor.layout();
-                    dataType -= deepx_rmapinfo::Layout::PPU_YOLO;
-                    tensor.dtype() = dataType;
-                }
-                regMap.outputs().push_back(tensor);
-            }
-        }
-
+        parseSingleRmapInfo(document, regMap, modelCompileType, GetTaskBufferCount());
         param.rmap_info().push_back(regMap);
     }
 
-    for (size_t i = 0; i < modelCompileType.length(); i++) {
-        modelCompileType[i] = tolower(modelCompileType[i]);
+    for(char& c: modelCompileType) 
+    {
+        c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
     }
+    
     return modelCompileType;
 }
 

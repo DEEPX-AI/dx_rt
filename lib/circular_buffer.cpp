@@ -15,7 +15,7 @@
 namespace dxrt {
 template <typename T>
 CircularBuffer<T>::CircularBuffer(int size)
-: _buf(size), _size(size), _head(0), _tail(0), _count(0)
+: _buf(size), _size(size)
 {
 
 }
@@ -25,10 +25,10 @@ void CircularBuffer<T>::Push(const T& item)
 {
     std::unique_lock<std::mutex> lk(_lock);
     _buf[_head] = item;
-    _head = (_head + 1)%_size;
-    if(_count==_size)
+    _head = (_head + 1) % _size;
+    if (_count == _size)
     {
-        _tail = (_tail + 1)%_size;
+        _tail = (_tail + 1) % _size;
     }
     else
     {
@@ -40,11 +40,9 @@ template <typename T>
 T CircularBuffer<T>::Pop()
 {
     std::unique_lock<std::mutex> lk(_lock);
-    //DXRT_ASSERT(_count>0, "circular buffer is empty.");
     if ( _count <= 0 ) throw InvalidOperationException(EXCEPTION_MESSAGE("circular buffer is empty"));
-    //@no_else: input_validation
     T item = _buf[_tail];
-    _tail = (_tail +1)%_size;
+    _tail = (_tail + 1) % _size;
     --_count;
     return item;
 }
@@ -53,10 +51,8 @@ template <typename T>
 T CircularBuffer<T>::Get()
 {
     std::unique_lock<std::mutex> lk(_lock);
-    //DXRT_ASSERT(_count>0, "circular buffer is empty.");
     if ( _count <= 0 ) throw InvalidOperationException(EXCEPTION_MESSAGE("circular buffer is empty"));
-    //@no_else: input_validation
-    T item = _buf[(_head - 1 + _size)%_size];
+    T item = _buf[(_head - 1 + _size) % _size];
     return item;
 }
 
@@ -64,14 +60,14 @@ template <typename T>
 bool CircularBuffer<T>::IsEmpty()
 {
     std::unique_lock<std::mutex> lk(_lock);
-    return _count==0;
+    return _count == 0;
 }
 
 template <typename T>
 bool CircularBuffer<T>::IsFull()
 {
     std::unique_lock<std::mutex> lk(_lock);
-    return _count==_size;
+    return _count == _size;
 }
 
 template <typename T>
@@ -95,7 +91,7 @@ std::vector<T> CircularBuffer<T>::ToVector()
     std::vector<T> ret;
     ret.reserve(_count);
     int cur = _tail;
-    for(int i=0; i<_count; i++)
+    for (int i = 0; i < _count; i++)
     {
         ret.emplace_back(_buf[cur]);
         cur = (cur+1)%_size;
@@ -104,10 +100,7 @@ std::vector<T> CircularBuffer<T>::ToVector()
 }
 
 template <typename T>
-CircularBuffer<T>::~CircularBuffer()
-{
-    // LOG_DXRT << endl;
-}
+CircularBuffer<T>::~CircularBuffer() = default;
 
 template class CircularBuffer<int>;
 template class CircularBuffer<uint32_t>;

@@ -9,10 +9,11 @@
 
 #pragma once
 
+#include "dxrt/common.h"
 #include <string>
 #include <vector>
 #include <memory>
-#include "dxrt/common.h"
+#include <functional>
 #include "dxrt/tensor.h"
 #include "dxrt/model.h"
 #include "dxrt/driver.h"
@@ -23,10 +24,10 @@ namespace dxrt {
 using rmapinfo = deepx_rmapinfo::RegisterInfoDatabase;
 
 class CpuHandle;
-class DXRT_API TaskData
+class DXRT_API TaskData // NOSONAR
 {
  public:
-    TaskData(int id_, std::string name_, rmapinfo info_, int bufferCount_ = DXRT_TASK_MAX_LOAD_VALUE);
+    TaskData(int id_, const std::string& name_, const rmapinfo& info_, int bufferCount_ = DXRT_TASK_MAX_LOAD_VALUE);
 
     int id() const{return _id;}
     std::string name() const {return _name;}
@@ -45,7 +46,7 @@ class DXRT_API TaskData
     int input_size() const {return _inputSize;}
     int output_size() const {return _outputSize;}
 
-    uint32_t weightChecksum();
+    uint32_t weightChecksum() const;
 
     int encoded_input_size() const {return _encodedInputSize;}
     int encoded_output_size() const {return _encodedOutputSize;}
@@ -59,20 +60,22 @@ private:
       _outputSize = calculate_total_size(_outputDataTypes, _outputShapes);
    }
 
-   uint32_t calculate_total_size(const std::vector<DataType>& dataTypes, const std::vector<std::vector<int64_t>>& shapes) {
+   uint32_t calculate_total_size(const std::vector<DataType>& dataTypes, const std::vector<std::vector<int64_t>>& shapes) const {
       uint32_t totalSize = 0;
-      if (dataTypes.size() != shapes.size()) {
-         throw std::runtime_error("DataTypes and Shapes vectors must have the same size.");
+      if (dataTypes.size() != shapes.size()) 
+      {
+         throw std::runtime_error("DataTypes and Shapes vectors must have the same size."); // NOSONAR: Internal consistency check, dedicated exception unnecessary
       }
       for (size_t i = 0; i < dataTypes.size(); ++i) {
-            uint32_t elementCount = std::accumulate(shapes[i].begin(), shapes[i].end(), 1LL, std::multiplies<int64_t>());
+            auto elementCount = static_cast<uint32_t>(
+                std::accumulate(shapes[i].begin(), shapes[i].end(), 1LL, std::multiplies<int64_t>()));
             totalSize += elementCount * GetDataSize_Datatype(dataTypes[i]);
       }
       return totalSize;
    }
 
 
- public:  // TODO(ykpark): make private
+ public:
     int _id;
     std::string _name = "EMPTY";
     Processor _processor = Processor::NONE_PROCESSOR;
@@ -97,7 +100,6 @@ private:
     std::vector<uint64_t> _encodedInputOffsets;
     std::vector<uint64_t> _outputOffsets;
     std::vector<uint64_t> _encodedOutputOffsets;
-    //std::shared_ptr<Buffer> _taskOutputBuffer=nullptr;
 
     uint32_t _encodedInputSize = 0;
     uint32_t _encodedOutputSize = 0;

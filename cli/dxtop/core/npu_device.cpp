@@ -14,7 +14,7 @@
 #include "dxrt/device_core.h"
 namespace dxrt {
 
-NpuDevice::NpuDevice(uint8_t deviceNumber, std::shared_ptr<DeviceCore> devicePtr, DXTopIPCClient& dxtopIPCClient)
+NpuDevice::NpuDevice(uint8_t deviceNumber, std::shared_ptr<DeviceCore> devicePtr, IDataSource& dataSource)
 :_deviceNumber(deviceNumber), _devicePtr(devicePtr), _dramUsage(0)
 {
     _coreCount = CORE_COUNT;
@@ -40,7 +40,7 @@ NpuDevice::NpuDevice(uint8_t deviceNumber, std::shared_ptr<DeviceCore> devicePtr
         uint32_t temperature = _status.temperature[i];
 
         auto core = std::make_shared<dxrt::NpuCore>(i, _deviceNumber);
-        core->UpdateData(dxtopIPCClient, voltage, clock, temperature);
+        core->UpdateData(dataSource, voltage, clock, temperature);
         _cores.push_back(core);
     }
 }
@@ -61,7 +61,7 @@ void NpuDevice::UpdateDeviceInfoData()
     // std::cout << "fw version = " << _info.fw_ver << std::endl;
 }
 
-void NpuDevice::UpdateCoreData(DXTopIPCClient& dxtopIPCClient)
+void NpuDevice::UpdateCoreData(IDataSource& dataSource)
 {
     _status = _devicePtr->Status();
 
@@ -71,25 +71,20 @@ void NpuDevice::UpdateCoreData(DXTopIPCClient& dxtopIPCClient)
         uint32_t voltage = _status.voltage[core_num];
         uint32_t clock = _status.clock[core_num];
         uint32_t temperature = _status.temperature[core_num];
-        _cores[core_num]->UpdateData(dxtopIPCClient, voltage, clock, temperature);
+        _cores[core_num]->UpdateData(dataSource, voltage, clock, temperature);
     }
 }
 
-uint64_t NpuDevice::UpdateDramUsageByIPC(DXTopIPCClient& dxtopIPCClient)
+uint64_t NpuDevice::UpdateDramUsage(IDataSource& dataSource)
 {
     try
     {
-        _dramUsage = dxtopIPCClient.SendRequest(
-            dxrt::REQUEST_CODE::VIEW_USED_MEMORY,
-            _deviceNumber,
-            10
-        );
-
+        _dramUsage = dataSource.GetDramUsage(_deviceNumber);
         return _dramUsage;
     }
     catch (const std::exception& e)
     {
-        std::cerr << "[NpuDevice] IPC error while getting DRAM usage: " << e.what() << std::endl;
+        std::cerr << "[NpuDevice] Error while getting DRAM usage: " << e.what() << std::endl;
         return 0;
     }
 

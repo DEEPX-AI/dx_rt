@@ -31,8 +31,8 @@ template <typename T>
 class HandlerQueueThread
 {
 public:
-    HandlerQueueThread(std::string name_, size_t numThreads, std::function<int(const T&, int)> handler_)
-    : _name(name_), _threads(), _handler(handler_), _numThreads(numThreads) {}
+    HandlerQueueThread(const std::string& name_, size_t numThreads, std::function<int(const T&, int)> handler_)
+    : _name(name_), _handler(handler_), _numThreads(numThreads) {}
     void PushWork(const T& x);
 
     void Signal();
@@ -47,7 +47,12 @@ public:
     ~HandlerQueueThread();
     std::string name() const { return _name; }
 
-protected:
+    HandlerQueueThread(const HandlerQueueThread&) = delete;
+    HandlerQueueThread& operator=(const HandlerQueueThread&) = delete;
+    HandlerQueueThread(HandlerQueueThread&&) = delete;
+    HandlerQueueThread& operator=(HandlerQueueThread&&) = delete;
+
+private:
 
     std::string _name;
 
@@ -126,7 +131,7 @@ void HandlerQueueThread<T>::DoThread(int id)
         LOG_DXRT << "worker error " << _name << "\n";
     }catch (std::exception& e) {
         LOG_DXRT << e.what() << " std callback error " << _name << "\n";
-    } catch (...) {
+    } catch (...) { // NOSONAR: Catch-all required to prevent std::terminate in worker thread
         LOG_DXRT << "callback error unknown " << _name << "\n";
     }
     _stopCount++;
@@ -134,6 +139,7 @@ void HandlerQueueThread<T>::DoThread(int id)
 template <typename T>
 void HandlerQueueThread<T>::Start()
 {
+    std::unique_lock<std::mutex> lk(_lock);
     _threads.reserve(_numThreads);
     for (size_t i = 0; i < _numThreads; i++)
     {
@@ -177,7 +183,7 @@ void HandlerQueueThread<T>::UpdateQueueStats(int queueSize) {
 template <typename T>
 float HandlerQueueThread<T>::GetAverageLoad() {
     std::unique_lock<std::mutex> lk(_statsLock);
-    return (_checkQueueCnt.load() > 0) ? static_cast<float>(_accumulatedQueueSize.load()) / _checkQueueCnt.load() : 0.0f;
+    return (_checkQueueCnt.load() > 0) ? static_cast<float>(_accumulatedQueueSize.load()) / static_cast<float>(_checkQueueCnt.load()) : 0.0f;
 }
 
 }  // namespace dxrt

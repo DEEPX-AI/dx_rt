@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -26,7 +26,7 @@ class Logger
         };
 
     private:
-        std::atomic<Level> _level;
+        std::atomic<Level> _level {Level::LOGLEVEL_INFO};
 
     public:
         static Logger& GetInstance()
@@ -53,7 +53,7 @@ class Logger
                 std::cerr << "[ERROR] " << msg << "\n";
             }
         }
-    
+
         void Info(const std::string& msg) const
         {
             if(_level.load() >= Level::LOGLEVEL_INFO)
@@ -70,12 +70,12 @@ class Logger
             }
         }
 
-        
 
-        
+
+
 
     private:
-        Logger() : _level(Level::LOGLEVEL_INFO) {}
+        Logger() = default;
         ~Logger() = default;
 
         //forbidden copy

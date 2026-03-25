@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -20,7 +20,7 @@
 #include "../../../include/dxrt/ipc_wrapper/ipc_server.h"
 #include "ipc_mq_linux.h"
 
-namespace dxrt 
+namespace dxrt
 {
 
     class IPCMessageQueueServerLinux : public IPCServer
@@ -29,37 +29,37 @@ namespace dxrt
     private:
         IPCMessageQueueLinux _messageQueueToServer;
         IPCMessageQueueLinux _messageQueueToClient;
-        void* _usrData;
+        void* _usrData = nullptr;
         std::thread _thread;
         std::atomic<bool> _threadRunning{false};
-        std::function<int32_t(IPCClientMessage&,void*,int32_t)> _receiveCB;
+        std::function<int32_t(IPCClientMessage&,void*,int32_t)> _receiveCB = nullptr;
 
     public:
 
         IPCMessageQueueServerLinux();
-        virtual ~IPCMessageQueueServerLinux();
+        ~IPCMessageQueueServerLinux() override;
 
         // Intitialize IPC Server
         // return error code
-        virtual int32_t Initialize();
+        int32_t Initialize() override;
 
         // listen
-        virtual int32_t Listen();
+        int32_t Listen() override;
 
         // Select
-        virtual int32_t Select(int64_t& connectedFd);
+        int32_t Select(int64_t& connectedFd) override;
 
         // ReceiveFromClient
-        virtual int32_t ReceiveFromClient(IPCClientMessage& clientMessage);
+        int32_t ReceiveFromClient(IPCClientMessage& clientMessage) override;
 
         // SendToClient
-        virtual int32_t SendToClient(IPCServerMessage& serverMessage);
+        int32_t SendToClient(IPCServerMessage& serverMessage) override;
 
         // register receive message callback function
-        virtual int32_t RegisterReceiveCB(std::function<int32_t(IPCClientMessage&,void*,int32_t)> receiveCB, void* usrData);
+        int32_t RegisterReceiveCB(std::function<int32_t(IPCClientMessage&,void*,int32_t)> receiveCB, void* usrData) override;
 
         // Close
-        virtual int32_t Close();
+        int32_t Close() final;
 
         static void ThreadFunc(IPCMessageQueueServerLinux* socketServer);
     };

@@ -2,50 +2,49 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
 #include "dxrt/dxrt_api.h"
 #include "dxrt/extern/cxxopts.hpp"
 #include "../include/logger.h"
-#include "concurrent_queue.h"
+#include "../include/concurrent_queue.h"
 
 #include <string>
 #include <iostream>
 
 
-// concurrent queue is a thread-safe queue data structure 
+// concurrent queue is a thread-safe queue data structure
 // designed to be used in a multi-threaded environment
 static ConcurrentQueue<int> gJobIdQueue(32);
 
-// user thread to wait for the completion of inference 
-static int inferenceThreadFunc(dxrt::InferenceEngine& ie, int loopCount)
-{   
-    static auto& log = dxrt::Logger::GetInstance();
+// user thread to wait for the completion of inference
+static int inferenceThreadFunc(const dxrt::InferenceEngine& ie, int loopCount)
+{
+    static const auto& log = dxrt::Logger::GetInstance();
     int count = 0;
 
     while(true)
     {
-        // pop item from queue 
+        // pop item from queue
         int jobId = gJobIdQueue.pop();
 
         try
         {
             // waiting for the inference to complete by jobId
-            // ownership of the outputs is transferred to the user 
+            // ownership of the outputs is transferred to the user
             auto outputs = ie.Wait(jobId);
 
-            // post processing
-            // postProcessing(outputs);
+            // now there is no post processing
             (void)outputs;
 
             // something to do
         }
         catch (const dxrt::Exception& e)
         {
-            log.Error(std::string(e.what()) + " error-code=" + std::to_string(e.code()));
+            log.Error(std::string(e.what()) + " error-code=" + std::to_string(static_cast<int>(e.code())));
             return -1;
         }
 
@@ -125,7 +124,7 @@ int main(int argc, char* argv[])
 
             // push jobId in global queue variable
             gJobIdQueue.push(jobId);
-            
+
             log.Debug("Inference request submitted with jobId(" + std::to_string(jobId) + ")");
         } // for i
 
@@ -160,7 +159,7 @@ int main(int argc, char* argv[])
         log.Error("Exception");
         return -1;
     }
-    
+
     return 0;
 }
 

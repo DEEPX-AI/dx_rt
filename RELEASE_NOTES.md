@@ -1,5 +1,21 @@
 # RELEASE_NOTES
 
+## v3.3.0 / 2026-03-25
+
+### 1. Changed
+- Update minimum versions
+   - Driver : 1.8.0 -> 2.4.0
+   - PCIe Driver : 1.5.1 -> 2.2.0
+   - Firmware : 2.4.0 -> 2.5.2
+- Update the Python module version to match the C++ Runtime version.
+
+### 2. Fixed
+
+### 3. Added
+- Add dxtop for No Service Mode
+- Add an example that loads an entire model file into a memory buffer and performs inference directly using this memory buffer.
+- Add python InferenceEngine from numpy array
+
 ## v3.2.0 / 2025-12-23
 
 ### 1. Changed

@@ -9,15 +9,15 @@
 
 #pragma once
 
-
+#include "dxrt/common.h"
+#include "dxrt/memory.h"
 #include <map>
 #include <set>
 #include <vector>
 #include <cstdint>
-//#include <memory>
 #include <mutex>
-//#include "dxrt/common.h"
-#include "dxrt/memory.h"
+
+
 
 namespace dxrt {
 

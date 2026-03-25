@@ -38,7 +38,9 @@ class Device;
  *
  * @headerfile "dxrt/device_struct.h"
  */
-class DXRT_API DeviceStatus
+// TODO: Refactor DeviceStatus to reduce method count. Consider extracting
+//       NPU status, memory info, and formatting helpers into separate classes.
+class DXRT_API DeviceStatus // NOSONAR: Too many methods - stable as-is, refactoring deferred
 {
  public:
     static DeviceStatus GetCurrentStatus(std::shared_ptr<DeviceCore> device);
@@ -461,7 +463,7 @@ class DXRT_API DeviceStatus
     dxrt_device_status_t _status;
     dxrt_dev_info_t      _devInfo;
 
-    DeviceStatus(int id, dxrt_device_info_t info, dxrt_device_status_t status, dxrt_dev_info_t devInfo);
+    DeviceStatus(int id, const dxrt_device_info_t& info, const dxrt_device_status_t& status, const dxrt_dev_info_t& devInfo);
 };
 DXRT_API std::ostream& operator<<(std::ostream& os, const DeviceStatus& d);
 

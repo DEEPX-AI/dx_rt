@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -19,7 +19,7 @@ int main(int argc, char* argv[])
     std::string model_path;
     int loop_count;
     bool verbose;
-    
+
     auto &log = dxrt::Logger::GetInstance();
 
     cxxopts::Options options("run_sync_model", "Run synchronous model inference");
@@ -66,13 +66,13 @@ int main(int argc, char* argv[])
         // inference loop
         for(int i = 0; i < loop_count; ++i)
         {
-            
+
             // inference synchronously, use one npu core
             auto outputs = ie.Run(inputPtr.data());
 
             log.Debug("Inference outputs (" + std::to_string(i) + ")");
-            // poset processing
-            // postProcessing(outputs);
+
+            // now there is no post processing
             (void)outputs;
 
         }
@@ -106,6 +106,6 @@ int main(int argc, char* argv[])
         log.Error("Exception");
         return -1;
     }
-    
+
     return 0;
 }

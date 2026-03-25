@@ -131,7 +131,7 @@ std::string NpuDeviceFormatter::FormatCapacity(const uint64_t n)
     }
 
     char buffer[32];
-    snprintf(buffer, sizeof(buffer), "%.3g", value);
+    snprintf(buffer, sizeof(buffer), "%.2f", value);
 
     return std::string(buffer) + postfix;
 }

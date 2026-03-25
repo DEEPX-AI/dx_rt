@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -53,27 +53,21 @@ vector<int> RandomSequence(int n)
     return v;
 }
 
-#ifdef __linux__
-#define STRTOK_DEFINE strtok_r
-#elif _WIN32
-#define STRTOK_DEFINE strtok_s
-#endif
-
-vector<string> StringSplit(string s, string divid)
+vector<string> StringSplit(const std::string& s, const std::string& divid)
 {
     vector<string> v;
 
     if (!s.empty())
     {
-        char* temp = new char[s.length()+1];
-        strncpy(temp, s.c_str(), s.length()-1);
-        char* save_pointer = nullptr;
-        char* c = STRTOK_DEFINE(temp, divid.c_str(), &save_pointer);
-        while (c) {
-            v.push_back(c);
-            c = STRTOK_DEFINE(NULL, divid.c_str(), &save_pointer);
+        size_t start = 0;
+        size_t end = s.find(divid);
+        while (end != std::string::npos)
+        {
+            v.emplace_back(s.substr(start, end - start));
+            start = end + divid.length();
+            end = s.find(divid, start);
         }
-        delete[] temp;
+        v.emplace_back(s.substr(start, end));
     }
     else
     {
@@ -158,57 +152,66 @@ int GetDataSize_Datatype(DataType dType)
     return size;
 }
 
-int DataFromFile(string f, void *d)
+int DataFromFile(const std::string& f, void *d)
 {
     LOG_DXRT_DBG << f << " -> " << d << endl;
     std::ifstream in(f, std::ifstream::binary);
     if (in)
     {
         in.clear();
-        in.seekg(0, in.end);
+        in.seekg(0, std::ifstream::end);
         unsigned int size = static_cast<int>(in.tellg());
-        in.seekg(0, in.beg);
+        in.seekg(0, std::ifstream::beg);
         in.read(static_cast<char*>(d), size);
         in.close();
         return size;
     }
     return 0;
 }
-void DataFromFile(string f, void *d, unsigned int size)
+void DataFromFile(const std::string& f, void *d, unsigned int size)
 {
     FILE *fp;
     fp = fopen(f.c_str(), "rb");
+    if (fp == nullptr)
+    {
+        LOG_DXRT << "Failed to open file: " << f << endl;
+        return;
+    }
     std::ignore = fread(d, size, 1, fp);
     fclose(fp);
 }
-uint32_t SizeFromFile(string f)
+uint32_t SizeFromFile(const std::string& f)
 {
     std::ifstream in(f, std::ifstream::binary);
     uint32_t size = 0;
     if (in)
     {
-        in.seekg(0, in.end);
+        in.seekg(0, std::ifstream::end);
         size = static_cast<int>(in.tellg());
         in.close();
     }
     return size;
 }
-void DataDumpBin(string filename, void *data, unsigned int size)
+void DataDumpBin(const std::string& filename, void *data, unsigned int size)
 {
     FILE *fp;
     fp = fopen(filename.c_str(), "wb");
+    if (fp == nullptr)
+    {
+        LOG_DXRT << "Failed to open file: " << filename << endl;
+        return;
+    }
     fwrite(data, size, 1, fp);
     fclose(fp);
 }
-vector<string> GetFileList(string dir)
+vector<string> GetFileList(const std::string& dir)
 {
     vector<string> v;
 #ifdef __linux__
     DIR* p = opendir(dir.c_str());
     struct dirent* dp;
-    while ((dp = readdir(p)) != NULL)
+    while ((dp = readdir(p)) != nullptr)
     {
-        // cout << dp->d_name << "===" << endl;
         if (strcmp(dp->d_name, ".") != 0 && strcmp(dp->d_name, "..") != 0)
             v.emplace_back(dp->d_name);
     }
@@ -256,7 +259,7 @@ uint64_t GetAlign(uint64_t size)
 }
 uint64_t GetAlign(uint64_t size, int align)
 {
-    if (align <= 0) 
+    if (align <= 0)
         return GetAlign(size);
     int remainder = size % align;
     if (remainder != 0) {
@@ -272,8 +275,6 @@ int DataComparePpu(T* d1, T* d2, int size)
     if (size < 32) return 0;
     for (int i = 0; i < (size / static_cast<int>(sizeof(T))); i++)
     {
-        // cout << i << ", " << d1[i].score << ", " << d1[i].x << ", " << d1[i].y << ", " << d1[i].w << ", " << d1[i].h << endl;
-        // cout << i << ", " << d2[i].score << ", " << d2[i].x << ", " << d2[i].y << ", " << d2[i].w << ", " << d2[i].h << endl;
         if (memcmp(&d1[i], &d2[i], sizeof(T)) != 0)
         {
             if (i == 0)
@@ -292,20 +293,12 @@ int DataComparePpu(T* d1, T* d2, int size)
     }
     return ret;
 }
-int(*compareBoundingBox)(DeviceBoundingBox_t*, DeviceBoundingBox_t*, int) = DataComparePpu<DeviceBoundingBox_t>;
-int(*compareFace)(DeviceFace_t*, DeviceFace_t*, int) = DataComparePpu<DeviceFace_t>;
-int(*comparePose)(DevicePose_t*, DevicePose_t*, int) = DataComparePpu<DevicePose_t>;
-int(*comparePpuDataFunctions[])(void*, void*, int)  = {
-    reinterpret_cast<int(*)(void*, void*, int)>(compareBoundingBox),
-    reinterpret_cast<int(*)(void*, void*, int)>(compareFace),
-    reinterpret_cast<int(*)(void*, void*, int)>(comparePose),
-};
 
 void* MemAlloc(size_t size, size_t align, int value)
 {
-    void *mem = NULL;
+    void *mem = nullptr;
 #ifdef __linux__
-    int rc = posix_memalign(reinterpret_cast<void**>(&mem), align, size);
+    int rc = posix_memalign(&mem, align, size);
     if (rc == EINVAL)
     {
         cout << "Error: posix_memalign returned EINVAL." << endl;
@@ -363,10 +356,10 @@ std::ostream& operator<<(std::ostream& os, const Processor& processor)
 {
     switch (processor)
     {
-        case NPU:
+        case Processor::NPU:
             os << "NPU";
             break;
-        case CPU:
+        case Processor::CPU:
             os << "CPU";
             break;
         default:
@@ -376,17 +369,13 @@ std::ostream& operator<<(std::ostream& os, const Processor& processor)
     return os;
 }
 
-void DisplayCountdown(int seconds, string str)
+void DisplayCountdown(int seconds, const std::string& str)
 {
-    cout.sync_with_stdio(false);
+    std::ostream::sync_with_stdio(false);
     while (seconds > 0) {
         cout << "\r" << str << "(" << seconds << " seconds remaining) " << std::flush;
+        // uses common method to sleep for 1 second
         std::this_thread::sleep_for(std::chrono::seconds(1));
-//#ifdef __linux__
-//        sleep(1);
-//#elif _WIN32
-//        Sleep(1);
-//#endif
         --seconds;
     }
     cout << endl;

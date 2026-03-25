@@ -38,25 +38,18 @@ class DXRT_API DeviceCore {
 
     int Process(dxrt_cmd_t cmd, void *data, uint32_t size = 0, uint32_t sub_cmd = 0, uint64_t address = 0);
     int Poll();
-    int Write(dxrt_meminfo_t &, int ch);
-    int Write(dxrt_meminfo_t &);
-    int WriteData(void *data, size_t len) { return _adapter->Write(data, len); }
-    int Read(dxrt_meminfo_t &);
-    int Read(dxrt_meminfo_t &, int ch, bool ctrlCmd = true);
+    int Write(const dxrt_meminfo_t &, int ch);
+    int Write(const dxrt_meminfo_t &);
+    int WriteData(const void *data, size_t len) { return _adapter->Write(data, static_cast<uint32_t>(len)); }
+    int Read(const dxrt_meminfo_t &);
+    int Read(const dxrt_meminfo_t &, int ch, bool ctrlCmd = true);
     int ReadDriverData(void *ptr, uint32_t size);
     int Wait();
     void Identify(int id_, uint32_t subCmd = 0);
 
     void Reset(int opt);
 
-    /* this must be moved to CLI itself
-    int UpdateFw(std::string fwFile, int subCmd = 0);
-    int UploadFw(std::string fwFile, int subCmd = 0);
-
-    uint32_t UploadModel(std::string filePath, uint64_t base_addr);
-    */
-
-    int UpdateFwConfig(std::string jsonFile);
+    int UpdateFwConfig(const std::string& jsonFile);
     void DoCustomCommand(void *data, uint32_t subCmd, uint32_t size = 0);
 
     void StartDev(uint32_t option);
@@ -77,19 +70,20 @@ class DXRT_API DeviceCore {
     void* CreateMemoryMap();
     void CheckVersion();
 
-    int GetReadChannel();
-    int GetWriteChannel();
+    int GetReadChannel() const;
+    int GetWriteChannel() const;
+    void Close();
 
  private:
-   int _id;
-   std::unique_ptr<DriverAdapter> _adapter;
-   std::string _name;
-   dxrt_device_info_t _info;
-   dxrt_device_status_t _status;
-   dxrt_dev_info_t _devInfo;
-   std::atomic<int> _readChannel{0};
-   std::atomic<int> _writeChannel{0};
-   std::atomic<bool> _isBlocked{false};
+    int _id;
+    std::unique_ptr<DriverAdapter> _adapter;
+    std::string _name = "";
+    dxrt_device_info_t _info = {};
+    dxrt_device_status_t _status = {};
+    dxrt_dev_info_t _devInfo = {};
+    std::atomic<int> _readChannel{0};
+    std::atomic<int> _writeChannel{0};
+    std::atomic<bool> _isBlocked{false};
 };
 
 } // namespace dxrt

@@ -36,31 +36,31 @@ class Device {
     int Process(dxrt_cmd_t, void*, uint32_t size = 0, uint32_t sub_cmd = 0, uint64_t address = 0);
 
     void Terminate();
-    void Reset(int opt);
+    void Reset(int opt) const;
 
     int UpdateFw(std::string fwFile, int subCmd = 0);
     int UploadFw(std::string fwFile, int subCmd = 0);
     int UpdateFwConfig(std::string jsonFile);
     uint32_t UploadModel(std::string filePath, uint64_t base_addr);
-    void DoCustomCommand(void* data, uint32_t subCmd, uint32_t size = 0);
+    void DoCustomCommand(void* data, uint32_t subCmd, uint32_t size = 0) const;
     std::shared_ptr<FwLog> GetFwLog();
 
     dxrt_model_t npu_model(int taskId);
     friend DXRT_API std::ostream& operator<<(std::ostream&, const Device&);
 
-    DeviceType getDeviceType();
+    DeviceType getDeviceType() const;
 
     void DoPcieCommand(void* data, uint32_t subCmd, uint32_t size);
     void ShowPCIEDetails(std::ostream& os);
     void ShowPCIEDetails();
-    DeviceStatus GetCurrentStatus();
+    DeviceStatus GetCurrentStatus() const;
 
  private:
     int _id;
-    std::shared_ptr<DeviceCore> GetCore();
-    std::shared_ptr<DeviceTaskLayer> GetTaskLayer();
+    std::shared_ptr<DeviceCore> GetCore() const;
+    std::shared_ptr<DeviceTaskLayer> GetTaskLayer() const;
 };
-
+[[deprecated("Use DevicePool instead")]]
 std::vector<std::shared_ptr<Device>>& CheckDevices();
 
 } // namespace dxrt

@@ -109,12 +109,13 @@ int ipc_callBack(const IPCServerMessage& outResponseServerMessage, void* usrData
     (void)usrData;
 
     LOG_DXRT_I_DBG << "callback " << outResponseServerMessage.code << endl;
-    // int deviceId = outResponseServerMessage.deviceId;
+
 #ifdef USE_SERVICE
     switch (outResponseServerMessage.code)
     {
     case RESPONSE_CODE::CONFIRM_MEMORY_ALLOCATION:
     case RESPONSE_CODE::CONFIRM_MEMORY_ALLOCATION_AND_TRANSFER_MODEL:
+    case RESPONSE_CODE::TASK_INIT_SUCCESS:
         return 234;
 
     case RESPONSE_CODE::CONFIRM_MEMORY_FREE:
@@ -134,6 +135,7 @@ int ipc_callBack(const IPCServerMessage& outResponseServerMessage, void* usrData
         }
     }
     break;
+
     case RESPONSE_CODE::ERROR_REPORT: {
         auto taskLayer = getDeviceTaskLayerSafe(outResponseServerMessage.deviceId);
         if (taskLayer)

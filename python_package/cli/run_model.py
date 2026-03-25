@@ -17,6 +17,8 @@ from enum import Enum
 from typing import List, Union, Any, Optional, Dict, Callable
 import sys
 
+OUTPUT_BIN = "output.bin"
+
 try:
     from dx_engine import InferenceEngine, InferenceOption, Configuration, RuntimeEventDispatcher
 except ImportError:
@@ -46,9 +48,10 @@ callback_completed_count = 0
 callback_sync_lock = threading.Lock()
 
 
-def print_inf_result(input_file: str, output_file: str, model_file: str,
+# Renamed fps to fps_val, mode to current_mode 
+def print_inf_result(input_file: str, output_file: str, # NOSONAR
                      latency_ms: float, inf_time_ms: float, fps_val: float,
-                     loops: int, current_mode: RunModelMode, verbose: bool): # Renamed fps to fps_val, mode to current_mode
+                     loops: int, current_mode: RunModelMode, verbose: bool):
     lines = []
     if os.environ.get("DXRT_SHOW_PROFILE")=='1':
         verbose=True
@@ -131,7 +134,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(prog="run_model.py", description=APP_NAME, formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("-m", "--model", type=str, required=True, help="Model file (.dxnn)")
     parser.add_argument("-i", "--input", type=str, default="", help=argparse.SUPPRESS)
-    parser.add_argument("-o", "--output", type=str, default="output.bin", help=argparse.SUPPRESS)
+    parser.add_argument("-o", "--output", type=str, default=OUTPUT_BIN, help=argparse.SUPPRESS)
     parser.add_argument("-b", "--benchmark", action="store_true", default=False, help="Perform a benchmark test (Maximum throughput)\n(This is the default mode,\n if --single or --fps > 0 are not specified)")
     parser.add_argument("-s", "--single", action="store_true", default=False, help="Perform a single run test\n(Sequential single-input inference on a single-core)")
     parser.add_argument("-v", "--verbose", action="store_true", default=False, help="Shows NPU Processing Time and Latency")
@@ -151,6 +154,12 @@ def parse_arguments():
     parser.add_argument("--skip-io", action="store_true", default=False, help="Attempt to skip Inference I/O (Benchmark mode only)")
     parser.add_argument("--use-ort", action="store_true", default=False, help="Enable ONNX Runtime for CPU tasks in the model graph\nIf disabled, only NPU tasks operate")
     parser.add_argument("--profiler", action="store_true", default=False, help="Enable profiler")
+    # Acceleration options (only available when compiled with acceleration support)
+    from dx_engine.configuration import _NFH_ACCEL_AVAILABLE, _CPU_ACCEL_AVAILABLE
+    if _NFH_ACCEL_AVAILABLE:
+        parser.add_argument("--accel-nfh", action="store_true", default=False, help="Enable NFH (transpose) acceleration")
+    if _CPU_ACCEL_AVAILABLE:
+        parser.add_argument("--accel-cpu", action="store_true", default=False, help="Enable CPU op acceleration (OpenVINO/XNNPACK)")
     parser.add_argument("--buffer-count", type=int, default=InferenceOption.DXRT_TASK_MAX_LOAD_DEFAULT, 
                         help=f"Number of input/output buffers, count's range is 1~{InferenceOption.DXRT_TASK_MAX_LOAD_LIMIT}")
     
@@ -180,7 +189,7 @@ def dispatch_event_handler(level: RuntimeEventDispatcher.LEVEL,
         global critical_error
         critical_error = True
 
-def main():
+def main(): # NOSONAR
     global current_run_mode, callback_completed_count
 
     args = parse_arguments()
@@ -200,6 +209,14 @@ def main():
         print("[INFO] Profiler is enabled.")
     else:
         configuration.set_enable(Configuration.ITEM.PROFILER, False)
+
+    # Acceleration options
+    if getattr(args, 'accel_nfh', False):
+        configuration.set_enable(Configuration.ITEM.NFH_ACCELERATION, True)
+        print("[INFO] NFH acceleration is enabled.")
+    if getattr(args, 'accel_cpu', False):
+        configuration.set_enable(Configuration.ITEM.CPU_OP_ACCELERATION, True)
+        print("[INFO] CPU op acceleration is enabled.")
 
     print(f"Model file: {args.model}")
     # Disable until DX_SIM is supported
@@ -307,8 +324,13 @@ def main():
             with open(args.input, "rb") as f:
                 input_buf_list = [np.frombuffer(f.read(), dtype=np.uint8)]
         else:
-            input_buf_list = [np.zeros(ie.get_input_size(), dtype=np.uint8)]
-        input_buf_list = [np.zeros(ie.get_input_size(), dtype=np.uint8)]
+            # NOTE: np.zeros() uses COW zero pages — all virtual pages share one
+            # physical page. PCIe DMA driver's get_user_pages() then sees duplicate
+            # physical pages in the SG list and fails with EFAULT.
+            # np.empty() + explicit fill forces unique physical page allocation.
+            buf = np.empty(ie.get_input_size(), dtype=np.uint8)
+            buf.fill(0)
+            input_buf_list = [buf]
 
 
         # Perform warmup runs if specified
@@ -343,13 +365,15 @@ def main():
                     with open(args.output, "wb") as f: 
                         f.write(outputs[0].tobytes())
                 
-                print_inf_result(args.input, args.output, args.model,
+                
+
+                print_inf_result(args.input, args.output,
                                  current_latency_us / 1000.0,
                                  current_npu_time_us / 1000.0,
                                  loop_fps,
                                  1, 
                                  current_run_mode, args.verbose)
-                print_inf_result("", "output.bin", args.model,
+                print_inf_result("", OUTPUT_BIN,
                                  current_latency_us / 1000.0,
                                  current_npu_time_us / 1000.0,
                                  loop_fps,
@@ -415,11 +439,11 @@ def main():
             npu_time_mean_ms = ie.get_npu_inference_time_mean() / 1000.0
 
             # Disable until DX_SIM is supported
-            print_inf_result(args.input, args.output, args.model,
+            print_inf_result(args.input, args.output,
                              latency_mean_ms, npu_time_mean_ms, actual_fps,
                              args.loops, current_run_mode, args.verbose)
 
-            print_inf_result("", "output.bin", args.model,
+            print_inf_result("", OUTPUT_BIN,
                              latency_mean_ms, npu_time_mean_ms, actual_fps,
                              args.loops, current_run_mode, args.verbose)
 
@@ -436,11 +460,11 @@ def main():
             npu_time_mean_ms = ie.get_npu_inference_time_mean() / 1000.0
 
             # Disable until DX_SIM is supported
-            print_inf_result(args.input, args.output, args.model,
+            print_inf_result(args.input, args.output,
                              latency_mean_ms, npu_time_mean_ms, measured_fps,
                              args.loops, current_run_mode, args.verbose)
 
-            print_inf_result("", "output.bin", args.model,
+            print_inf_result("", "output.bin",
                              latency_mean_ms, npu_time_mean_ms, measured_fps,
                              args.loops, current_run_mode, args.verbose)
             

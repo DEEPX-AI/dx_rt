@@ -11,9 +11,6 @@
 #include <map>
 #include <iostream>
 #include "dxrt/common.h"
-//#include "dxrt/ipc_wrapper/ipc_message.h"
-//#include "dxrt/ipc_wrapper/ipc_server_wrapper.h"
-//#include "dxrt/ipc_wrapper/ipc_server.h"
 #include "dxrt/memory.h"
 #include "dxrt/device.h"
 #include "memory_service.hpp"
@@ -162,7 +159,9 @@ void MemoryService::DeallocateAll(pid_t pid)
     if (taskIt != _taskAllocInfo.end()) {
         for (const auto& taskPair : taskIt->second) {
             int taskId = taskPair.first;
-            for (auto addr : taskPair.second) {
+            std::ignore = taskId;
+            for (auto addr : taskPair.second)
+            {
                 _mem->Deallocate(addr);
                 LOG_DXRT_S_DBG << hex << addr << dec << " is deallocated for Task " << taskId
                                << ", PID:" << pid << " (cleanup)" << endl;
@@ -186,9 +185,9 @@ void MemoryService::DeallocateAll(pid_t pid)
 
 void MemoryService::DeallocateAllDevice(pid_t pid)
 {
-    for (size_t i = 0; i < _instances.size(); i++)
+    for (auto& instance : _instances)
     {
-        _instances[i]->DeallocateAll(pid);
+        instance->DeallocateAll(pid);
     }
 }
 
@@ -388,6 +387,7 @@ void MemoryService::DeallocateAllTasks(pid_t pid)
     for (const auto& taskPair : pidIt->second)
     {
         int taskId = taskPair.first;
+        std::ignore = taskId;
         for (auto addr : taskPair.second)
         {
             _mem->Deallocate(addr);
@@ -469,8 +469,9 @@ bool MemoryService::DeallocateAllForProcess(pid_t pid)
     auto taskIt = _taskAllocInfo.find(pid);
     if (taskIt != _taskAllocInfo.end()) {
         taskMemoryFound = true;
-        for (auto& taskPair : taskIt->second) {
+        for (const auto& taskPair : taskIt->second) {
             int taskId = taskPair.first;
+            std::ignore = taskId;
             for (auto addr : taskPair.second) {
                 _mem->Deallocate(addr);
                 LOG_DXRT_S_DBG << hex << addr << dec << " is deallocated for Task " << taskId

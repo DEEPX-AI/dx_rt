@@ -39,7 +39,7 @@ TaskNpuMemoryCacheManager::~TaskNpuMemoryCacheManager()
     _cv.notify_all();
 }
 
-int64_t TaskNpuMemoryCacheManager::getOffset()
+int64_t TaskNpuMemoryCacheManager::getOffset() const
 {
     return _npuMemoryCacheOffset;
 }
@@ -123,7 +123,7 @@ void NpuMemoryCacheManager::returnNpuMemoryCache(int taskId, int64_t addr)
     auto it = _taskNpuMemoryCaches.find(taskId);
     if (it != _taskNpuMemoryCaches.end())
     {
-        return it->second->returnNpuMemoryCache(addr);
+        it->second->returnNpuMemoryCache(addr);
     }
 }
 

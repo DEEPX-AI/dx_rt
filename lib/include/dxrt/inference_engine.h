@@ -13,7 +13,7 @@
 
 #include <string>
 #include <iostream>
-// #include <fstream>
+
 #include <cassert>
 #include <map>
 #include <memory>
@@ -24,10 +24,10 @@
 
 
 #include "dxrt/model.h"
-// #include "dxrt/inference_option.h"
+
 #include "dxrt/tensor.h"
 #include "dxrt/inference_option.h"
-// #include "dxrt/testdata.h"
+
 #include "dxrt/inference_job.h"
 #include "dxrt/inference_timer.h"
 
@@ -68,13 +68,13 @@ struct TimePoint;
  * @endcode
  * @headerfile "dxrt/dxrt_api.h"
 */
-class DXRT_API InferenceEngine
+class DXRT_API InferenceEngine // NOSONAR: Too many fields - stable as-is, refactoring deferred
+
 {
     // static
  public:
         static constexpr int INFERENCE_JOB_MAX_COUNT = 1024;  // max job count
 
- public:
     /** @brief Loads a model from the specified path and configures the NPU to run it.
      * @param[in] modelPath The file path to the compiled model (e.g., model.dxnn).
      * @param[in] option A reference to an InferenceOption object to configure devices and NPU cores.
@@ -245,18 +245,27 @@ class DXRT_API InferenceEngine
      * @param userArg userArg given by Run();
      */
     [[deprecated("Use RegisterCallback() instead")]]
-    void RegisterCallBack(std::function<int(TensorPtrs& outputs, void* userArg)> callbackFunc) { return RegisterCallback(callbackFunc); }
+    void RegisterCallBack(const std::function<int(TensorPtrs& outputs, void* userArg)>& callbackFunc) { return RegisterCallback(callbackFunc); }
 
     /** @brief Registers a user-defined callback function that will be executed upon completion of an asynchronous inference request.
      * @param[in] callbackFunc The function to be called. It receives the output tensors and the user-provided argument.
      */
     void RegisterCallback(std::function<int(TensorPtrs& outputs, void* userArg)> callbackFunc);
 
+#ifdef USE_VNPU
+    /** @brief Registers a callback function that will be executed when NPU task completes and user input buffer can be released.
+     * @details This callback is invoked immediately after NPU task finishes, allowing early release of user input buffer
+     *          before CPU post-processing completes. This is useful for optimizing memory usage in pipelined scenarios.
+     * @param[in] callbackFunc The function to be called. It receives the user argument and job ID.
+     * @note This callback is only invoked for NPU tasks. For CPU-only models, it will not be called.
+     */
+    void RegisterUserInputReleaseCallback(std::function<void(void* userArg, int jobId)> callbackFunc);
+#endif  // USE_VNPU
     /** @brief Blocks execution and waits until the asynchronous request identified by jobId is complete.
      * @param[in] jobId The job ID returned from a RunAsync call.
      * @return A TensorPtrs object containing the output from the completed job.
      */
-    TensorPtrs Wait(int jobId);
+    TensorPtrs Wait(int jobId) const;
 
     /**
      *  @deprecated Use GetInputs() instead.
@@ -267,14 +276,14 @@ class DXRT_API InferenceEngine
      *  @return if ptr and phyAddr is given, inputs tensors that contains output addresses
      */
     [[deprecated("Use GetInputs() instead")]]
-    Tensors inputs(void *ptr = nullptr, uint64_t phyAddr = 0) { return GetInputs(ptr, phyAddr); }
+    Tensors inputs(void *ptr = nullptr, uint64_t phyAddr = 0) const { return GetInputs(ptr, phyAddr); }
 
     /** @brief Retrieves the input tensors for the model. If ptr is null, it returns information about the input memory area within the engine. If ptr and phyAddr are provided, it returns tensor objects pointing to those addresses.
      *  @param[in] ptr An optional pointer to a virtual address for the input data.
      *  @param[in] phyAddr An optional pointer to a physical address for the input data.
      *  @return A Tensors (vector of Tensor) object.
      */
-    Tensors GetInputs(void *ptr = nullptr, uint64_t phyAddr = 0);
+    Tensors GetInputs(void *ptr = nullptr, uint64_t phyAddr = 0) const;
 
     /**
      *  @deprecated Use GetInputs() instead.
@@ -283,13 +292,13 @@ class DXRT_API InferenceEngine
      *  @return vector of input tensors
      */
     [[deprecated("Use GetInputs() instead")]]
-    std::vector<Tensors> inputs(int devId) { return GetInputs(devId); }
+    std::vector<Tensors> inputs(int devId) const { return GetInputs(devId); }
 
     /** @brief Retrieves the input tensors for a specific device ID.
      *  @param[in] devId The ID of the device.
      *  @return A vector of Tensors objects.
      */
-    std::vector<Tensors> GetInputs(int devId);
+    std::vector<Tensors> GetInputs(int devId) const;
 
     /**
      *  @deprecated Use GetOutputs() instead.
@@ -300,14 +309,14 @@ class DXRT_API InferenceEngine
      *  @return if ptr and phyAddr is given, outputs tensors that contains output addresses
      */
     [[deprecated("Use GetOutputs() instead")]]
-    Tensors outputs(void *ptr = nullptr, uint64_t phyAddr = 0) { return GetOutputs(ptr, phyAddr); }
+    Tensors outputs(void *ptr = nullptr, uint64_t phyAddr = 0) const { return GetOutputs(ptr, phyAddr); }
 
     /** @brief Retrieves the output tensors. If ptr is null, it returns information about the output memory area within the engine. If ptr and phyAddr are provided, it returns tensor objects pointing to those addresses.
      *  @param[in] ptr An optional pointer to a virtual address for the output data.
      *  @param[in] phyAddr An optional pointer to a physical address for the output data.
      *  @return A Tensors (vector of Tensor) object.
      */
-    Tensors GetOutputs(void *ptr = nullptr, uint64_t phyAddr = 0);
+    Tensors GetOutputs(void *ptr = nullptr, uint64_t phyAddr = 0) const;
 
     /**
      * @deprecated Use GetInputSize() instead.
@@ -336,7 +345,7 @@ class DXRT_API InferenceEngine
      *         Actual sizes for dynamic tensors are available after inference execution.
      * @warning Dynamic shape tensors will return 0 and log a warning message.
      */
-    std::vector<uint64_t> GetOutputTensorSizes();
+    std::vector<uint64_t> GetOutputTensorSizes() const;
 
     /**
      * @deprecated Use GetOutputSize() instead.
@@ -344,7 +353,7 @@ class DXRT_API InferenceEngine
      * @return Output size of one inference in bytes
      */
     [[deprecated("Use GetOutputSize() instead")]]
-    uint64_t output_size() { return GetOutputSize(); }
+    uint64_t output_size() const { return GetOutputSize(); }
 
     /**
      * @brief Gets the total size of all output tensors combined in bytes.
@@ -354,7 +363,7 @@ class DXRT_API InferenceEngine
      * @warning For dynamic shape models, this method returns 0 and logs a warning.
      *          Do not use the return value for memory allocation in such cases.
      */
-    uint64_t GetOutputSize();
+    uint64_t GetOutputSize() const;
 
      /**
      * @deprecated Use GetModelName() instead.
@@ -362,13 +371,13 @@ class DXRT_API InferenceEngine
      * @return model name
      */
     [[deprecated("Use GetModelName() instead")]]
-    std::string name() { return GetModelName(); }
+    std::string name() const { return GetModelName(); }
 
     /**
      * @brief Gets the name of the model.
      * @return The model name as a std::string.
      */
-    std::string GetModelName();
+    std::string GetModelName() const;
 
     /**
      * @deprecated Use GetTaskOrder() instead.
@@ -376,13 +385,13 @@ class DXRT_API InferenceEngine
      * @return task order
      */
     [[deprecated("Use GetTaskOrder() instead")]]
-    std::vector<std::string> task_order() { return GetTaskOrder(); }
+    std::vector<std::string> task_order() const { return GetTaskOrder(); }
 
     /**
      * @brief Gets the model's task execution order.
      * @return A vector of strings representing the task order.
      */
-    std::vector<std::string> GetTaskOrder();
+    std::vector<std::string> GetTaskOrder() const;
 
     /**
      * @deprecated Use GetLatency() instead.
@@ -423,32 +432,32 @@ class DXRT_API InferenceEngine
     /** @brief Gets the mean (average) of all collected latency values.
      * @return The mean latency in microseconds.
      */
-    double GetLatencyMean();
+    double GetLatencyMean() const;
 
     /** @brief Gets the mean (average) of all collected NPU inference times.
      * @return The mean NPU inference time in microseconds.
      */
-    double GetNpuInferenceTimeMean();
+    double GetNpuInferenceTimeMean() const;
 
     /** @brief Gets the standard deviation of all collected latency values.
      * @return The standard deviation of latency.
      */
-    double GetLatencyStdDev();
+    double GetLatencyStdDev() const;
 
     /** @brief Gets the standard deviation of all collected NPU inference times.
      * @return The standard deviation of NPU inference time.
      */
-    double GetNpuInferenceTimeStdDev();
+    double GetNpuInferenceTimeStdDev() const;
 
     /** @brief Gets the total count of latency measurements recorded.
      * @return The number of latency measurements.
      */
-    int GetLatencyCnt();
+    int GetLatencyCnt() const;
 
     /** @brief Gets the total count of NPU inference time measurements recorded.
      * @return The number of measurements.
      */
-    int GetNpuInferenceTimeCnt();
+    int GetNpuInferenceTimeCnt() const;
 
     /**
      *  @deprecated Use GetAllTaskOutputs() instead.
@@ -491,13 +500,13 @@ class DXRT_API InferenceEngine
      * This function provides the count of such tail tasks.
      */
     [[deprecated("Use GetNumTailTasks() instead")]]
-    int get_num_tails() { return GetNumTailTasks(); }
+    int get_num_tails() const { return GetNumTailTasks(); }
 
     /**
      * @brief Returns the number of "tail" tasks in the model, which are tasks that have no subsequent tasks.
      * @return The number of tail tasks.
      */
-    int GetNumTailTasks();
+    int GetNumTailTasks() const;
 
     /**
      * @deprecated Use GetCompileType() instead.
@@ -505,19 +514,19 @@ class DXRT_API InferenceEngine
      * @return The compile type of the model.
      */
     [[deprecated("Use GetCompileType() instead")]]
-    std::string get_compile_type() { return GetCompileType(); }
+    std::string get_compile_type() const { return GetCompileType(); }
 
     /**
      * @brief Returns the compile type of the loaded model.
      * @return The compile type as a std::string.
      */
-    std::string GetCompileType();
+    std::string GetCompileType() const;
 
     /**
      * @brief Returns the DXNN file format version of the loaded model.
      * @return The model version string.
      */
-    std::string GetModelVersion();
+    std::string GetModelVersion() const;
 
     /**
      * @deprecated Use IsPPU() instead.
@@ -525,25 +534,25 @@ class DXRT_API InferenceEngine
      * @return whether the model is using PPU.
      */
     [[deprecated("Use IsPPU() instead")]]
-    bool is_PPU() { return IsPPU(); }
+    bool is_PPU() const { return IsPPU(); }
 
     /**
      * @brief Checks if the loaded model utilizes a Post-Processing Unit (PPU).
      * @return true if the model uses a PPU, false otherwise.
      */
-    bool IsPPU();
+    bool IsPPU() const;
 
     /**
      * @brief Checks whether any output tensor has dynamic shape.
      * @return true if at least one output tensor has dynamic shape, false otherwise.
      */
-    bool HasDynamicOutput();
+    bool HasDynamicOutput() const;
 
     /**
      * @brief Checks whether ONNX Runtime (ORT) is configured and available for use.
      * @return true if ORT is configured, false otherwise.
      */
-    bool IsOrtConfigured();
+    bool IsOrtConfigured() const;
 
     /**
      * @brief Checks if the loaded model requires multiple input tensors.
@@ -616,17 +625,17 @@ class DXRT_API InferenceEngine
      */
     size_t GetOutputTensorOffset(const std::string& tensorName) const;
 
-    friend class InferenceJob; // TODO: refactor to avoid friend class
+    friend class InferenceJob;
 
  private:  // private functions
 
-    void checkService();
+    void checkService() const;
 
     void loadModelFromFile(const std::string& modelPath, InferenceOption &option);
-    void loadModelFromMemory(const std::string& name, const uint8_t* modelBuffer, size_t modelSize, InferenceOption &option);
+    void loadModelFromMemory(const std::string& name, const uint8_t* modelBuffer, size_t modelSize, const InferenceOption &option);
 
     int runAsync(void *inputPtr, void *userArg, void *outputPtr, int batchIndex,
-        std::function<int(TensorPtrs &outputs, void *userArg, int jobId)> batchCallback);
+        const std::function<int(const TensorPtrs &outputs, void *userArg, int jobId)>& batchCallback);
 
     void runSubBatch(std::vector<TensorPtrs>& result, int batchCount, int startIndex,
             const std::vector<void*>& inputPtrs,
@@ -640,10 +649,8 @@ class DXRT_API InferenceEngine
     bool shouldUseUserOutputBuffer() const;
 
     //for internal use only
-    void onInferenceComplete(TensorPtrs &outputs, void *userArg, int jobId);
+    void onInferenceComplete(TensorPtrs &outputs, void *userArg, int jobId) const;
 
-
- private:
     std::string _modelFile;
     std::string _modelDir;
     std::string _name;
@@ -708,7 +715,9 @@ class DXRT_API InferenceEngine
 
     // Callback and disposal management
     std::function<int(TensorPtrs &outputs, void *userArg)> _userCallback;
-
+#ifdef USE_VNPU
+    std::function<void(void* userArg, int jobId)> _userInputReleaseCallback;
+#endif  // USE_VNPU
     void disposeOnce();
     std::once_flag _disposeOnceFlag;
     bool _isDisposed = false;
@@ -721,7 +730,6 @@ class DXRT_API InferenceEngine
     std::map<std::string, uint64_t> _cachedOutputOffsets;
     std::atomic<bool> _outputOffsetsCalculated{false};
 
- private:
     static std::mutex _sInferenceEngineMutex;
 
     std::vector<uint8_t> _validationOutputBuffer;

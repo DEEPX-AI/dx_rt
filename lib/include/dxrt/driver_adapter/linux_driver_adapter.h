@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -28,9 +28,13 @@ class LinuxDriverAdapter : public DriverAdapter {
     std::string GetName() const override { return _name;  }
 
     ~LinuxDriverAdapter() override;
- private:
+    void Close() override;
+
+private:
     int _fd;
     std::string _name;
+    static std::mutex _fd_mutex;
+    void close_internal();
 };
 
 }  // namespace dxrt

@@ -80,15 +80,15 @@ const int DXRT_TASK_MAX_LOAD_LIMIT = 100;
 const int DXRT_NPU_FULL_MAX_LOAD = 10;
 
 #if DEBUG_DXRT
-#define LOG_DBG(x) std::cout<<"[DXRT] "<< x << std::endl;
+#define LOG_DBG(x) std::cout<<"[DXRT] "<< x << std::endl
 #else
 #define LOG_DBG(x)
 #endif
 
 #if SHOW_TASK_FLOW
-#define TASK_FLOW(x) std::cout<<"[TASK_FLOW] "<< x <<std::endl;
-#define TASK_FLOW_START(x) std::cout<<"[TASK_FLOW] "<< x << " START" <<std::endl;
-#define TASK_FLOW_FINISH(x) std::cout<<"[TASK_FLOW] "<< x << " FINISH" <<std::endl;
+#define TASK_FLOW(x) std::cout<<"[TASK_FLOW] "<< x <<std::endl
+#define TASK_FLOW_START(x) std::cout<<"[TASK_FLOW] "<< x << " START" <<std::endl
+#define TASK_FLOW_FINISH(x) std::cout<<"[TASK_FLOW] "<< x << " FINISH" <<std::endl
 #else
 #define TASK_FLOW(x)
 #define TASK_FLOW_START(x)
@@ -98,34 +98,34 @@ const int DXRT_NPU_FULL_MAX_LOAD = 10;
 #define LOG     std::cout<<"[DXRT] "
 #define LOG_DXRT     std::cout<<"[DXRT]["<< __func__ << "] "
 #define LOG_DXRT_DBG if(DEBUG_DXRT) std::cout<<"[DXRT]["<< __func__ << "] "
-#define LOG_DXRT_ERR(x) std::cout<<"[DXRT][Error] "<< x << std::endl;
-#define LOG_DXRT_WARN(x) std::cout<<"[DXRT][Warning] "<< x << std::endl;
-#define LOG_DXRT_INFO(x) std::cout<<"[DXRT][Info] "<< x << std::endl;
+#define LOG_DXRT_ERR(x) std::cout<<"[DXRT][Error] "<< x << std::endl
+#define LOG_DXRT_WARN(x) std::cout<<"[DXRT][Warning] "<< x << std::endl
+#define LOG_DXRT_INFO(x) std::cout<<"[DXRT][Info] "<< x << std::endl
 
 #define LOG_DXRT_S        std::cout<<"[DXRT_SVC]["<< __func__ << "] "
 #define LOG_DXRT_S_DBG    if(DEBUG_DXRT) std::cout<<"[DXRT_SVC]["<< __func__ << "] "
-#define LOG_DXRT_S_ERR(x) std::cout<<"[DXRT_SVC][Error] "<< x << std::endl;
+#define LOG_DXRT_S_ERR(x) std::cout<<"[DXRT_SVC][Error] "<< x << std::endl
 
 #define LOG_DXRT_I        std::cout<<"[DXRT_IPC]["<< __func__ << "] "
 #define LOG_DXRT_I_DBG    if(DEBUG_DXRT) std::cout<<"[DXRT_IPC]["<< __func__ << "] "
-#define LOG_DXRT_I_ERR(x) std::cout<<"[DXRT_IPC][Error] "<< x << std::endl;
+#define LOG_DXRT_I_ERR(x) std::cout<<"[DXRT_IPC][Error] "<< x << std::endl
 
 #define DXRT_STR(a) __DXRT_STR(a)
 #define __DXRT_STR(a) #a
 #define QUOTE_VALUE(val) DXRT_STR(val) << ": " << val
-#define LOG_VALUE(val) std::cout << DXRT_STR(val) << ": " << val << std::endl;
-#define LOG_VALUE_HEX(val) std::cout << DXRT_STR(val) << ": " << std::showbase << std::hex << val << std::dec << std::endl;
+#define LOG_VALUE(val) std::cout << DXRT_STR(val) << ": " << val << std::endl
+#define LOG_VALUE_HEX(val) std::cout << DXRT_STR(val) << ": " << std::showbase << std::hex << val << std::dec << std::endl
 
 #ifdef NDEBUG
 #define DXRT_ASSERT(cond, msg) do {\
         if(!(cond)) {LOG_DXRT_ERR(msg);\
         std::abort();}\
-    }while(0);
+    }while(0)
 #else
 #define DXRT_ASSERT(cond, msg) do {\
         if(!(cond)) {LOG_DXRT_ERR(msg);\
         assert((cond));}\
-    }while(0);
+    }while(0)
 #endif
 
 #ifdef __aarch64__
@@ -134,13 +134,22 @@ const int DXRT_NPU_FULL_MAX_LOAD = 10;
 #define IOMEM_BARRIER()
 #endif
 
-// #define RMAPINFO_ALIAS (using rmapinfo = deepx_rmapinfo::RegisterInfoDatabase)
+#if CXX_STANDARD_VERSION >= 14
+#define MAKE_UNIQUE std::make_unique
+#else
+template<typename T, typename... Args>
+std::unique_ptr<T> MAKE_UNIQUE(Args&&... args)
+{
+    return std::unique_ptr<T>(new T(std::forward<Args>(args)...)); // NOSONAR
+}
+#endif
+
 
 namespace dxrt {
 /** @brief Processors
  * @headerfile "dxrt/dxrt_api.h"
 */
-enum DXRT_API Processor
+enum class DXRT_API Processor
 {
     NPU, ///< Neural Processing Unit(dxnn)
     CPU, ///< Central Processing Unit(ONNX)
@@ -151,7 +160,7 @@ DXRT_API std::ostream& operator<<(std::ostream&, const Processor&);
 /* \brief Inference modes
  * \headerfile "dxrt/dxrt_api.h"
 */
-enum DXRT_API InferenceMode
+enum class DXRT_API InferenceMode
 {
     SYNC, // Synchronous inference (wait for device response after inference request)
     ASYNC,// Asynchronous inference (don't wait for device response after inference request)
@@ -178,9 +187,6 @@ T vectorProduct(const std::vector<T>& v)
     using SharedLock = std::unique_lock<std::mutex>; // Substitute with a write lock
     using UniqueLock = std::unique_lock<std::mutex>;
 #endif
-
-//int GetTaskMaxLoad();
-//#define DXRT_TASK_MAX_LOAD GetTaskMaxLoad()
 
 // Environment variable getters for runtime configuration
 int GetNfhInputWorkerThreads();

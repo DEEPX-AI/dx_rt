@@ -9,6 +9,8 @@
 
 #include "dxrt/buffer.h"
 #include <vector>
+#include "dxrt/safe_cast.h"
+
 
 
 namespace dxrt {
@@ -16,17 +18,14 @@ namespace dxrt {
 Buffer::Buffer(uint32_t size) : _size(size)
 {
     _mem = std::vector<uint8_t>(_size, 0);
-    _start = reinterpret_cast<uint64_t>(_mem.data());
+    _start = SafeCast::PointerToInteger<uint8_t*>(_mem.data());
     _cur = _start;
     _end = _start + _size;
 }
-Buffer::~Buffer()
-{
-
-}
+Buffer::~Buffer() = default;
 void *Buffer::Get()
 {
-    return _mem.data();
+    return static_cast<void*>(_mem.data());
 }
 void *Buffer::Get(uint32_t size)
 {
@@ -41,7 +40,7 @@ void *Buffer::Get(uint32_t size)
     }  // @no_else: conditional_work
     addr = _cur;
     _cur += size;
-    return reinterpret_cast<void*>(addr);
+    return SafeCast::IntegerToPointer<void*>(addr);
 }
 
 }  // namespace dxrt

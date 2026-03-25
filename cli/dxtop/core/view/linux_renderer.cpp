@@ -2,10 +2,10 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
- * 
+ *
  * This file uses ncurses (MIT License) - Copyright (c) 1998-2018,2019 Free Software Foundation, Inc.
  */
 
@@ -15,7 +15,7 @@
 namespace dxrt{
 
 void NcursesRenderer::Initialize()
-{  
+{
     initscr();
     cbreak();
     noecho();
@@ -30,16 +30,15 @@ void NcursesRenderer::Initialize()
         start_color();
 
         // foreground, background 색쌍 초기화
-        init_pair(1, COLOR_WHITE,   COLOR_BLACK); 
-        init_pair(2, COLOR_GREEN,   COLOR_BLACK); 
+        init_pair(1, COLOR_WHITE,   COLOR_BLACK);
+        init_pair(2, COLOR_GREEN,   COLOR_BLACK);
         init_pair(3, COLOR_YELLOW,  COLOR_BLACK);
-        //Orange
-        // init_pair(4, 214, COLOR_BLACK);
-        init_pair(5, COLOR_RED,     COLOR_BLACK); 
+        init_pair(4, 214, COLOR_BLACK);  // for orange color
+        init_pair(5, COLOR_RED,     COLOR_BLACK);
         init_pair(6, COLOR_CYAN,    COLOR_BLACK);
-        init_pair(7, COLOR_MAGENTA, COLOR_BLACK); 
+        init_pair(7, COLOR_MAGENTA, COLOR_BLACK);
         init_pair(8, COLOR_BLUE, COLOR_BLACK);
-        
+
     }
     else
     {
@@ -58,7 +57,7 @@ void NcursesRenderer::Stop()
     {
         // Restore terminal to normal mode (clean up ncurses)
         endwin();
-    }    
+    }
 }
 
 void NcursesRenderer::RenderMain(const MonitorViewModel& viewModel)
@@ -102,8 +101,6 @@ void NcursesRenderer::RenderMain(const MonitorViewModel& viewModel)
         mvhline(row, 0, '-', max_col);
         row++;
     }
-    //Footer seperator
-    // mvhline(max_row-2, 0, '-', max_col);
 
     //Footer Left
     mvprintw(max_row -1, 0, "%s", viewModel.footerLeft.c_str());
@@ -244,11 +241,9 @@ void NcursesRenderer::renderCoreRow(int row, int col, const std::vector<Field>& 
         x += static_cast<int>(field.label.size()) + 1;
 
         attron(COLOR_PAIR(field.colorPair) | attr);
-        // attron(COLOR_PAIR(1) | attr);
         mvprintw(row, x, "%s", TextFormatter::Format(field).c_str());
-        // attroff(COLOR_PAIR(1) | attr);
         attroff(COLOR_PAIR(field.colorPair) | attr);
-        
+
 
         x += static_cast<int>(field.width) + 2;
     }

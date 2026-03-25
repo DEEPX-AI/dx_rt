@@ -18,7 +18,9 @@ namespace dxrt
 
 std::string GetDrvVersionWithDot(uint32_t ver)
 {
-    uint32_t major, minor, patch;
+    uint32_t major;
+    uint32_t minor;
+    uint32_t patch;
     major = ver / 1000;
     minor = (ver % 1000) / 100;
     patch = ver % 100;
@@ -27,7 +29,9 @@ std::string GetDrvVersionWithDot(uint32_t ver)
 
 std::string GetFwVersionWithDot(uint32_t ver)
 {
-    uint32_t major, minor, patch;
+    uint32_t major;
+    uint32_t minor;
+    uint32_t patch;
     major = ver / 100;
     minor = (ver % 100) / 10;
     patch = ver % 10;

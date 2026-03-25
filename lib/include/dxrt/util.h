@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -34,19 +34,19 @@
 namespace dxrt {
 DXRT_API std::vector<int> RandomSequence(int n);
 DXRT_API unsigned int RandomValue();
-DXRT_API std::vector<std::string> StringSplit(std::string s, std::string divid);
+DXRT_API std::vector<std::string> StringSplit(const std::string& s, const std::string& divid);
 DXRT_API std::string format_number_with_commas(int64_t num);
-// int GetDataSize(deepx_rmapinfo::DataType dType);
-DXRT_API int DataFromFile(std::string f, void *d);
-DXRT_API void DataFromFile(std::string f, void *d, unsigned int size);
-DXRT_API void DataDumpBin(std::string filename, void *data, unsigned int size);
-DXRT_API uint32_t SizeFromFile(std::string f);
-DXRT_API std::vector<std::string> GetFileList(std::string dir);
+
+DXRT_API int DataFromFile(const std::string& f, void *d);
+DXRT_API void DataFromFile(const std::string& f, void *d, unsigned int size);
+DXRT_API void DataDumpBin(const std::string& filename, void *data, unsigned int size);
+DXRT_API uint32_t SizeFromFile(const std::string& f);
+DXRT_API std::vector<std::string> GetFileList(const std::string& dir);
 DXRT_API uint64_t GetAlign(uint64_t size, int align);
 DXRT_API uint64_t GetAlign(uint64_t size);
 DXRT_API void* MemAlloc(size_t size, size_t align = 8, int value = 0);
 DXRT_API void MemFree(void **p);
-DXRT_API void DisplayCountdown(int seconds, std::string str);
+DXRT_API void DisplayCountdown(int seconds, const std::string& str);
 
 template< typename T >
 std::string int_to_hex(T i )
@@ -58,7 +58,7 @@ std::string int_to_hex(T i )
     return stream.str();
 }
 template <typename T>
-void DataDumpTxt(std::string filename, T *data, size_t ch, size_t row, size_t col, bool showHex = false)
+void DataDumpTxt(const std::string& filename, T *data, size_t ch, size_t row, size_t col, bool showHex = false)
 {
     std::ofstream f_out(filename, std::ios::out);
     if (showHex)
@@ -97,7 +97,7 @@ std::vector<T> SelectElements(const std::vector<T>& org, const std::vector<int>&
 static inline void get_start_time(struct timeval *s)
 {
 #ifdef __linux__
-    gettimeofday(s, NULL);
+    gettimeofday(s, nullptr);
 #elif _WIN32
     LARGE_INTEGER counter, freq;
     QueryPerformanceCounter(&counter);
@@ -126,7 +126,6 @@ static inline uint64_t get_elapsed_time(struct timeval s)
     return elapsed;
 }
 
-// TODO: enum refactorying required
 DXRT_API int GetDataSize_rmapinfo_datatype(deepx_rmapinfo::DataType dType);
 DXRT_API int GetDataSize_Datatype(DataType dType);
 }  // namespace dxrt

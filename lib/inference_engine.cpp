@@ -14,7 +14,6 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <fcntl.h>
-// #include <errno.h>
 
 #include <stdexcept>
 #include <cstring>
@@ -24,7 +23,6 @@
 #include <chrono>
 #include <thread>
 #endif
-// #include <regex>
 #include <set>
 
 #include "resource/log_messages.h"
@@ -33,7 +31,6 @@
 #include "dxrt/datatype.h"
 #include "dxrt/task.h"
 #include "dxrt/device_pool.h"
-// #include "dxrt/util.h"
 #include "dxrt/request.h"
 #include "dxrt/cpu_handle.h"
 #include "dxrt/filesys_support.h"
@@ -41,6 +38,13 @@
 #include "dxrt/exception/exception.h"
 #include "dxrt/device_info_status.h"
 #include "dxrt/service_util.h"
+#include "dxrt/safe_cast.h"
+
+#ifdef DXRT_USE_DEVICE_VALIDATION
+#include "dxrt/request_response_class.h"
+#include "dxrt/tensor.h"
+#endif
+
 
 #define PRINT_ALL_INFERENCE_ENGINE
 
@@ -56,15 +60,12 @@ static const int SUB_BATCH_MAX_COUNT = 128;
 std::mutex InferenceEngine::_sInferenceEngineMutex;
 constexpr int InferenceEngine::INFERENCE_JOB_MAX_COUNT;
 
-void InferenceEngine::checkService()
+void InferenceEngine::checkService() const
 {
 #ifdef USE_SERVICE
-    if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE))
+    if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE) && isDxrtServiceRunning() == false)
     {
-        if (isDxrtServiceRunning() == false)
-        {
-            throw dxrt::ServiceIOException("dxrt service is not running");
-        }
+        throw dxrt::ServiceIOException("dxrt service is not running");
     }
 #endif
 }
@@ -100,7 +101,6 @@ void InferenceEngine::loadModelFromFile(const std::string& modelPath, InferenceO
     // check file existence
     if (!dxrt::fileExists(_modelFile))
     {
-        // DXRT_ASSERT(false, "Can't find " + _modelFile);
         throw dxrt::FileNotFoundException(EXCEPTION_MESSAGE(_modelFile));
     }
 
@@ -117,19 +117,19 @@ void InferenceEngine::loadModelFromFile(const std::string& modelPath, InferenceO
         throw dxrt::FileNotFoundException(EXCEPTION_MESSAGE("Invalid model path : " + _modelFile));
     }
 
-    char header[8] = {0};
-    ifs.read(header, 8);
+    std::array<char, 8> header = {0};
+    ifs.read(header.data(), 8);
     if (ifs.gcount() != 8) {
         throw dxrt::ModelParsingException(EXCEPTION_MESSAGE("Failed to read DXNN header: " + _modelFile));
     }
 
-    if (std::string(header, 4) != "DXNN") {
+    if (std::string(header.data(), 4) != "DXNN") {
         throw InvalidModelException(EXCEPTION_MESSAGE(LogMessages::InvalidDXNNFileFormat()));
     }
     // check file header ("DXNN") - end
 
     // load file into memory buffer
-    int fileSize = getFileSize(_modelFile);
+    uint64_t fileSize = getFileSize(_modelFile);
     std::vector<uint8_t> vbuf(fileSize);
     uint8_t *buf = vbuf.data();
 
@@ -140,11 +140,10 @@ void InferenceEngine::loadModelFromFile(const std::string& modelPath, InferenceO
 
     std::ignore = fread(static_cast<void*>(buf), fileSize, 1, fp);
     fclose(fp);
-
     loadModelFromMemory(_modelFile, buf, fileSize, option);
 }
 
-void InferenceEngine::loadModelFromMemory(const std::string& name, const uint8_t* modelBuffer, size_t modelSize, InferenceOption &option)
+void InferenceEngine::loadModelFromMemory(const std::string& name, const uint8_t* modelBuffer, size_t modelSize, const InferenceOption &option)
 {
     // Implementation for loading model from memory buffer
     _name = name;
@@ -154,7 +153,6 @@ void InferenceEngine::loadModelFromMemory(const std::string& name, const uint8_t
     DevicePool::GetInstance().InitNFHLayers();
 
     std::lock_guard<std::mutex> lock(_sInferenceEngineMutex);
-
     initializeEnvironmentVariables();
     initializeModel(modelBuffer, modelSize, _option.bufferCount);
     buildTasksAndSubgraphMap(_option.bufferCount);
@@ -171,11 +169,11 @@ void InferenceEngine::loadModelFromMemory(const std::string& name, const uint8_t
         // Non-ORT mode: collect inputs from head tasks
         _modelInputOrder.clear();
         // Collect input tensors from head tasks
-        for (auto &task : _tasks)
+        for (const auto& task : _tasks)
         {
             if (task->is_head())
             {
-                for (auto& input : task->inputs())
+                for (const auto& input : task->inputs())
                 {
                     _modelInputOrder.push_back(input.name());
                 }
@@ -187,7 +185,7 @@ void InferenceEngine::loadModelFromMemory(const std::string& name, const uint8_t
     LOG_DBG("Input tensor count: " + std::to_string(_modelInputOrder.size()));
 
     buildInputTensorMapping();
-    for (const auto &pair : _inputTensorToTaskMap)
+    for (const auto& pair : _inputTensorToTaskMap)
     {
         std::ignore = pair;  // Suppress unused variable warning
         LOG_DBG("Input tensor '" + pair.first + "' -> Task '" + pair.second + "'");
@@ -210,12 +208,12 @@ void InferenceEngine::loadModelFromMemory(const std::string& name, const uint8_t
         // Collect tail tasks for offset calculation
         // CRITICAL: Only include outputs that are actually model outputs (in _lastOutputOrder)
         // A tail task may produce multiple outputs, but not all are model outputs
-        for (auto &task : _tasks)
+        for (const auto& task : _tasks)
         {
             if (task->is_tail())
             {
                 std::vector<std::string> taskOutputNames;
-                for (auto& output : task->outputs())
+                for (const auto& output : task->outputs())
                 {
                     // Only include outputs that are in the model's final output list
                     if (std::find(_lastOutputOrder.begin(), _lastOutputOrder.end(), output.name())
@@ -228,7 +226,7 @@ void InferenceEngine::loadModelFromMemory(const std::string& name, const uint8_t
                 // Only add task if it has model outputs
                 if (!taskOutputNames.empty())
                 {
-                    tailTaskOutputs.push_back({task, taskOutputNames});
+                    tailTaskOutputs.emplace_back(task, taskOutputNames);
                     _numTails++;
                     LOG_DXRT_DBG << "Tail task '" << task->name() << "': " << taskOutputNames.size()
                                  << " model output(s) from " << task->outputs().size() << " total outputs" << std::endl;
@@ -244,19 +242,19 @@ void InferenceEngine::loadModelFromMemory(const std::string& name, const uint8_t
         //       via TaskData::set_from_npu() in task_data.cpp
         _lastOutputOrder.clear();
 
-        for (auto &task : _tasks)
+        for (const auto& task : _tasks)
         {
             if (task->is_tail())
             {
                 std::vector<std::string> taskOutputNames;
 
-                for (auto& output : task->outputs())
+                for (const auto& output : task->outputs())
                 {
                     taskOutputNames.push_back(output.name());
                     _lastOutputOrder.push_back(output.name());
                 }
 
-                tailTaskOutputs.push_back({task, taskOutputNames});
+                tailTaskOutputs.emplace_back(task, taskOutputNames);
                 _numTails++;
 
                 LOG_DXRT_DBG << "Tail task '" << task->name() << "': " << taskOutputNames.size()
@@ -271,11 +269,11 @@ void InferenceEngine::loadModelFromMemory(const std::string& name, const uint8_t
         // Rebuild _lastOutputOrder to ensure consistency for PPU models
         std::vector<std::string> newLastOutputOrder;
 
-        for (auto &task : _tasks)
+        for (const auto& task : _tasks)
         {
             if (task->is_tail())
             {
-                for (auto& output : task->outputs())
+                for (const auto& output : task->outputs())
                 {
                     newLastOutputOrder.push_back(output.name());
                 }
@@ -290,7 +288,7 @@ void InferenceEngine::loadModelFromMemory(const std::string& name, const uint8_t
 
             // Recalculate tailOffsets for PPU/PPCPU models using simple sequential offset
             int64_t cumulativeOffset = 0;
-            for (auto &task : _tasks)
+            for (const auto& task : _tasks)
             {
                 if (task->is_tail())
                 {
@@ -305,7 +303,7 @@ void InferenceEngine::loadModelFromMemory(const std::string& name, const uint8_t
         else
         {
             // Offsets already set correctly, just log for verification
-            for (auto &task : _tasks)
+            for (const auto& task : _tasks)
             {
                 if (task->is_tail())
                 {
@@ -346,8 +344,8 @@ void InferenceEngine::loadModelFromMemory(const std::string& name, const uint8_t
             {
                 LOG_DXRT_ERR("Task '" + task->name() + "' is classified as a tail but its outputs are not found in the model output list");
                 LOG_DXRT_ERR("Task outputs: ");
-                for (const auto& name : outputNames) {
-                    LOG_DXRT_ERR("  - '" + name + "'");
+                for (const auto& outputName : outputNames) {
+                    LOG_DXRT_ERR("  - '" + outputName + "'");
                 }
                 LOG_DXRT_ERR("_lastOutputOrder: ");
                 for (size_t i = 0; i < _lastOutputOrder.size(); ++i) {
@@ -384,16 +382,7 @@ void InferenceEngine::loadModelFromMemory(const std::string& name, const uint8_t
 
     DXRT_ASSERT(_lastOutputOrder.size() > 0, "last output order is empty");
 
-    /*
-    LOG << "Last Output Tensors: ";
-    for (size_t i = 0; i < _lastOutputOrder.size(); ++i) {
-        cout << _lastOutputOrder[i];
-        if (i < _lastOutputOrder.size() - 1) {
-            cout << ", ";
-        }
-    }
-    cout << endl;
-    */
+
     LOG_DBG("_numTails : "+std::to_string(_numTails));
     DXRT_ASSERT(_numTails != 0, "Invalid Graph : tail task is not found. Check the DX-COM compilation process.");
 
@@ -621,32 +610,31 @@ std::vector<TensorPtrs> InferenceEngine::Run(
     const std::vector<void*>& userArgs
 )
 {
-    int buffer_count = static_cast<int>(inputBuffers.size());
+    auto buffer_count = static_cast<int>(inputBuffers.size());
 
     if ( buffer_count == 0 )
     {
         throw dxrt::InvalidArgumentException(EXCEPTION_MESSAGE("The number of elements in inputPtrs must be greater than 0."));
     }
 
+    bool is_multi_input = _isMultiInput && (buffer_count == static_cast<int>(_modelInputOrder.size()));
+    bool could_be_multi_input = _isMultiInput && (buffer_count == static_cast<int>(_modelInputOrder.size()));
+
     // Check if this should be interpreted as multi-input rather than batch
-    if (_isMultiInput && buffer_count == static_cast<int>(_modelInputOrder.size()))
+    if (is_multi_input && could_be_multi_input)
     {
-        // This could be multi-input. Check if outputBuffers size suggests single inference
-        if (outputBuffers.size() == 1 && (userArgs.empty() || userArgs.size() == 1))
-        {
-            // Interpret as multi-input single inference
-            LOG_DBG("Interpreting vector<void*> as multi-input (not batch) - input count: " + std::to_string(buffer_count));
+        // Interpret as multi-input single inference
+        LOG_DBG("Interpreting vector<void*> as multi-input (not batch) - input count: " + std::to_string(buffer_count));
 
-            void* outputPtr = outputBuffers.empty() ? nullptr : outputBuffers[0];
-            void* userArg = userArgs.empty() ? nullptr : userArgs[0];
+        void* outputPtr = outputBuffers.empty() ? nullptr : outputBuffers[0];
+        void* userArg = userArgs.empty() ? nullptr : userArgs[0];
 
-            TensorPtrs singleResult = RunMultiInput(inputBuffers, userArg, outputPtr);
+        TensorPtrs singleResult = RunMultiInput(inputBuffers, userArg, outputPtr);
 
-            // Return as vector of single result for API consistency
-            std::vector<TensorPtrs> result;
-            result.push_back(singleResult);
-            return result;
-        }
+        // Return as vector of single result for API consistency
+        std::vector<TensorPtrs> result;
+        result.push_back(singleResult);
+        return result;
     }
 
     // Interpret as batch inference (original behavior)
@@ -654,12 +642,9 @@ std::vector<TensorPtrs> InferenceEngine::Run(
     LOG_DBG("Interpreting vector<void*> as batch inference - batch size: " + std::to_string(batch_count));
 
     // check arguments size
-    if ( userArgs.size() > 0 )
+    if ((userArgs.empty() == false) && (batch_count != static_cast<int>(userArgs.size())))
     {
-        if ( batch_count != static_cast<int>(userArgs.size()) )
-        {
-            throw dxrt::InvalidArgumentException(EXCEPTION_MESSAGE("The number of elements in inputPtrs does not match the number of elements in userArgs."));
-        }
+        throw dxrt::InvalidArgumentException(EXCEPTION_MESSAGE("The number of elements in inputPtrs does not match the number of elements in userArgs."));
     }
 
     // check outputPtrs size
@@ -675,13 +660,8 @@ std::vector<TensorPtrs> InferenceEngine::Run(
     try
     {
         int start_index = 0;
-        int sub_batch_loop = static_cast<int>(batch_count / SUB_BATCH_MAX_COUNT);
-        int sub_batch_remain = static_cast<int>(batch_count % SUB_BATCH_MAX_COUNT);
-
-        // std::cout << "sub-batch-loop=" << sub_batch_loop << " sub-batch-count=" << SUB_BATCH_MAX_COUNT
-        //        << " total=" << sub_batch_loop * SUB_BATCH_MAX_COUNT << std::endl;
-        // std::cout << "sub-batch-remain=" << sub_batch_remain << std::endl;
-
+        auto sub_batch_loop = batch_count / SUB_BATCH_MAX_COUNT;
+        auto sub_batch_remain = batch_count % SUB_BATCH_MAX_COUNT;
 
         if ( sub_batch_loop > 0 )
         {
@@ -725,7 +705,7 @@ void InferenceEngine::runSubBatch(std::vector<TensorPtrs>& result, int batchCoun
     std::condition_variable cv_complete;  // complete condition variable
     bool is_completed = false;
 
-    auto batch_callback = [this, &complete_count, &cv_complete, &mtx_cv, &result, batchCount, &is_completed](TensorPtrs &outputs, void *userArg, int jobId) -> int
+    auto batch_callback = [this, &complete_count, &cv_complete, &result, batchCount, &is_completed](const TensorPtrs &outputs, void *userArg, int jobId) -> int
     {
         std::ignore = userArg;
 
@@ -741,7 +721,6 @@ void InferenceEngine::runSubBatch(std::vector<TensorPtrs>& result, int batchCoun
         {
             // Get batch_index from InferenceJob
             batch_index = infJob->GetBatchIndex();
-            // std::cout << "callback batch-index=" << batch_index << std::endl;
 
             if (batch_index >= 0)
             {
@@ -761,7 +740,6 @@ void InferenceEngine::runSubBatch(std::vector<TensorPtrs>& result, int batchCoun
         LOG_DXRT_DBG << "runAsync complete-count=" << complete_count.load() << std::endl;
         if (complete_count.load() == batchCount && is_completed)
         {
-            // std::unique_lock<std::mutex> lock(mtx_cv);
             cv_complete.notify_one();
             LOG_DXRT_DBG << "runAsync completed" << std::endl;
         }
@@ -773,16 +751,12 @@ void InferenceEngine::runSubBatch(std::vector<TensorPtrs>& result, int batchCoun
         // Run asynchronous operations for each batch
         for (int i = 0; i < batchCount; ++i)
         {
-            void* userArg = userArgs.size() > 0 ? userArgs.at(i) : nullptr;
+            void* userArg = !userArgs.empty() ? userArgs.at(i) : nullptr;
             int current_index = startIndex + i;
 
             int job_id = runAsync(inputBuffers.at(current_index), userArg, outputBuffers.at(current_index), current_index, batch_callback);
-
-            // std::cout << "runAsync index=" << current_index << std::endl;
-            // std::cout << "inputPtrs size=" << inputPtrs.size() << " OutputPtrs size=" << pOutputPtrs->size() << std::endl;
-
-            // map_insert(job_id, i);
             LOG_DXRT_DBG << "Insert jobId=" << job_id << ", batch_index=" << i << std::endl;
+            std::ignore = job_id;  // Suppress unused variable warning
 
         }  // for i
 
@@ -806,19 +780,17 @@ void InferenceEngine::runSubBatch(std::vector<TensorPtrs>& result, int batchCoun
 
 // private
 int InferenceEngine::runAsync(void *inputPtr, void *userArg, void *outputPtr, int batchIndex,
-    std::function<int(TensorPtrs &outputs, void *userArg, int jobId)> batchCallback)
+    const std::function<int(const TensorPtrs &outputs, void *userArg, int jobId)> &batchCallback)
 {
     if (_isDisposed)
     {
         throw InvalidOperationException("InferenceEngine already Disposed");
     }
-    // return InferenceJob instance from InferenceJob pool (reused)
-    // std::shared_ptr<InferenceJob> infJob = ObjectsPool::GetInstance().PickInferenceJob();
 
     try
     {
         std::shared_ptr<InferenceJob> infJob = _inferenceJobPool->pick();
-        
+
         if (infJob == nullptr)
         {
             throw InvalidOperationException(
@@ -839,6 +811,14 @@ int InferenceEngine::runAsync(void *inputPtr, void *userArg, void *outputPtr, in
             infJob->SetStoreResult(true);
         }
 
+#ifdef USE_VNPU
+    // Set user input release callback if registered
+    if (_userInputReleaseCallback != nullptr)
+    {
+        infJob->setUserInputReleaseCallback(_userInputReleaseCallback);
+    }
+#endif // USE_VNPU
+
         int jobId = infJob->startJob(inputPtr, userArg, outputPtr);
 
         // occupired inference job id
@@ -847,20 +827,36 @@ int InferenceEngine::runAsync(void *inputPtr, void *userArg, void *outputPtr, in
         }
 
         return jobId;
-
     }
-    catch (...)
+    catch (const dxrt::Exception& e)
     {
-        // to avoid sonarqube critical issue
-        throw;
+        LOG_DXRT_ERR(e.what());
+        throw;  // Rethrow to allow caller to handle
+    }
+    catch (const std::exception& e)
+    {
+        LOG_DXRT_ERR(e.what());
+        throw;  // Rethrow to allow caller to handle
+    }
+    catch (...)  // NOSONAR:S2737
+    {
+        LOG_DXRT_ERR("Unknown error occurred in runAsync");
+        throw;  // Rethrow to allow caller to handle
     }
 }
 
-void InferenceEngine::RegisterCallback(std::function<int(TensorPtrs &outputs, void *userArg)> f)
+void InferenceEngine::RegisterCallback(std::function<int(TensorPtrs &outputs, void *userArg)> f)  //NOSONAR:S1238
 {
     LOG_DXRT_DBG << std::endl;
     _userCallback = f;
 }
+#ifdef USE_VNPU
+void InferenceEngine::RegisterUserInputReleaseCallback(std::function<void(void* userArg, int jobId)> f)  //NOSONAR:S1238
+{
+    LOG_DXRT_DBG << "Register User Input Release Callback" << std::endl;
+    _userInputReleaseCallback = f;
+}
+#endif // USE_VNPU
 
 float InferenceEngine::RunBenchmark(int num, void *inputPtr)
 {
@@ -873,7 +869,7 @@ float InferenceEngine::RunBenchmark(int num, void *inputPtr)
     std::mutex cv_mutex;
     std::condition_variable cv;
 
-    auto callBack = [&done_count, num, &cv_mutex, &cv](TensorPtrs &outputs, void *userArg) -> int{
+    auto callBack = [&done_count, num, &cv_mutex, &cv](const TensorPtrs &outputs, void *userArg) -> int{
         std::ignore = outputs;
         std::ignore = userArg;
 
@@ -887,7 +883,6 @@ float InferenceEngine::RunBenchmark(int num, void *inputPtr)
     };  // callback used to count inference
 
     RegisterCallback(callBack);
-    // bool isStandalone = (dxrt::DeviceStatus::GetCurrentStatus(0).GetDeviceType() == DeviceType::STD_TYPE);
 
     uint64_t infTime = 0;
     int infCnt = std::max(1, num);
@@ -911,7 +906,7 @@ float InferenceEngine::RunBenchmark(int num, void *inputPtr)
     }
 
     infTime = std::chrono::duration_cast<std::chrono::microseconds>(end_clock - start_clock).count();
-    fps = 1000000.0 * infCnt/infTime;
+    fps = static_cast<float>(1000000.0 * static_cast<double>(infCnt) / static_cast<double>(infTime));
     RegisterCallback(nullptr);
     return fps;
 }
@@ -923,14 +918,14 @@ float InferenceEngine::RunBenchmark(int num, void *inputPtr)
 float InferenceEngine::RunBenchMarkWindows(int num, void* inputPtr)
 {
     float sum = 0.;
-    auto& profiler = dxrt::Profiler::GetInstance();
+    auto& profiler = dxrt::Profiler::GetInstance(); // NOSONAR
     std::vector<float> fps;
 
     std::atomic<int> done_count, i_last, done_todo;
     auto callBack = [&done_count, &i_last, &done_todo](const TensorPtrs& outputs, void* userArg) -> int {
         std::ignore = outputs;
         std::ignore = userArg;
-        int userArgInt = reinterpret_cast<uint64_t>(userArg);
+        int userArgInt = static_cast<int>(SafeCast::PointerToInteger<void*>(userArg));
 
         done_count++;
         i_last = userArgInt;
@@ -945,9 +940,9 @@ float InferenceEngine::RunBenchMarkWindows(int num, void* inputPtr)
         done_count = 0; i_last = 0;
         profiler.Start("benchmark");
         auto start_clock = std::chrono::steady_clock::now();
-        for (int i = 0; i < infCnt; i++)
+        for (uint64_t i = 0; i < static_cast<uint64_t>(infCnt); i++)
         {
-            RunAsync(inputPtr, reinterpret_cast<void*>(i));
+            RunAsync(inputPtr, nullptr); // NOSONAR
         }
         while (done_count < infCnt)
         {
@@ -974,15 +969,7 @@ float InferenceEngine::RunBenchMarkWindows(int num, void* inputPtr)
 
 #ifdef DXRT_USE_DEVICE_VALIDATION
 
-} // namespace dxrt
-
-#include "dxrt/request_response_class.h"
-#include "dxrt/tensor.h"
-
-namespace dxrt
-{
-
-static std::mutex sValidationMutex;
+static std::mutex sValidationMutex;  //NOSONAR:S5421 because it only used for synchronization in ValidateDevice methods
 
 TensorPtrs InferenceEngine::ValidateDevice(void *inputPtr, int deviceId)
 {
@@ -1026,24 +1013,25 @@ TensorPtrs InferenceEngine::ValidateDevice(void *inputPtr, int deviceId)
     }
 
     auto npuTask = *npuTaskIter;
-    if (_option.devices.size() != 0)
+    if ((_option.devices.empty()== false) && (_option.devices[0] != 0))
     {
-        if (_option.devices[0] != 0)
-        {
-            throw DeviceIOException(EXCEPTION_MESSAGE("device 0 not registered InferenceEngine, so cannot do validation"));
-        }
+        throw DeviceIOException(EXCEPTION_MESSAGE("device 0 not registered InferenceEngine, so cannot do validation"));
     }
 
-    if (_validationOutputBuffer.size() == 0) {
+    if (_validationOutputBuffer.empty())
+    {
         size_t output_size = npuTask->getData()->_npuModel.output_all_size;
 
-        if (output_size == 0) {
+        if (output_size == 0)
+        {
             // For models with output_all_size == 0,
             // allocate minimum buffer to ensure valid pointer (prevents nullptr issues)
             LOG_DXRT_WARN("ValidateDevice: output_all_size is 0 for model " << GetModelName()
                          << ". Allocating minimum buffer (1 byte) to prevent nullptr.");
             _validationOutputBuffer.resize(1);
-        } else {
+        }
+        else
+        {
             _validationOutputBuffer.resize(output_size);
         }
 
@@ -1054,7 +1042,7 @@ TensorPtrs InferenceEngine::ValidateDevice(void *inputPtr, int deviceId)
 
     auto req = Request::CreateValidateRequest(npuTask.get(), inputPtr, _validationOutputBuffer.data());
     req->SetStatus(Request::Status::REQ_BUSY);
-    req->model_type() = req->taskData()->_npuModel.type;
+    req->setModelType(static_cast<ModelType>(req->taskData()->_npuModel.type));
     int ret_validation = RequestResponse::ValidateRequest(req);
     if (ret_validation != 0) {
         LOG_DXRT_ERR("Device validation failed with error code: " << ret_validation);
@@ -1128,12 +1116,9 @@ TensorPtrs InferenceEngine::ValidateDeviceMultiInput(const std::map<std::string,
     auto devicePtr = DevicePool::GetInstance().GetDeviceTaskLayer(deviceId);
 
 
-    if (_option.devices.size() != 0)
+    if ((_option.devices.empty()== false) && (_option.devices[0] != 0))
     {
-        if (_option.devices[0] != 0)
-        {
-            throw DeviceIOException(EXCEPTION_MESSAGE("device 0 not registered InferenceEngine, so cannot do validation"));
-        }
+        throw DeviceIOException(EXCEPTION_MESSAGE("device 0 not registered InferenceEngine, so cannot do validation"));
     }
 
     auto firstInput = inputTensors.begin();
@@ -1141,13 +1126,14 @@ TensorPtrs InferenceEngine::ValidateDeviceMultiInput(const std::map<std::string,
 
     // Create a simplified request with multi-input data
     // For validation, we'll use the first input as the base and validate the NPU task
-    if (_validationOutputBuffer.size() == 0) {
+    if (_validationOutputBuffer.empty())
+    {
         _validationOutputBuffer.resize(npuTask->getData()->_npuModel.output_all_size);
     }
 
     auto req = Request::CreateValidateRequest(npuTask.get(), firstInput->second, _validationOutputBuffer.data());
     req->SetStatus(Request::Status::REQ_BUSY);
-    req->model_type() = req->taskData()->_npuModel.type;
+    req->setModelType(static_cast<ModelType>(req->taskData()->_npuModel.type));
     int ret_validation = RequestResponse::ValidateRequest(req);
     if (ret_validation != 0) {
         LOG_DXRT_ERR("Device validation failed with error code: " << ret_validation);
@@ -1207,11 +1193,10 @@ TensorPtrs InferenceEngine::ValidateDeviceMultiInput(const std::vector<void*>& i
 }
 
 #endif
-TensorPtrs InferenceEngine::Wait(int jobId)
+TensorPtrs InferenceEngine::Wait(int jobId) const
 {
     LOG_DXRT_DBG << jobId << std::endl;
 
-    // std::shared_ptr<InferenceJob> infJob = ObjectsPool::GetInstance().GetInferenceJobById(jobId);
     std::shared_ptr<InferenceJob> infJob = _inferenceJobPool->GetById(jobId);
     if (infJob == nullptr)
     {
@@ -1219,15 +1204,12 @@ TensorPtrs InferenceEngine::Wait(int jobId)
         throw dxrt::InvalidOperationException(EXCEPTION_MESSAGE(error_string));
     }
     infJob->Wait();
-    // this_thread::sleep_for(chrono::microseconds(1));
-    // while (infJob->getStatus() == Request::Status::REQ_BUSY)
-    // {    this_thread::sleep_for(chrono::microseconds(1)); }
 
     LOG_DXRT_DBG << jobId << " done" << std::endl;
     return infJob->getOutput();
 }
 
-Tensors InferenceEngine::GetInputs(void *ptr, uint64_t phyAddr)
+Tensors InferenceEngine::GetInputs(void *ptr, uint64_t phyAddr) const
 {
     // Return only external input tensors (exclude intermediate tensors)
     // This ensures correct tensors for complex models where tasks may receive both
@@ -1280,9 +1262,8 @@ Tensors InferenceEngine::GetInputs(void *ptr, uint64_t phyAddr)
     return externalInputs;
 }
 
-std::vector<Tensors> InferenceEngine::GetInputs(int devId)
+std::vector<Tensors> InferenceEngine::GetInputs(int devId) const
 {
-
     auto devicePtr = DevicePool::GetInstance().GetDeviceTaskLayer(devId);
     if (devicePtr == nullptr)
     {
@@ -1291,7 +1272,7 @@ std::vector<Tensors> InferenceEngine::GetInputs(int devId)
     return devicePtr->inputs(_head->id());
 }
 
-Tensors InferenceEngine::GetOutputs(void *ptr, uint64_t phyAddr)
+Tensors InferenceEngine::GetOutputs(void *ptr, uint64_t phyAddr) const
 {
     // Use _lastOutputOrder for tensor ordering
     const std::vector<std::string>& outputTensorOrder = _lastOutputOrder;
@@ -1307,7 +1288,7 @@ Tensors InferenceEngine::GetOutputs(void *ptr, uint64_t phyAddr)
         finalTensorOffsets[tensorName] = cumulativeOffset;
 
         // Find tensor size
-        for (auto &task : _tasks)
+        for (const auto& task : _tasks)
         {
             for (const auto& tensor : task->outputs())
             {
@@ -1321,7 +1302,7 @@ Tensors InferenceEngine::GetOutputs(void *ptr, uint64_t phyAddr)
         next_tensor:;  // goto point
     }
 
-    for (auto &task : _tasks)
+    for (const auto& task : _tasks)
     {
         TaskData* taskDataPtr = task->getData();
         Tensors outputTensors = taskDataPtr->output_tensors();
@@ -1329,7 +1310,7 @@ Tensors InferenceEngine::GetOutputs(void *ptr, uint64_t phyAddr)
         if (ptr == nullptr) {
             for (size_t i = 0; i < outputTensorOrder.size(); i++)
             {
-                for (Tensor &tensor : outputTensors)
+                for (const Tensor &tensor : outputTensors)
                 {
                     if (tensor.name() == outputTensorOrder[i]) {
                         filteredTensors[i] = tensor;
@@ -1340,7 +1321,7 @@ Tensors InferenceEngine::GetOutputs(void *ptr, uint64_t phyAddr)
         else
         {
             int i = 0;
-            for (auto &t : outputTensors)
+            for (auto& t : outputTensors)
             {
                 // Check if this tensor is a final output tensor
                 auto finalOffsetIt = finalTensorOffsets.find(t.name());
@@ -1454,7 +1435,7 @@ std::vector<uint64_t> InferenceEngine::GetInputTensorSizes()
     return tensorSizes;
 }
 
-std::vector<uint64_t> InferenceEngine::GetOutputTensorSizes()
+std::vector<uint64_t> InferenceEngine::GetOutputTensorSizes() const
 {
     std::vector<uint64_t> tensorSizes;
 
@@ -1463,54 +1444,60 @@ std::vector<uint64_t> InferenceEngine::GetOutputTensorSizes()
 
     tensorSizes.reserve(outputTensorOrder.size());
 
-    for (const auto& outputTensorName : outputTensorOrder)
+    auto tryGetOutputTensorSize = [this](const std::string& outputTensorName, uint64_t& outSize) -> bool
     {
-        bool found = false;
         for (const auto& task : _tasks)
         {
             if (task->is_PPU())
             {
                 // For PPU models, return single output size
-                tensorSizes.push_back(task->output_size());
-                found = true;
-                break;
+                outSize = task->output_size();
+                return true;
             }
 
             for (const auto& tensor : task->outputs())
             {
                 if (tensor.name() == outputTensorName)
                 {
-                    uint64_t tensorSize = tensor.size_in_bytes();
-
-                    // Check if this is a dynamic shape case or genuine zero size
-                    if (tensorSize == 0) {
-                        if (HasDynamicOutput()) {
-                            LOG_DXRT_WARN("[GetOutputTensorSizes] Dynamic shape tensor '" + outputTensorName + "' returns size 0. "
-                                          "Actual size will be available after inference execution.");
-                        } else {
-                            LOG_DBG("[GetOutputTensorSizes] Static tensor '" + outputTensorName + "' has zero size (empty tensor).");
-                        }
-                    }
-
-                    tensorSizes.push_back(tensorSize);
-                    LOG_DBG("[GetOutputTensorSizes] Tensor '" + outputTensorName + "' size: " + std::to_string(tensorSize));
-                    found = true;
-                    break;
+                    outSize = tensor.size_in_bytes();
+                    return true;
                 }
             }
-            if (found) break;
         }
+        return false;
+    };
 
-        if (!found)
+    for (const auto& outputTensorName : outputTensorOrder)
+    {
+        uint64_t tensorSize = 0;
+        if (!tryGetOutputTensorSize(outputTensorName, tensorSize))
         {
             LOG_DXRT_ERR("[GetOutputTensorSizes] Output tensor '" + outputTensorName + "' not found in tasks");
+            continue;
         }
+
+        // Check if this is a dynamic shape case or genuine zero size
+        if (tensorSize == 0)
+        {
+            if (HasDynamicOutput())
+            {
+                LOG_DXRT_WARN("[GetOutputTensorSizes] Dynamic shape tensor '" + outputTensorName + "' returns size 0. "
+                              "Actual size will be available after inference execution.");
+            }
+            else
+            {
+                LOG_DBG("[GetOutputTensorSizes] Static tensor '" + outputTensorName + "' has zero size (empty tensor).");
+            }
+        }
+
+        tensorSizes.push_back(tensorSize);
+        LOG_DBG("[GetOutputTensorSizes] Tensor '" + outputTensorName + "' size: " + std::to_string(tensorSize));
     }
 
     return tensorSizes;
 }
 
-uint64_t InferenceEngine::GetOutputSize()
+uint64_t InferenceEngine::GetOutputSize() const
 {
     // Check if any output has dynamic shape first
     if (HasDynamicOutput()) {
@@ -1524,9 +1511,9 @@ uint64_t InferenceEngine::GetOutputSize()
     // Use _lastOutputOrder for tensor ordering
     const std::vector<std::string>& outputTensorOrder = _lastOutputOrder;
 
-    for (const auto &name : outputTensorOrder)
+    for (const auto& name : outputTensorOrder)
     {
-        for (auto &task : _tasks)
+        for (const auto& task : _tasks)
         {
             if (task->is_PPU())
             {
@@ -1544,12 +1531,12 @@ uint64_t InferenceEngine::GetOutputSize()
     return outputSize;
 }
 
-std::string InferenceEngine::GetModelName()
+std::string InferenceEngine::GetModelName() const
 {
     return _name;
 }
 
-std::vector<std::string> InferenceEngine::GetTaskOrder()
+std::vector<std::string> InferenceEngine::GetTaskOrder() const
 {
     return _taskOrder;
 }
@@ -1578,32 +1565,32 @@ std::vector<uint32_t> InferenceEngine::GetNpuInferenceTimeVector()
     return _inferenceTimer.GetNpuInferenceTimeVector();
 }
 
-double InferenceEngine::GetLatencyMean()
+double InferenceEngine::GetLatencyMean() const
 {
     return _inferenceTimer.GetLatencyMean();
 }
 
-double InferenceEngine::GetNpuInferenceTimeMean()
+double InferenceEngine::GetNpuInferenceTimeMean() const
 {
     return _inferenceTimer.GetNpuInferenceTimeMean();
 }
 
-double InferenceEngine::GetLatencyStdDev()
+double InferenceEngine::GetLatencyStdDev() const
 {
     return _inferenceTimer.GetLatencyStdDev();
 }
 
-double InferenceEngine::GetNpuInferenceTimeStdDev()
+double InferenceEngine::GetNpuInferenceTimeStdDev() const
 {
     return _inferenceTimer.GetNpuInferenceTimeStdDev();
 }
 
-int InferenceEngine::GetLatencyCnt()
+int InferenceEngine::GetLatencyCnt() const
 {
     return _inferenceTimer.GetLatencyCnt();
 }
 
-int InferenceEngine::GetNpuInferenceTimeCnt()
+int InferenceEngine::GetNpuInferenceTimeCnt() const
 {
     return _inferenceTimer.GetNpuInferenceTimeCnt();
 }
@@ -1623,7 +1610,7 @@ std::vector<TensorPtrs> InferenceEngine::GetAllTaskOutputs()
             // Get the outputs of the task
             auto task = it->second;
             TensorPtrs task_outputs;
-            for (auto& tensor : task->getLastOutput())
+            for (const auto& tensor : task->getLastOutput())
             {
                 task_outputs.emplace_back(std::make_shared<Tensor>(tensor));
             }
@@ -1640,27 +1627,27 @@ std::vector<TensorPtrs> InferenceEngine::GetAllTaskOutputs()
     return all_outputs;
 }
 
-int InferenceEngine::GetNumTailTasks()
+int InferenceEngine::GetNumTailTasks() const
 {
     return _numTails;
 }
 
-std::string InferenceEngine::GetCompileType()
+std::string InferenceEngine::GetCompileType() const
 {
     return _modelCompileType;
 }
 
-std::string InferenceEngine::GetModelVersion()
+std::string InferenceEngine::GetModelVersion() const
 {
     return std::to_string(_modelData.deepx_binary._dxnnFileFormatVersion);
 }
 
-bool InferenceEngine::IsPPU()
+bool InferenceEngine::IsPPU() const
 {
     return _isPPU;
 }
 
-bool InferenceEngine::IsOrtConfigured()
+bool InferenceEngine::IsOrtConfigured() const
 {
 #ifdef USE_ORT
     return _option.useORT;
@@ -1791,32 +1778,27 @@ void InferenceEngine::disposeOnce()
 
     for (size_t i = 0; i < _inferenceJobPool->GetSize(); ++i)
     {
-        auto job = _inferenceJobPool->GetById(i);
+        auto job = _inferenceJobPool->GetById(static_cast<int>(i));
 
         // wait for the job to finish
-        if ( job->GetOccupiedJob() ) {
-            // lock.unlock();
+        if ( job->GetOccupiedJob() )
+        {
             Wait(static_cast<int>(i));
-            // lock.lock();
         }
-        // job->Clear();
     }
 
-    for (auto &task : _tasks)
+    for (const auto& task : _tasks)
     {
-        // cout << *task << std::endl;
-        // LOG_VALUE(task.use_count());
         task->prevs().clear();
         task->nexts().clear();
         task->ClearOutputBuffer();
         task->ClearEncodedInputBuffer();
-        // task->getData()->_inputTensors.clear();
-        // task->getData()->_outputTensors.clear();
     }
     _tasks.clear();
     _taskMap.clear();
     _head.reset();
     _tails.clear();
+    _inputTasks.clear();
     _userCallback = nullptr;
 
     // inference job pool for IE
@@ -1886,13 +1868,13 @@ std::ostream& operator<<(std::ostream& os, const InferenceEngine& ie)
 }
 
 // Tensor-centric management implementation
-void InferenceEngine::initializeEnvironmentVariables()
+void InferenceEngine::initializeEnvironmentVariables()  // NOSONAR:S5817 because false positive
 {
     const char* dxrt_debug_data_env = getenv("DXRT_DEBUG_DATA");
     const char* dxrt_show_profile_env = getenv("DXRT_SHOW_PROFILE");
     if (dxrt_debug_data_env != nullptr) {
         try {
-            DEBUG_DATA = std::stoi(dxrt_debug_data_env);
+            DEBUG_DATA = static_cast<uint8_t>(std::stoi(dxrt_debug_data_env));
         } catch (const std::invalid_argument&) {
             LOG_DXRT_ERR("Environment variable DXRT_DEBUG_DATA is not a valid integer.");
         } catch (const std::out_of_range&) {
@@ -1901,7 +1883,7 @@ void InferenceEngine::initializeEnvironmentVariables()
     }
     if (dxrt_show_profile_env != nullptr) {
         try {
-            SHOW_PROFILE = std::stoi(dxrt_show_profile_env);
+            SHOW_PROFILE = static_cast<uint8_t>(std::stoi(dxrt_show_profile_env));
         } catch (const std::invalid_argument&) {
             LOG_DXRT_ERR("Environment variable DXRT_SHOW_PROFILE is not a valid integer.");
         } catch (const std::out_of_range&) {
@@ -1952,7 +1934,7 @@ void InferenceEngine::buildTasksAndSubgraphMap(int bufferCount)
 
     // Precompute lookup maps
     std::unordered_map<std::string, deepx_graphinfo::SubGraph> subGraphMap;
-    for (auto& subGraph : _modelData.deepx_graph.subgraphs())
+    for (const auto& subGraph : _modelData.deepx_graph.subgraphs())
     {
         subGraphMap.emplace(subGraph.name(), subGraph);
     }
@@ -1960,7 +1942,7 @@ void InferenceEngine::buildTasksAndSubgraphMap(int bufferCount)
     std::unordered_map<std::string, size_t> rmapIndexMap;
     for (size_t j = 0; j < _modelData.deepx_binary.rmap_info().size(); ++j)
     {
-        rmapIndexMap.emplace(_modelData.deepx_binary.rmap_info(j).name(), j);
+        rmapIndexMap.emplace(_modelData.deepx_binary.rmap_info(static_cast<int>(j)).name(), static_cast<int>(j));
     }
 
 #ifdef USE_ORT
@@ -1969,17 +1951,17 @@ void InferenceEngine::buildTasksAndSubgraphMap(int bufferCount)
         {
             for (size_t j = 0; j < _modelData.deepx_binary.cpu_models().size(); ++j)
             {
-                cpuModelIndexMap.emplace(_modelData.deepx_binary.cpu_models(j).name(), j);
+                cpuModelIndexMap.emplace(_modelData.deepx_binary.cpu_models(static_cast<int>(j)).name(), j);
             }
         }
 #endif
 
     // Cache devices once
 
-    int max_device_count = DevicePool::GetInstance().GetDeviceCount();
+    auto max_device_count = static_cast<int>(DevicePool::GetInstance().GetDeviceCount());
 
     std::vector<int> selected_devices = {};
-    if (_option.devices.size() == 0)
+    if (_option.devices.empty())
     {
         for (int i = 0; i < max_device_count; i++)
             selected_devices.push_back(i);
@@ -1993,7 +1975,7 @@ void InferenceEngine::buildTasksAndSubgraphMap(int bufferCount)
     }
 
     bool found = false;
-    for (const auto &order : orginal_task_order )
+    for (const auto& order : orginal_task_order )
     {
         dxrt::rmap_info rmap_info;
         std::vector<std::vector<uint8_t>> data;
@@ -2011,7 +1993,7 @@ void InferenceEngine::buildTasksAndSubgraphMap(int bufferCount)
         if (rmapIterator != rmapIndexMap.end())
         {
             size_t j = rmapIterator->second;
-            rmap_info = _modelData.deepx_rmap.rmap_info(j);
+            rmap_info = _modelData.deepx_rmap.rmap_info(static_cast<int>(j));
 
             // version check
             std::string version_str = _modelData.deepx_binary._compilerVersion;
@@ -2019,14 +2001,14 @@ void InferenceEngine::buildTasksAndSubgraphMap(int bufferCount)
                 throw InvalidModelException(EXCEPTION_MESSAGE(LogMessages::NotSupported_ModelCompilerVersion(version_str, MIN_COMPILER_VERSION)));
 
             // Unrolled loop to avoid conditional branches and improve performance/readability
-            const auto& rmapBuffer = _modelData.deepx_binary.rmap(j).buffer();
+            const auto& rmapBuffer = _modelData.deepx_binary.rmap(static_cast<int>(j)).buffer();
             data.emplace_back(rmapBuffer.begin(), rmapBuffer.end());
             if (data.back().empty())
             {
                 throw InvalidModelException(EXCEPTION_MESSAGE("invalid model"));
             }
 
-            const auto& weightBuffer = _modelData.deepx_binary.weight(j).buffer();
+            const auto& weightBuffer = _modelData.deepx_binary.weight(static_cast<int>(j)).buffer();
             data.emplace_back(weightBuffer.begin(), weightBuffer.end());
 
             // weight can be empty for some models
@@ -2036,8 +2018,8 @@ void InferenceEngine::buildTasksAndSubgraphMap(int bufferCount)
             // v8: Add PPU binary if exists (for PPCPU type)
             if (_modelData.deepx_binary._dxnnFileFormatVersion == 8 &&
                 j < _modelData.deepx_binary.ppu().size() &&
-                _modelData.deepx_binary.ppu(j).size() > 0) {
-                const auto& ppuBuffer = _modelData.deepx_binary.ppu(j).buffer();
+                _modelData.deepx_binary.ppu(static_cast<int>(j)).size() > 0) {
+                const auto& ppuBuffer = _modelData.deepx_binary.ppu(static_cast<int>(j)).buffer();
                 data.emplace_back(ppuBuffer.begin(), ppuBuffer.end());
                 LOG_DXRT_DBG << "Added PPU binary to data vector for task '" << order
                              << "', size: " << data.back().size() << " bytes" << std::endl;
@@ -2053,29 +2035,29 @@ void InferenceEngine::buildTasksAndSubgraphMap(int bufferCount)
             auto cpuIterator = cpuModelIndexMap.find(order);
             if (cpuIterator != cpuModelIndexMap.end())
             {
-                const auto& bufferSource = _modelData.deepx_binary.cpu_models(cpuIterator->second).buffer();
+                const auto& bufferSource = _modelData.deepx_binary.cpu_models(
+                    static_cast<int>(cpuIterator->second)).buffer();
                 data.emplace_back(bufferSource.begin(), bufferSource.end());
                 found = true;
             }
         }
 #endif
-        // DXRT_ASSERT(found==true, "invalid graph info in model");
         if (found)
         {
             // Check if this task has PPU binary (v8 PPCPU type)
             bool hasPpuBinary = false;
             if (_modelData.deepx_binary._dxnnFileFormatVersion == 8) {
-                auto rmapIterator = rmapIndexMap.find(order);
-                if (rmapIterator != rmapIndexMap.end()) {
-                    size_t j = rmapIterator->second;
+                auto rmapIndexMapIterator = rmapIndexMap.find(order);
+                if (rmapIndexMapIterator != rmapIndexMap.end()) {
+                    size_t j = rmapIndexMapIterator->second;
                     if (j < _modelData.deepx_binary.ppu().size() &&
-                        _modelData.deepx_binary.ppu(j).size() > 0) {
+                        _modelData.deepx_binary.ppu(static_cast<int>(j)).size() > 0) {
                         hasPpuBinary = true;
                     }
                 }
             }
             std::shared_ptr<Task> task;
-            if (_option.devices.size() != 0)
+            if (!_option.devices.empty())
             {
                 task = std::make_shared<Task>(order, rmap_info, bufferCount, std::move(data),
                     static_cast<npu_bound_op>(_option.boundOption), _option.devices, hasPpuBinary);
@@ -2090,7 +2072,7 @@ void InferenceEngine::buildTasksAndSubgraphMap(int bufferCount)
 #ifdef USE_ORT
             if (_option.useORT == true)
             {
-                auto &subgraph = _subGraphMap[order];
+                const auto& subgraph = _subGraphMap[order];
 
                 // Use head/tail flags directly from graph_info
                 if (subgraph.head())
@@ -2127,6 +2109,10 @@ void InferenceEngine::buildTasksAndSubgraphMap(int bufferCount)
 #endif
                 break;  // force single task
         }
+        else
+        {
+            LOG_DXRT_DBG << "invalid graph info in model\n";
+        }
     }
     DXRT_ASSERT(found == true, "invalid graph info in model");
 }
@@ -2138,15 +2124,15 @@ void InferenceEngine::buildInputTensorMapping()
     if (_option.useORT == true)
     {
         // ORT mode: use subgraph inputs with owner check
-        for (const auto &tensorName : _modelInputOrder)
+        for (const auto& tensorName : _modelInputOrder)
         {
             // Find which task this input tensor belongs to
-            for (auto &task : _tasks)
+            for (const auto& task : _tasks)
             {
-                auto &subgraph = _subGraphMap[task->name()];
-                auto &inputs = subgraph.inputs();
+                const auto& subgraph = _subGraphMap[task->name()];
+                const auto& inputs = subgraph.inputs();
 
-                for (auto &inputTensor : inputs)
+                for (const auto& inputTensor : inputs)
                 {
                     if (inputTensor.name() == tensorName && inputTensor.owner().empty())
                     {
@@ -2169,11 +2155,11 @@ void InferenceEngine::buildInputTensorMapping()
     #endif
     {
         // Non-ORT mode: directly map all head task inputs
-        for (auto &task : _tasks)
+        for (const auto& task : _tasks)
         {
             if (task->is_head())
             {
-                for (auto& input : task->inputs())
+                for (const auto& input : task->inputs())
                 {
                     _inputTensorToTaskMap[input.name()] = task->name();
 
@@ -2201,22 +2187,25 @@ void InferenceEngine::buildTaskGraph()
             elem->next() = nullptr;
     }
 
-    for (auto &task : _tasks)
+    for (const auto& task : _tasks)
     {
-        auto &subgraph = _subGraphMap[task->name()];
-        auto &inputs = subgraph.inputs();
-        auto &outputs = subgraph.outputs();
-        // cout << subgraph.name() << endl;
-        std::ignore = inputs;  // for(auto &v:inputs) cout << v.key() << ", " << v.val() << endl;
-        std::ignore = outputs;  // for(auto &v:outputs) cout << v.key() << ", " << v.val() << endl;
+        const auto& subgraph = _subGraphMap[task->name()];
+        const auto& inputs = subgraph.inputs();
+        const auto& outputs = subgraph.outputs();
+#if 0
+        cout << subgraph.name() << endl;
+        for (const auto& v : inputs) cout << v.key() << ", " << v.val() << endl;
+        for (const auto& v : outputs) cout << v.key() << ", " << v.val() << endl;
+#endif
+        std::ignore = inputs;
+        std::ignore = outputs;
 
         {
-            auto &nexts = task->nexts();
+            auto& nexts = task->nexts();
 
-            for (auto &tensor : outputs) {
+            for (const auto& tensor : outputs) {
                 std::string tensor_name = tensor.name();
-                // std::vecotr<std::string> user_task_names = tensor.users();
-                for (auto user_task_name : tensor.users())
+                for (const auto& user_task_name : tensor.users())
                 {
                     auto user_task = _taskMap.find(user_task_name);
 
@@ -2236,8 +2225,8 @@ void InferenceEngine::buildTaskGraph()
         // Build prevs for all tasks (including head tasks that may depend on other tasks)
         // Head tasks can still have dependencies on other tasks even though they also receive model inputs
         {
-            auto &prevs = task->prevs();
-            for (auto &tensor : inputs)
+            auto& prevs = task->prevs();
+            for (const auto& tensor : inputs)
             {
                 std::string tensor_name = tensor.name();
                 std::string owner_task_name = tensor.owner();
@@ -2392,14 +2381,14 @@ size_t InferenceEngine::GetOutputTensorOffset(const std::string& tensorName) con
 {
     // Ensure offsets are calculated first
     if (!_outputOffsetsCalculated.load()) {
-        const_cast<InferenceEngine*>(this)->calculateTensorOffsets();
+        const_cast<InferenceEngine*>(this)->calculateTensorOffsets();  //NOSONAR:S859 due to previous catastrophic issue
     }
 
     std::lock_guard<std::mutex> lock(_outputBufferMutex);
     auto it = _cachedOutputOffsets.find(tensorName);
     if (it != _cachedOutputOffsets.end())
     {
-        return static_cast<size_t>(it->second);
+        return it->second;
     }
 
     LOG_DXRT_ERR("Tensor '" + tensorName + "' not found in cached offsets");
@@ -2436,40 +2425,40 @@ void InferenceEngine::LogModelDataDetails()
     // Rmap Info
     LOG_DXRT << "[BINARY_INFO] Rmap Info Count: " << _modelData.deepx_binary.rmap_info().size() << endl;
     for (size_t i = 0; i < _modelData.deepx_binary.rmap_info().size(); ++i) {
-        LOG_DXRT << "[BINARY_INFO] Rmap[" << i << "] Name: " << _modelData.deepx_binary.rmap_info(i).name() << endl;
-        LOG_DXRT << "[BINARY_INFO] Rmap[" << i << "] Offset: " << _modelData.deepx_binary.rmap_info(i).offset() << endl;
-        LOG_DXRT << "[BINARY_INFO] Rmap[" << i << "] Size: " << _modelData.deepx_binary.rmap_info(i).size() << endl;
+        LOG_DXRT << "[BINARY_INFO] Rmap[" << i << "] Name: " << _modelData.deepx_binary.rmap_info(static_cast<int>(i)).name() << endl;
+        LOG_DXRT << "[BINARY_INFO] Rmap[" << i << "] Offset: " << _modelData.deepx_binary.rmap_info(static_cast<int>(i)).offset() << endl;
+        LOG_DXRT << "[BINARY_INFO] Rmap[" << i << "] Size: " << _modelData.deepx_binary.rmap_info(static_cast<int>(i)).size() << endl;
     }
 
     // Weight Info
     LOG_DXRT << "[BINARY_INFO] Weight Info Count: " << _modelData.deepx_binary.weight().size() << endl;
     for (size_t i = 0; i < _modelData.deepx_binary.weight().size(); ++i) {
-        LOG_DXRT << "[BINARY_INFO] Weight[" << i << "] Name: " << _modelData.deepx_binary.weight(i).name() << endl;
-        LOG_DXRT << "[BINARY_INFO] Weight[" << i << "] Offset: " << _modelData.deepx_binary.weight(i).offset() << endl;
-        LOG_DXRT << "[BINARY_INFO] Weight[" << i << "] Size: " << _modelData.deepx_binary.weight(i).size() << endl;
+        LOG_DXRT << "[BINARY_INFO] Weight[" << i << "] Name: " << _modelData.deepx_binary.weight(static_cast<int>(i)).name() << endl;
+        LOG_DXRT << "[BINARY_INFO] Weight[" << i << "] Offset: " << _modelData.deepx_binary.weight(static_cast<int>(i)).offset() << endl;
+        LOG_DXRT << "[BINARY_INFO] Weight[" << i << "] Size: " << _modelData.deepx_binary.weight(static_cast<int>(i)).size() << endl;
     }
 
     // 2. Graph Info
     LOG_DXRT << "[GRAPH_INFO] Subgraphs Count: " << _modelData.deepx_graph.subgraphs().size() << endl;
     for (size_t i = 0; i < _modelData.deepx_graph.subgraphs().size(); ++i) {
-        auto& subgraph = _modelData.deepx_graph.subgraphs(i);
+        const auto& subgraph = _modelData.deepx_graph.subgraphs(static_cast<int>(i));
         LOG_DXRT << "[GRAPH_INFO] Subgraph[" << i << "] Name: " << subgraph.name() << endl;
         LOG_DXRT << "[GRAPH_INFO] Subgraph[" << i << "] Inputs Count: " << subgraph.inputs().size() << endl;
         LOG_DXRT << "[GRAPH_INFO] Subgraph[" << i << "] Outputs Count: " << subgraph.outputs().size() << endl;
 
         for (size_t j = 0; j < subgraph.inputs().size(); ++j) {
-            LOG_DXRT << "[GRAPH_INFO] Subgraph[" << i << "] Input[" << j << "] Name: " << subgraph.inputs(j).name() << endl;
+            LOG_DXRT << "[GRAPH_INFO] Subgraph[" << i << "] Input[" << j << "] Name: " << subgraph.inputs(static_cast<int>(j)).name() << endl;
         }
 
         for (size_t j = 0; j < subgraph.outputs().size(); ++j) {
-            LOG_DXRT << "[GRAPH_INFO] Subgraph[" << i << "] Output[" << j << "] Name: " << subgraph.outputs(j).name() << endl;
+            LOG_DXRT << "[GRAPH_INFO] Subgraph[" << i << "] Output[" << j << "] Name: " << subgraph.outputs(static_cast<int>(j)).name() << endl;
         }
     }
 
     // 3. Rmap Info
     LOG_DXRT << "[RMAP_INFO] Rmap Info Count: " << _modelData.deepx_rmap.rmap_info().size() << endl;
     for (size_t i = 0; i < _modelData.deepx_rmap.rmap_info().size(); ++i) {
-        auto& rmap = _modelData.deepx_rmap.rmap_info(i);
+        auto& rmap = _modelData.deepx_rmap.rmap_info(static_cast<int>(i));
         LOG_DXRT << "[RMAP_INFO] Rmap[" << i << "] Name: " << rmap.name() << endl;
         LOG_DXRT << "[RMAP_INFO] Rmap[" << i << "] Input Count: " << rmap.inputs().size() << endl;
         LOG_DXRT << "[RMAP_INFO] Rmap[" << i << "] Output Count: " << rmap.outputs().size() << endl;
@@ -2492,13 +2481,13 @@ void InferenceEngine::LogModelDataDetails()
     LOG_DXRT << "=== END MODEL DATA DETAILS ===" << endl;
 }
 
-bool InferenceEngine::HasDynamicOutput()
+bool InferenceEngine::HasDynamicOutput() const
 {
     // Check if any task has dynamic outputs
-    for (auto &task : _tasks)
+    for (const auto& task : _tasks)
     {
         // For CPU tasks, check if they have dynamic shape outputs
-        CpuHandle* cpuHandle = task->getCpuHandle();
+        const CpuHandle* cpuHandle = task->getCpuHandle();
     if (cpuHandle && cpuHandle->HasDynamicOutput())
         {
             return true;
@@ -2529,7 +2518,7 @@ void InferenceEngine::checkInputOutputMistmatch()
     // 1st. get inputs from model
 
     std::set<std::string> avilableInputs;
-    for(auto& it: _modelInputOrder)
+    for(const auto& it: _modelInputOrder)
     {
         avilableInputs.insert(it);
     }
@@ -2610,7 +2599,7 @@ void InferenceEngine::checkInputOutputMistmatch()
 }
 
 
-void InferenceEngine::onInferenceComplete(TensorPtrs &outputs, void *userArg, int jobId)
+void InferenceEngine::onInferenceComplete(TensorPtrs &outputs, void *userArg, int jobId) const
 {
     auto infJob = _inferenceJobPool->GetById(jobId);
     if (this->_userCallback != nullptr)

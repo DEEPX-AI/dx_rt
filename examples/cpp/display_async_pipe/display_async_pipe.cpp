@@ -2,15 +2,15 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
 #include "dxrt/dxrt_api.h"
 #include "dxrt/extern/cxxopts.hpp"
-#include "concurrent_queue.h"
-#include "simple_circular_buffer_pool.h"
+#include "../include/concurrent_queue.h"
+#include "../include/simple_circular_buffer_pool.h"
 #include "../include/logger.h"
 
 #include <string>
@@ -43,27 +43,31 @@ static std::shared_ptr<SimpleCircularBufferPool<uint8_t>> gFrameBufferPool;
 static std::atomic<int> gTotalDisplayCount{0};
 
 
-static void postProcessingA(uint8_t* buffer, dxrt::TensorPtrs& outputA)
+static void postProcessingA(uint8_t* buffer, const dxrt::TensorPtrs& outputA)
 {
     // something to do
-    //std::cout << "postProcessing A output a=" << outputA.front()->type() << std::endl;
+#if POST_PROCESSING_COUT
+    std::cout << "postProcessing A output a=" << outputA.front()->type() << std::endl;
+#endif
     std::ignore = buffer;
     std::ignore = outputA;
-   
+
 }
 
-static void postProcessingB(dxrt::TensorPtrs& outputB)
+static void postProcessingB(const dxrt::TensorPtrs& outputB)
 {
     // something to do
-    //std::cout << "postProcessing B output a=" << outputB.front()->type() << std::endl;
+#if POST_PROCESSING_COUT
+    std::cout << "postProcessing B output a=" << outputB.front()->type() << std::endl;
+#endif
     std::ignore = outputB;
-   
+
 }
 
-static int displayThreadFunc(int loopCount, dxrt::InferenceEngine& ieB)
+static int displayThreadFunc(int loopCount, const dxrt::InferenceEngine& ieB)
 {
-    static auto& log = dxrt::Logger::GetInstance();
-    while(gTotalDisplayCount.load() < loopCount)
+    static const auto& log = dxrt::Logger::GetInstance();
+    while (gTotalDisplayCount.load() < loopCount)
     {
         // consumer framebuffer & jobIds
         auto frameJobId = gDisplayQueue.pop();
@@ -71,7 +75,7 @@ static int displayThreadFunc(int loopCount, dxrt::InferenceEngine& ieB)
         // output data of ieB
         auto outputB = ieB.Wait(frameJobId.jobId_B);
 
-        // post-processing w/ outputA & outputB
+        // post-processing with outputA and outputB
         postProcessingB(outputB);
 
         log.Debug("displayThreadFunc loop-index=" + std::to_string(frameJobId.loopIndex));
@@ -85,12 +89,12 @@ static int displayThreadFunc(int loopCount, dxrt::InferenceEngine& ieB)
     return 0;
 }
 
-static int cpuOperationThreadFunc(int loopCount, dxrt::InferenceEngine& ieA, dxrt::InferenceEngine& ieB)
+static int cpuOperationThreadFunc(int loopCount, const dxrt::InferenceEngine& ieA, dxrt::InferenceEngine& ieB)
 {
-    static auto& log = dxrt::Logger::GetInstance();
-    while(gTotalDisplayCount.load() < loopCount)
+    static const auto& log = dxrt::Logger::GetInstance();
+    while (gTotalDisplayCount.load() < loopCount)
     {
-        // consumer framebuffer & jobIds
+        // consumer framebuffer and jobIds
         auto frameJobIdA = gCPUOPQueue.pop();
 
         // output data of ieA
@@ -178,7 +182,7 @@ int main(int argc, char* argv[])
 
 
         gInputBufferPool_A = std::make_shared<SimpleCircularBufferPool<uint8_t>>(BUFFER_POOL_SIZE, ieA.GetInputSize());
-      
+
         // create inference engine instance with model
         dxrt::InferenceEngine ieB(model_path);
 
@@ -187,30 +191,32 @@ int main(int argc, char* argv[])
 
         gInputBufferPool_B = std::make_shared<SimpleCircularBufferPool<uint8_t>>(BUFFER_POOL_SIZE, ieB.GetInputSize());
 
-        const int W = 512, H = 512, CH = 3;
+        constexpr int W = 512;
+        constexpr int H = 512;
+        constexpr int CH = 3;
         gFrameBufferPool = std::make_shared<SimpleCircularBufferPool<uint8_t>>(BUFFER_POOL_SIZE, W*H*CH);
-    
+
         auto start = std::chrono::high_resolution_clock::now();
 
         // create thread
         std::thread cpuOperationThread(cpuOperationThreadFunc, loop_count, std::ref(ieA), std::ref(ieB));
         std::thread displayThread(displayThreadFunc, loop_count, std::ref(ieB));
-        
-        
+
+
         // input processing
         for(int i = 0; i < loop_count; ++i)
         {
-            uint8_t* frameBuffer = gFrameBufferPool->pointer(); 
+            uint8_t* frameBuffer = gFrameBufferPool->acquire_buffer();
             readFrameBuffer(frameBuffer, W, H, CH);
 
-            uint8_t* inputA = gInputBufferPool_A->pointer();
+            uint8_t* inputA = gInputBufferPool_A->acquire_buffer();
             preProcessing(inputA, frameBuffer);
 
-            // struct to pass to a thread 
+            // struct to pass to a thread
             FrameJobId frameJobId;
 
             frameJobId.inputBufferA = inputA;
-            frameJobId.inputBufferB = gInputBufferPool_B->pointer();
+            frameJobId.inputBufferB = gInputBufferPool_B->acquire_buffer();
 
             // start inference of A model
             frameJobId.jobId_A = ieA.RunAsync(inputA);
@@ -226,7 +232,7 @@ int main(int argc, char* argv[])
 
         cpuOperationThread.join();
         displayThread.join();
-  
+
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> duration = end - start;
 
@@ -240,7 +246,7 @@ int main(int argc, char* argv[])
         log.Info("FPS: " + std::to_string(fps) + " frames/sec");
 
         result = gTotalDisplayCount.load() == loop_count;
-        log.Info("Total count=(" + std::to_string(gTotalDisplayCount.load()) + "/" + std::to_string(loop_count) + ") " + 
+        log.Info("Total count=(" + std::to_string(gTotalDisplayCount.load()) + "/" + std::to_string(loop_count) + ") " +
                 (result ? "Success" : "Failure"));
         log.Info("-----------------------------------");
 
@@ -248,7 +254,7 @@ int main(int argc, char* argv[])
     }
     catch (const dxrt::Exception& e)
     {
-        log.Error(std::string(e.what()) + " error-code=" + std::to_string(e.code()));
+        log.Error(std::string(e.what()) + " error-code=" + std::to_string(static_cast<int>(e.code())));
         return -1;
     }
     catch (const std::exception& e)
@@ -261,6 +267,6 @@ int main(int argc, char* argv[])
         log.Error("Exception");
         return -1;
     }
-    
+
     return result ? 0 : -1;
 }

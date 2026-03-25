@@ -18,6 +18,7 @@
 #include "dxrt/util.h"
 #include "dxrt/cpu_handle.h"
 #include "dxrt/request_response_class.h"
+#include "dxrt/safe_cast.h"
 
 #include <future>
 #include <memory>
@@ -38,12 +39,13 @@ static Tensors BuildUserOutputTensorsForTailTask(
     const TaskPtr& taskPtr,
     void* userOutputBase,
     const std::vector<std::string>& outputsOrder,
-    InferenceEngine* inferenceEngine,
+    const InferenceEngine* inferenceEngine,
     int jobId)
 {
     std::ignore = jobId;
     Tensors outputTensors;
-    if (userOutputBase == nullptr || inferenceEngine == nullptr) {
+    if (userOutputBase == nullptr || inferenceEngine == nullptr)
+    {
         return outputTensors;
     }
 
@@ -73,7 +75,7 @@ void InferenceJob::onRequestComplete(RequestPtr req)
 {
     LOG_DXRT_DBG << "onRequestComplete(job=" << _jobId << ", task=" << req->task()->name() << ")" << std::endl;
 
-    bool allRequestComplete = false;
+    bool all_request_complete = false;
     Task* thisTask = req->task();
 
     LOG_DBG("[Job_" + std::to_string(_jobId) + "] onRequestComplete: Task '" + thisTask->name() +
@@ -83,14 +85,16 @@ void InferenceJob::onRequestComplete(RequestPtr req)
     {
         std::unique_lock<std::mutex> lk(_lock);
         // Update tensor map
-        for (const Tensor& output : req->outputs()) {
+        for (const Tensor& output : req->outputs())
+        {
             auto name = output.name();
             auto itTensor = _tensors.find(name);
             if (itTensor != _tensors.end()) itTensor->second = output; else _tensors.insert(make_pair(name, output));
         }
         // Mark task done
         auto itStatus = _taskStatusMap.find(thisTask->name());
-        if (itStatus == _taskStatusMap.end()) {
+        if (itStatus == _taskStatusMap.end())
+        {
             throw InvalidOperationException(EXCEPTION_MESSAGE("The task name was not found in this job."));
         }
         itStatus->second = Status::TASK_DONE;
@@ -98,14 +102,16 @@ void InferenceJob::onRequestComplete(RequestPtr req)
 
         // Check if all requests complete - use original logic with task count
         _doneCount++;
-        allRequestComplete = (_doneCount.load() == _outputCount.load());
+        all_request_complete = (_doneCount.load() == _outputCount.load());
 
         LOG_DBG("[Job_" + std::to_string(_jobId) + "] Task '" + thisTask->name() +
                 "' done. Progress: " + std::to_string(_doneCount.load()) + "/" + std::to_string(_outputCount.load()));
 
         _latency += req->latency();
         if (req->task()->processor() == Processor::NPU)
+        {
             _infTime += req->inference_time();
+        }
     }
 
     if (!thisTask->nexts().empty())
@@ -113,7 +119,7 @@ void InferenceJob::onRequestComplete(RequestPtr req)
         LOG_DBG("[Job_" + std::to_string(_jobId) + "] Task '" + thisTask->name() +
                 "' has " + std::to_string(thisTask->nexts().size()) + " successor(s). Processing...");
 
-        for (auto & nextTaskPtr : thisTask->nexts())
+        for (const auto & nextTaskPtr : thisTask->nexts())
         {
             if (checkAndSetTaskReady(nextTaskPtr))
             {
@@ -125,19 +131,20 @@ void InferenceJob::onRequestComplete(RequestPtr req)
                 LOG_DBG("[Job_" + std::to_string(_jobId) + "] Task '" + nextTaskPtr->name() + "' is not ready yet");
             }
         }
-        // Note: allRequestComplete status doesn't change when scheduling successors
+        // Note: all_request_complete status doesn't change when scheduling successors
         // because completion is based on original task count, not dynamic request count
     }
 
-    if (allRequestComplete) {
+    if (all_request_complete)
+    {
         LOG_DBG("[Job_" + std::to_string(_jobId) + "] All tasks completed! Calling onAllRequestComplete()");
         onAllRequestComplete();
     }
 }
 
 InferenceJob::InferenceJob(int id) noexcept
+: _jobId(id)
 {
-    _jobId = id;
 }
 
 void InferenceJob::onAllRequestComplete()
@@ -165,15 +172,22 @@ void InferenceJob::onAllRequestComplete()
     {
         LOG_DXRT_DBG << "task callback" << endl;
         TensorPtrs callbackOutputs;
-        if (_storeResult) {
+        if (_storeResult)
+        {
             callbackOutputs = _returnOutputs;
-        } else {
+        }
+        else
+        {
             std::unique_lock<std::mutex> lk(_lock);
-            for (const auto &name : _outputs) {
+            for (const auto &name : _outputs)
+            {
                 auto it = _tensors.find(name);
-                if (it != _tensors.end()) {
+                if (it != _tensors.end())
+                {
                     callbackOutputs.emplace_back(std::make_shared<Tensor>(it->second));
-                } else {
+                }
+                else
+                {
                     LOG_DXRT_ERR("[Job_" + std::to_string(_jobId) + "] Missing expected output tensor during callback: " + name);
                 }
             }
@@ -183,7 +197,9 @@ void InferenceJob::onAllRequestComplete()
         {
             DataDumpBin("output.bin", callbackOutputs);
         }
+
         _inferenceEnginePtr->onInferenceComplete(callbackOutputs, _userArg, _jobId);
+
         if (_infEngCallback != nullptr)
         {
             _infEngCallback(callbackOutputs, _userArg, _jobId);
@@ -193,7 +209,7 @@ void InferenceJob::onAllRequestComplete()
         LOG_DXRT << "callback error " << endl;
     } catch (std::exception& e) {
         LOG_DXRT << e.what() << " std callback error " << endl;
-    } catch (...) {
+    } catch (...) {  // NOSONAR:S2738
         LOG_DXRT << "callback error unknown " << endl;
     }
 
@@ -222,8 +238,8 @@ void InferenceJob::SetInferenceJob(std::vector<std::shared_ptr<Task>>& tasks_, s
 
     _taskStatusMap.clear();
 
-    _outputCount.store(tasks_.size());
-    for (std::shared_ptr<Task>& it :  tasks_)
+    _outputCount.store(static_cast<int>(tasks_.size()));
+    for (const auto& it :  tasks_)
     {
         _taskStatusMap.insert(make_pair(it->name(), Status::TASK_IDLE));
     }
@@ -231,7 +247,7 @@ void InferenceJob::SetInferenceJob(std::vector<std::shared_ptr<Task>>& tasks_, s
 
 void InferenceJob::SetInferenceJobMultiHead(std::vector<std::shared_ptr<Task>>& tasks_,
                                            const std::vector<std::shared_ptr<Task>>& inputTasks_,
-                                           std::vector<std::string> lastOutputOrder,
+                                           const std::vector<std::string>& lastOutputOrder,
                                            const std::vector<std::string>& modelInputNames)
 {
     Clear();
@@ -248,8 +264,8 @@ void InferenceJob::SetInferenceJobMultiHead(std::vector<std::shared_ptr<Task>>& 
 
     _taskStatusMap.clear();
 
-    _outputCount.store(tasks_.size());
-    for (std::shared_ptr<Task>& it :  tasks_)
+    _outputCount.store(static_cast<int>(tasks_.size()));
+    for (const auto& it :  tasks_)
     {
         _taskStatusMap.insert(make_pair(it->name(), Status::TASK_IDLE));
     }
@@ -259,8 +275,8 @@ void InferenceJob::SetInferenceJobMultiHead(std::vector<std::shared_ptr<Task>>& 
 
 int InferenceJob::startJob(void *inputPtr, void *userArg, void *outputPtr)
 {
-    TaskPtr task = _headTask.lock();
-    if (task == nullptr)
+    TaskPtr head_task = _headTask.lock();
+    if (head_task == nullptr)
     {
         return -1;
     }
@@ -278,7 +294,8 @@ int InferenceJob::startJob(void *inputPtr, void *userArg, void *outputPtr)
         std::unique_lock<std::mutex> lk(_lock);
 
         // Sanity check: startJob() should only be called for single-input models
-        if (_modelInputNames.size() > 1) {
+        if (_modelInputNames.size() > 1)
+        {
             LOG_DXRT_ERR("[Job_" + std::to_string(_jobId) + "] WARNING: startJob() called with " +
                          std::to_string(_modelInputNames.size()) +
                          " model inputs. Should use startMultiInputJob() instead!");
@@ -286,25 +303,31 @@ int InferenceJob::startJob(void *inputPtr, void *userArg, void *outputPtr)
 
         // Find all model input tensors that are used by tasks other than the primary head
         // For each model input, check if any non-primary-head task uses it
-        for (const auto& modelInputName : _modelInputNames) {
+        for (const auto& model_input_name : _modelInputNames) {
             // Find tensor metadata and check if it's shared
-            bool isSharedInput = false;
-            std::shared_ptr<Tensor> modelInputTensorPtr;  // Use shared_ptr to safely store tensor
+            bool is_shared_input = false;
 
-            for (const auto& t : _tasks) {
-                const Tensors& taskInputs = t->inputs();
-                for (const auto& input : taskInputs) {
-                    if (input.name() == modelInputName) {
+            // Use shared_ptr because Tensor has no default constructor
+            std::shared_ptr<Tensor> shared_input_metadata;
+
+            for (const auto& task : _tasks)
+            {
+                for (const auto& input_tensor : task->inputs())
+                {
+                    if (input_tensor.name() == model_input_name)
+                    {
                         // Save the first occurrence of this tensor's metadata
-                        if (!modelInputTensorPtr) {
-                            modelInputTensorPtr = std::make_shared<Tensor>(input);  // Copy the tensor
+                        if (!shared_input_metadata)
+                        {
+                            shared_input_metadata = std::make_shared<Tensor>(input_tensor);
                         }
 
                         // If this task is not the primary head, this is a shared input
-                        if (t != task) {
-                            isSharedInput = true;
-                            LOG_DBG("[Job_" + std::to_string(_jobId) + "] Model input '" + modelInputName +
-                                    "' is used by non-primary task '" + t->name() + "'");
+                        if (task != head_task)
+                        {
+                            is_shared_input = true;
+                            LOG_DBG("[Job_" + std::to_string(_jobId) + "] Model input '" + model_input_name +
+                                    "' is used by non-primary task '" + task->name() + "'");
                         }
                         break;  // Found this input in current task, move to next task
                     }
@@ -312,45 +335,51 @@ int InferenceJob::startJob(void *inputPtr, void *userArg, void *outputPtr)
                 // Continue checking all tasks (don't break early) to log all shared usage
             }
 
-            if (isSharedInput && modelInputTensorPtr) {
+            if (is_shared_input && shared_input_metadata)
+            {
                 // This is a shared model input, add it to _tensors with the provided data pointer
-                Tensor modelInputTensor = *modelInputTensorPtr;  // Copy metadata
-                modelInputTensor.data() = inputPtr;
-                modelInputTensor.phy_addr() = 0;
-                _tensors.insert(std::make_pair(modelInputName, modelInputTensor));
-                LOG_DBG("[Job_" + std::to_string(_jobId) + "] Added shared model input tensor: " + modelInputName);
+                Tensor model_input_tensor = *shared_input_metadata;  // Copy metadata
+                model_input_tensor.data() = inputPtr;
+                model_input_tensor.phy_addr() = 0;
+                _tensors.insert(std::make_pair(model_input_name, model_input_tensor));
+                LOG_DBG("[Job_" + std::to_string(_jobId) + "] Added shared model input tensor: " + model_input_name);
             }
         }
     }
 
     void* first_output = nullptr;
-    if (task->is_tail())
+    if (head_task->is_tail())
     {
         first_output = outputPtr;
     }
 
-    RequestPtr req = Request::Create(task.get(), inputPtr, first_output, userArg, _jobId);
+    RequestPtr req = Request::Create(head_task.get(), inputPtr, first_output, userArg, _jobId);
     req->requestor_name() = "";
     req->SetStatus(Request::Status::REQ_BUSY);
     req->setInferenceJob(this);  // on each request complete, do next request or complete whole inference
     _requests.push_back(req);
 
-    if (_outputPtr != nullptr) {
+    if (_outputPtr != nullptr)
+    {
         // To avoid intermediate copies, use user-provided buffer only for pure tail tasks
-        if (task->is_tail()) {
+        if (head_task->is_tail())
+        {
             // Map all tail-task outputs to user buffer with model-global offsets
-            Tensors outputTensors = BuildUserOutputTensorsForTailTask(task, _outputPtr, _outputs, _inferenceEnginePtr, _jobId);
+            Tensors outputTensors = BuildUserOutputTensorsForTailTask(head_task, _outputPtr, _outputs, _inferenceEnginePtr, _jobId);
             req->setOutputs(outputTensors);
-            LOG_DBG("[Job_" + std::to_string(_jobId) + "] Head task '" + task->name() + "' is tail task, using user output buffer directly");
-        } else {
-            req->getData()->output_buffer_base = nullptr;
-            LOG_DBG("[Job_" + std::to_string(_jobId) + "] Head task '" + task->name() + "' uses internal buffer (not a pure tail task)");
+            LOG_DBG("[Job_" + std::to_string(_jobId) + "] Head task '" + head_task->name() + "' is tail task, using user output buffer directly");
         }
-    } else {
+        else
+        {
+            req->getData()->output_buffer_base = nullptr;
+            LOG_DBG("[Job_" + std::to_string(_jobId) + "] Head task '" + head_task->name() + "' uses internal buffer (not a pure tail task)");
+        }
+    }
+    else
+    {
         req->getData()->output_buffer_base = nullptr;
     }
 
-    // if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
     RequestResponse::InferenceRequest(req);
 
     return _jobId;
@@ -373,9 +402,9 @@ int InferenceJob::startMultiInputJob(const std::map<std::string, void*>& inputTe
 
             // Find the corresponding task and get tensor information
             TaskPtr targetTask = nullptr;
-            for (auto& task : _tasks)
+            for (const auto& task : _tasks)
             {
-                auto inputs = task->inputs();
+                const auto& inputs = task->inputs();
                 for (const auto& input : inputs)
                 {
                     if (input.name() == tensorName)
@@ -384,14 +413,17 @@ int InferenceJob::startMultiInputJob(const std::map<std::string, void*>& inputTe
                         break;
                     }
                 }
-                if (targetTask) break;
+                if (targetTask)
+                {
+                    break;
+                }
             }
 
             if (targetTask)
             {
                 // Get the actual tensor information from the task
-                auto taskInputs = targetTask->inputs();
-                for (auto& input : taskInputs)
+                const auto& taskInputs = targetTask->inputs();
+                for (const auto& input : taskInputs)
                 {
                     if (input.name() == tensorName)
                     {
@@ -426,7 +458,7 @@ int InferenceJob::startMultiInputJob(const std::map<std::string, void*>& inputTe
         {
             // Find the task pointer
             TaskPtr taskPtr = nullptr;
-            for (auto& task : _tasks)
+            for (const auto& task : _tasks)
             {
                 if (task->name() == taskName)
                 {
@@ -449,8 +481,6 @@ void InferenceJob::setReturnOutputs()
 {
     TensorPtrs ret_tensor_ptrs;
 
-
-
     std::vector<std::string> missing_tensors;
 
     for (const auto &name : _outputs)
@@ -472,7 +502,7 @@ void InferenceJob::setReturnOutputs()
         if (_outputPtr == nullptr)
         {
             output_size = output_tensor.size_in_bytes();
-            std::shared_ptr<std::vector<uint8_t> > memory = std::make_shared<std::vector<uint8_t> >(output_size);
+            auto memory = std::make_shared<std::vector<uint8_t>>(output_size);
             memcpy(memory->data(), output_tensor.data(), output_size);
 
             auto copied_tensor = std::make_shared<Tensor>(output_tensor, memory->data());
@@ -486,10 +516,10 @@ void InferenceJob::setReturnOutputs()
         else
         {
             // User provided an output buffer. We need to copy the result into it.
-            size_t tensorOffset = _inferenceEnginePtr->GetOutputTensorOffset(name);
-            uint8_t* dest_ptr = static_cast<uint8_t*>(_outputPtr) + tensorOffset;
+            size_t tensor_offset = _inferenceEnginePtr->GetOutputTensorOffset(name);
+            uint8_t* dest_ptr = static_cast<uint8_t*>(_outputPtr) + tensor_offset;
 
-            void* src_ptr = output_tensor.data();
+            const void* src_ptr = output_tensor.data();
             size_t tensor_size = output_tensor.size_in_bytes();
 
             if (src_ptr != nullptr && dest_ptr != src_ptr)
@@ -497,7 +527,7 @@ void InferenceJob::setReturnOutputs()
                 std::memcpy(dest_ptr, src_ptr, tensor_size);
 
                 LOG_DBG("[Job_" + std::to_string(_jobId) + "] Thread-safe copy: " + name +
-                        " to offset " + std::to_string(tensorOffset) +
+                        " to offset " + std::to_string(tensor_offset) +
                         " (size: " + std::to_string(tensor_size) + " bytes)");
             }
 
@@ -556,16 +586,60 @@ void InferenceJob::setInferenceEngineInterface(InferenceEngine* ptr)
     _inferenceEnginePtr = ptr;
 }
 
-void InferenceJob::setCallBack(std::function<int(TensorPtrs &outputs, void *userArg, int jobId)> func)
+void InferenceJob::setCallBack(std::function<int(const TensorPtrs &outputs, void *userArg, int jobId)> func)
 {
     std::unique_lock<std::mutex> lk(_lock);
     _infEngCallback = func;
 }
 
+#ifdef USE_VNPU
+void InferenceJob::setUserInputReleaseCallback(std::function<void(void* userArg, int jobId)> func)
+{
+    std::unique_lock<std::mutex> lk(_lock);
+    LOG_DXRT_DBG << "[Job_" + std::to_string(_jobId) + "] Set User Input Release Callback" << std::endl;
+    _userInputReleaseCallback = func;
+}
+
+void InferenceJob::TriggerUserInputRelease()
+{
+    // Use atomic flag to ensure callback is called only once
+    bool expected = false;
+    if (_userInputReleased.compare_exchange_strong(expected, true))
+    {
+        // First call - successfully changed false -> true
+        if (_userInputReleaseCallback != nullptr)
+        {
+            LOG_DXRT_DBG << "[Job_" + std::to_string(_jobId) + "] Head task processing complete. Calling user input release callback" << std::endl;
+            try
+            {
+                _userInputReleaseCallback(_userArg, _jobId);
+            }
+            catch (std::exception& e)
+            {
+                LOG_DXRT_ERR("[Job_" + std::to_string(_jobId) + "] User input release callback error: " + std::string(e.what()));
+            }
+            catch (...) {
+                LOG_DXRT_ERR("[Job_" + std::to_string(_jobId) + "] User input release callback unknown error");
+            }
+        }
+        else
+        {
+            LOG_DXRT_DBG << "[Job_" + std::to_string(_jobId) + "] User input release callback is not set (nullptr)" << std::endl;
+        }
+    }
+    else
+    {
+        // Callback already triggered by another task (expected != false after compare_exchange)
+        // This is normal for multi-task models where only the first completed head task should release
+        LOG_DXRT_DBG << "[Job_" + std::to_string(_jobId) + "] User input already released by previous task (flag was already true)" << std::endl;
+    }
+}
+#endif  // USE_VNPU
+
 void InferenceJob::Clear()
 {
     std::unique_lock<std::mutex> lk(_lock);
-    // _requests.clear();
+
     _tensors.clear();
     _tasks.clear();  // Clear tasks for multi-input support
     // _head.reset();
@@ -573,7 +647,7 @@ void InferenceJob::Clear()
     setStatus(Request::Status::REQ_IDLE);
     _outputCount.store(0);
     _doneCount.store(0);
-    // _outputs.clear();
+
     _userArg = nullptr;
     _latency = 0;
     _infTime = 0;
@@ -581,6 +655,11 @@ void InferenceJob::Clear()
     _infEngCallback = nullptr;
     _outputPtr = nullptr;
     _storeResult = false;
+
+#ifdef USE_VNPU
+    _userInputReleaseCallback = nullptr;
+    _userInputReleased.store(false);
+#endif
 
     // Clear multi-head support variables
     _inputTasks.clear();
@@ -599,7 +678,7 @@ void InferenceJob::ReleaseAllOutputBuffer()
     std::unique_lock<std::mutex> lk(_lock);
     int head_req_id = -1;
     int head_req_processed_dev_id = -1;
-    for (auto& req_weak_ptr :  _requests)
+    for (const auto& req_weak_ptr :  _requests)
     {
         RequestPtr req = req_weak_ptr.lock();
         if (req)
@@ -626,32 +705,33 @@ void InferenceJob::ReleaseAllOutputBuffer()
                 LOG_DXRT_DBG << "Request " << req->id() << " no BufferSet - using individual buffer release" << std::endl;
 
                 // Check if this task uses user output buffer
-                bool usesUserOutputBuffer = req->getData()->outputs_is_user_buffer;
-                if (!usesUserOutputBuffer && _outputPtr != nullptr && req->output_buffer_base() != nullptr)
+                bool uses_user_output_buffer = req->getData()->outputs_is_user_buffer;
+                if (!uses_user_output_buffer && _outputPtr != nullptr && req->output_buffer_base() != nullptr)
                 {
                     // Fallback range check (legacy) - skip for dynamic shape models
                     uint64_t outputSize = _inferenceEnginePtr->GetOutputSize();
-                    if (outputSize != static_cast<uint64_t>(-1)) {
-                        uint8_t* userBufferStart = static_cast<uint8_t*>(_outputPtr);
-                        uint8_t* userBufferEnd = userBufferStart + outputSize;
-                        uint8_t* outputPtr = static_cast<uint8_t*>(req->output_buffer_base());
+                    if (outputSize != static_cast<uint64_t>(-1))
+                    {
+                        auto userBufferStart = static_cast<uint8_t*>(_outputPtr);
+                        const uint8_t* userBufferEnd = userBufferStart + outputSize;
+                        auto outputPtr = static_cast<uint8_t*>(req->output_buffer_base());
                         if (outputPtr >= userBufferStart && outputPtr < userBufferEnd)
                         {
-                            usesUserOutputBuffer = true;
+                            uses_user_output_buffer = true;
                             LOG_DBG("[Job_" + std::to_string(_jobId) + "] Task '" + req->task()->name() +
                                     "' uses user output buffer - skipping ReleaseOutputBuffer (range-detected)");
                         }
-                    } else {
+                    }
+                    else
+                    {
                         LOG_DBG("[Job_" + std::to_string(_jobId) + "] Skipping range check for dynamic shape model");
                     }
                 }
 
                 // Only call ReleaseOutputBuffer if not using user output buffer
-                if (!usesUserOutputBuffer && ((_outputPtr == nullptr) || (req->task()->is_tail() == false)))
+                if (!uses_user_output_buffer && ((_outputPtr == nullptr) || (req->task()->is_tail() == false)))
                 {
                     req->task()->ReleaseOutputBuffer(req->output_buffer_base());
-                    // if(req->id()%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || req->id()%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
-
                 }
 
                 if (req->task()->processor() == Processor::NPU)
@@ -667,7 +747,7 @@ void InferenceJob::ReleaseAllOutputBuffer()
             DXRT_ASSERT(false, "ReleaseAllOutputBuffer lock failed");
         }
     }
-    for (auto& it : _requests)
+    for (const auto& it : _requests)
     {
         RequestPtr req = it.lock();
         if (head_req_id == -1)
@@ -686,7 +766,6 @@ void InferenceJob::ReleaseAllOutputBuffer()
     }
     _requests.clear();
     _use_flag.store(false);
-    // if(head_req_id%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || head_req_id%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
 
     (void)head_req_processed_dev_id;  // avoid 'not used' warning
     TASK_FLOW("[" + to_string(_jobId)+"] ReleaseAllOutputBuffer");
@@ -699,11 +778,11 @@ void InferenceJob::setStatus(Request::Status status)
     _waitCV.notify_one();
 }
 
-int InferenceJob::getId()
+int InferenceJob::getId() const
 {
     return _jobId;
 }
-Request::Status InferenceJob::getStatus()
+Request::Status InferenceJob::getStatus() const
 {
     return _status.load();
 }
@@ -716,30 +795,41 @@ void InferenceJob::Wait()
 
 bool InferenceJob::checkAndSetTaskReady(TaskPtr taskPtr)
 {
-    if (!taskPtr) return false;
+    if (!taskPtr)
+    {
+        return false;
+    }
     std::unique_lock<std::mutex> lk(_lock);
     auto it = _taskStatusMap.find(taskPtr->name());
-    if (it == _taskStatusMap.end()) return false;
-    if (it->second != Status::TASK_IDLE) {
+    if (it == _taskStatusMap.end())
+    {
+        return false;
+    }
+
+    if (it->second != Status::TASK_IDLE)
+    {
         LOG_DBG("[Job_" + std::to_string(_jobId) + "] Task '" + taskPtr->name() + "' not IDLE (status: " + std::to_string(static_cast<int>(it->second)) + ")");
         return false;
     }
 
     // Check if all input tensors are available
-    std::vector<std::string> missingInputs;
-    for (const auto & input : taskPtr->inputs()) {
-        if (_tensors.find(input.name()) == _tensors.end()) {
-            missingInputs.push_back(input.name());
+    std::vector<std::string> missing_inputs;
+    for (const auto & input : taskPtr->inputs())
+    {
+        if (_tensors.find(input.name()) == _tensors.end())
+        {
+            missing_inputs.push_back(input.name());
         }
     }
 
-    if (!missingInputs.empty()) {
+    if (!missing_inputs.empty())
+    {
         LOG_DBG("[Job_" + std::to_string(_jobId) + "] Task '" + taskPtr->name() + "' missing inputs: " +
-                [&missingInputs]() {
+                [&missing_inputs]() {
                     std::string result;
-                    for (size_t i = 0; i < missingInputs.size(); ++i) {
-                        result += missingInputs[i];
-                        if (i < missingInputs.size() - 1) result += ", ";
+                    for (size_t i = 0; i < missing_inputs.size(); ++i) {
+                        result += missing_inputs[i];
+                        if (i < missing_inputs.size() - 1) result += ", ";
                     }
                     return result;
                 }());
@@ -752,17 +842,28 @@ bool InferenceJob::checkAndSetTaskReady(TaskPtr taskPtr)
     return true;
 }
 
-void InferenceJob::processReadyTask(TaskPtr taskPtr)
+void InferenceJob::processReadyTask(TaskPtr nextTaskPtr)
 {
-    if (!taskPtr) return;
-    auto it = _taskStatusMap.find(taskPtr->name());
-    if (it == _taskStatusMap.end()) return;
-    if (it->second != Status::TASK_READY) return;
+    if (!nextTaskPtr)
+    {
+        return;
+    }
 
-    LOG_DBG("[Job_" + std::to_string(_jobId) + "] Processing ready task '" + taskPtr->name() + "' (" +
-            (taskPtr->processor() == Processor::NPU ? "NPU" : "CPU") + ")");
+    auto it = _taskStatusMap.find(nextTaskPtr->name());
+    if (it == _taskStatusMap.end())
+    {
+        return;
+    }
 
-    Tensors inputTensors = taskPtr->inputs();
+    if (it->second != Status::TASK_READY)
+    {
+        return;
+    }
+
+    LOG_DBG("[Job_" + std::to_string(_jobId) + "] Processing ready task '" + nextTaskPtr->name() + "' (" +
+            (nextTaskPtr->processor() == Processor::NPU ? "NPU" : "CPU") + ")");
+
+    Tensors next_input_tensors = nextTaskPtr->inputs();
 
     // Patch: populate input tensor data pointers from produced tensors map.
     // After refactor, we only tracked readiness via _tensors but did not
@@ -772,16 +873,20 @@ void InferenceJob::processReadyTask(TaskPtr taskPtr)
     // copy its data pointer (and physical address) into the local tensor copy.
     {
         std::unique_lock<std::mutex> lk(_lock);
-        LOG_DBG("[Job_" + std::to_string(_jobId) + "] Mapping " + std::to_string(inputTensors.size()) + " input tensors for task '" + taskPtr->name() + "'");
+        LOG_DBG("[Job_" + std::to_string(_jobId) + "] Mapping " + std::to_string(next_input_tensors.size()) + " input tensors for task '" + nextTaskPtr->name() + "'");
 
-        for (auto & inTensor : inputTensors) {
+        for (auto & inTensor : next_input_tensors)
+        {
             auto itTensor = _tensors.find(inTensor.name());
-            if (itTensor != _tensors.end()) {
+            if (itTensor != _tensors.end())
+            {
                 inTensor.data() = itTensor->second.data();
                 inTensor.phy_addr() = itTensor->second.phy_addr();
                 LOG_DBG("[Job_" + std::to_string(_jobId) + "] Mapped tensor '" + inTensor.name() + "' (data: " +
-                        std::to_string(reinterpret_cast<uintptr_t>(inTensor.data())) + ")");
-            } else {
+                        std::to_string(SafeCast::PointerToInteger<void*>(inTensor.data())) + ")");
+            }
+            else
+            {
                 // Should not happen because readiness check ensured presence
                 LOG_DXRT_ERR("[Job_" + std::to_string(_jobId) + "] Critical: tensor '" + inTensor.name() +
                              "' missing in _tensors during processReadyTask (should not happen)");
@@ -793,29 +898,31 @@ void InferenceJob::processReadyTask(TaskPtr taskPtr)
     // If any pointer is null, log a detailed error and abort scheduling this task to avoid
     // propagating a segfault into downstream CPU execution (e.g., ONNX Runtime).
     {
-        bool missingPtr = false;
-        for (auto & t : inputTensors) { // non-const to allow calling non-const accessor
-            if (t.data() == nullptr) {
-                missingPtr = true;
+        bool missing_ptr = false;
+        for (auto & t : next_input_tensors)
+        { // non-const to allow calling non-const accessor
+            if (t.data() == nullptr)
+            {
+                missing_ptr = true;
                 LOG_DXRT_ERR("[Job_" + std::to_string(_jobId) + "] processReadyTask: Input tensor '" + t.name() + "' has null data pointer (unexpected)");
             }
         }
-        if (missingPtr) {
-            LOG_DXRT_ERR("[Job_" + std::to_string(_jobId) + "] Aborting scheduling of task '" + taskPtr->name() + "' due to invalid input tensor pointers");
+        if (missing_ptr)
+        {
+            LOG_DXRT_ERR("[Job_" + std::to_string(_jobId) + "] Aborting scheduling of task '" + nextTaskPtr->name() + "' due to invalid input tensor pointers");
             // Revert status to IDLE so that if tensors become available later it can retry.
             it->second = Status::TASK_IDLE;
             return; // Do not create Request
         }
     }
-    RequestPtr req = Request::Create(taskPtr.get(), inputTensors, {}, _userArg, _jobId);
+    RequestPtr req = Request::Create(nextTaskPtr.get(), next_input_tensors, {}, _userArg, _jobId);
     req->setInferenceJob(this);
     req->SetStatus(Request::Status::REQ_BUSY);
-    req->requestor_name() = taskPtr->name();
+    req->requestor_name() = nextTaskPtr->name();
     _requests.push_back(req);
     it->second = Status::TASK_BUSY;
 
-    LOG_DBG("[Job_" + std::to_string(_jobId) + "] Task '" + taskPtr->name() + "' scheduled for execution (request ID: " + std::to_string(req->id()) + ")");
-
+    LOG_DBG("[Job_" + std::to_string(_jobId) + "] Task '" + nextTaskPtr->name() + "' scheduled for execution (request ID: " + std::to_string(req->id()) + ")");
     RequestResponse::InferenceRequest(req);
 }
 

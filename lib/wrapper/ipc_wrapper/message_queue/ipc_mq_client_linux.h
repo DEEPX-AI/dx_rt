@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -22,7 +22,7 @@
 #include "../../../include/dxrt/ipc_wrapper/ipc_client.h"
 #include "ipc_mq_linux.h"
 
-namespace dxrt 
+namespace dxrt
 {
 
 class IPCMessageQueueClientLinux : public IPCClient
@@ -30,12 +30,12 @@ class IPCMessageQueueClientLinux : public IPCClient
  private:
     IPCMessageQueueLinux _messageQueueToServer;
     IPCMessageQueueLinux _messageQueueToClient;
-    void* _usrData;
+    void* _usrData = nullptr;
     long _msgType;
     std::thread _thread;
     std::atomic<bool> _threadRunning{false};
     std::atomic<bool> _stop{false};
-    std::function<int32_t(IPCServerMessage&, void*)> _receiveCB;
+    std::function<int32_t(IPCServerMessage&, void*)> _receiveCB = nullptr;
     std::map<int, std::shared_ptr<std::promise<IPCServerMessage> > >_waitingCall;
     std::mutex _futureLock;
     std::mutex _funcLock;
@@ -43,7 +43,7 @@ class IPCMessageQueueClientLinux : public IPCClient
 
  public:
     explicit IPCMessageQueueClientLinux(long msgType);
-    virtual ~IPCMessageQueueClientLinux();
+    ~IPCMessageQueueClientLinux() override;
 
     // Intitialize IPC
     int32_t Initialize() override;
@@ -61,7 +61,7 @@ class IPCMessageQueueClientLinux : public IPCClient
     int32_t RegisterReceiveCB(std::function<int32_t(IPCServerMessage&,void*)> receiveCB, void* usrData) override;
 
     // close the connection
-    int32_t Close() override;
+    int32_t Close() final;
 
     static void ThreadFunc(IPCMessageQueueClientLinux* socketClient);
 };

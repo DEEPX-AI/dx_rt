@@ -50,27 +50,32 @@ static int bounding = 0;
 
 void printCpuInfo() {
     std::cout << "--- CPU Information ---" << std::endl;
-    
+
     // Use popen to execute lscpu command
     std::array<char, 128> buffer;
     std::string result;
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen("lscpu 2>/dev/null", "r"), pclose);
-    
+    auto pipeCloser = [](FILE* fp) {
+        if (fp) {
+            pclose(fp);
+        }
+    };
+    std::unique_ptr<FILE, decltype(pipeCloser)> pipe(popen("lscpu 2>/dev/null", "r"), pipeCloser);
+
     if (!pipe) {
         std::cerr << "... No CPU Info." << std::endl;
         return;
     }
-    
+
     // Read the output of lscpu
     while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
         result += buffer.data();
     }
-    
+
     if (result.empty()) {
         std::cerr << "... No CPU Info." << std::endl;
         return;
     }
-    
+
     // Parse and display relevant information
     std::istringstream stream(result);
     std::string line;
@@ -78,7 +83,7 @@ void printCpuInfo() {
     bool modelNameFound = false;
     bool cpuCoresFound = false;
     bool vendorIdFound = false;
-    
+
     while (std::getline(stream, line)) {
         // Architecture
         if (!architectureFound && line.find("Architecture:") != std::string::npos) {
@@ -101,7 +106,7 @@ void printCpuInfo() {
             vendorIdFound = true;
         }
     }
-    
+
     if (!modelNameFound && !architectureFound && !cpuCoresFound) {
         std::cerr << "... No CPU Info." << std::endl;
     }
@@ -145,8 +150,6 @@ void printMemoryInfo() {
         std::cout << std::endl;
 
     } else {
-        //perror("sysinfo");
-        //std::cerr << "Error: Could not get system memory info." << std::endl;
         std::cerr << "No System Memory Info." << std::endl;
     }
 }
@@ -431,13 +434,11 @@ static float runAsyncTargetFPS(int64_t& outLoops, dxrt::InferenceEngine& ie, int
 
 int main(int argc, char *argv[])
 {
-
-
-    string modelFile, inputFile, outputFile;
+    string modelFile = "", inputFile = "", outputFile = "";
     bool benchmark = false;
     bool single = false;
     int64_t loops = 1;
-    string devices_spec;
+    string devices_spec = "";
     int targetFps = 0;
     bool skip_inference_io = false;
     bool use_ort = false;
@@ -447,10 +448,19 @@ int main(int argc, char *argv[])
     int64_t warmup_runs = 0;  // Added warmup runs
     int buffer_count = DXRT_TASK_MAX_LOAD_VALUE;
     bool profiler_enable = false;
+#ifdef DXRT_NFH_ACCELERATION_AVAILABLE
+    bool accel_nfh = false;
+#endif
+#ifdef DXRT_CPU_OP_ACCELERATION_AVAILABLE
+    bool accel_cpu = false;
+#endif
+
+    mode = RunModelMode::BENCHMARK_MODE;  // default mode: benchmark
+    bounding = 0;  // default bounding: NPU_ALL
 
     cxxopts::Options options("run_model", APP_NAME);
     options.add_options()
-        ("m, model", "Model file (.dxnn)" , cxxopts::value<string>(modelFile))
+        ("m, model", "Model file (.dxnn)" , cxxopts::value<string>(modelFile)->default_value(""))
         // Disable until dx_sim support is ready
         //("i, input", "Input data file", cxxopts::value<string>(inputFile))
         //("o, output", "Output data file", cxxopts::value<string>(outputFile)->default_value("output.bin"))
@@ -460,7 +470,7 @@ int main(int argc, char *argv[])
         ("n, npu",
             "NPU bounding (default:0)\n"
             "  0: NPU_ALL\n  1: NPU_0\n  2: NPU_1\n  3: NPU_2\n"
-            "  4: NPU_0/1\n  5: NPU_1/2\n  6: NPU_0/2", cxxopts::value<int>(bounding) )
+            "  4: NPU_0/1\n  5: NPU_1/2\n  6: NPU_0/2", cxxopts::value<int>(bounding)->default_value("0") )
         ("l, loops", "Number of inference loops to perform", cxxopts::value<int64_t>(loops)->default_value("30") )
         ("t, time", "Duration of inference in seconds (benchmark and target-fps mode, overrides --loops)", cxxopts::value<int64_t>(duration)->default_value("0") )
         ("w, warmup-runs", "Number of warmup runs before actual measurement", cxxopts::value<int64_t>(warmup_runs)->default_value("0") )
@@ -471,17 +481,23 @@ int main(int argc, char *argv[])
             "  '0,1,2': Use NPU0, NPU1, and NPU2\n"
             "  'count:N': Use the first N NPUs\n  (e.g., 'count:2' for NPU0, NPU1)",
             cxxopts::value<std::string>(devices_spec)->default_value("all"))
-        ("f, fps", "Target FPS for TARGET_FPS_MODE (default: 0)\n(enables this mode if > 0 and --single is not set)", cxxopts::value<int>(targetFps) )
+        ("f, fps", "Target FPS for TARGET_FPS_MODE (default: 0)\n(enables this mode if > 0 and --single is not set)", cxxopts::value<int>(targetFps)->default_value("0"))
 
 #ifdef USE_ORT
         ("use-ort", "Enable ONNX Runtime for CPU tasks in the model graph\nIf disabled, only NPU tasks operate", cxxopts::value<bool>(use_ort)->default_value("false"))
 #endif
         ("profiler", "Enable profiler", cxxopts::value<bool>(profiler_enable)->default_value("false"))
+#ifdef DXRT_NFH_ACCELERATION_AVAILABLE
+        ("accel-nfh", "Enable NFH (transpose) acceleration", cxxopts::value<bool>(accel_nfh)->default_value("false"))
+#endif
+#ifdef DXRT_CPU_OP_ACCELERATION_AVAILABLE
+        ("accel-cpu", "Enable CPU op acceleration (OpenVINO/XNNPACK)", cxxopts::value<bool>(accel_cpu)->default_value("false"))
+#endif
         ("buffer-count", "Number of input/output buffers, count's range is 1~" + std::to_string(DXRT_TASK_MAX_LOAD_LIMIT), cxxopts::value<int>(buffer_count)->default_value(std::to_string(DXRT_TASK_MAX_LOAD_VALUE)))
         ("h, help", "Print usage" );
 
     options.add_options("internal")
-        ("i, input", "Input data file", cxxopts::value<string>(inputFile))
+        ("i, input", "Input data file", cxxopts::value<string>(inputFile)->default_value(""))
         ("o, output", "Output data file", cxxopts::value<string>(outputFile)->default_value("output.bin"))
         ("skip-io", "Attempt to skip Inference I/O (Benchmark mode only)", cxxopts::value<bool>(skip_inference_io)->default_value("false"));
 
@@ -506,12 +522,12 @@ int main(int argc, char *argv[])
                 std::cout << "Please check --buffer-count option value. Must be between 1 and " << DXRT_TASK_MAX_LOAD_LIMIT << endl;
                 exit(1);
             }
-            else 
+            else
             {
                 std::cout << "Using I/O Buffer Count=" << buffer_count << std::endl;
                 std::cout << std::endl;
             }
-        }   
+        }
     }
     catch (std::exception& e)
     {
@@ -524,8 +540,8 @@ int main(int argc, char *argv[])
 
     // Runtime Event dispatching
     dxrt::RuntimeEventDispatcher::GetInstance().RegisterEventHandler(
-        [&critical_error](dxrt::RuntimeEventDispatcher::LEVEL level, 
-            dxrt::RuntimeEventDispatcher::TYPE type, 
+        [&critical_error](dxrt::RuntimeEventDispatcher::LEVEL level,
+            dxrt::RuntimeEventDispatcher::TYPE type,
             dxrt::RuntimeEventDispatcher::CODE code, const std::string& message, const std::string& timestamp) {
             std::cout << "[run-model] level=" << std::to_string(static_cast<int>(level))
                         << ", type=" << std::to_string(static_cast<int>(type))
@@ -715,7 +731,7 @@ int main(int argc, char *argv[])
 
     if (bounding >= 0 && bounding < dxrt::N_BOUND_INF_MAX)
     {
-        op.boundOption = bounding;
+        op.boundOption = static_cast<dxrt::InferenceOption::BOUND_OPTION>(bounding);
     }
     else
     {
@@ -738,6 +754,23 @@ int main(int argc, char *argv[])
         {
             dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::PROFILER, false);
         }
+
+        // Acceleration options
+#ifdef DXRT_NFH_ACCELERATION_AVAILABLE
+        if (accel_nfh)
+        {
+            dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::NFH_ACCELERATION, true);
+            std::cout << "[INFO] NFH acceleration is enabled." << std::endl;
+        }
+#endif
+#ifdef DXRT_CPU_OP_ACCELERATION_AVAILABLE
+        if (accel_cpu)
+        {
+            dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::CPU_OP_ACCELERATION, true);
+            std::cout << "[INFO] CPU op acceleration is enabled." << std::endl;
+        }
+#endif
+
         //dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::PROFILER, false);
 
         SetRunModelMode(single, targetFps);
@@ -800,7 +833,6 @@ int main(int argc, char *argv[])
                 break;
             }
             case BENCHMARK_MODE: {
-                // PrintInfResult(inputFile, outputFile, modelFile, 0.0, 0.0, fps);
                 float fps = 0;
                 if ( duration > 0 )
                 {
@@ -826,7 +858,7 @@ int main(int argc, char *argv[])
     }
     catch (const dxrt::Exception& e)
     {
-        std::cerr << e.what() << " error-code=" << e.code() << std::endl;
+        std::cerr << e.what() << " error-code=" << static_cast<int>(e.code()) << std::endl;
         return -1;
     }
     catch (const std::exception& e)

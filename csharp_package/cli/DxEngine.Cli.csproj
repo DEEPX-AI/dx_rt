@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <StartupObject>DxEngine.Cli.Program</StartupObject>
+    
+    <!-- Assembly Information -->
+    <AssemblyName>dxcli</AssemblyName>
+    <RootNamespace>DxEngine.Cli</RootNamespace>
+    <Authors>DEEPX-RT</Authors>
+    <Company>DEEPX Ltd.</Company>
+    <Description>Command-line tools for DxEngine - DEEPX NPU Inference Engine</Description>
+    <Copyright>Copyright (C) 2018- DEEPX Ltd. All rights reserved.</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DxEngine\DxEngine.csproj" />
+  </ItemGroup>
+
+</Project>

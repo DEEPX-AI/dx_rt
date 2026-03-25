@@ -33,10 +33,10 @@ template<typename T>
 class CircularDataPool;
 class InferenceEngine;
 
-class InferenceJob
+class InferenceJob // NOSONAR: Too many fields - stable as-is, refactoring deferred
 {
  public:
-    enum Status
+    enum class Status
     {
         TASK_IDLE,
         TASK_READY,
@@ -58,7 +58,7 @@ class InferenceJob
      */
     void SetInferenceJobMultiHead(std::vector<std::shared_ptr<Task>>& tasks_,
                                   const std::vector<std::shared_ptr<Task>>& inputTasks_,
-                                  std::vector<std::string> lastOutputOrder,
+                                  const std::vector<std::string>& lastOutputOrder,
                                   const std::vector<std::string>& modelInputNames);
 
 
@@ -76,16 +76,18 @@ class InferenceJob
      */
     int startMultiInputJob(const std::map<std::string, void*>& inputTensors, void *userArg, void *outputPtr);
 
-    // void endRequest(RequestPtr req);
-
     TensorPtrs getOutput();
     void setStatus(Request::Status status);
-    Request::Status getStatus();
-    int getId();
+    Request::Status getStatus() const;
+    int getId() const;  
     int latency() const {return _latency;}
     uint32_t inference_time() const {return _infTime;}
     void setInferenceEngineInterface(InferenceEngine* ptr);
-    void setCallBack(std::function<int(TensorPtrs &outputs, void *userArg, int jobIc)> func);
+    void setCallBack(std::function<int(const TensorPtrs &outputs, void *userArg, int jobIc)> func);
+#ifdef USE_VNPU
+    void setUserInputReleaseCallback(std::function<void(void* userArg, int jobId)> func);
+    void TriggerUserInputRelease();
+#endif // USE_VNPU
 
     void Clear();
 
@@ -96,9 +98,9 @@ class InferenceJob
     void Wait();
 
     // inference job for IE
-    bool GetOccupiedJob() { return _occupiedJob.load(); }
+    bool GetOccupiedJob() const { return _occupiedJob.load(); }
     void SetOccupiedJob(bool occupied) { _occupiedJob.store(occupied); }
-    int GetBatchIndex() { return _batchIndex; }
+    int GetBatchIndex() const { return _batchIndex; }
     void SetBatchIndex(int index) { _batchIndex = index; }
 
  private:
@@ -125,11 +127,13 @@ class InferenceJob
     // Model input tensor names (for identifying which tensors are external inputs)
     std::vector<std::string> _modelInputNames;
 
-    // std::function<void(RequestPtr)> onRequestCompleteFunction();
-
     void onAllRequestComplete();
     InferenceEngine* _inferenceEnginePtr;
     std::function<int(TensorPtrs &outputs, void *userArg, int jobId)> _infEngCallback;
+#ifdef USE_VNPU
+    std::function<void(void* userArg, int jobId)> _userInputReleaseCallback;
+    std::atomic<bool> _userInputReleased{false};
+#endif // USE_VNPU
     bool _storeResult = false;
     TensorPtrs _returnOutputs = {};
     void setReturnOutputs();

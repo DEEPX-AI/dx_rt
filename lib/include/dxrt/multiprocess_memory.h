@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -64,10 +64,11 @@ public:
     void SignalTaskInit(int deviceId, int taskId, npu_bound_op bound, uint64_t modelMemorySize);
     void SignalTaskDeInit(int deviceId, int taskId, npu_bound_op bound);
     void DeallocateTaskMemory(int deviceId, int taskId);
+    void Connect();
 
 private:
-    void mpConnect();
-    void mpConnect_once_wrapper();
+    void mpConnect_internal();
+
 
     std::once_flag _connectFlag;
 

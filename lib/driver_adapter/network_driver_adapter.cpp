@@ -27,19 +27,19 @@
 
 namespace dxrt {
 
-#define SERVER_IP   "192.168.1.105"
-#define SERVER_PORT_MSG     (5201)
-#define SERVER_PORT_QUEUE   (5202)
-#define SERVER_PORT_DATA    (5203)
+const char* const SERVER_IP   = "192.168.1.105"; // NOSONAR
+constexpr uint16_t SERVER_PORT_MSG     = 5201;
+[[maybe_unused]] constexpr uint16_t SERVER_PORT_QUEUE   = 5202;
+[[maybe_unused]] constexpr uint16_t SERVER_PORT_DATA    = 5203;
 
 NetworkDriverAdapter::NetworkDriverAdapter()
 {
     struct sockaddr_in server_addr;
 
-    // for (int type = 0; type < TCP_TYPES_MAX; type++)
+
     int type = TCP_MESSAGE;
     {
-        tcpMsgType tcpType = static_cast<tcpMsgType>(type);
+        auto tcpType = type;
         int sock = socket(AF_INET, SOCK_STREAM, 0);
         if (sock < 0) {
             perror("Socket creation failed");
@@ -47,7 +47,7 @@ NetworkDriverAdapter::NetworkDriverAdapter()
 
         memset(&server_addr, 0, sizeof(server_addr));
         server_addr.sin_family = AF_INET;
-        server_addr.sin_port = htons(SERVER_PORT_MSG + type);
+        server_addr.sin_port = htons(static_cast<uint16_t>(SERVER_PORT_MSG + type));
         if (inet_pton(AF_INET, SERVER_IP, &server_addr.sin_addr) != 1) {
             perror("Invalid address format");
         }
@@ -76,7 +76,7 @@ int32_t NetworkDriverAdapter::NetControl(dxrt_cmd_t request, void* data, uint32_
     {
         if (data != nullptr)
         {
-            memcpy(reinterpret_cast<void *>(info.data), data, sizeof(info.data));
+            memcpy(static_cast<void *>(info.data), data, sizeof(info.data));
         }
         else
         {
@@ -149,7 +149,7 @@ int32_t NetworkDriverAdapter::Read(void* buffer, uint32_t size)
     ssize_t bytesReceived;
     size_t totalSize = size;
     size_t remainingSize = totalSize;
-    char* writePointer = reinterpret_cast<char *>(buffer);
+    auto writePointer = static_cast<char *>(buffer);
     int ret = 0;
 
     while (remainingSize > 0) {
@@ -168,7 +168,7 @@ int32_t NetworkDriverAdapter::Read(void* buffer, uint32_t size)
         writePointer += bytesReceived;
         totalBytesReceived += bytesReceived;
         remainingSize -= bytesReceived;
-        // std::cout << "Received " << bytesReceived << " bytes." << std::endl;
+
     }
 
     return ret;
@@ -176,11 +176,8 @@ int32_t NetworkDriverAdapter::Read(void* buffer, uint32_t size)
 
 NetworkDriverAdapter::~NetworkDriverAdapter()
 {
-    // for (int type = 0; type < TCP_TYPES_MAX; type++)
-    {
-        tcpMsgType tcpType = static_cast<tcpMsgType>(TCP_MESSAGE);
-        close(sockMap[tcpType].first);
-    }
+    auto tcpType = TCP_MESSAGE;
+    close(sockMap[tcpType].first);
 }
 
 

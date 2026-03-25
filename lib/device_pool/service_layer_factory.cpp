@@ -31,7 +31,7 @@ ServiceLayerFactory::CreateServiceLayer(bool useService, std::shared_ptr<Multipr
 
     }
     auto layer = std::shared_ptr<ServiceLayerInterface>(std::make_shared<NoServiceLayer>());
-    int device_len = DevicePool::GetInstance().GetDeviceCount();
+    auto device_len = static_cast<int>(DevicePool::GetInstance().GetDeviceCount());
     for (int device_id = 0; device_id < device_len; device_id++)
     {
         layer->RegisterDeviceCore(DevicePool::GetInstance().GetDeviceCores(device_id).get());

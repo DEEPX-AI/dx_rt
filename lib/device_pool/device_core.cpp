@@ -27,16 +27,9 @@ using std::endl;
 
 namespace dxrt {
 
-
-
 DeviceCore::DeviceCore(int id, std::unique_ptr<DriverAdapter> adapter)
-: _id(id), _adapter(std::move(adapter))
+: _id(id), _adapter(std::move(adapter)), _name(_adapter->GetName())
 {
-    _devInfo = dxrt_dev_info_t{};
-    _status = dxrt_device_status_t{};
-    _info = dxrt_device_info_t{};
-    _name = _adapter->GetName();
-    _isBlocked = false;
 }
 
 int DeviceCore::Process(dxrt_cmd_t cmd, void *data, uint32_t size, uint32_t sub_cmd, uint64_t address)
@@ -62,12 +55,12 @@ dxrt_device_status_t DeviceCore::Status()
     return _status;
 }
 
-int DeviceCore::Write(dxrt_meminfo_t &meminfo)
+int DeviceCore::Write(const dxrt_meminfo_t &meminfo)
 {
 #if DXRT_USB_NETWORK_DRIVER == 0
     int ch = _writeChannel.load();
-    // _writeChannel = (_writeChannel+1)%3;
-    _writeChannel.store((ch + 1) % 2);
+    constexpr int max_ch = 2;
+    _writeChannel.store((ch + 1) % max_ch);
     return Write(meminfo, ch);
 #else
     {
@@ -76,19 +69,20 @@ int DeviceCore::Write(dxrt_meminfo_t &meminfo)
         info.size = meminfo.size;
         info.type = 2;
         _driverAdapter->Write(&info, sizeof(info));
-        _driverAdapter->Write(reinterpret_cast<void *>(meminfo.data), meminfo.size);
+        _driverAdapter->Write(SafeCast::IntegerToPointer<void*>(meminfo.data), meminfo.size);
     }
     return 0;
 #endif
 }
-int DeviceCore::Write(dxrt_meminfo_t &meminfo, int ch)
+int DeviceCore::Write(const dxrt_meminfo_t &meminfo, int ch)
 {
     LOG_DXRT_DBG << "Device " << _id << " Write : " << meminfo << endl;
     int ret = 0;
     DXRT_ASSERT(meminfo.base + meminfo.offset != 0, "DeviceCore Write ZERO NPU MEMORY ADDRESS");
     DXRT_ASSERT(meminfo.data != 0, "DeviceCore Write ZERO CPU MEMORY ADDRESS");
     DXRT_ASSERT(ch < 4, "DeviceCore Write CHANNEL INVALID");
-    //Profiler::GetInstance().Start("Write");
+    DXRT_ASSERT(meminfo.offset != std::numeric_limits<uint32_t>::max(), "DeviceCore Write to ERROR offset");
+    // Profiler::GetInstance().Start("Write");
 #if DXRT_USB_NETWORK_DRIVER == 0
     dxrt_req_meminfo_t mem_info_req;
     mem_info_req.data = meminfo.data;
@@ -101,30 +95,34 @@ int DeviceCore::Write(dxrt_meminfo_t &meminfo, int ch)
     ignore = ch;
     ret = _driverAdapter->NetControl(
         DXRT_CMD_WRITE_MEM,
-        reinterpret_cast<void *>(meminfo.data),
+        SafeCast::IntegerToPointer<void*>(meminfo.data),
         meminfo.size,
         0,
         meminfo.base + meminfo.offset);
 #endif
-    //Profiler::GetInstance().End("Write");
-    if (ret < 0)return ret;
+    if (ret < 0)
+    {
+        return ret;
+    }
     return 0;
 }
 
-int DeviceCore::Read(dxrt_meminfo_t &meminfo)
+int DeviceCore::Read(const dxrt_meminfo_t &meminfo)
 {
     int ch = _readChannel.load();
-    // _readChannel = (_readChannel+1)%3;
-    _readChannel.store((ch + 1) % 3);
+    constexpr int max_ch = 3;
+    _readChannel.store((ch + 1) % max_ch);
     return Read(meminfo, ch);
 }
 
-int DeviceCore::Read(_dxrt_meminfo_t &meminfo, int ch, bool ctrlCmd)
+int DeviceCore::Read(const dxrt_meminfo_t &meminfo, int ch, bool ctrlCmd)
 {
     LOG_DXRT_DBG << "Device " << _id << " Read : " << meminfo << endl;
     int ret = 0;
     DXRT_ASSERT(meminfo.base + meminfo.offset != 0, "DeviceCore Read ZERO NPU MEMORY ADDRESS");
     DXRT_ASSERT(meminfo.data != 0, "DeviceCore Read ZERO CPU MEMORY ADDRESS");
+    DXRT_ASSERT(ch < 4, "DeviceCore Read CHANNEL INVALID");
+    DXRT_ASSERT(meminfo.offset != std::numeric_limits<uint32_t>::max(), "DeviceCore Read to ERROR offset");
 #if DXRT_USB_NETWORK_DRIVER == 0
     dxrt_req_meminfo_t mem_info_req;
     mem_info_req.data = meminfo.data;
@@ -139,15 +137,17 @@ int DeviceCore::Read(_dxrt_meminfo_t &meminfo, int ch, bool ctrlCmd)
     std::ignore = ch;
     ret = _driverAdapter->NetControl(
         DXRT_CMD_READ_MEM,
-        reinterpret_cast<void *>(meminfo.data),
+        SafeCast::IntegerToPointer<void*>(meminfo.data),
         meminfo.size,
         0,
         meminfo.base + meminfo.offset,
         ctrlCmd);
 #endif
-    //Profiler::GetInstance().End("Read");
 
-    if (ret < 0)return ret;
+    if (ret < 0)
+    {
+        return ret;
+    }
     return 0;
 }
 
@@ -183,11 +183,10 @@ void DeviceCore::Identify(int id_, uint32_t subCmd)
     int ret;
 
 #if DXRT_USB_NETWORK_DRIVER == 0
-    ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_IDENTIFY_DEVICE, reinterpret_cast<void*>(&_info), 0, subCmd);
+    ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_IDENTIFY_DEVICE, static_cast<void*>(&_info), 0, subCmd);
 #else
-    ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_IDENTIFY_DEVICE, reinterpret_cast<void*>(&_info), sizeof(_info), subCmd, true);
+    ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_IDENTIFY_DEVICE, static_cast<void*>(&_info), sizeof(_info), subCmd, true);
 #endif
-    //DXRT_ASSERT(ret == 0, "failed to identify device "+ to_string(id_));
     if (ret != 0)
     {
         LOG_DXRT_DBG << "failed to identify device " << id_ <<", ret=" << ret << endl;
@@ -195,17 +194,14 @@ void DeviceCore::Identify(int id_, uint32_t subCmd)
         throw DeviceIOException(EXCEPTION_MESSAGE(LogMessages::Device_FailToInitialize(id_)));
     }
 
+    // Version Check
 
-
-
-// TODO: Version Check
-
-#ifdef __linux__
-        DxDeviceVersion dxVer(this, _info.fw_ver, _info.type, _info.interface, _info.variant);
-#elif _WIN32
-        DxDeviceVersion dxVer(this, _info.fw_ver, _info.type, _info.interface_value, _info.variant);
-#endif
-        _devInfo = dxVer.GetVersion();
+    #ifdef __linux__
+            DxDeviceVersion dxVer(this, _info.fw_ver, _info.type, _info.interface, _info.variant);
+    #elif _WIN32
+            DxDeviceVersion dxVer(this, _info.fw_ver, _info.type, _info.interface_value, _info.variant);
+    #endif
+            _devInfo = dxVer.GetVersion();
 
 
 
@@ -231,7 +227,7 @@ void DeviceCore::Reset(int opt)
 
 void DeviceCore::DoPcieCommand(void *data, uint32_t subCmd, uint32_t size)
 {
-    dxrt_pcie_sub_cmd_t sCmd = static_cast<dxrt_pcie_sub_cmd_t>(subCmd);
+    auto sCmd = static_cast<dxrt_pcie_sub_cmd_t>(subCmd);
     if (data == nullptr)
     {
         LOG_DXRT_ERR("Null data pointer received");
@@ -240,7 +236,7 @@ void DeviceCore::DoPcieCommand(void *data, uint32_t subCmd, uint32_t size)
     switch (sCmd) {
         case DX_GET_PCIE_INFO:
         {
-            dxrt_pcie_info_t *info = static_cast<dxrt_pcie_info_t *>(data);
+            auto *info = static_cast<dxrt_pcie_info_t *>(data);
             Process(dxrt::dxrt_cmd_t::DXRT_CMD_PCIE,
                     info,
                     sizeof(dxrt_pcie_info_t),
@@ -266,7 +262,7 @@ void DeviceCore::DoPcieCommand(void *data, uint32_t subCmd, uint32_t size)
 
 void DeviceCore::DoCustomCommand(void *data, uint32_t subCmd, uint32_t size)
 {
-    dxrt_custom_sub_cmt_t sCmd = static_cast<dxrt_custom_sub_cmt_t>(subCmd);
+    auto sCmd = static_cast<dxrt_custom_sub_cmt_t>(subCmd);
     if (data == nullptr)
     {
         LOG_DXRT_ERR("Null data pointer received");
@@ -286,7 +282,7 @@ void DeviceCore::DoCustomCommand(void *data, uint32_t subCmd, uint32_t size)
         }
         case DX_GET_OTP:
         {
-            otp_info_t *info = static_cast<otp_info_t *>(data);
+            auto *info = static_cast<otp_info_t *>(data);
             Process(dxrt::dxrt_cmd_t::DXRT_CMD_CUSTOM,
                     info,
                     sizeof(otp_info_t),
@@ -312,7 +308,7 @@ void DeviceCore::DoCustomCommand(void *data, uint32_t subCmd, uint32_t size)
         }
         case DX_UPLOAD_MODEL:
         {
-            uint32_t *model_info = static_cast<uint32_t *>(data);
+            auto *model_info = static_cast<uint32_t *>(data);
             Process(dxrt::dxrt_cmd_t::DXRT_CMD_CUSTOM,
                     model_info,
                     sizeof(uint32_t)*3,
@@ -388,7 +384,6 @@ void DeviceCore::ShowPCIEDetails(std::ostream& os)
 
     dxrt_device_status_t status_data = Status();
 
-    //os << pcieInfo << std::dec << endl;
     os << "DDR Memory Error information";
     for (int i = 0; i < 4; i++)
     {
@@ -432,32 +427,33 @@ void DeviceCore::BoundOption(dxrt_sche_sub_cmd_t subCmd, npu_bound_op boundOp)
 {
 
 
-    int ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_SCHEDULE, reinterpret_cast<void*>(&boundOp), sizeof(dxrt_sche_sub_cmd_t), subCmd);
+    int ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_SCHEDULE, static_cast<void*>(&boundOp), sizeof(dxrt_sche_sub_cmd_t), subCmd);
     DXRT_ASSERT(ret == 0, "failed to apply bound option to device");
 
 }
 
-
-
-int DeviceCore::UpdateFwConfig(std::string jsonFile)
+int DeviceCore::UpdateFwConfig(const std::string& jsonFile)
 {
     DXRT_ASSERT(fileExists(jsonFile), jsonFile + " doesn't exist.");
     std::vector<uint8_t> buf(dxrt::getFileSize(jsonFile));
     DataFromFile(jsonFile, buf.data());
-    Process(dxrt::dxrt_cmd_t::DXRT_CMD_UPDATE_CONFIG_JSON, buf.data(), buf.size());
+    Process(dxrt::dxrt_cmd_t::DXRT_CMD_UPDATE_CONFIG_JSON, buf.data(), static_cast<uint32_t>(buf.size()));
     return buf[0];
 }
+
 int DeviceCore::ReadDriverData(void *ptr, uint32_t size)
 {
     int ret = _adapter->Read(ptr, size);
-    //LOG_DXRT_DBG << "Device " << _id << " Response : " << response.req_id << endl;
+
     return ret;
 }
 
 void* DeviceCore::CreateMemoryMap()
 {
-    void* mem_ptr = _adapter->MemoryMap(0, _info.mem_size, 0);
-    if (reinterpret_cast<int64_t>(mem_ptr) == -1)
+    void* mem_ptr = _adapter->MemoryMap(nullptr, _info.mem_size, 0);
+    int64_t mem_ptr_int;
+    memcpy(&mem_ptr_int, &mem_ptr, sizeof(void*));
+    if (mem_ptr_int == -1)
     {
         mem_ptr = nullptr;
     }
@@ -466,15 +462,19 @@ void* DeviceCore::CreateMemoryMap()
 void DeviceCore::CheckVersion()
 {
 
-#ifdef __linux__
+#ifndef USE_VNPU
+    #ifdef __linux__
         DxDeviceVersion dxVer(this, _info.fw_ver, _info.type, _info.interface, _info.variant);
-#elif _WIN32
+    #elif _WIN32
         DxDeviceVersion dxVer(this, _info.fw_ver, _info.type, _info.interface_value, _info.variant);
-#endif
+    #endif
     dxVer.CheckVersion();
+#else
+    std::ignore = _info;
+#endif // USE_VNPU
 }
 
-int DeviceCore::GetReadChannel()
+int DeviceCore::GetReadChannel() const
 {
     if (static_cast<DeviceType>(_info.type) == DeviceType::ACC_TYPE)
     {
@@ -491,10 +491,7 @@ int DeviceCore::GetReadChannel()
     }
 }
 
-
-
-
-int DeviceCore::GetWriteChannel()
+int DeviceCore::GetWriteChannel() const
 {
     if (static_cast<DeviceType>(_info.type) == DeviceType::ACC_TYPE)
     {
@@ -521,6 +518,10 @@ int DeviceCore::GetWriteChannel()
         DXRT_ASSERT(false, "UNKNOWN device type");
         return 0;
     }
+}
+void DeviceCore::Close()
+{
+    _adapter->Close();
 }
 
 } // namespace dxrt

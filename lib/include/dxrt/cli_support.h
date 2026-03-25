@@ -22,9 +22,9 @@
 
 namespace dxrt {
 
-    int UpdateFw(std::shared_ptr<DeviceCore> devicePtr, std::string fwFile, int subCmd);
-    int UploadFw(std::shared_ptr<DeviceCore> devicePtr, std::string fwFile, int subCmd);
-    int UpdateFwConfig(std::shared_ptr<DeviceCore> devicePtr, std::string jsonFile);
+    int UpdateFw(std::shared_ptr<DeviceCore> devicePtr, const std::string& fwFile, int subCmd);
+    int UploadFw(std::shared_ptr<DeviceCore> devicePtr, const std::string& fwFile, int subCmd);
+    int UpdateFwConfig(std::shared_ptr<DeviceCore> devicePtr, const std::string& jsonFile);
     std::vector<uint32_t> Dump(std::shared_ptr<DeviceCore> devicePtr);
     void UpdateFwConfig(std::shared_ptr<DeviceCore> devicePtr, std::vector<uint32_t> cfg);
     std::shared_ptr<FwLog> GetFwLog(std::shared_ptr<DeviceCore> devicePtr);

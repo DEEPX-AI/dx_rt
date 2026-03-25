@@ -17,10 +17,12 @@
 #include <unordered_map>
 #include <mutex>
 #include <atomic>
+#include <memory>
+#include <vector>
+#include <string>
+#include <iostream>
+#include "dxrt/model_type.h"
 
-#define REQUEST_ID_INIT_VALUE 1
-// #define REQUEST_ID_MAX_VALUE 5000
-// #define REQUEST_ID_MAX_VALUE 50
 
 namespace dxrt {
 
@@ -38,20 +40,20 @@ template<typename T>
 class CircularDataPool;
 class InferenceJob;
 
-class DXRT_API Request
+class DXRT_API Request // NOSONAR
 {
-public:
-    enum Status
+ public:
+    enum Status // NOSONAR
     {
         REQ_IDLE,
         REQ_BUSY,
         REQ_DONE,
     };
     Request(void);
-    Request(int id);
-    Request(Task *task_, Tensors &inputs_, Tensors &outputs_);
+    explicit Request(int id);
+    Request(Task *task_, const Tensors &inputs_, const Tensors &outputs_);
     ~Request(void);
-    static RequestPtr Create(Task *task_, Tensors inputs_, Tensors outputs_, void *userArg, int jobId=0);
+    static RequestPtr Create(Task *task_, const Tensors &inputs_, const Tensors &outputs_, void *userArg, int jobId=0);
     static RequestPtr Create(Task *task_, void *input, void *output, void *userArg, int jobId=0);
     static RequestPtr GetById(int id);
 #ifdef DXRT_USE_DEVICE_VALIDATION
@@ -62,12 +64,12 @@ public:
 #endif
     static RequestPtr Pick();
     static void ShowAll();
-    void Wait();
+    void Wait() const;
     void SetStatus(Status s);
     void CheckTimePoint(int opt);
     int id() const;
     int job_id() const;
-    void set_processed_unit(std::string processedPU, int processedDevId, int processedId);
+    void set_processed_unit(const std::string &processedPU, int processedDevId, int processedId);
     std::string processed_pu() const;
     int processed_id() const;
     void Reset();
@@ -88,17 +90,21 @@ public:
     dxrt_request_t* &npu_inference_ptr();
     dxrt_request_acc_t &npu_inference_acc();
     uint32_t &inference_time();
-    TimePointPtr time_point();
-    Status status();
+    TimePointPtr time_point() const;
+    Status status() const;
     int &latency();
     bool &latency_valid();
     bool &validate_device();
-    int16_t &model_type();
-    void setInputs(Tensors input);
-    void setOutputs(Tensors output);
+    ModelType modelType() const;
+    void setModelType(ModelType type);
+    void setInputs(const Tensors &input);
+    void setOutputs(const Tensors &output);
 
-    void setNpuInferenceAcc(dxrt_request_acc_t npuInferenceAcc);
+    void setNpuInferenceAcc(const dxrt_request_acc_t& npuInferenceAcc);
     void setInferenceJob(InferenceJob* job);  // works for start next request or complete whole inference
+#ifdef USE_VNPU
+    InferenceJob* inferenceJob() const;  // Get the associated inference job
+#endif // USE_VNPU
     void onRequestComplete(RequestPtr req);
 
     void setBufferSet(std::unique_ptr<BufferSet> buffers);
@@ -111,7 +117,7 @@ public:
     const RequestData* getData() const;
     friend DXRT_API std::ostream& operator<<(std::ostream&, const Request&);
     friend class CircularDataPool<Request>;
-private:
+ private:
 
     RequestData _data;
 
@@ -140,7 +146,6 @@ private:
     bool _is_validate_request = false;
     uint32_t _validate_output_size = 0;
     void* _validate_output_ptr = nullptr;
-
 };
 class DXRT_API RequestMap
 {
@@ -154,7 +159,6 @@ private:
     std::mutex _lock;
 };
 DXRT_API std::ostream& operator<<(std::ostream&, const Request::Status&);
-
 
 
 } // namespace dxrt

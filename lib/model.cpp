@@ -43,6 +43,7 @@
 #include "resource/log_messages.h"
 #include <cstdlib>
 #include <fstream>
+#include <array>
 #include <sys/stat.h>
 
 using std::cout;
@@ -62,23 +63,14 @@ using deepx_rmapinfo::GetMemoryTypeNum;
 namespace dxrt
 {
 
-static string dataFormatTable[] =
-{
+static const std::array<const std::string, 4> dataFormatTable = {
     "NONE",
     "NCHW",
     "NHWC",
     "NHW"
 };
 
-ModelDataBase LoadModelParam(string file, int bufferCount)
-{
-    ModelDataBase param;
-    LoadModelParam(param, file, bufferCount);
-
-    return param;
-}
-
-string LoadModelParam(ModelDataBase& param, string file, int bufferCount)
+DXRT_API std::string LoadModelParam(ModelDataBase& param, const std::string& file, int bufferCount)
 {
     // Use new parser system for version-specific parsing
     try
@@ -100,14 +92,12 @@ string LoadModelParam(ModelDataBase& param, string file, int bufferCount)
     throw InvalidOperationException(EXCEPTION_MESSAGE("LoadModelParam: Parser factory call failed"));
 }
 
-string LoadModelParam(ModelDataBase& param, const uint8_t* modelBuffer, size_t modelSize, int bufferCount)
+DXRT_API std::string LoadModelParam(ModelDataBase& param, const uint8_t* modelBuffer, size_t modelSize, int bufferCount)
 {
     // Use new parser system for version-specific parsing
     try
     {
-        //auto parser = ModelParserFactory::CreateParser(file);
         auto parser = ModelParserFactory::CreateParser(modelBuffer, modelSize);
-        //LOG_DXRT_DBG << "Using " << parser->GetParserName() << " for file: " << file << std::endl;
         parser->SetTaskBufferCount(bufferCount);
         return parser->ParseModel(modelBuffer, modelSize, param);
     }
@@ -125,17 +115,15 @@ string LoadModelParam(ModelDataBase& param, const uint8_t* modelBuffer, size_t m
 
 ostream& operator<<(ostream& os, const ModelDataBase& m)
 {
-    auto graphsDb = m.deepx_graph;
-    auto binDb = m.deepx_binary;
-    auto graphs = graphsDb.subgraphs();
-    auto toposortOrder = graphsDb.topoSort_order();
-    for (const auto &name : toposortOrder)
+    const auto& graphsDb = m.deepx_graph;
+    const auto& graphs = graphsDb.subgraphs();
+    const auto& toposortOrder = graphsDb.topoSort_order();
+    for (const auto& name : toposortOrder)
     {
-        for (auto &graph : graphs)
+        for (const auto& graph : graphs)
         {
             if (graph.name() == name)
             {
-                // if(binDb.npu_models())
                 os << "-- " << graph.name() << endl;
                 break;
             }

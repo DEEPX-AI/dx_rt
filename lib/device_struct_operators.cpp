@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -151,7 +151,7 @@ static constexpr std::array<pair_type, 23> lstate_arr = {{{0, "IDLE"}, {1, "L0"}
 
 ostream& operator<<(ostream& os, const dxrt_pcie_power_stat_t& e)
 {
-    os << "P-State " << map_lookup(pstate_arr,e.p_state) << " D-state " << map_lookup(dstate_arr, e.d_state) 
+    os << "P-State " << map_lookup(pstate_arr,e.p_state) << " D-state " << map_lookup(dstate_arr, e.d_state)
     << " L_state " << map_lookup(lstate_arr, e.l_state)  << endl;
     return os;
 }
@@ -163,8 +163,8 @@ static constexpr std::array<pair_type, 3> cs_arr = {{{1,"RUNNING"},{2,"HALTED"},
 
 uint64_t combine_uint(uint32_t msb, uint32_t lsb)
 {
-    uint64_t a = static_cast<uint64_t>(msb);
-    uint64_t b = static_cast<uint64_t>(lsb);
+    auto a = static_cast<uint64_t>(msb);
+    auto b = static_cast<uint64_t>(lsb);
     return (a << 32) + b;
 }
 
@@ -183,14 +183,14 @@ static constexpr std::array<pair_type,3> link_stat_arr = {{{0,"Not Active"},{1,"
 
 ostream& operator<<(ostream& os, const dxrt_pcie_info_t& e)
 {
-    
+
     os << "PHY Status: "<< map_lookup(phy_stat_arr,e.phy_stat) << ", Link Status:"<< map_lookup(link_stat_arr,e.dll_stat) << endl;
     os << "Power Status: " << e.power_stat;
     os << "DMA R/W Channel Status:" << endl;
     for(int i = 0; i < 4;i++)
     {
         os << "r_ch["<< i << "] " << e.dma_stat.r_ch[i] << endl;
-        os << "w_ch["<< i << "] " << e.dma_stat.w_ch[i] << endl; 
+        os << "w_ch["<< i << "] " << e.dma_stat.w_ch[i] << endl;
     }
     os << e.err_stat << endl << "Event count: " << endl << e.evt_stat;
     return os;

@@ -48,8 +48,16 @@ if __name__ == "__main__":
         logger.info(f"Buffer count for IE 2: {ie_2_option.buffer_count}")
         with InferenceEngine(args.model, ie_1_option) as ie_1, InferenceEngine(args.model, ie_2_option) as ie_2:
 
-            input_1 = [np.zeros(ie_1.get_input_size(), dtype=np.uint8)]
-            input_2 = [np.zeros(ie_2.get_input_size(), dtype=np.uint8)]
+            # NOTE: np.zeros() uses COW zero pages — all virtual pages share one
+            # physical page. PCIe DMA driver's get_user_pages() then sees duplicate
+            # physical pages in the SG list and fails with EFAULT.
+            # np.empty() + explicit fill forces unique physical page allocation.
+            _buf_1 = np.empty(ie_1.get_input_size(), dtype=np.uint8)
+            _buf_1.fill(0)
+            input_1 = [_buf_1]
+            _buf_2 = np.empty(ie_2.get_input_size(), dtype=np.uint8)
+            _buf_2.fill(0)
+            input_2 = [_buf_2]
 
             start = time.perf_counter()
             # inference loop

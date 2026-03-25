@@ -34,28 +34,31 @@
 
 namespace dxrt {
 
-int UpdateFw(std::shared_ptr<DeviceCore> devicePtr, std::string fwFile, int subCmd)
+int UpdateFw(std::shared_ptr<DeviceCore> devicePtr, const std::string& fwFile, int subCmd)
 {
     DXRT_ASSERT(fileExists(fwFile), fwFile + " doesn't exist.");
     std::vector<uint8_t> buf(getFileSize(fwFile));
     DataFromFile(fwFile, buf.data());
-    return devicePtr->Process(dxrt::dxrt_cmd_t::DXRT_CMD_UPDATE_FIRMWARE, buf.data(), buf.size(), subCmd);
+    return devicePtr->Process(dxrt::dxrt_cmd_t::DXRT_CMD_UPDATE_FIRMWARE,
+        buf.data(), static_cast<uint32_t>(buf.size()), subCmd);
 }
 
-int UploadFw(std::shared_ptr<DeviceCore> devicePtr, std::string fwFile, int subCmd)
+int UploadFw(std::shared_ptr<DeviceCore> devicePtr, const std::string& fwFile, int subCmd)
 {
     DXRT_ASSERT(fileExists(fwFile), fwFile + " doesn't exist.");
     std::vector<uint8_t> buf(getFileSize(fwFile));
     DataFromFile(fwFile, buf.data());
-    return devicePtr->Process(dxrt::dxrt_cmd_t::DXRT_CMD_UPLOAD_FIRMWARE, buf.data(), buf.size(), subCmd);
+    return devicePtr->Process(dxrt::dxrt_cmd_t::DXRT_CMD_UPLOAD_FIRMWARE,
+        buf.data(), static_cast<uint32_t>(buf.size()), subCmd);
 }
 
-int UpdateFwConfig(std::shared_ptr<DeviceCore> devicePtr, std::string jsonFile)
+int UpdateFwConfig(std::shared_ptr<DeviceCore> devicePtr, const std::string& jsonFile)
 {
     DXRT_ASSERT(fileExists(jsonFile), jsonFile + " doesn't exist.");
     std::vector<uint8_t> buf(getFileSize(jsonFile));
     DataFromFile(jsonFile, buf.data());
-    devicePtr->Process(dxrt::dxrt_cmd_t::DXRT_CMD_UPDATE_CONFIG_JSON, buf.data(), buf.size());
+    devicePtr->Process(dxrt::dxrt_cmd_t::DXRT_CMD_UPDATE_CONFIG_JSON,
+        buf.data(), static_cast<uint32_t>(buf.size()));
     return buf[0];
 }
 
@@ -67,8 +70,9 @@ std::vector<uint32_t> Dump(std::shared_ptr<DeviceCore> devicePtr)
 }
 void UpdateFwConfig(std::shared_ptr<DeviceCore> devicePtr, std::vector<uint32_t> cfg)
 {
-    int size = sizeof(uint32_t)*cfg.size();
-    devicePtr->Process(dxrt::dxrt_cmd_t::DXRT_CMD_UPDATE_CONFIG, cfg.data(), size);
+    auto size = sizeof(uint32_t) * cfg.size();
+    devicePtr->Process(dxrt::dxrt_cmd_t::DXRT_CMD_UPDATE_CONFIG,
+        cfg.data(), static_cast<uint32_t>(size));
 }
 std::shared_ptr<FwLog> GetFwLog(std::shared_ptr<DeviceCore> devicePtr)
 {

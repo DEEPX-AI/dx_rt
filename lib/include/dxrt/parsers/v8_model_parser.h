@@ -11,6 +11,7 @@
 
 #include "dxrt/model_parser.h"
 #include "dxrt/model.h"
+#include "dxrt/parsers/parser_common_utils.h"
 #include "dxrt/extern/rapidjson/document.h"
 #include <string>
 
@@ -29,37 +30,12 @@ class V8ModelParser : public IModelParser {
 public:
     V8ModelParser() = default;
     ~V8ModelParser() override = default;
-    
-    /**
-     * @brief Parse v8 DXNN file
-     * @param filePath Path to .dxnn file
-     * @param modelData Output structure to populate
-     * @return Model compile type string
-     */
-    std::string ParseModel(const std::string& filePath, ModelDataBase& modelData) override;
-    
-    /**
-     * @brief Parse v8 DXNN file from memory buffer
-     * @param modelBuffer Pointer to DXNN file data in memory
-     * @param modelSize Size of the DXNN file data
-     * @param modelData Output structure to populate
-     * @return Model compile type string
-     */
-    std::string ParseModel(const uint8_t* modelBuffer, size_t modelSize, ModelDataBase& modelData) override;
-    
-    /**
-     * @brief Get supported version number
-     * @return 8
-     */
+
     int GetSupportedVersion() const override { return 8; }
-    
-    /**
-     * @brief Get parser name
-     * @return "V8ModelParser"
-     */
     std::string GetParserName() const override { return "V8ModelParser"; }
 
-private:
+protected:
+    // Override virtual methods from IModelParser
     /**
      * @brief Load binary info from DXNN header (including PPU)
      * @param param Output binary database
@@ -67,23 +43,23 @@ private:
      * @param fileSize File size in bytes
      * @return DXNN file format version
      */
-    int LoadBinaryInfo(deepx_binaryinfo::BinaryInfoDatabase& param, char *buffer, int fileSize);
-    
+    int loadBinaryInfo(deepx_binaryinfo::BinaryInfoDatabase& param, const char *buffer, int fileSize) const override;
+
     /**
      * @brief Load graph info from parsed binary data
      * @param param Output graph database
      * @param data Model data containing binary info
      * @return 0 on success, -1 on error
      */
-    int LoadGraphInfo(deepx_graphinfo::GraphInfoDatabase& param, ModelDataBase& data);
-    
+    int loadGraphInfo(deepx_graphinfo::GraphInfoDatabase& param, ModelDataBase& data) const override;
+
     /**
      * @brief Load rmap info from parsed binary data
      * @param param Output rmap database
      * @param data Model data containing binary info
      * @return Model compile type string
      */
-    std::string LoadRmapInfo(deepx_rmapinfo::rmapInfoDatabase& param, ModelDataBase& data);
+    std::string loadRmapInfo(deepx_rmapinfo::rmapInfoDatabase& param, ModelDataBase& data) const override;
 };
 
 }  // namespace dxrt

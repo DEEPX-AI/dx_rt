@@ -78,7 +78,13 @@ if __name__ == "__main__":
                 with open(args.input, "rb") as file:
                     input_data = [np.frombuffer(file.read(), dtype=np.uint8)]
             else:
-                input_data = [np.zeros(input_size, dtype=np.uint8)]
+                # NOTE: np.zeros() uses COW zero pages — all virtual pages share one
+                # physical page. PCIe DMA driver's get_user_pages() then sees duplicate
+                # physical pages in the SG list and fails with EFAULT.
+                # np.empty() + explicit fill forces unique physical page allocation.
+                _buf = np.empty(input_size, dtype=np.uint8)
+                _buf.fill(0)
+                input_data = [_buf]
 
             # Register callback function
             ie.register_callback(callback_with_args)

@@ -16,13 +16,12 @@
 
 namespace dxrt {
 
-typedef enum _tcpMsgType {
-    TCP_MESSAGE     = 0,
-    TCP_QUEUE       = 1,
-    TCP_DATAS       = 2,
-    TCP_DATAS_GET   = 3,
-    TCP_TYPES_MAX   = 4,
-} tcpMsgType;
+constexpr int TCP_MESSAGE = 0;
+constexpr int TCP_QUEUE = 1;
+constexpr int TCP_DATAS = 2;
+constexpr int TCP_DATAS_GET = 3;
+constexpr int TCP_TYPES_MAX = 4;
+
 #ifdef __linux__
 class NetworkDriverAdapter : public DriverAdapter {
  public:
@@ -52,7 +51,7 @@ class NetworkDriverAdapter : public DriverAdapter {
 
   private:
     /* Type, socket, port */
-    std::map<tcpMsgType, std::pair<int, int>> sockMap;
+    std::map<int, std::pair<int, int>> sockMap;
 };
 #endif
 }  // namespace dxrt

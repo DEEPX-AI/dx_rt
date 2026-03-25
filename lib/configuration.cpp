@@ -17,7 +17,6 @@
 #include "dxrt/device_info_status.h"
 #include "dxrt/device_pool.h"
 #include "dxrt/device_version.h"
-#include "./resource/log_messages.h"
 #include <memory>
 #include <iostream>
 #include <fstream>
@@ -26,6 +25,7 @@
 #include <algorithm>
 #include <atomic>
 #include <thread>
+#include "./resource/log_messages.h"
 
 
 #ifdef USE_ORT
@@ -40,11 +40,7 @@
 #define USE_SERVICE_DEFAULT_VALUE false
 #endif
 
-#if DEBUG_DXRT
-#define DEBUG_DXRT_DEFAULT_VALUE true
-#else
-#define DEBUG_DXRT_DEFAULT_VALUE false
-#endif
+
 
 #if USE_PROFILER
 #define USE_PROFILER_DEFAULT_VALUE true
@@ -64,11 +60,6 @@
 #define SHOW_PROFILER_DATA_DEFAULT_VALUE false
 #endif
 
-#if SHOW_TASK_FLOW
-#define SHOW_TASK_FLOW_DEFAULT_VALUE true
-#else
-#define SHOW_TASK_FLOW_DEFAULT_VALUE false
-#endif
 
 #if SAVE_PROFILER_DATA
 #define SAVE_PROFILER_DATA_DEFAULT_VALUE true
@@ -127,9 +118,6 @@ static std::string getCustomInterOpThreadsDefault() {
 
 namespace dxrt {
 
-    static bool isDebugFlag = DEBUG_DXRT_DEFAULT_VALUE;
-    static bool isShowTaskFlowFlag = SHOW_TASK_FLOW_DEFAULT_VALUE;
-
     static std::string toLower(const std::string& str) {
         std::string result = str;
         std::transform(result.begin(), result.end(), result.begin(), ::tolower);
@@ -175,7 +163,8 @@ namespace dxrt {
             while (std::getline(file, line))
             {
                 std::istringstream iss(line);
-                std::string key, value;
+                std::string key;
+                std::string value;
 
                 if (std::getline(iss, key, '=') && std::getline(iss, value))
                 {
@@ -187,20 +176,19 @@ namespace dxrt {
         }
     };
 
-std::atomic<bool> Configuration::_sNpuValidateOpt{false}; // TODO: must integrated to configuration options
+    std::atomic<bool> Configuration::_sNpuValidateOpt{false};
 
-    Configuration* Configuration::_staticInstance = nullptr;
+    std::unique_ptr<Configuration> Configuration::_staticInstance = nullptr;
 
     Configuration& Configuration::GetInstance()
     {
-        if ( _staticInstance == nullptr ) _staticInstance = new Configuration();
+        if ( _staticInstance == nullptr ) _staticInstance = std::make_unique<Configuration>();
         return *_staticInstance;
     }
 
     void Configuration::deleteInstance()
     {
-        if ( _staticInstance != nullptr ) delete _staticInstance;
-        _staticInstance = nullptr;
+        _staticInstance.reset();
     }
 
     Configuration::Configuration()
@@ -219,6 +207,12 @@ std::atomic<bool> Configuration::_sNpuValidateOpt{false}; // TODO: must integrat
         _enableSettings[ITEM::CUSTOM_INTRA_OP_THREADS] = USE_CUSTOM_INTRA_OP_THREADS_DEFAULT_VALUE;
         _enableSettings[ITEM::CUSTOM_INTER_OP_THREADS] = USE_CUSTOM_INTER_OP_THREADS_DEFAULT_VALUE;
         _enableSettings[ITEM::NFH_ASYNC] = true; // default enabled
+#ifdef DXRT_NFH_ACCELERATION_AVAILABLE
+        _enableSettings[ITEM::NFH_ACCELERATION] = false;
+#endif
+#ifdef DXRT_CPU_OP_ACCELERATION_AVAILABLE
+        _enableSettings[ITEM::CPU_OP_ACCELERATION] = false;
+#endif
 
         _attributes[ITEM::PROFILER][ATTRIBUTE::PROFILER_SHOW_DATA] = SHOW_PROFILER_DATA_DEFAULT_VALUE ? "1" : "0";
         _attributes[ITEM::PROFILER][ATTRIBUTE::PROFILER_SAVE_DATA] = SAVE_PROFILER_DATA_DEFAULT_VALUE ? "1" : "0";
@@ -230,12 +224,9 @@ std::atomic<bool> Configuration::_sNpuValidateOpt{false}; // TODO: must integrat
     #endif
     }
 
-    Configuration::~Configuration()
-    {
-        LOG_DXRT_DBG << "configuration destructor" << std::endl;
-    }
+    Configuration::~Configuration() = default;
 
-    int Configuration::parseClampThreadCount(const std::string& value)
+    int Configuration::parseClampThreadCount(const std::string& value) const
     {
         if (value.empty()) {
             return 1; // default
@@ -244,7 +235,7 @@ std::atomic<bool> Configuration::_sNpuValidateOpt{false}; // TODO: must integrat
         try {
             int count = std::stoi(value);
             // Clamp between 1 and hardware_concurrency()
-            int hw = static_cast<int>(std::thread::hardware_concurrency());
+            auto hw = static_cast<int>(std::thread::hardware_concurrency());
             int maxThreads = std::max(1, hw);
             int clamped = std::max(1, std::min(count, maxThreads));
 
@@ -265,6 +256,15 @@ std::atomic<bool> Configuration::_sNpuValidateOpt{false}; // TODO: must integrat
         std::lock_guard<std::mutex> lock(_mutex);
 
         ConfigParser parser(fileName);
+
+        // unlock items before applying new settings
+        for (const auto& item_pair : _isReadonly) {
+            ITEM item = item_pair.first;
+            _isReadonly[item].first = false;
+            for (auto& attr_pair : _isReadonly[item].second) {
+                attr_pair.second = false;
+            }
+        }
 
         // Enable flags: only override defaults if keys exist in config
         if (parser.has("DEBUG_DXRT")) {
@@ -311,6 +311,18 @@ std::atomic<bool> Configuration::_sNpuValidateOpt{false}; // TODO: must integrat
             setAttributeWithoutLock(ITEM::CUSTOM_INTER_OP_THREADS, ATTRIBUTE::CUSTOM_INTER_OP_THREADS_NUM, validatedValue);
         }
 
+        // Acceleration settings
+#ifdef DXRT_NFH_ACCELERATION_AVAILABLE
+        if (parser.has("DXRT_NFH_ACCELERATION")) {
+            setEnableWithoutLock(ITEM::NFH_ACCELERATION, parser.getBoolValue("DXRT_NFH_ACCELERATION"));
+        }
+#endif
+#ifdef DXRT_CPU_OP_ACCELERATION_AVAILABLE
+        if (parser.has("DXRT_CPU_OP_ACCELERATION")) {
+            setEnableWithoutLock(ITEM::CPU_OP_ACCELERATION, parser.getBoolValue("DXRT_CPU_OP_ACCELERATION"));
+        }
+#endif
+
     }
 
     void Configuration::SetEnable(const ITEM item, bool enabled)
@@ -328,16 +340,28 @@ std::atomic<bool> Configuration::_sNpuValidateOpt{false}; // TODO: must integrat
         _enableSettings[item] = enabled;
         if (item == ITEM::DEBUG)
         {
-            isDebugFlag = enabled;
+            _isDebugFlag = enabled;
         }
         if (item == ITEM::TASK_FLOW)
         {
-            isShowTaskFlowFlag = enabled;
+            _isShowTaskFlowFlag = enabled;
         }
         if (item == ITEM::PROFILER)
         {
             Profiler::GetInstance().SetEnabled(enabled);
         }
+#ifdef DXRT_NFH_ACCELERATION_AVAILABLE
+        if (item == ITEM::NFH_ACCELERATION)
+        {
+            SetNfhAccelerationFlag(enabled);
+        }
+#endif
+#ifdef DXRT_CPU_OP_ACCELERATION_AVAILABLE
+        if (item == ITEM::CPU_OP_ACCELERATION)
+        {
+            SetCpuOpAccelerationFlag(enabled);
+        }
+#endif
     }
 
     void Configuration::SetAttribute(const ITEM item, const ATTRIBUTE attrib, const std::string& value)
@@ -416,12 +440,25 @@ std::atomic<bool> Configuration::_sNpuValidateOpt{false}; // TODO: must integrat
     {
         std::lock_guard<std::mutex> lock(_mutex);
 
-        auto it = _attributes.find(item);
-        if (it == _attributes.end())
+        auto it = _enableSettings.find(item);
+        if (it == _enableSettings.end())
         {
             return;
         }
         _isReadonly[item].first = true;
+    }
+
+    void Configuration::UnlockEnable(const ITEM item)
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+
+        auto it = _enableSettings.find(item);
+        if (it == _enableSettings.end())
+        {
+            return;
+        }
+        _isReadonly[item].first = false;
+
     }
 
     std::string Configuration::GetVersion() const
@@ -475,7 +512,7 @@ std::atomic<bool> Configuration::_sNpuValidateOpt{false}; // TODO: must integrat
     {
         std::vector<std::pair<int, std::string>> fws;
 
-        int device_count = DevicePool::GetInstance().GetDeviceCount();
+        auto device_count = static_cast<int>(DevicePool::GetInstance().GetDeviceCount());
         for (int i = 0; i < device_count; i++)
         {
             dxrt_device_info_t device_info = DevicePool::GetInstance().GetDeviceCores(i)->info();
@@ -487,7 +524,7 @@ std::atomic<bool> Configuration::_sNpuValidateOpt{false}; // TODO: must integrat
                                   std::to_string(minor) + "." +
                                   std::to_string(patch);
 
-            fws.emplace_back(std::pair<int, std::string>(i, version));
+            fws.emplace_back(i, version);
         }
         return fws;
     }
@@ -495,16 +532,16 @@ std::atomic<bool> Configuration::_sNpuValidateOpt{false}; // TODO: must integrat
     std::string Configuration::GetONNXRuntimeVersion() const
     {
 #ifdef USE_ORT
-        std::string onnx_version = std::string(OrtGetApiBase()->GetVersionString());
+        auto onnx_version = std::string(OrtGetApiBase()->GetVersionString());
         return onnx_version;
 #else
         return "0.0.0";
 #endif // USE_ORT
     }
 
-    void Configuration::SetFWConfigWithJson(const std::string& json_file)
+    void Configuration::SetFWConfigWithJson(const std::string& json_file) const
     {
-        int device_count = DevicePool::GetInstance().GetDeviceCount();
+        auto device_count = static_cast<int>(DevicePool::GetInstance().GetDeviceCount());
         for (int i = 0; i < device_count; i++)
         {
             auto dev = DevicePool::GetInstance().GetDeviceCores(i);
@@ -547,11 +584,11 @@ int DXRT_API GetTaskMaxLoad()
 }
 
 #if defined(__x86_64__) || defined(_M_X64)
-#define DXRT_NFH_DEFAULT_INPUT_THREADS 2
-#define DXRT_NFH_DEFAULT_OUTPUT_THREADS 4
+const int DXRT_NFH_DEFAULT_INPUT_THREADS = 2;
+const int DXRT_NFH_DEFAULT_OUTPUT_THREADS = 4;
 #else
-#define DXRT_NFH_DEFAULT_INPUT_THREADS 1
-#define DXRT_NFH_DEFAULT_OUTPUT_THREADS 2
+const int DXRT_NFH_DEFAULT_INPUT_THREADS = 1;
+const int DXRT_NFH_DEFAULT_OUTPUT_THREADS = 2;
 #endif
 
 int GetNfhInputWorkerThreads() {

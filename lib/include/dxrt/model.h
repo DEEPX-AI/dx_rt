@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -17,6 +17,7 @@
 #include <vector>
 #include <algorithm>
 #include <cctype>
+#include <array>
 #if defined(_WIN32)
 #include <limits>
     #ifdef max
@@ -76,6 +77,24 @@ struct DXRT_API BinaryInfoDatabase {
     Models &bitmatch_mask(int i)     { return _bitmatch_mask[i]; }
     std::vector<Models> &ppu()       { return _ppu; }
     Models &ppu(int i)               { return _ppu[i]; }
+
+    // Const versions
+    const Models &merged_model() const       { return _merged_model; }
+    const std::vector<Models> &npu_models() const { return _npu_models; }
+    const Models &npu_models(int i) const    { return _npu_models[i]; }
+    const std::vector<Models> &cpu_models() const { return _cpu_models; }
+    const Models &cpu_models(int i) const    { return _cpu_models[i]; }
+    const Models &graph_info() const         { return _graph_info; }
+    const std::vector<Models> &rmap() const       { return _rmap; }
+    const Models &rmap(int i) const          { return _rmap[i]; }
+    const std::vector<Models> &weight() const     { return _weight; }
+    const Models &weight(int i) const        { return _weight[i]; }
+    const std::vector<Models> &rmap_info() const  { return _rmap_info; }
+    const Models &rmap_info(int i) const     { return _rmap_info[i]; }
+    const std::vector<Models> &bitmatch_mask() const  { return _bitmatch_mask; }
+    const Models &bitmatch_mask(int i) const     { return _bitmatch_mask[i]; }
+    const std::vector<Models> &ppu() const       { return _ppu; }
+    const Models &ppu(int i) const               { return _ppu[i]; }
 
     Models _merged_model;
     std::vector<Models> _npu_models;
@@ -139,9 +158,12 @@ struct DXRT_API SubGraph {
 struct DXRT_API GraphInfoDatabase {
     bool &use_offloading() { return _use_offloading; }
     std::vector<std::string> &topoSort_order()        { return _topoSort_order; }
+    const std::vector<std::string> &topoSort_order() const { return _topoSort_order; }
 
     std::vector<SubGraph> &subgraphs() { return _subgraphs; }
+    const std::vector<SubGraph> &subgraphs() const { return _subgraphs; }
     SubGraph &subgraphs(int i)    { return _subgraphs[i]; }
+    const SubGraph &subgraphs(int i) const { return _subgraphs[i]; }
     std::vector<std::string> &inputs()         { return _inputs; }
     std::vector<std::string> &outputs()        { return _outputs; }
 
@@ -180,7 +202,7 @@ struct DXRT_API Counts {
     int64_t _layer = 0;
     int64_t _cmd = 0;
     uint32_t  _op_mode = 0;
-    uint32_t  _checkpoints[3] = {0, 0, 0};
+    std::array<uint32_t, 3> _checkpoints = {0, 0, 0};
 
 };
 
@@ -255,6 +277,19 @@ struct DXRT_API RegisterInfoDatabase {
     std::vector<TensorInfo>& outputs() { return _outputs; }
     ModelMemory& model_memory() { return _model_memory; }
     int& ppu_type() { return _ppu_type; }
+
+    // Const versions
+    const Version& version() const { return _version; }
+    const std::string& name() const { return _name; }
+    const std::string& mode() const { return _mode; }
+    const Npu& npu() const { return _npu; }
+    const int64_t& size() const { return _size; }
+    const Counts& counts() const { return _counts; }
+    const std::vector<TensorInfo>& inputs() const { return _inputs; }
+    const std::vector<TensorInfo>& outputs() const { return _outputs; }
+    const ModelMemory& model_memory() const { return _model_memory; }
+    const int& ppu_type() const { return _ppu_type; }
+
     bool is_initialized() const {
         return _size != -1;
     }
@@ -274,10 +309,14 @@ struct DXRT_API rmapInfoDatabase {
     std::vector<RegisterInfoDatabase> &rmap_info() { return _rmap_info; }
     RegisterInfoDatabase &rmap_info(int i)    { return _rmap_info[i]; }
 
+    // Const versions
+    const std::vector<RegisterInfoDatabase> &rmap_info() const { return _rmap_info; }
+    const RegisterInfoDatabase &rmap_info(int i) const    { return _rmap_info[i]; }
+
     std::vector<RegisterInfoDatabase> _rmap_info;
 };
 
-enum DXRT_API DataType : int {
+enum DXRT_API DataType : int { // NOSONAR: Requires implicit int conversion for TensorInfo and protobuf ABI
     DATA_TYPE_NONE = 0,
     FLOAT32 = 1,
     UINT8 = 2,
@@ -292,7 +331,7 @@ enum DXRT_API DataType : int {
     DataType_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int>::max()
 };
 
-enum DXRT_API MemoryType : int {
+enum DXRT_API MemoryType : int { // NOSONAR: Requires implicit int conversion for TensorInfo and protobuf ABI
     MEMORYTYPE_NONE = 0,
     DRAM = 1,
     ARGMAX = 2,
@@ -301,7 +340,7 @@ enum DXRT_API MemoryType : int {
     MemoryType_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int>::max()
 };
 
-enum DXRT_API Layout : int {
+enum DXRT_API Layout : int { // NOSONAR: Requires implicit int conversion for TensorInfo and protobuf ABI
     LAYOUT_NONE = 0,
     PRE_FORMATTER = 1,
     PRE_IM2COL = 2,
@@ -328,7 +367,7 @@ inline const char* LayoutToString(Layout layout) {
     }
 }
 
-enum DXRT_API Transpose : int {
+enum DXRT_API Transpose : int { // NOSONAR: Requires implicit int conversion for TensorInfo and protobuf ABI
     TRANSPOSE_NONE = 0,
     CHANNEL_FIRST_TO_LAST = 1,
     CHANNEL_LAST_TO_FIRST = 2,
@@ -418,10 +457,10 @@ struct DXRT_API ModelDataBase {
 };
 DXRT_API std::ostream& operator<<(std::ostream&, const ModelDataBase&);
 /** \brief parse a model, and show information
- * \return return 0 if model parsing is done successfully, 
+ * \return return 0 if model parsing is done successfully,
            return -1 if failed to parse model
 */
-DXRT_API int ParseModel(std::string file);
+DXRT_API int ParseModel(const std::string& file);
 
 // Parse options structure
 struct ParseOptions {
@@ -434,15 +473,11 @@ struct ParseOptions {
 /** \brief parse a model with options
  * \param file model file path
  * \param options parsing options
- * \return return 0 if model parsing is done successfully, 
+ * \return return 0 if model parsing is done successfully,
            return -1 if failed to parse model
 */
-DXRT_API int ParseModel(std::string file, const ParseOptions& options);
-//DXRT_API ModelDataBase LoadModelParam(std::string file, int bufferCount);
-DXRT_API std::string LoadModelParam(ModelDataBase& modelDB, std::string file, int bufferCount = DXRT_TASK_MAX_LOAD_VALUE);
+DXRT_API int ParseModel(const std::string& file, const ParseOptions& options);
+DXRT_API std::string LoadModelParam(ModelDataBase& modelDB, const std::string& file, int bufferCount = DXRT_TASK_MAX_LOAD_VALUE);
 DXRT_API std::string LoadModelParam(ModelDataBase& modelDB, const uint8_t* modelBuffer, size_t modelSize, int bufferCount = DXRT_TASK_MAX_LOAD_VALUE);
-DXRT_API int LoadGraphInfo(deepx_graphinfo::GraphInfoDatabase& graphInfo, ModelDataBase& data);
-DXRT_API int LoadBinaryInfo(deepx_binaryinfo::BinaryInfoDatabase& binInfo,char *buffer, int fileSize);
-DXRT_API std::string LoadRmapInfo(deepx_rmapinfo::rmapInfoDatabase& rampInfo, ModelDataBase& data);
 bool isSupporterModelVersion(const std::string& vers);
 }

@@ -14,6 +14,7 @@
 #include "dxrt/ipc_wrapper/ipc_message.h"
 #include "dxrt/exception/exception.h"
 #include "dxrt/runtime_event_dispatcher.h"
+#include "dxrt/tsan_annotations.h"
 #include "../resource/log_messages.h"
 
 #ifdef __linux__
@@ -35,8 +36,6 @@
 #include <thread>
 
 
-#define SOCKET_NAME "/tmp/dxrt_memory_socket"
-
 // for debug
 // #define LOG_DXRT_DBG std::cout
 
@@ -44,8 +43,8 @@ namespace dxrt
 {
 
     MultiprocessMemory::MultiprocessMemory()
-    : ipcClientWrapper(dxrt::IPCDefaultType(), getpid()),
-    ipcClientWrapperSync(dxrt::IPCDefaultType(), getpid() + IPCClientWrapper::MAX_PID)
+    : ipcClientWrapper(dxrt::IPCDefaultType(), getpid()),   // NOSONAR:S3230
+      ipcClientWrapperSync(dxrt::IPCDefaultType(), getpid() + IPCClientWrapper::MAX_PID)    // NOSONAR:S3230
     {
     }
 
@@ -56,20 +55,23 @@ namespace dxrt
         return 0;
     }
 
-    void MultiprocessMemory::mpConnect()
+    void MultiprocessMemory::mpConnect_internal()
     {
-        // DXRT_ASSERT(ipcClientWrapper.Initialize() == 0, "Failed to connect to dxrt memory manager service (IPC/Async)");
+        // TSAN annotation: IPC thread creation synchronized by call_once
+        ANNOTATE_HAPPENS_BEFORE(this);
+
         if ( ipcClientWrapper.Initialize() != 0 )
             throw ServiceIOException(EXCEPTION_MESSAGE("Failed to connect to dxrt memory manager service (IPC/Async)"));
 
-        // DXRT_ASSERT(ipcClientWrapperSync.Initialize(false) == 0, "Failed to connect to dxrt memory manager service (IPC/Sync)");
         if ( ipcClientWrapperSync.Initialize(false) != 0 )
             throw ServiceIOException(EXCEPTION_MESSAGE("Failed to connect to dxrt memory manager service (IPC/Sync)"));
+
+        ANNOTATE_HAPPENS_AFTER(this);
     }
 
     uint64_t MultiprocessMemory::Allocate(int deviceId, uint64_t required)
     {
-        mpConnect_once_wrapper();
+        Connect();
         dxrt::IPCClientMessage clientMessage;
         dxrt::IPCServerMessage serverMessage;
         bool isDone = false;
@@ -81,7 +83,6 @@ namespace dxrt
             clientMessage.pid = getpid();
 
 
-            // ipcClientWrapper.SendToServer(serverMessage, clientMessage);
             ipcClientWrapperSync.SendToServer(serverMessage, clientMessage);
             if (serverMessage.result == 0)
             {
@@ -91,7 +92,6 @@ namespace dxrt
             std::this_thread::sleep_for(std::chrono::seconds(2));
         }
 
-        //DXRT_ASSERT(isDone, "ran out of NPU memory");
         if (!isDone) {
             LOG_DXRT_ERR("Failed to allocate NPU memory " + std::to_string(required) + "byte after retries");
             RuntimeEventDispatcher::GetInstance().DispatchEvent(
@@ -100,23 +100,16 @@ namespace dxrt
                 RuntimeEventDispatcher::CODE::MEMORY_OVERFLOW,
                 LogMessages::RuntimeDispatch_RanOutOfNPUMemory());
         }
-        /* TODO
-        // Fix: Return -1 instead of aborting to allow retry with smaller buffer count
-        if (!isDone) {
-            LOG_DXRT_ERR("Failed to allocate NPU memory after retries");
-            return static_cast<uint64_t>(-1);
-        }
-        */
 
         LOG_DXRT_DBG << std::hex << serverMessage.data << std::dec << " is allocated from service\n";
         DXRT_ASSERT(static_cast<int64_t>(serverMessage.data) != -1, "allocate error");
-        // DXRT_ASSERT(static_cast<int64_t>(serverMessage.data) != 0,"allocate error");
+
         return serverMessage.data;
     }
 
     uint64_t MultiprocessMemory::BackwardAllocate(int deviceId, uint64_t required)
     {
-        mpConnect_once_wrapper();
+        Connect();
         dxrt::IPCClientMessage clientMessage;
         dxrt::IPCServerMessage serverMessage;
         bool isDone = false;
@@ -129,7 +122,6 @@ namespace dxrt
             clientMessage.pid = getpid();
 
 
-            // ipcClientWrapper.SendToServer(serverMessage, clientMessage);
             ipcClientWrapperSync.SendToServer(serverMessage, clientMessage);
             if (serverMessage.result == 0)
             {
@@ -138,22 +130,16 @@ namespace dxrt
             }
 
             std::this_thread::sleep_for(std::chrono::seconds(2));
-        //#ifdef __linux__
-        //        sleep(5);
-        //#elif _WIN32
-        //        this_thread::sleep_for(chrono::microseconds(50));
-        //#endif
         }
         DXRT_ASSERT(isDone, "allocateB timeout");
         LOG_DXRT_DBG << std::hex << serverMessage.data << std::dec << " is allocated from service\n";
         DXRT_ASSERT(static_cast<int64_t>(serverMessage.data) != -1, "allocate error");
-        // DXRT_ASSERT(static_cast<int64_t>(serverMessage.data) != 0,"allocate error");
         return serverMessage.data;
     }
 
     uint64_t MultiprocessMemory::BackwardAllocateForTask(int deviceId, int taskId, uint64_t required)
     {
-        mpConnect_once_wrapper();
+        Connect();
         dxrt::IPCClientMessage clientMessage;
         dxrt::IPCServerMessage serverMessage;
         bool isDone = false;
@@ -166,7 +152,6 @@ namespace dxrt
             clientMessage.pid = getpid();
             clientMessage.taskId = taskId;
 
-            //ipcClientWrapper.SendToServer(serverMessage, clientMessage);
             ipcClientWrapperSync.SendToServer(serverMessage, clientMessage);
             if (serverMessage.result == 0)
             {
@@ -184,7 +169,7 @@ namespace dxrt
 
     uint64_t MultiprocessMemory::AllocateForTask(int deviceId, int taskId, uint64_t required)
     {
-        mpConnect_once_wrapper();
+        Connect();
         dxrt::IPCClientMessage clientMessage;
         dxrt::IPCServerMessage serverMessage;
         bool isDone = false;
@@ -197,7 +182,6 @@ namespace dxrt
             clientMessage.pid = getpid();
             clientMessage.taskId = taskId;
 
-            // ipcClientWrapper.SendToServer(serverMessage, clientMessage);
             ipcClientWrapperSync.SendToServer(serverMessage, clientMessage);
             if (serverMessage.result == 0)
             {
@@ -207,7 +191,6 @@ namespace dxrt
             std::this_thread::sleep_for(std::chrono::seconds(2));
         }
 
-        // DXRT_ASSERT(isDone, "ran out of NPU memory for Task " + std::to_string(taskId));
         if (!isDone) {
             RuntimeEventDispatcher::GetInstance().DispatchEvent(
                 RuntimeEventDispatcher::LEVEL::CRITICAL,
@@ -215,13 +198,6 @@ namespace dxrt
                 RuntimeEventDispatcher::CODE::MEMORY_OVERFLOW,
                 LogMessages::RuntimeDispatch_RanOutOfNPUMemoryForTask(taskId));
         }
-        /* TODO
-        // Fix: Return -1 instead of aborting to allow retry with smaller buffer count
-        if (!isDone) {
-            LOG_DXRT_ERR("Failed to allocate NPU memory for Task " + std::to_string(taskId) + " after retries");
-            return static_cast<uint64_t>(-1);
-        }
-        */
 
         LOG_DXRT_DBG << std::hex << serverMessage.data << std::dec << " is allocated from service for Task " << taskId << "\n";
         DXRT_ASSERT(static_cast<int64_t>(serverMessage.data) != -1, "allocate error for Task " + std::to_string(taskId));
@@ -230,7 +206,7 @@ namespace dxrt
 
     void MultiprocessMemory::Deallocate(int deviceId, uint64_t addr)
     {
-        mpConnect_once_wrapper();
+        Connect();
         dxrt::IPCClientMessage clientMessage;
 
         clientMessage.code = dxrt::REQUEST_CODE::FREE_MEMORY;
@@ -242,12 +218,12 @@ namespace dxrt
         return;
     }
 
-    void MultiprocessMemory::mpConnect_once_wrapper()
+    void MultiprocessMemory::Connect()
     {
-        std::call_once(_connectFlag, &MultiprocessMemory::mpConnect, this);
+        std::call_once(_connectFlag, &MultiprocessMemory::mpConnect_internal, this);
     }
 
-    void MultiprocessMemory::SignalScheduller(int deviceId, const dxrt_request_acc_t& req)
+    void MultiprocessMemory::SignalScheduller(int deviceId, const dxrt_request_acc_t& req)  // NOSONAR:S5817 due to false positive
     {
         dxrt::IPCClientMessage clientMessage;
         LOG_DXRT_DBG << "Dev Id : " << deviceId << "\n";
@@ -261,7 +237,7 @@ namespace dxrt
         return;
     }
 
-    void MultiprocessMemory::SignalEndJobs(int deviceId)
+    void MultiprocessMemory::SignalEndJobs(int deviceId)  // NOSONAR:S5817 due to false positive
     {
         dxrt::IPCClientMessage clientMessage;
         LOG_DXRT_DBG << "Dev Id : " << deviceId << "\n";
@@ -274,7 +250,7 @@ namespace dxrt
         return;
     }
 
-    void MultiprocessMemory::SignalDeviceInit(int deviceId, npu_bound_op bound, int weightSize, int weightOffset, uint32_t checksum)
+    void MultiprocessMemory::SignalDeviceInit(int deviceId, npu_bound_op bound, int weightSize, int weightOffset, uint32_t checksum)  // NOSONAR:S5817 due to false positive
     {
         LOG_DXRT_DBG << "WARNING: SignalDeviceInit() is deprecated. Use SignalTaskInit() for proper Task-based initialization." << std::endl;
 
@@ -292,7 +268,7 @@ namespace dxrt
         return;
     }
 
-    void MultiprocessMemory::SignalDeviceDeInit(int deviceId, npu_bound_op bound, int weightSize, int weightOffset, uint32_t checksum)
+    void MultiprocessMemory::SignalDeviceDeInit(int deviceId, npu_bound_op bound, int weightSize, int weightOffset, uint32_t checksum)  // NOSONAR:S5817 due to false positive
     {
         LOG_DXRT_DBG << "WARNING: SignalDeviceDeInit() is deprecated. Use SignalTaskDeInit() for proper Task-based cleanup." << std::endl;
 
@@ -310,7 +286,7 @@ namespace dxrt
         return;
     }
 
-    void MultiprocessMemory::SignalDeviceReset(int deviceId)
+    void MultiprocessMemory::SignalDeviceReset(int deviceId)  // NOSONAR:S5817 due to false positive
     {
         dxrt::IPCClientMessage clientMessage;
         LOG_DXRT_DBG << "Dev Id : " << deviceId << "\n";
@@ -323,7 +299,7 @@ namespace dxrt
         return;
     }
 
-    void MultiprocessMemory::SignalTaskInit(int deviceId, int taskId, npu_bound_op bound, uint64_t modelMemorySize)
+    void MultiprocessMemory::SignalTaskInit(int deviceId, int taskId, npu_bound_op bound, uint64_t modelMemorySize)  // NOSONAR:S5817 due to false positive
     {
         dxrt::IPCClientMessage clientMessage;
         LOG_DXRT_DBG << "Dev Id : " << deviceId << ", Task ID : " << taskId << "\n";
@@ -334,12 +310,20 @@ namespace dxrt
         clientMessage.data = bound;
         clientMessage.taskId = taskId;
         clientMessage.modelMemorySize = modelMemorySize;
+        clientMessage.npu_acc.npu_id = 5353;
 
-        ipcClientWrapper.SendToServer(clientMessage);
+        dxrt::IPCServerMessage serverMessage;
+        serverMessage.code = static_cast<dxrt::RESPONSE_CODE>(123456); // default to failed, will be overwritten by service response
+        ipcClientWrapperSync.SendToServer(serverMessage, clientMessage);
+        if (serverMessage.code != dxrt::RESPONSE_CODE::TASK_INIT_SUCCESS)
+        {
+            LOG_DXRT_ERR("Task initialization failed for Task " + std::to_string(taskId) + " on Device " + std::to_string(deviceId));
+            throw ServiceIOException(EXCEPTION_MESSAGE("Failed to initialize task on device"));
+        }
         return;
     }
 
-    void MultiprocessMemory::SignalTaskDeInit(int deviceId, int taskId, npu_bound_op bound)
+    void MultiprocessMemory::SignalTaskDeInit(int deviceId, int taskId, npu_bound_op bound)// NOSONAR:S5817 due to false positive
     {
         dxrt::IPCClientMessage clientMessage;
         LOG_DXRT_DBG << "Dev Id : " << deviceId << ", Task ID : " << taskId << "\n";
@@ -354,7 +338,7 @@ namespace dxrt
         return;
     }
 
-    void MultiprocessMemory::DeallocateTaskMemory(int deviceId, int taskId)
+    void MultiprocessMemory::DeallocateTaskMemory(int deviceId, int taskId)// NOSONAR:S5817 due to false positive
     {
         dxrt::IPCClientMessage clientMessage;
         LOG_DXRT_DBG << "Dev Id : " << deviceId << ", Task ID : " << taskId << "\n";

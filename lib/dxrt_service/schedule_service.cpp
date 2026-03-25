@@ -27,10 +27,7 @@ SchedulerService::SchedulerService(std::vector<std::shared_ptr<dxrt::ServiceDevi
     _loads =  std::vector<std::atomic<int>>(_devices.size());
 }
 
-SchedulerService::~SchedulerService()
-{
-
-}
+SchedulerService::~SchedulerService() = default;
 
 void SchedulerService::StopScheduler(int procId)
 {
@@ -41,18 +38,6 @@ void SchedulerService::StopScheduler(int procId)
 }
 
 
-/*
-int SchedulerService::GetProcLoad(int procId)
-{
-    std::unique_lock<std::mutex> lk(_lock);
-    auto it = _loadsProc.find(procId);
-    if (it != _loadsProc.end()) {
-        return it->second.load();
-    } else {
-        return 0;
-    }
-}
-*/
 
 void SchedulerService::ClearAllLoad()
 {
@@ -234,7 +219,7 @@ void SchedulerService::StopAllInferenceForProcess(pid_t pid, int deviceId)
 
     // Count requests before removal
     size_t beforeCount = 0;
-    for (auto& procPair : _map) {
+    for (const auto& procPair : _map) {
         beforeCount += procPair.second.size();
     }
 
@@ -273,10 +258,11 @@ void SchedulerService::StopAllInferenceForProcess(pid_t pid, int deviceId)
     }
 
     size_t afterCount = 0;
-    for (auto& procPair : _map) {
+    for (const auto& procPair : _map) {
         afterCount += procPair.second.size();
     }
     size_t removedCount = beforeCount - afterCount;
+    std::ignore = removedCount;
 
     LOG_DXRT_S_DBG << "Removed " << removedCount << " pending inference requests for process " << pid << endl;
 }
@@ -317,7 +303,7 @@ void SchedulerService::doInference(int deviceId, int procId, int reqId)
         {
             std::unique_lock<std::mutex> lk(_lock);
             if(_loadsProc.count(procId) &&  _loadsProc[procId] > 0){
-                // std::cout<<"Process :"<< procId<<"Load Decrease in Invalid Task"<<std::endl;
+
                 _loadsProc[procId]--;
 
             }   else {
@@ -380,10 +366,6 @@ void SchedulerService::doInference(int deviceId, int procId, int reqId)
         LOG_DXRT_S_DBG << "Do Inference - InferenceRequest start" << deviceId << " - PROCESS_ID : " << procId << " - REQ_ID : " << reqId << " - Device LOAD : " << _loads[deviceId].load() << std::endl;
         // do inference
 
-        // if(reqId%DBG_LOG_REQ_MOD_NUM > DBG_LOG_REQ_MOD_NUM-DBG_LOG_REQ_WINDOW_NUM || reqId%DBG_LOG_REQ_MOD_NUM < DBG_LOG_REQ_WINDOW_NUM)
-        // {
-        //    std::cout<<"[DoINF      ]              DEVICE : "<<deviceId<<" - PROCESS_ID : "<<procId<<" - REQ_ID : "<<reqId<<" - LOAD : "<<_loads[deviceId]<<endl;//AGING LOG
-        //}
         int retval = _devices[deviceId]->InferenceRequest(&new_req);
         LOG_DXRT_S_DBG << "Do Inference - InferenceRequest end"<<deviceId<<" - PROCESS_ID : "<<procId<<" -Bound: " << new_req.bound << " - REQ_ID : "<<reqId<<" - Device LOAD : "<<_loads[deviceId].load()<<std::endl;//AGING LOG
 
@@ -406,7 +388,7 @@ void SchedulerService::doInference(int deviceId, int procId, int reqId)
     }
 }
 
-void SchedulerService::SendError(int deviceId, dxrt::dxrt_server_err_t err, uint32_t errCode)
+void SchedulerService::SendError(int deviceId, dxrt::dxrt_server_err_t err, uint32_t errCode) const
 {
     LOG_DXRT_S << "Report error message to client:" << errCode << endl;
     _errCallBack(err, errCode, deviceId);
@@ -433,7 +415,7 @@ int SchedulerService::GetRunningRequestCount(pid_t pid, int deviceId)
 {
     std::lock_guard<std::mutex> lock(_runningRequestsMutex);
     auto key = std::make_pair(pid, deviceId);
-    return _runningRequests[key].size();
+    return static_cast<int>(_runningRequests[key].size());
 }
 
 bool SchedulerService::IsRequestRunning(pid_t pid, int deviceId, int reqId)
@@ -506,7 +488,7 @@ std::vector<int> SchedulerService::GetRunningRequestIds(pid_t pid, int deviceId)
 }
 
 FIFOSchedulerService::FIFOSchedulerService(std::vector<std::shared_ptr<dxrt::ServiceDevice>> devices_)
-: SchedulerService(devices_), _device_queues(_devices.size())
+: SchedulerService(devices_), _device_queues(devices_.size())
 {
 }
 FIFOSchedulerService::~FIFOSchedulerService() = default;
@@ -613,8 +595,6 @@ void InferenceTimeCheckSchedulerService::updateTaskInferenceTime(int procId, int
     else
     {
         return;
-        // double new_time = static_cast<double>(task_time_map[key]) * 0.5 + static_cast<double>(time) * 0.5;
-        // task_time_map[key] = static_cast<uint32_t>(new_time);
     }
 }
 uint32_t InferenceTimeCheckSchedulerService::getTaskInferenceTime(int procId, int taskId)
@@ -672,7 +652,6 @@ void SJFSchedulerService::pushRequest(int deviceId, int procId, int reqId, int t
     e.time = time;
     e.procId = procId;
     e.requestId = reqId;
-    // LOG_DXRT << "SJF proc_id " << e.procId << " req_id "<< e.requestId << ", time: " << time << endl;
 
     request_map[deviceId].push(e);
 }

@@ -13,6 +13,7 @@ install_onnx=false
 install_dep=false  
 python_version=""
 venv_path=""
+enable_cpu_accel=false
 
 function help() {
     echo -e "Usage: ${COLOR_CYAN}$0 [OPTIONS]${COLOR_RESET}"
@@ -162,30 +163,93 @@ function install_onnx()
         install_onnx=false
     fi
     onnxruntime_arch="x64"
+    # Determine glibc version once — used for both ORT version selection and accel EP compatibility
+    local glibc_ver=$(ldd --version 2>&1 | head -1 | grep -oP '[0-9]+\.[0-9]+$' || echo "0.0")
+    local glibc_major=$(echo "$glibc_ver" | cut -d. -f1)
+    local glibc_minor=$(echo "$glibc_ver" | cut -d. -f2)
+
     if [ "$target_arch" == "x86_64" ]; then
         onnxruntime_arch="x64"
+        # ORT 1.23.2 requires glibc >= 2.28 (Ubuntu 20.04+)
+        if [ "$glibc_major" -gt 2 ] || ([ "$glibc_major" -eq 2 ] && [ "$glibc_minor" -ge 28 ]); then
+            ONNX_VERSION="1.23.2"
+        else
+            echo -e "${TAG_WARN} glibc $glibc_ver detected. ORT 1.23.2 requires glibc >= 2.28."
+            echo -e "${TAG_WARN} Falling back to ORT 1.20.1 for compatibility."
+            ONNX_VERSION="1.20.1"
+        fi
+        # CPU-accelerated ORT for x86_64 requires glibc >= 2.35 (Ubuntu 22.04+)
+        if [ "$enable_cpu_accel" == true ]; then
+            if [ "$glibc_major" -lt 2 ] || ([ "$glibc_major" -eq 2 ] && [ "$glibc_minor" -lt 35 ]); then
+                echo -e "${TAG_ERROR} CPU-accelerated ORT for x86_64 requires glibc >= 2.35 (Ubuntu 22.04+)"
+                echo -e "${TAG_ERROR} Current glibc: $glibc_ver. Falling back to standard ORT."
+                enable_cpu_accel=false
+            fi
+        fi
     elif [ "$target_arch" == "aarch64" ]; then
         onnxruntime_arch="aarch64"
-    fi
-    if [ "$install_onnx" == true ]; then
-        echo " Install ONNX-Runtime API " 
         ONNX_VERSION="1.20.1"
+        # CPU-accelerated ORT for aarch64 requires glibc >= 2.31 (Ubuntu 20.04+)
+        if [ "$enable_cpu_accel" == true ]; then
+            if [ "$glibc_major" -lt 2 ] || ([ "$glibc_major" -eq 2 ] && [ "$glibc_minor" -lt 31 ]); then
+                echo -e "${TAG_ERROR} CPU-accelerated ORT for aarch64 requires glibc >= 2.31 (Ubuntu 20.04+)"
+                echo -e "${TAG_ERROR} Current glibc: $glibc_ver. Falling back to standard ORT."
+                enable_cpu_accel=false
+            fi
+        fi
+    fi
+
+    if [ "$install_onnx" == true ]; then
         ONNX_ARCH_FOLDER='onnxruntime_'$onnxruntime_arch
         ONNX_PACKAGE_NAME='onnxruntime-linux-'$onnxruntime_arch'-'$ONNX_VERSION'.tgz'
+        ONNX_SOURCE_MARKER="$DX_SRC_DIR/util/.onnx_source_${onnxruntime_arch}"
+
+        # Determine download source and parameters based on cpu acceleration
+        local onnx_source=""
+        local onnx_download_url=""
+        local strip_components=1
+        if [ "$enable_cpu_accel" == true ]; then
+            echo " Install DeepX Pre-built ONNX-Runtime API "
+            onnx_source="deepx"
+            onnx_download_url="https://github.com/DEEPX-AI/dx_rt/releases/download/v3.2.0-sr1/$ONNX_PACKAGE_NAME"
+            strip_components=2
+        else
+            echo " Install ONNX-Runtime API "
+            onnx_source="microsoft"
+            onnx_download_url="https://github.com/microsoft/onnxruntime/releases/download/v$ONNX_VERSION/$ONNX_PACKAGE_NAME"
+            strip_components=1
+        fi
+
         mkdir -p $DX_SRC_DIR/util
         cd $DX_SRC_DIR/util
         rm -rf $DX_SRC_DIR/util/$ONNX_ARCH_FOLDER
-        
-        # if onnx-package-file exists
+
+        # Check if re-download is needed by comparing source marker
+        local need_download=true
         if [ -f "$DX_SRC_DIR/util/$ONNX_PACKAGE_NAME" ]; then
-            echo "Already downloaded util/$ONNX_PACKAGE_NAME file"
-        else
-            wget https://github.com/microsoft/onnxruntime/releases/download/v$ONNX_VERSION/$ONNX_PACKAGE_NAME --no-check-certificate --backups=0
+            if [ -f "$ONNX_SOURCE_MARKER" ]; then
+                local recorded_source=$(cat "$ONNX_SOURCE_MARKER")
+                if [ "$recorded_source" == "$onnx_source" ]; then
+                    echo "Already downloaded util/$ONNX_PACKAGE_NAME (source: $onnx_source)"
+                    need_download=false
+                else
+                    echo -e "${TAG_INFO} Previously downloaded from '${recorded_source}', but now need '${onnx_source}'. Re-downloading..."
+                    rm -f "$DX_SRC_DIR/util/$ONNX_PACKAGE_NAME"
+                fi
+            else
+                echo -e "${TAG_INFO} Source marker not found. Re-downloading to ensure correct package..."
+                rm -f "$DX_SRC_DIR/util/$ONNX_PACKAGE_NAME"
+            fi
+        fi
+
+        if [ "$need_download" == true ]; then
+            wget $onnx_download_url --no-check-certificate --backups=0
+            echo "$onnx_source" > "$ONNX_SOURCE_MARKER"
         fi
 
         mkdir -p $ONNX_ARCH_FOLDER
-        tar -zxvf $ONNX_PACKAGE_NAME -C $ONNX_ARCH_FOLDER --strip-components=1     
-        
+        tar -zxvf $ONNX_PACKAGE_NAME -C $ONNX_ARCH_FOLDER --strip-components=$strip_components
+
         if [ $(uname -m) != "$target_arch" ]; then
             echo " onnxruntime install library for Cross Compilation (host : $(uname -m), target : $target_arch)"
         else
@@ -197,6 +261,38 @@ function install_onnx()
         fi
         sudo ldconfig
     fi
+}
+
+function install_intel_libs()
+{
+    # Install required packages
+    sudo apt update
+    sudo apt install -y wget gpg
+
+    # Detect Ubuntu version
+    local ubuntu_version=$(lsb_release -rs | cut -d. -f1)
+    local openvino_repo=""
+    
+    case "$ubuntu_version" in
+        22) openvino_repo="ubuntu22" ;;
+        24) openvino_repo="ubuntu24" ;;
+        *)
+            echo -e "${TAG_ERROR} Unsupported Ubuntu version for OpenVINO: $ubuntu_version"
+            echo -e "${TAG_ERROR} Supported versions: 22, 24"
+            return 1
+            ;;
+    esac
+
+    # Add Intel repository and install libraries
+    wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+    echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
+    echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/openvino $openvino_repo main" | sudo tee /etc/apt/sources.list.d/intel-openvino.list
+
+    sudo apt update
+    sudo apt install -y intel-oneapi-ipp-devel
+    sudo apt install -y openvino-2025.4.1
+
+    source /opt/intel/oneapi/setvars.sh
 }
 
 function install_ncurses()
@@ -251,6 +347,7 @@ while (( $# )); do
             shift
             venv_path=$1
             shift;;
+        --enable_cpu_accel) enable_cpu_accel=true; shift;;
         *)
             help "error" "Invalid argument : $1"
             exit 1;;
@@ -267,4 +364,8 @@ check_system_requirements
 install_dep
 install_onnx
 
+# Install Intel libraries (IPP, OpenVINO) only for native x86_64 builds with cpu acceleration enabled
+if [ "$target_arch" == "x86_64" ] && [ "$(uname -m)" == "x86_64" ] && [ "$enable_cpu_accel" == true ]; then
+    install_intel_libs
+fi
 popd

@@ -2,19 +2,19 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
 #pragma once
 
 #include "dxrt/common.h"
-#include "dxrt/device.h"
+#include "dxrt/device_struct.h"
 
 namespace dxrt {
 
-typedef enum DXRT_API
+typedef enum DXRT_API // NOSONAR : Firmware interface enum, cannot convert to enum class without knowing all firmware usage sites
 {
     FW_LOG_TEMP = 0x10000000,
     FW_LOG_DXRT_DEQUEUE_IRQ,
@@ -33,7 +33,7 @@ typedef enum DXRT_API
     FW_LOG_MAX,
 } dxrt_fwlog_cmd_t;
 
-typedef struct DXRT_API
+typedef struct DXRT_API // NOSONAR : Firmware interface struct, cannot change type aliasing without knowing all firmware usage sites
 {
     uint32_t data_offset;
     uint32_t data_size;
@@ -43,17 +43,17 @@ typedef struct DXRT_API
     uint32_t crc32;
 } dx_fw_image_info_t;
 
-typedef struct DXRT_API
+typedef struct DXRT_API // NOSONAR : Firmware interface struct, cannot change type aliasing without knowing all firmware usage sites
 {
-    char                signature[16];
-    dx_fw_image_info_t  images[8];
+    char                signature[16]; // NOSONAR : Fixed-size array for firmware communication protocol
+    dx_fw_image_info_t  images[8]; // NOSONAR : Fixed-size array for firmware communication protocol
     uint32_t            length;
     uint32_t            board_type;
     uint32_t            ddr_type;
-    char                fw_ver[16];
+    char                fw_ver[16]; // NOSONAR : Fixed-size array for firmware communication protocol
 } dx_fw_header_t;
 
-enum DXRT_API fw_update_err_code_t : uint32_t  {
+enum DXRT_API fw_update_err_code_t : uint32_t  { // NOSONAR : Firmware interface enum, cannot convert to enum class without knowing all firmware usage sites
     FW_UPDATE_SUCCESS       = 0,
     ERR_HEADER_MISMATCH     = 1 << 1,
     ERR_BOARD_TYPE          = 1 << 2,
@@ -68,27 +68,27 @@ enum DXRT_API fw_update_err_code_t : uint32_t  {
 class DXRT_API FwLog
 {
 public:
-    FwLog(std::vector<dxrt_device_log_t>);
+    explicit FwLog(const std::vector<dxrt_device_log_t>&);
     ~FwLog();
-    std::string str();
-    void ToFileAppend(std::string file);
-    void SetDeviceInfoString(std::string str)
+    std::string str() const;
+    void ToFileAppend(const std::string& file) const;
+    void SetDeviceInfoString(const std::string& str)
     { _deviceInfoString = str; }
 private:
     std::vector<dxrt_device_log_t> _logs;
-    std::string _str;
-    std::string _deviceInfoString;
+    std::string _str = "";
+    std::string _deviceInfoString = "";
 };
 
 class DXRT_API Fw
 {
 public:
-    Fw(std::string file);
+    explicit Fw(const std::string& file);
     ~Fw();
-    void Show();
-    std::string GetFwBinVersion();
-    bool IsMatchSignature();
-    std::string GetFwUpdateResult(uint32_t);
+    void Show() const;
+    std::string GetFwBinVersion() const;
+    bool IsMatchSignature() const;
+    std::string GetFwUpdateResult(uint32_t) const;
     uint32_t GetBoardType() const;
     std::string GetBoardTypeString() const;
     uint32_t GetDdrType() const;

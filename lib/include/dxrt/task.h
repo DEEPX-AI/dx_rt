@@ -48,44 +48,49 @@ class CpuHandle;
 
 // Struct for atomically allocating and freeing buffers
 struct BufferSet {
-    void* encoded_input;
-    void* output;
-    void* encoded_output;
+    void* encoded_input = nullptr;
+    void* output = nullptr;
+    void* encoded_output = nullptr;
 
-    BufferSet() : encoded_input(nullptr), output(nullptr), encoded_output(nullptr) {}
+#ifdef USE_VNPU
+    // Physical addresses for zero-copy DMA (CMA buffers only, 0 if not applicable)
+    uint64_t encoded_input_phy = 0;
+    uint64_t output_phy = 0;
+    uint64_t encoded_output_phy = 0;
+#endif // USE_VNPU
+
+    BufferSet() = default;
 };
 
 class Request;
 using RequestPtr = std::shared_ptr<Request>;
-class DXRT_API Task
+class DXRT_API Task // NOSONAR
 {
 public:
-    Task(std::string name_, rmapinfo, int bufferCount_, std::vector<std::vector<uint8_t>>&&, npu_bound_op boundOp = N_BOUND_NORMAL, bool hasPpuBinary = false);
-    Task(std::string name_, rmapinfo, int bufferCount_, std::vector<std::vector<uint8_t>>&&, npu_bound_op boundOp, const std::vector<int>& deviceIds, bool hasPpuBinary = false);
+    Task(const std::string& name_, const rmapinfo& rmapInfo_, int bufferCount_,
+        std::vector<std::vector<uint8_t>>&&, npu_bound_op boundOp = N_BOUND_NORMAL, bool hasPpuBinary = false);
+    Task(const std::string& name_, const rmapinfo& rmapInfo_, int bufferCount_,
+        std::vector<std::vector<uint8_t>>&&, npu_bound_op boundOp, const std::vector<int>& deviceIds, bool hasPpuBinary = false);
 
     Task();
     ~Task(void);
-    // Tensors Run(Tensors inputs);
-    // void Run(Tensors &inputs, Tensors &outputs);
-    // RequestPtr InferenceRequest(Tensors inputs, Tensors outputs);
 
-    void RegisterCallBack(std::function<int(TensorPtrs&, void*)>);
-    int id();
-    std::string name();
-    // void *input_buf(int deviceId, int bufId);
+    void RegisterCallBack(const std::function<int(TensorPtrs&, void*)>& f);
+    int id() const;
+    std::string name() const;
     Tensors inputs(void *ptr = nullptr, uint64_t phyAddr = 0);
     Tensors outputs(void *ptr = nullptr, uint64_t phyAddr = 0);
-    Processor processor();
-    uint32_t input_size();
-    uint32_t output_size();
-    uint32_t output_mem_size();
+    Processor processor() const;
+    uint32_t input_size() const;
+    uint32_t output_size() const;
+    uint32_t output_mem_size() const;
     std::map<int, std::vector<int>> &input_index();
     std::map<int, std::vector<int>> &output_index();
     void input_name_order(const std::vector<std::string>& order);
     const std::vector<std::string>& input_name_order() const;
     std::atomic<int> &inference_count();
-    rmapinfo npu_param();
-    dxrt_model_t npu_model();
+    rmapinfo npu_param() const;
+    dxrt_model_t npu_model() const;
 
     TaskPtr &next();
     TaskPtrs &prevs();
@@ -96,8 +101,8 @@ public:
     bool &is_tail();
     bool &is_PPU();
     bool &is_argmax();
-    bool has_next();
-    std::function<int(TensorPtrs&, void*)> callback();
+    bool has_next() const;
+    std::function<int(TensorPtrs&, void*)> callback() const;
     void PushLatency(int latency);
     void PushInferenceTime(uint32_t infTime);
     InferenceTimer& GetTaskTimer();
@@ -116,24 +121,26 @@ public:
     void ReleaseOutputBuffer(void* ptr);
     void ReleaseEncodedOutputBuffer(void* ptr);
     void ClearOutputBuffer();
-
+#ifdef USE_VNPU
+    void FlushEncodedOutputCache(void* ptr, uint32_t size, bool invalidate);
+#endif // USE_VNPU
     BufferSet AcquireAllBuffers();
     void ReleaseAllBuffers(const BufferSet& buffers);
 
-    const std::vector<int>& getDeviceIds();
+    const std::vector<int>& getDeviceIds() const;
     CpuHandle* getCpuHandle();
-    int getNpuBoundOp();
+    int getNpuBoundOp() const;
 
     TaskData* getData() {return &_taskData;}
     void setLastOutput(Tensors t);
     Tensors getLastOutput();
 
     void setTailOffset(int64_t n);
-    int64_t getTailOffset();
+    int64_t getTailOffset() const;
 
     // Unified Task-based service integration
-    void InitializeTaskWithService(int device_id);
-    void CleanupTaskFromService(int device_id);
+    void InitializeTaskWithService(int device_id) const;
+    void CleanupTaskFromService(int device_id) const;
 
     friend DXRT_API std::ostream& operator<<(std::ostream&, const Task&);
  private:
@@ -160,7 +167,7 @@ public:
     bool _isHead = false;
     bool _isTail = false;
 
-    std::atomic<int> _inferenceCnt;
+    std::atomic<int> _inferenceCnt {0};
     std::function<int(TensorPtrs&, void*)> _callBack;
 
     std::shared_ptr<CpuHandle> _cpuHandle;

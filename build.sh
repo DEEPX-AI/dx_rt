@@ -96,11 +96,17 @@ setup_env() {
     CMAKE_USE_ORT=false
     CMAKE_USE_SERVICE=true
     CMAKE_USE_PYTHON=true
+    CMAKE_USE_VNPU=false
+    CMAKE_USE_DXRT_TEST=true
+    CMAKE_USE_NPU_FORMAT_CONVERSION_ACCELERATION=true
+    CMAKE_USE_CPU_OP_ACCELERATION=true
+    CMAKE_FORCE_NPU_FORMAT_CONVERSION_ACCELERATION=false
+    CMAKE_FORCE_CPU_OP_ACCELERATION=false
 
     parse_cmake_options() {
         local file="$1"
         while IFS= read -r line || [ -n "$line" ]; do
-            parsed=$(echo "$line" | sed -E 's/option\(([^)]+)\)/\1/' )
+            parsed=$(echo "$line" | sed -E 's/option\((.*)\)/\1/' )
             IFS= read -r -a parts <<< "$(echo "$parsed" | sed -E 's/[[:space:]]+/ /g')"
             var_name=$(echo "$parsed" | awk -F'"' '{print $1}' | xargs | cut -d' ' -f1)
             default_val=$(echo "$parsed" | awk -F'"' '{print $2; print $3}' | tail -n1 | xargs)
@@ -122,6 +128,42 @@ setup_env() {
                 else
                     CMAKE_USE_PYTHON=false
                 fi
+            elif [ "$var_name" == 'USE_VNPU' ]; then
+                if [ "$default_val" == 'ON' ]; then
+                    CMAKE_USE_VNPU=true
+                else
+                    CMAKE_USE_VNPU=false
+                fi
+            elif [ "$var_name" == 'USE_DXRT_TEST' ]; then
+                if [ "$default_val" == 'ON' ]; then
+                    CMAKE_USE_DXRT_TEST=true
+                else
+                    CMAKE_USE_DXRT_TEST=false
+                fi
+            elif [ "$var_name" == 'USE_CPU_OP_ACCELERATION' ]; then
+                if [ "$default_val" == 'ON' ]; then
+                    CMAKE_USE_CPU_OP_ACCELERATION=true
+                else
+                    CMAKE_USE_CPU_OP_ACCELERATION=false
+                fi
+            elif [ "$var_name" == 'USE_NPU_FORMAT_CONVERSION_ACCELERATION' ]; then
+                if [ "$default_val" == 'ON' ]; then
+                    CMAKE_USE_NPU_FORMAT_CONVERSION_ACCELERATION=true
+                else
+                    CMAKE_USE_NPU_FORMAT_CONVERSION_ACCELERATION=false
+                fi
+            elif [ "$var_name" == 'FORCE_NPU_FORMAT_CONVERSION_ACCELERATION' ]; then
+                if [ "$default_val" == 'ON' ]; then
+                    CMAKE_FORCE_NPU_FORMAT_CONVERSION_ACCELERATION=true
+                else
+                    CMAKE_FORCE_NPU_FORMAT_CONVERSION_ACCELERATION=false
+                fi
+            elif [ "$var_name" == 'FORCE_CPU_OP_ACCELERATION' ]; then
+                if [ "$default_val" == 'ON' ]; then
+                    CMAKE_FORCE_CPU_OP_ACCELERATION=true
+                else
+                    CMAKE_FORCE_CPU_OP_ACCELERATION=false
+                fi
             fi
         done < "$file"
     }
@@ -139,13 +181,20 @@ setup_env() {
     print_colored_v2 "INFO" "CMAKE_USE_ORT=$CMAKE_USE_ORT"
     print_colored_v2 "INFO" "CMAKE_USE_SERVICE=$CMAKE_USE_SERVICE"
     print_colored_v2 "INFO" "CMAKE_USE_PYTHON=$CMAKE_USE_PYTHON"
+    print_colored_v2 "INFO" "CMAKE_USE_CPU_OP_ACCELERATION=$CMAKE_USE_CPU_OP_ACCELERATION"
     print_colored_v2 "INFO" "==============================================================="
 }
 
 build_dxrt() {
     # install onnx runtime
     if [ $install_ort == "true" ]; then
-        ./install.sh --onnxruntime --arch $target_arch || {
+        # Build install.sh arguments with acceleration options
+        install_args="--onnxruntime --arch $target_arch"
+        if [ "$CMAKE_USE_CPU_OP_ACCELERATION" == "true" ]; then
+            install_args="$install_args --enable_cpu_accel"
+        fi
+        
+        ./install.sh $install_args || {
             return_code=$?
             print_colored_v2 "ERROR" "Failed to install ONNX Runtime."
             exit $return_code
@@ -165,6 +214,7 @@ build_dxrt() {
     fi
 
     cmd+=(-DCMAKE_GENERATOR=Ninja)
+    cmd+=(-DCMAKE_EXPORT_COMPILE_COMMANDS=ON)
 
     if [ ! -z $install ]; then
         cmd+=(-DCMAKE_INSTALL_PREFIX=$install)
@@ -190,12 +240,67 @@ build_dxrt() {
         cmd+=(-DUSE_SERVICE=OFF)
     fi
 
+    # set cmake options for python
+    if [ $CMAKE_USE_PYTHON == "true" ]; then
+        cmd+=(-DUSE_PYTHON=ON)
+    else
+        cmd+=(-DUSE_PYTHON=OFF)
+    fi
+
     # set cmake options for ort
     if [ $CMAKE_USE_ORT == "true" ]; then
         cmd+=(-DUSE_ORT=ON)
     else
         cmd+=(-DUSE_ORT=OFF)
     fi
+
+    # set cmake options for vnpu
+    if [ $CMAKE_USE_VNPU == "true" ]; then
+        cmd+=(-DUSE_VNPU=ON)
+    else
+        cmd+=(-DUSE_VNPU=OFF)
+    fi
+
+    # set cmake options for dxrt_test
+    if [ $CMAKE_USE_DXRT_TEST == "true" ]; then
+        cmd+=(-DUSE_DXRT_TEST=ON)
+    else
+        cmd+=(-DUSE_DXRT_TEST=OFF)
+    fi
+
+    # set cmake options for npu format conversion acceleration
+    if [ $CMAKE_USE_NPU_FORMAT_CONVERSION_ACCELERATION == "true" ]; then
+        cmd+=(-DUSE_NPU_FORMAT_CONVERSION_ACCELERATION=ON)
+    else
+        cmd+=(-DUSE_NPU_FORMAT_CONVERSION_ACCELERATION=OFF)
+    fi
+
+    # set cmake options for cpu op acceleration
+    if [ $CMAKE_USE_CPU_OP_ACCELERATION == "true" ]; then
+        cmd+=(-DUSE_CPU_OP_ACCELERATION=ON)
+    else
+        cmd+=(-DUSE_CPU_OP_ACCELERATION=OFF)
+    fi
+
+    # set cmake options for force npu format conversion acceleration
+    if [ $CMAKE_FORCE_NPU_FORMAT_CONVERSION_ACCELERATION == "true" ]; then
+        cmd+=(-DFORCE_NPU_FORMAT_CONVERSION_ACCELERATION=ON)
+    else
+        cmd+=(-DFORCE_NPU_FORMAT_CONVERSION_ACCELERATION=OFF)
+    fi
+
+    # set cmake options for force cpu op acceleration
+    if [ $CMAKE_FORCE_CPU_OP_ACCELERATION == "true" ]; then
+        cmd+=(-DFORCE_CPU_OP_ACCELERATION=ON)
+    else
+        cmd+=(-DFORCE_CPU_OP_ACCELERATION=OFF)
+    fi
+
+    print_colored_v2 "INFO" "========== CMAKE OPTIONS  ============================="
+    print_colored_v2 "INFO" "CMAKE_USE_ORT=$CMAKE_USE_ORT"
+    print_colored_v2 "INFO" "CMAKE_USE_SERVICE=$CMAKE_USE_SERVICE"
+    print_colored_v2 "INFO" "CMAKE_USE_PYTHON=$CMAKE_USE_PYTHON"
+    print_colored_v2 "INFO" "==============================================================="
 
     print_colored_v2 "INFO" "========== CMAKE ARGS ========================================"
     print_colored_v2 "INFO" "cmake args : ${cmd[@]}"
@@ -245,6 +350,13 @@ build_dxrt() {
         print_colored_v2 "ERROR" "Failed to install the project."
         exit $return_code
     }
+    
+    # Generate compile_commands.json for IDE integration
+    if [ -f compile_commands.json ]; then
+        print_colored_v2 "INFO" "Creating symlink to compile_commands.json"
+        ln -sf "${build_dir}/compile_commands.json" "${SCRIPT_DIR}/compile_commands.json"
+    fi
+    
     popd >/dev/null
 
     if [ $CROSS_COMPILE != "native" ]; then
@@ -628,6 +740,18 @@ while (( $# )); do
         --use_service_off) CMAKE_USE_SERVICE=false; shift;;
         --use_ort_on) CMAKE_USE_ORT=true; shift;;
         --use_ort_off) CMAKE_USE_ORT=false; shift;;
+        --use_vnpu)
+            # Hidden option: configure for VNPU mode
+            CMAKE_USE_DXRT_TEST=false
+            CMAKE_USE_VNPU=true
+            CMAKE_USE_ORT=true
+            CMAKE_USE_PYTHON=false
+            CMAKE_USE_SERVICE=false
+            CMAKE_USE_NPU_FORMAT_CONVERSION_ACCELERATION=true
+            CMAKE_USE_CPU_OP_ACCELERATION=true
+            CMAKE_FORCE_NPU_FORMAT_CONVERSION_ACCELERATION=true
+            CMAKE_FORCE_CPU_OP_ACCELERATION=true
+            shift;;
         --python-break-system-packages)
             python_break_system_packages=true
             shift;;

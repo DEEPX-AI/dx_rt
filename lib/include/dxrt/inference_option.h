@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -19,7 +19,7 @@
 #endif
 
 namespace dxrt {
-enum DXRT_API InferenceMode;
+enum class DXRT_API InferenceMode;
 /** @brief This struct specifies inference options applied to dxrt::InferenceEngine.
  * @details User can configure which npu device is used to inference.
  * @headerfile "dxrt/dxrt_api.h"
@@ -27,7 +27,7 @@ enum DXRT_API InferenceMode;
 class DXRT_API InferenceOption
 {
  public:
-    enum BOUND_OPTION {
+    enum BOUND_OPTION { // NOSONAR: Used as uint32_t for driver interface compatibility
         NPU_ALL = 0,
         NPU_0,
         NPU_1,
@@ -37,7 +37,7 @@ class DXRT_API InferenceOption
         NPU_02
     };
 
-    /** @brief device ID list to use 
+    /** @brief device ID list to use
      * @details make a list which contains list of device ID to use. if it is empty(or use default value), then all devices are used.
      */
     std::vector<int> devices = {};///< list of device ID to use (it is empty by default, then all devices are used.)
@@ -63,8 +63,8 @@ class DXRT_API InferenceOption
 
 DXRT_API std::ostream& operator<<(std::ostream&, const InferenceOption&);
 
-/** @brief Default inference option 
+/** @brief Default inference option
 */
-extern DXRT_API InferenceOption DefaultInferenceOption;
+extern DXRT_API InferenceOption DefaultInferenceOption;  // NOSONAR:S5421
 
 } // namespace dxrt

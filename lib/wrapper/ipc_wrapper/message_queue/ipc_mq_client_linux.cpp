@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 #ifdef __linux__ // all or nothing
@@ -28,7 +28,7 @@
 namespace dxrt {
 
 IPCMessageQueueClientLinux::IPCMessageQueueClientLinux(long msgType)
-: _usrData(nullptr), _msgType(msgType), _receiveCB(nullptr)
+: _msgType(msgType)
 {
     LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux::Constructor (msgType=" << msgType << ")" << std::endl;
 }
@@ -48,10 +48,6 @@ IPCMessageQueueClientLinux::~IPCMessageQueueClientLinux()
 // Intitialize IPC
 int32_t IPCMessageQueueClientLinux::Initialize()
 {
-    // review
-    // std::lock_guard<std::mutex> lock(_funcLock);
-
-    // LOG_DXRT_DBG << "IPCMessageQueueClientLinux::Initialize" << std::endl;
     LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux::Initialize" << std::endl;
     int ret = _messageQueueToClient.Initialize(_msgType, IPCMessageQueueDirection::TO_CLIENT);
     if (ret != 0)
@@ -61,13 +57,9 @@ int32_t IPCMessageQueueClientLinux::Initialize()
     return _messageQueueToServer.Initialize(_msgType, IPCMessageQueueDirection::TO_SERVER);
 
 }
-// std::mutex IPCMessageQueueClientLinux::_lock;
 
-// static std::atomic<int> seq_increment = {1};
 int32_t IPCMessageQueueClientLinux::SendToServer(IPCServerMessage& outServerMessage, IPCClientMessage& clientMessage)
 {
-    // std::lock_guard<std::mutex> lock(_funcLock);
-
     if ( _receiveCB == nullptr )
     {
         clientMessage.seqId = 0;  // seq_increment++; // review
@@ -76,19 +68,6 @@ int32_t IPCMessageQueueClientLinux::SendToServer(IPCServerMessage& outServerMess
     }
     else
     {
-        /*std::unique_lock<std::mutex> lk(_futureLock);
-        int seq_id = seq_increment++;
-        _waitingCall[seq_id] = std::make_shared<std::promise<IPCServerMessage> >();
-        //LOG_DXRT_I_DBG << "set future "<< _waitingCall << "\n";
-        DXRT_ASSERT(_waitingCall[seq_id] != nullptr, "_waitingcall make failed");
-        auto future = _waitingCall[seq_id]->get_future();
-        lk.unlock();
-        clientMessage.seqId = seq_id;
-        SendToServer(clientMessage);
-        //LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux: sent client message\n";
-        outServerMessage = future.get();
-        //LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux: future end of waiting\n";
-        */
        // if there is a callback, this function does not work
        return -1;
     }
@@ -107,7 +86,7 @@ int32_t IPCMessageQueueClientLinux::SendToServer(IPCClientMessage& clientMessage
     mq_message.msgType = IPCMessageQueueLinux::SERVER_MSG_TYPE;
 
     clientMessage.msgType = _msgType;
-    memcpy(mq_message.data, &clientMessage, sizeof(clientMessage));
+    memcpy(mq_message.data.data(), &clientMessage, sizeof(clientMessage));
 
     return _messageQueueToServer.Send(mq_message, sizeof(clientMessage));
 }
@@ -118,7 +97,7 @@ int32_t IPCMessageQueueClientLinux::ReceiveFromServer(IPCServerMessage& serverMe
 
     if ( _messageQueueToClient.Receive(mq_message, sizeof(serverMessage), _msgType) == 0 )
     {
-        memcpy(&serverMessage, mq_message.data, sizeof(serverMessage));
+        memcpy(&serverMessage, mq_message.data.data(), sizeof(serverMessage));
     }
     else
     {
@@ -151,7 +130,7 @@ int32_t IPCMessageQueueClientLinux::RegisterReceiveCB(
 
         IPCMessageQueueLinux::Message msg;
         msg.msgType = dummy.msgType;
-        memcpy(msg.data, &dummy, sizeof(dummy));
+        memcpy(msg.data.data(), &dummy, sizeof(dummy));
         _messageQueueToClient.Send(msg, sizeof(dummy));
 
         if (_thread.joinable()) {
@@ -191,7 +170,7 @@ int32_t IPCMessageQueueClientLinux::Close()
 
         IPCMessageQueueLinux::Message msg;
         msg.msgType = dummy.msgType;
-        memcpy(msg.data, &dummy, sizeof(dummy));
+        memcpy(msg.data.data(), &dummy, sizeof(dummy));
         _messageQueueToClient.Send(msg, sizeof(dummy));
 
         // Wait for thread to finish
@@ -202,7 +181,7 @@ int32_t IPCMessageQueueClientLinux::Close()
         _receiveCB = nullptr;
         LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux: Thread stopped in Close()" << std::endl;
     }
-    
+
     LOG_DXRT_I_DBG << "IPCMessageQueueClientLinux::Close" << std::endl;
     return 0;
 }
@@ -215,12 +194,12 @@ void IPCMessageQueueClientLinux::ThreadFunc(IPCMessageQueueClientLinux* mqClient
         IPCServerMessage serverMessage;
         serverMessage.msgType = getpid();
         LOG_DXRT_I_DBG << "Waiting for message with msgType: " << serverMessage.msgType << std::endl;
-        
+
         if (mqClient->ReceiveFromServer(serverMessage) != -1) {
-            LOG_DXRT_I_DBG << "Received message - code: " << static_cast<int>(serverMessage.code) 
-                           << ", msgType: " << serverMessage.msgType 
+            LOG_DXRT_I_DBG << "Received message - code: " << static_cast<int>(serverMessage.code)
+                           << ", msgType: " << serverMessage.msgType
                            << ", deviceId: " << serverMessage.deviceId << std::endl;
-            
+
             if (mqClient->_receiveCB == nullptr)
             {
                 LOG_DXRT_I_ERR("Receive callback is null, skipping message");
@@ -247,11 +226,14 @@ void IPCMessageQueueClientLinux::ThreadFunc(IPCMessageQueueClientLinux* mqClient
 
         } else {
             // Check if thread should stop
-            if (!mqClient->_threadRunning.load()) {
+            if (!mqClient->_threadRunning.load())\
+            {
                 LOG_DXRT_I_DBG << "Thread stopped by _threadRunning flag" << std::endl;
-                break;
             }
-            LOG_DXRT_I_ERR("ReceiveFromServer fail, errno = "+ std::to_string(errno));
+            else
+            {
+                LOG_DXRT_I_ERR("ReceiveFromServer fail, errno = "+ std::to_string(errno));
+            }
             break;
         }
     }

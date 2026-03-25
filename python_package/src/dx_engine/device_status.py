@@ -23,8 +23,8 @@ class DeviceStatus:
         pass
 
     @classmethod
-    def get_current_status(cls, deviceId : int) -> object:
-        devStatus = DeviceStatus()
+    def get_current_status(cls, deviceId : int) -> object: # NOSONAR
+        devStatus = DeviceStatus() # NOSONAR
         devStatus._instance = C.DeviceStatus.get_current_status(deviceId)
         return devStatus
 

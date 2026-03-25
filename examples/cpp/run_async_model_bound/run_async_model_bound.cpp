@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -14,9 +14,9 @@
 #include <string>
 #include <iostream>
 
-void RunInferenceThread(std::string modelPath, int loopCount, int threadIndex, dxrt::InferenceOption::BOUND_OPTION boundOption)
+void RunInferenceThread(const std::string& modelPath, int loopCount, int threadIndex, dxrt::InferenceOption::BOUND_OPTION boundOption)
 {
-    auto &log = dxrt::Logger::GetInstance();
+    const auto& log = dxrt::Logger::GetInstance();
 
     // create inference engine instance with model
     dxrt::InferenceOption io;
@@ -30,25 +30,24 @@ void RunInferenceThread(std::string modelPath, int loopCount, int threadIndex, d
 
 
     // register call back function
-    ie.RegisterCallback([loopCount, &cb_index, &cv_mutex, &cv, threadIndex] (dxrt::TensorPtrs &outputs, void *userArg) {
+    ie.RegisterCallback([loopCount, &cb_index, &cv_mutex, &cv, threadIndex, &log] (const dxrt::TensorPtrs &outputs, void *userArg) {
         std::ignore = outputs;
         std::ignore = userArg;
-        
-        static auto& log = dxrt::Logger::GetInstance();
+
         std::unique_lock<std::mutex> lock(cv_mutex);
         cb_index ++;
 
         log.Debug("[Thread " + std::to_string(threadIndex) + "] callback triggered for inference with callbackIndex(" + std::to_string(cb_index) + ")");
-        
+
         if ( loopCount == cb_index )
-        { 
+        {
             cv.notify_one();
         }
 
         return 0;
     });
 
-    // create input buffer 
+    // create input buffer
     std::vector<uint8_t> input_buffer(ie.GetInputSize(), 0);
 
 
@@ -68,8 +67,8 @@ void RunInferenceThread(std::string modelPath, int loopCount, int threadIndex, d
 
 int main(int argc, char* argv[])
 {
-    const int THREAD_COUNT = 2;  
-    
+    const int THREAD_COUNT = 2;
+
     std::string model_path;
     int loop_count;
     bool verbose;
@@ -106,20 +105,20 @@ int main(int argc, char* argv[])
 
     log.Info("Start async_model_bound test for model: " + model_path);
 
-    try 
+    try
     {
-        
+
         auto start = std::chrono::high_resolution_clock::now();
 
         std::vector<std::thread> threads;
-        
+
         // Create two threads with different bound options
         threads.emplace_back(RunInferenceThread, model_path, loop_count, 0, dxrt::InferenceOption::BOUND_OPTION::NPU_0);
         threads.emplace_back(RunInferenceThread, model_path, loop_count, 1, dxrt::InferenceOption::BOUND_OPTION::NPU_12);
 
         log.Info("Created " + std::to_string(THREAD_COUNT) + " threads with bound options:");
-        log.Info("  Thread 0: NPU_0 (Bound " + std::to_string(dxrt::InferenceOption::BOUND_OPTION::NPU_0) + ")");
-        log.Info("  Thread 1: NPU_12 (Bound " + std::to_string(dxrt::InferenceOption::BOUND_OPTION::NPU_12) + ")");
+        log.Info("  Thread 0: NPU_0 (Bound " + std::to_string(static_cast<int>(dxrt::InferenceOption::BOUND_OPTION::NPU_0)) + ")");
+        log.Info("  Thread 1: NPU_12 (Bound " + std::to_string(static_cast<int>(dxrt::InferenceOption::BOUND_OPTION::NPU_12)) + ")");
         log.Info("  Total different bound types: 2 (within 3-type limit)");
 
         // wait for all threads to complete
@@ -142,7 +141,7 @@ int main(int argc, char* argv[])
     }
     catch (const dxrt::Exception& e)
     {
-        log.Error(std::string(e.what()) + " error-code=" + std::to_string(e.code()));
+        log.Error(std::string(e.what()) + " error-code=" + std::to_string(static_cast<int>(e.code())));
         return -1;
     }
     catch (const std::exception& e)
@@ -155,6 +154,6 @@ int main(int argc, char* argv[])
         log.Error("Exception");
         return -1;
     }
-    
+
     return 0;
 }

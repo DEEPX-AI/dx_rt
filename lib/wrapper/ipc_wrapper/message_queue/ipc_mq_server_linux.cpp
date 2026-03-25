@@ -28,7 +28,6 @@ using namespace dxrt;
 
 
 IPCMessageQueueServerLinux::IPCMessageQueueServerLinux()
-: _usrData(nullptr)
 {
     LOG_DXRT_I_DBG << "IPCMessageQueueServerLinux::Constructor" << std::endl;
 }
@@ -103,7 +102,7 @@ int32_t IPCMessageQueueServerLinux::ReceiveFromClient(IPCClientMessage& clientMe
 
     if ( _messageQueueToServer.Receive(mq_message, sizeof(clientMessage), IPCMessageQueueLinux::SERVER_MSG_TYPE) == 0 )
     {
-        memcpy(&clientMessage, mq_message.data, sizeof(clientMessage));
+        memcpy(&clientMessage, mq_message.data.data(), sizeof(clientMessage));
     }
     else
     {
@@ -118,7 +117,7 @@ int32_t IPCMessageQueueServerLinux::SendToClient(IPCServerMessage& serverMessage
 {
     IPCMessageQueueLinux::Message mq_message;
     mq_message.msgType = serverMessage.msgType;
-    memcpy(mq_message.data, &serverMessage, sizeof(serverMessage));
+    memcpy(mq_message.data.data(), &serverMessage, sizeof(serverMessage));
 
     return _messageQueueToClient.Send(mq_message, sizeof(serverMessage));
 }
@@ -130,11 +129,8 @@ int32_t IPCMessageQueueServerLinux::RegisterReceiveCB(std::function<int32_t(IPCC
     if ( _threadRunning.load() )
     {
         _threadRunning.store(false);
-        /*if ( _thread.joinable() )
-        {
-            _thread.join();
-        }*/
-        _thread.detach();
+
+        _thread.detach();  // NOSONAR:S5962
 
         _receiveCB = nullptr;
         LOG_DXRT_I_DBG << "IPCMessageQueueServerLinux: Detached Callback Thread" << std::endl;

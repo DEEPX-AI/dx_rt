@@ -17,7 +17,7 @@
 #include "dxrt/device.h"
 #include "dxrt/device_info_status.h"
 #include "npu_core.h"
-#include "ipc/dxtop_ipc_client.h"
+#include "data_source/data_source_interface.h"
 
 namespace dxrt {
 
@@ -26,14 +26,14 @@ class NpuDevice
  public:
     static constexpr int CORE_COUNT = 3;
 
-    explicit NpuDevice(uint8_t deviceNumber, std::shared_ptr<DeviceCore> devicePtr, DXTopIPCClient& DXTopIPCClient);
+    explicit NpuDevice(uint8_t deviceNumber, std::shared_ptr<DeviceCore> devicePtr, IDataSource& dataSource);
     virtual ~NpuDevice() = default;
 
     void InitPcieBusNumber();
 
     void UpdateDeviceInfoData();
-    void UpdateCoreData(DXTopIPCClient& dxtopIPCClient);
-    uint64_t UpdateDramUsageByIPC(DXTopIPCClient& dxtopIPCClient);
+    void UpdateCoreData(IDataSource& dataSource);
+    uint64_t UpdateDramUsage(IDataSource& dataSource);
 
     dxrt_dev_info_t GetDevInfo();
     uint8_t GetDeviceNumber() const;

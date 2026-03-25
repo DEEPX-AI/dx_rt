@@ -1,441 +1,540 @@
 import argparse
 import json
+import os
+import re
+import sys
+
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
-from datetime import datetime, timedelta
-import re
-import math
+
+
+# ---------------------------------------------------------------------------
+# RT flow order definitions
+# ---------------------------------------------------------------------------
+
+# Full RT pipeline order (device + common events combined)
+RT_FLOW_ORDER = [
+    "Buffer Wait",
+    "NPU Input Format Handler",
+    "PCIe Write",
+    "NPU Core",
+    "PCIe Read",
+    "NPU Output Format Handler",
+    "NPU Task",
+    # CPU Task Queue Wait and cpu_N events are appended dynamically after this
+]
+
+# Events to exclude from the plot
+EXCLUDED_EVENTS = {
+    "Framework Response Handling Delay",
+    "Service Process Wait",
+}
+
+# Number of jobs to select from the centre when --auto-select is used
+AUTO_SELECT_COUNT = 200
+
+
+# ---------------------------------------------------------------------------
+# Event name parsing helpers
+# ---------------------------------------------------------------------------
 
 def extract_job_id(event_name):
-    """Extract job ID from event name like 'NPU Input Preprocess[Job_3][Task_X][Req_42]'"""
-    match = re.search(r'\[Job_(\d+)\]', event_name)
-    if match:
-        return int(match.group(1))
-    return None
-def get_job_colors(json_data):
+    """Extract job ID from event name."""
+    match = re.search(r"\[Job_(\d+)\]", event_name)
+    return int(match.group(1)) if match else None
+
+
+def extract_device_id(event_name):
+    """Extract device ID from event name."""
+    match = re.search(r"\[Device_(\d+)\]", event_name)
+    return int(match.group(1)) if match else None
+
+
+def get_event_type(event_name):
+    """Return the base event type (everything before the first '[')."""
+    return event_name.split("[")[0].rstrip()
+
+
+def get_sub_identifier(event_name, event_type):
+    """Return a sub-identifier (channel / thread) for row-level grouping.
+
+    Examples
+    -------
+    PCIe Write[...](0)                -> 'ch0'
+    NPU Core[...][Req_0]_2            -> 'ch2'
+    NPU Output Format Handler[...](1) -> 't1'
+    cpu_0[...][Req_15]_t0             -> 't0'
     """
-    Generates a color mapping for different job IDs, ensuring good contrast
-    between colors, especially for neighboring IDs, by cycling through a distinct colormap
-    with a strategic indexing to maximize contrast for adjacent IDs.
-    """
-    job_ids = set()
-    for event_name in json_data.keys():
-        job_id = extract_job_id(event_name)
-        if job_id is not None:
-            job_ids.add(job_id)
-
-    # Sort job IDs to ensure consistent color assignment
-    sorted_job_ids = sorted(list(job_ids))
-
-    # Use a colormap designed for categorical data
-    cmap = plt.colormaps['tab20']
-    num_colors_in_cmap = cmap.N # Number of colors in tab20 is 20
-
-    job_colors = {}
-
-    golden_ratio_conjugate = (1 + 5**0.5) / 2
-    
-    for i, job_id in enumerate(sorted_job_ids):
-        # Calculate a float index using the golden ratio conjugate
-        # This spreads the indices across the range [0, 1) fairly evenly.
-        float_index = (i * golden_ratio_conjugate) % 1
-        
-        # Scale the float_index to the number of colors in the colormap
-        color_index = int(float_index * num_colors_in_cmap)
-        
-        # Get the color from the colormap (RGBA) and convert it to hex
-        rgba_color = cmap(color_index)
-        hex_color = mcolors.to_hex(rgba_color) 
-        
-        job_colors[job_id] = hex_color
-
-    return job_colors
-
-
-
-def group_events_by_type(json_data):
-    """Group events by their type and sub-identifier (Separate by channel/core/thread, ignore job/req)
-    - PCIe Write/Read: Group by channel number (ex: PCIe Write(1))
-    - NPU Core: Group by core number (ex: NPU Core_2)
-    - NPU Task: Group by task name (ex: NPU Task(npu_0))
-    - CPU Task: Group by thread (ex: CPU Task(cpu_0) - (t0))
-    - NPU Output Postprocess: Group by thread (ex: NPU Output Postprocess - (tN))
-    - Service Process Wait: Group by core number (ex: Service Process Wait_1)
-    """
-    grouped_data = {}
-    for event_name, timing_data in json_data.items():
-        # PCIe Write/Read: Group by channel number
-        m = re.match(r'(PCIe (Write|Read))\[Job_\d+\]\[.*?\]\[Req_\d+\]\((\d+)\)', event_name)
+    if event_type in ("PCIe Write", "PCIe Read"):
+        m = re.search(r"\((\d+)\)$", event_name)
         if m:
-            group_key = f"{m.group(1)}({m.group(3)})"
-        # NPU Core: Group by core number
-        elif re.match(r'NPU Core\[Job_\d+\]\[.*?\]\[Req_\d+\]_(\d+)', event_name):
-            m = re.match(r'NPU Core\[Job_\d+\]\[.*?\]\[Req_\d+\]_(\d+)', event_name)
-            group_key = f"NPU Core_{m.group(1)}"
-        # Service Process Wait: Group by core number
-        elif re.match(r'Service Process Wait\[Job_\d+\]\[.*?\]\[Req_\d+\]_(\d+)', event_name):
-            m = re.match(r'Service Process Wait\[Job_\d+\]\[.*?\]\[Req_\d+\]_(\d+)', event_name)
-            group_key = f"Service Process Wait_{m.group(1)}"
-        # NPU Task: Group by task name
-        elif re.match(r'NPU Task\[Job_\d+\]\[(.*?)\]\[Req_\d+\]', event_name):
-            m = re.match(r'NPU Task\[Job_\d+\]\[(.*?)\]\[Req_\d+\]', event_name)
-            group_key = f"NPU Task({m.group(1)})"
-        # CPU Task: Group by thread
-        elif re.match(r'cpu_\d+\[Job_\d+\]\[(cpu_\d+)\]\[Req_\d+\]_t(\d+)', event_name):
-            m = re.match(r'cpu_\d+\[Job_\d+\]\[(cpu_\d+)\]\[Req_\d+\]_t(\d+)', event_name)
-            group_key = f"CPU Task({m.group(1)}) - (t{m.group(2)})"
-        # NPU Output Postprocess: Group by thread
-        elif re.match(r'NPU Output Format Handler\[Job_\d+\]\[.*?\]\[Req_\d+\]\((\d+)\)', event_name):
-            m = re.match(r'NPU Output Format Handler\[Job_\d+\]\[.*?\]\[Req_\d+\]\((\d+)\)', event_name)
-            group_key = f"NPU Output Formatting - (t{m.group(1)})"
-        # CPU Task(name is CPU Task[...]) also separate by thread
-        elif event_name.startswith("CPU Task["):
-            group_key = event_name
-        # NPU Input/Output Format Handler: ignore job/req, only type
-        elif event_name.startswith("NPU Input Format Handler["):
-            group_key = "NPU Input Formatting"
-        elif event_name.startswith("Input Request["):
-            group_key = event_name
-        elif event_name.startswith("/dev/"):
-            group_key = event_name
+            return "ch" + m.group(1)
+
+    if event_type == "NPU Core":
+        m = re.search(r"_(\d+)$", event_name)
+        if m:
+            return "ch" + m.group(1)
+
+    if event_type in ("NPU Input Format Handler", "NPU Output Format Handler"):
+        m = re.search(r"\((\d+)\)$", event_name)
+        if m:
+            return "t" + m.group(1)
+
+    if event_type.startswith("cpu_"):
+        m = re.search(r"_t(\d+)$", event_name)
+        return "t" + m.group(1) if m else "t0"
+
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Classification & grouping
+# ---------------------------------------------------------------------------
+
+def build_per_device_events(json_data):
+    """Build per-device event dicts that include both device-specific
+    and common (device-independent) events.
+
+    Returns
+    -------
+    per_device  : dict[int, dict]  - device_id -> {event_name: timing_list}
+    cpu_task_types: list[str]       - sorted unique cpu_N base names
+    """
+    device_events = {}
+    common_events = {}
+    cpu_task_types = set()
+
+    for event_name, timing_data in json_data.items():
+        event_type = get_event_type(event_name)
+
+        # Skip excluded events
+        if event_type in EXCLUDED_EVENTS:
+            continue
+
+        device_id = extract_device_id(event_name)
+        if device_id is not None:
+            device_events.setdefault(device_id, {})[event_name] = timing_data
         else:
-            group_key = event_name
-        if group_key not in grouped_data:
-            grouped_data[group_key] = []
+            common_events[event_name] = timing_data
+            if event_type.startswith("cpu_"):
+                cpu_task_types.add(event_type)
+
+    # Merge common events into every device bucket
+    for dev_id in device_events:
+        device_events[dev_id].update(common_events)
+
+    # If no device events exist but common events do, create a pseudo device -1
+    if not device_events and common_events:
+        device_events[-1] = common_events
+
+    return device_events, sorted(cpu_task_types)
+
+
+def _sort_key_for_group(group_key, order_list):
+    """Return a tuple for sorting group_key according to order_list."""
+    base = group_key.split(" (")[0] if " (" in group_key else group_key
+    try:
+        return (order_list.index(base), group_key)
+    except ValueError:
+        return (len(order_list), group_key)
+
+
+def group_events(events, order_list):
+    """Group raw events by (event_type, sub_id) and sort by order_list.
+
+    Returns
+    -------
+    grouped    : dict[str, list]  - group_key -> list of timing dicts
+    sorted_keys: list[str]        - group keys in RT-flow order
+    """
+    grouped = {}
+    for event_name, timing_data in events.items():
+        event_type = get_event_type(event_name)
+        sub_id = get_sub_identifier(event_name, event_type)
+        group_key = f"{event_type} ({sub_id})" if sub_id else event_type
+
+        if group_key not in grouped:
+            grouped[group_key] = []
+
         for timing in timing_data:
-            timing_with_source = timing.copy()
-            timing_with_source['source_event'] = event_name
-            grouped_data[group_key].append(timing_with_source)
-    return grouped_data
+            entry = dict(timing, source_event=event_name)
+            grouped[group_key].append(entry)
 
-def sort_events_by_priority(grouped_data):
-    """Sort grouped events to show in the specified order"""
-    # Specified priority
-    priority = [
-        'CPU Task',
-        'NPU Task',
-        'NPU Input Formatting',
-        'PCIe Write',
-        'NPU Core',
-        'PCIe Read',
-        'NPU Output Formatting',
-        'Service Process Wait',  # Don't display separately, just collect data
+    sorted_keys = sorted(
+        grouped.keys(),
+        key=lambda k: _sort_key_for_group(k, order_list),
+    )
+    return grouped, sorted_keys
+
+
+# ---------------------------------------------------------------------------
+# Job-level helpers
+# ---------------------------------------------------------------------------
+
+def collect_all_job_ids(json_data):
+    """Return a sorted list of every job ID present in json_data."""
+    ids = set()
+    for name in json_data:
+        jid = extract_job_id(name)
+        if jid is not None:
+            ids.add(jid)
+    return sorted(ids)
+
+
+def build_job_chunks(sorted_job_ids, chunk_size):
+    """Split sorted_job_ids into consecutive chunks of chunk_size."""
+    return [
+        sorted_job_ids[i : i + chunk_size]
+        for i in range(0, len(sorted_job_ids), chunk_size)
     ]
-    # Match the actual name pattern of each group
-    def get_priority(g):
-        if g.startswith('CPU Task('):
-            return (0, g)
-        if g.startswith('NPU Task('):
-            return (1, g)
-        if g == 'NPU Input Formatting':
-            return (2, g)
-        if g.startswith('PCIe Write'):
-            return (3, g)
-        if g.startswith('NPU Core'):
-            return (4, g)
-        if g.startswith('PCIe Read'):
-            return (5, g)
-        if g == 'NPU Output Formatting':
-            return (6, g)
-        if g.startswith('Service Process Wait'):
-            return (99, g)  # Put at the end, won't be displayed separately
-        return (98, g)
-    return sorted(grouped_data.keys(), key=get_priority)
 
-def plot(input, output, start_ratio, end_ratio, show_gap, hide_text):
-    print("Input : ", input)
-    print("Output : ", output)
-    # Read profiler json file
-    with open(input, "r") as json_file:
-        json_data = json.load(json_file)
 
-    # Group events by type instead of keeping them separate
-    grouped_data = group_events_by_type(json_data)
-    
-    # Sort grouped events to prioritize task-level data at the top
-    sorted_group_names = sort_events_by_priority(grouped_data)
-    
-    # Filter out Service Process Wait from display (we'll use it for overlay)
-    service_wait_groups = {k: v for k, v in grouped_data.items() if k.startswith('Service Process Wait')}
-    display_group_names = [g for g in sorted_group_names if not g.startswith('Service Process Wait')]
+def select_center_jobs(sorted_job_ids, count=AUTO_SELECT_COUNT):
+    """Select *count* jobs centred at the midpoint of sorted_job_ids.
 
-    # Define entire interval
+    This drops early fluctuation data and focuses on the stable region.
+    If fewer jobs exist than *count*, all jobs are returned.
+    """
+    n = len(sorted_job_ids)
+    if n <= count:
+        return sorted_job_ids
 
-    non_service_timings = []
-    for group_name, timing_list in grouped_data.items():
-        if not group_name.startswith("Service Process Wait"):
-            non_service_timings.extend(timing_list)
-    min_start = min(event_timing["start"] for event_timing in non_service_timings)
-    max_end = max(event_timing["end"] for event_timing in non_service_timings)
-    interval_all = max_end - min_start
+    mid = n // 2
+    half = count // 2
+    start = mid - half
+    end = start + count
+    return sorted_job_ids[start:end]
 
-    # Calculate actual time window
-    interval_start = min_start + interval_all * start_ratio
-    interval_end = min_start + interval_all * end_ratio
-    interval = interval_end - interval_start
 
-    # Setup plot
-    fig, ax = plt.subplots(figsize=(15, 8), dpi=300)
+def get_job_colors(job_ids):
+    """Generate visually distinct colours for each job ID."""
+    cmap = plt.colormaps["tab20"]
+    n_colors = cmap.N
+    golden = (1 + 5 ** 0.5) / 2
+    colors = {}
+    for i, jid in enumerate(sorted(job_ids)):
+        idx = int(((i * golden) % 1) * n_colors)
+        colors[jid] = mcolors.to_hex(cmap(idx))
+    return colors
 
-    # Get job ID based color mapping
-    job_colors = get_job_colors(json_data)
 
-    # Visualize by grouped event type
-    colors = list(mcolors.TABLEAU_COLORS.values())
-    multi = int(len(display_group_names) / len(colors) + 1)
-    colors *= multi
+def filter_by_jobs(grouped, job_set):
+    """Return a copy of grouped containing only events whose Job ID is in job_set."""
+    filtered = {}
+    for key, timings in grouped.items():
+        kept = [
+            t for t in timings
+            if extract_job_id(t.get("source_event", "")) in job_set
+        ]
+        if kept:
+            filtered[key] = kept
+    return filtered
 
-    # Color guide for time units
-    unit_color_legend = '(us: silver, ms: red, s: darkblue)'
 
-    # NPU Task(npu_N) y-axis area is allocated 2 times
-    npu_task_indices = [i for i, g in enumerate(display_group_names) if g.startswith("NPU Task(")]
-    npu_task_count = len(npu_task_indices)
-    n_groups = len(display_group_names) + npu_task_count 
-    plt.yticks(range(n_groups), ['' for _ in range(n_groups)])
+# ---------------------------------------------------------------------------
+# Time-window computation
+# ---------------------------------------------------------------------------
+
+def compute_time_window(all_timings, start_ratio, end_ratio):
+    """Return (window_start, window_end) in nanoseconds."""
+    valid = [
+        t for t in all_timings
+        if t.get("start", 0) > 0 and t.get("end", 0) > 0
+    ]
+    if not valid:
+        return 0, 0
+
+    global_start = min(t["start"] for t in valid)
+    global_end = max(t["end"] for t in valid)
+    span = global_end - global_start
+
+    return (global_start + span * start_ratio,
+            global_start + span * end_ratio)
+
+
+# ---------------------------------------------------------------------------
+# Plotting
+# ---------------------------------------------------------------------------
+
+def _draw_duration_text(ax, plot_start, duration, actual_ns,
+                        y_center, fontsize_base, is_even):
+    """Draw a colour-coded duration label on a bar."""
+    if actual_ns >= 1_000_000:
+        text = f"{actual_ns / 1_000_000:.2f}"
+        color = "darkblue"
+        fs = fontsize_base
+    elif actual_ns >= 1_000:
+        text = f"{actual_ns / 1_000:.1f}"
+        color = "red"
+        fs = fontsize_base - 1
+    else:
+        text = str(int(actual_ns))
+        color = "silver"
+        fs = fontsize_base - 2
+
+    text_y = y_center - 0.15 if is_even else y_center + 0.15
+    ax.text(
+        plot_start + duration / 2, text_y, text,
+        ha="center", va="center", color=color, fontsize=fs,
+    )
+
+
+def plot_timeline(grouped, sorted_keys, job_colors,
+                  window_start, window_end, title, output_path, show_text):
+    """Render a single timeline image and save it."""
+    interval = window_end - window_start
+    if interval <= 0:
+        return
+
+    # Rows that need expanded (sub-line) layout to avoid overlap
+    def _needs_expanded(key):
+        base = key.split(" (")[0] if " (" in key else key
+        return (base.startswith("NPU Task")
+                or base.startswith("CPU Task Queue Wait"))
+
     y_map = {}
-    y_shift = 0
-    for idx, label in enumerate(display_group_names):
-        if label.startswith("NPU Task("):
-            y = idx + y_shift
-            y_map[label] = y
-            y_shift += 1  
-            ax.text(-interval * 0.01, y + 1, label, ha='right', va='center', fontsize=10, transform=ax.transData)
-        else:
-            y = idx + y_shift
-            y_map[label] = y
-            ax.text(-interval * 0.01, y + 0.35, label, ha='right', va='center', fontsize=10, transform=ax.transData)
-    plt.ylim(-0.1, n_groups)
-    ax.invert_yaxis()
+    y_pos = 0
+    for key in sorted_keys:
+        y_map[key] = y_pos
+        y_pos += 2 if _needs_expanded(key) else 1
+    total_rows = y_pos
 
-    for y in range(n_groups):
-        ax.axhline(y, color='gray', linewidth=0.5, alpha=0.2, zorder=0)
+    if total_rows == 0:
+        return
 
-    for idx, group_name in enumerate(display_group_names):
-        y = y_map[group_name]
-        timing_data = grouped_data[group_name]
-        sorted_timings = sorted(timing_data, key=lambda x: x["start"])
-        # NPU Core only apply shift logic
-        if group_name.startswith("NPU Core"):
-            n = len(sorted_timings)
-            adjusted = [dict(start=et["start"], end=et["end"], original_start=et["start"], source_event=et.get("source_event", "")) for et in sorted_timings]
-            for i in range(n - 2, -1, -1):
-                duration = adjusted[i]["end"] - adjusted[i]["start"]
-                if adjusted[i]["end"] > adjusted[i + 1]["start"]:
-                    adjusted[i]["end"] = adjusted[i + 1]["start"]
-                    adjusted[i]["start"] = adjusted[i]["end"] - duration
-            adjusted_timings = adjusted
-        else:
-            adjusted_timings = [dict(start=et["start"], end=et["end"], original_start=et["start"], source_event=et.get("source_event", "")) for et in sorted_timings]
-        # NPU Task(npu_*) distributed across multiple lines, double y-axis area
-        if group_name.startswith("NPU Task("):
-            n_lines = 10
-            for i, event_timing in enumerate(adjusted_timings):
-                start = event_timing["start"]
-                end = event_timing["end"]
-                original_start = event_timing["original_start"]
-                source_event = event_timing.get("source_event", "")
-                if start > 0 and end > 0 and original_start >= interval_start and original_start <= interval_end and end > start:
-                    plot_start = start - interval_start
-                    plot_end = end - interval_start
-                    duration = plot_end - plot_start
-                    job_id = extract_job_id(source_event if source_event else group_name)
-                    if job_id is not None and job_id in job_colors:
-                        color = job_colors[job_id]
-                    else:
-                        color = colors[idx]
-                    subline = i % n_lines
-                    rect = plt.Rectangle((plot_start, y + 2 * subline / n_lines), duration, 1.4 / n_lines, linewidth=1, edgecolor=color, facecolor=color, alpha=0.8)
-                    ax.add_patch(rect)
-                    text_x = plot_start + duration / 2
-                    text_y = y + 2 * subline / n_lines + 0.6 / n_lines
-                    text_fontsize = 5
-                    if not hide_text:
-                        if duration >= 1000000:
-                            duration_str = f"{duration/1000000:.2f}"
-                            unit = 'ms'
-                            text_color = 'darkblue'
-                            text_fontsize = 4
-                        elif duration >= 1000:
-                            duration_str = f"{duration/1000:.1f}"
-                            unit = 'us'
-                            text_color = 'red'
-                            text_fontsize = 4
-                        else:
-                            duration_str = f"{duration}"
-                            unit = 'ns'
-                            text_color = 'silver'
-                            text_fontsize = 3
-                        text_y_pos = text_y #+ 0.1 / n_lines
-                        plt.text(text_x, text_y_pos, duration_str, ha='center', va='center', color=text_color, fontsize=text_fontsize)
-        else:
-            last_plotted_start = 0
-            for i, event_timing in enumerate(adjusted_timings):
-                start = event_timing["start"]
-                end = event_timing["end"]
-                original_start = event_timing["original_start"]
-                source_event = event_timing.get("source_event", "")
-                if start > 0 and end > 0 and original_start >= interval_start and original_start <= interval_end and end > start:
-                    plot_start = start - interval_start
-                    plot_end = end - interval_start
-                    duration = plot_end - plot_start
-                    job_id = extract_job_id(source_event if source_event else group_name)
-                    if job_id is not None and job_id in job_colors:
-                        color = job_colors[job_id]
-                    else:
-                        color = colors[idx]
-                    rect = plt.Rectangle((plot_start, y), duration, 0.7, linewidth=1, edgecolor=color, facecolor=color, alpha=0.8)
-                    ax.add_patch(rect)
-                    
-                    # For NPU Core, overlay Service Process Wait as thin horizontal line
-                    '''
-                    if group_name.startswith("NPU Core_"):
-                        core_num = group_name.split("_")[1]
-                        service_wait_key = f"Service Process Wait_{core_num}"
-                        if service_wait_key in service_wait_groups:
-                            # Find matching Service Process Wait by Job ID and Core ID
-                            found_match = False
-                            for wait_timing in service_wait_groups[service_wait_key]:
-                                wait_source = wait_timing.get("source_event", "")
-                                wait_job_id = extract_job_id(wait_source)
-                                # Match by Job ID only (same core is already guaranteed by service_wait_key)
-                                if wait_job_id == job_id:
-                                    # Check if this wait timing overlaps with current NPU Core timing
-                                    wait_start = wait_timing["start"]
-                                    wait_end = wait_timing["end"]
-                                    # Service wait should overlap with NPU Core time (more flexible matching)
-                                    if not (wait_end < start or wait_start > end):
-                                        found_match = True
-                                        # Clamp wait_start to interval_start if it's too early
-                                        wait_plot_start = max(wait_start, min_start) - interval_start
-                                        wait_plot_end = wait_end - interval_start
-                                        
-                                        # Always draw the wait line (removed visibility condition)
-                                        # Draw thin horizontal line for Service Process Wait
-                                        line_y = y + 0.35  # Middle of the rectangle
-                                        ax.plot([wait_plot_start, wait_plot_end], [line_y, line_y], 
-                                               color='black', linewidth=0.5, alpha=0.2, zorder=10, linestyle="--")
-                                        
-                                        # Draw vertical lines at the ends only if they're visible
-                                        if wait_plot_start >= 0:
-                                            ax.plot([wait_plot_start, wait_plot_start], [y + 0.1, y + 0.6], 
-                                                   color='black', linewidth=0.6, alpha=0.5, zorder=10)
-                                        if wait_plot_end <= interval:
-                                            ax.plot([wait_plot_end, wait_plot_end], [y + 0.1, y + 0.6], 
-                                                   color='black', linewidth=0.6, alpha=0.5, zorder=10)
-                                        
-                                        # Add text label for wait duration if not hiding text
-                                        
-                                        if not hide_text and wait_plot_end - wait_plot_start > interval * 0.05:
-                                            wait_duration_ns = wait_end - wait_start
-                                            if wait_duration_ns >= 10000000000:  # 10 seconds
-                                                wait_text = f"Wait: {wait_duration_ns/1000000000:.1f}s"
-                                            elif wait_duration_ns >= 10000000:  # 10 ms
-                                                wait_text = f"Wait: {wait_duration_ns/1000000:.1f}ms"
-                                            else:
-                                                wait_text = f"Wait: {wait_duration_ns/1000:.1f}us"
-                                            
-                                            # Position text above the line
-                                            text_x = (wait_plot_start + wait_plot_end) / 2
-                                            ax.text(text_x, y - 0.15, wait_text, 
-                                                   ha='center', va='bottom', 
-                                                   color='black', fontsize=3, alpha=0.8)
+    fig_height = max(4, 1.0 + total_rows * 0.55)
+    fig, ax = plt.subplots(figsize=(15, fig_height), dpi=300)
 
-                                        break
-                            
-                            # If no exact match found, try to find any Service Process Wait for this core
-                            if not found_match:
-                                print(f"No exact match found for Job {job_id} on Core {core_num}")
-                                print(f"NPU Core timing: {start} - {end}")
-                                print(f"Available Service Process Wait timings for core {core_num}:")
-                                for wait_timing in service_wait_groups[service_wait_key]:
-                                    wait_source = wait_timing.get("source_event", "")
-                                    wait_job_id = extract_job_id(wait_source)
-                                    wait_start = wait_timing["start"]
-                                    wait_end = wait_timing["end"]
-                                    print(f"  Job {wait_job_id}: {wait_start} - {wait_end}")
-                                
-                                # Draw any available Service Process Wait for this core as a fallback
-                                if service_wait_groups[service_wait_key]:
-                                    wait_timing = service_wait_groups[service_wait_key][0]  # Use first available
-                                    wait_start = wait_timing["start"]
-                                    wait_end = wait_timing["end"]
-                                    wait_plot_start = max(wait_start, min_start) - interval_start
-                                    wait_plot_end = wait_end - interval_start
-                                    
-                                    # Draw fallback line in red to indicate mismatch
-                                    line_y = y + 0.35
-                                    ax.plot([wait_plot_start, wait_plot_end], [line_y, line_y], 
-                                           color='red', linewidth=1.5, alpha=0.7, zorder=10, linestyle='--')
-                        else:
-                            print(f"No Service Process Wait group found for core {core_num}")
-                            print(f"Available Service Process Wait groups: {list(service_wait_groups.keys())}")
-                    '''
-                    
-                    text_x = plot_start + duration / 2
-                    text_y = y + 0.3
-                    text_fontsize = 5
-                    if not hide_text:
-                        if duration >= 1000000:
-                            duration_str = f"{duration/1000000:.2f}"
-                            unit = 'ms'
-                            text_color = 'darkblue'
-                            text_fontsize = 5
-                        elif duration >= 1000:
-                            duration_str = f"{duration/1000:.1f}"
-                            unit = 'us'
-                            text_color = 'red'
-                            text_fontsize = 4
-                        else:
-                            duration_str = f"{duration}"
-                            unit = 'ns'
-                            text_color = 'silver'
-                            text_fontsize = 3
-                        if i % 2 == 0:
-                            text_y_pos = text_y - 0.15
-                        else:
-                            text_y_pos = text_y + 0.22
-                        plt.text(text_x, text_y_pos, duration_str, ha='center', va='center', color=text_color, fontsize=text_fontsize)
-                    if show_gap and group_name.startswith("PCIe Write"):
-                        if i > 0 and plot_start > last_plotted_start and not hide_text:
-                            time_difference = plot_start - last_plotted_start
-                            plt.text((last_plotted_start + plot_start) / 2, text_y - 0.4, f"Δ {time_difference / 1000}us", ha='center', va='center', color='black', fontsize=text_fontsize)
-                        last_plotted_start = plot_start
+    # Y-axis labels
+    for key in sorted_keys:
+        y = y_map[key]
+        label_y = y + 1.0 if _needs_expanded(key) else y + 0.35
+        ax.text(
+            -interval * 0.008, label_y, key,
+            ha="right", va="center", fontsize=9, transform=ax.transData,
+        )
 
-    # Create legend for job IDs
-    # Maximum 30 items in legend
+    # Grid lines
+    for y in range(total_rows + 1):
+        ax.axhline(y, color="gray", linewidth=0.5, alpha=0.2, zorder=0)
+
+    # Draw bars
+    for group_key in sorted_keys:
+        y = y_map[group_key]
+        timings = sorted(grouped[group_key], key=lambda t: t["start"])
+        expanded = _needs_expanded(group_key)
+        n_sub_lines = 10
+
+        for i, t in enumerate(timings):
+            start_ns = t["start"]
+            end_ns = t["end"]
+            if start_ns <= 0 or end_ns <= start_ns:
+                continue
+            if start_ns > window_end or end_ns < window_start:
+                continue
+
+            plot_start = max(start_ns - window_start, 0)
+            plot_end = min(end_ns - window_start, interval)
+            duration = plot_end - plot_start
+            actual_ns = end_ns - start_ns
+
+            job_id = extract_job_id(t.get("source_event", ""))
+            color = job_colors.get(job_id, "#999999")
+
+            if expanded:
+                sub = i % n_sub_lines
+                rect_y = y + 2 * sub / n_sub_lines
+                rect_h = 1.6 / n_sub_lines
+            else:
+                rect_y = y
+                rect_h = 0.7
+
+            ax.add_patch(
+                plt.Rectangle(
+                    (plot_start, rect_y), duration, rect_h,
+                    linewidth=0.5, edgecolor=color, facecolor=color, alpha=0.8,
+                )
+            )
+
+            if show_text:
+                if expanded:
+                    fs = 4
+                    center_y = rect_y + rect_h / 2
+                else:
+                    fs = 5
+                    center_y = y + 0.35
+                _draw_duration_text(
+                    ax, plot_start, duration, actual_ns,
+                    center_y, fs, i % 2 == 0,
+                )
+
+    # Legend (max 30 entries)
     if job_colors:
-        legend_elements = []
-        for i, (job_id, color) in enumerate(sorted(job_colors.items())):
-            if i >= 30:
-                legend_elements.append(plt.Rectangle((0,0),1,1, facecolor='white', edgecolor='black', alpha=0.0, label='...'))
+        handles = []
+        for j, (jid, c) in enumerate(sorted(job_colors.items())):
+            if j >= 30:
+                handles.append(
+                    plt.Rectangle(
+                        (0, 0), 1, 1,
+                        facecolor="white", edgecolor="black",
+                        alpha=0, label="...",
+                    )
+                )
                 break
-            legend_elements.append(plt.Rectangle((0,0),1,1, facecolor=color, edgecolor=color, alpha=0.5, label=f'Job {job_id}'))
-        plt.legend(handles=legend_elements, loc='upper right', bbox_to_anchor=(1.15, 1))
+            handles.append(
+                plt.Rectangle(
+                    (0, 0), 1, 1,
+                    facecolor=c, edgecolor=c, alpha=0.5,
+                    label=f"Job {jid}",
+                )
+            )
+        ax.legend(
+            handles=handles, loc="upper right",
+            bbox_to_anchor=(1.13, 1), fontsize=6,
+        )
 
-    plt.xlabel("Time (ns)")
-    # Title color information text
-    unit_color_legend = '(time unit: ns=silver, us=red, ms=darkblue)'
-    plt.title(f"DX-RT Profiler\n{unit_color_legend}")
-    plt.xlim(0, interval)
-    plt.savefig(output, bbox_inches="tight", dpi=300)
-    print(interval, "ns / ", interval_all, "ns")
+    ax.set_title(f"{title}\n(ns=silver, us=red, ms=darkblue)", fontsize=11)
+    ax.set_xlabel("Time (ns)")
+    ax.set_xlim(0, interval)
+    ax.set_ylim(-0.1, total_rows + 0.1)
+    ax.invert_yaxis()
+    ax.set_yticks(range(total_rows + 1))
+    ax.set_yticklabels([""] * (total_rows + 1))
+
+    plt.savefig(output_path, bbox_inches="tight", dpi=300)
+    plt.close(fig)
+    print(f"  Saved: {output_path}")
+
+
+# ---------------------------------------------------------------------------
+# Image generation driver
+# ---------------------------------------------------------------------------
+
+def generate_images_for_group(grouped, sorted_keys, all_job_colors,
+                              job_chunks, output_dir, base_name, ext,
+                              tag, start_ratio, end_ratio, show_text):
+    """Generate one image per job-chunk for a given event group."""
+    total_chunks = len(job_chunks)
+    for chunk_idx, chunk in enumerate(job_chunks, start=1):
+        job_set = set(chunk)
+        filtered = filter_by_jobs(grouped, job_set)
+        filtered_keys = [k for k in sorted_keys if k in filtered]
+        if not filtered:
+            continue
+
+        all_timings = [t for tl in filtered.values() for t in tl]
+        w_start, w_end = compute_time_window(all_timings, start_ratio, end_ratio)
+        if w_end <= w_start:
+            continue
+
+        chunk_colors = {
+            jid: all_job_colors[jid]
+            for jid in chunk if jid in all_job_colors
+        }
+        if total_chunks == 1:
+            fname = f"{base_name}_{tag}{ext}"
+        else:
+            fname = f"{base_name}_{tag}_part{chunk_idx}{ext}"
+        fpath = os.path.join(output_dir, fname)
+        title_tag = tag.replace("_", " ")
+        title = f"{title_tag} \u2014 Jobs {chunk[0]}\u2013{chunk[-1]}"
+
+        plot_timeline(
+            filtered, filtered_keys, chunk_colors,
+            w_start, w_end, title, fpath, show_text,
+        )
+
+
+def plot_profiler(input_file, output_base, start_ratio, end_ratio,
+                  jobs_per_image, show_text, auto_select):
+    """Main entry point: load JSON, classify, split, and render images."""
+    print(f"Input : {input_file}")
+
+    with open(input_file, "r") as f:
+        json_data = json.load(f)
+
+    per_device, cpu_task_types = build_per_device_events(json_data)
+    all_job_ids = collect_all_job_ids(json_data)
+
+    if auto_select:
+        selected_ids = select_center_jobs(all_job_ids)
+        print(f"Auto-select: {len(selected_ids)} jobs from centre "
+              f"(Job {selected_ids[0]}\u2013{selected_ids[-1]} "
+              f"out of {len(all_job_ids)} total)")
+        job_chunks = [selected_ids]
+    else:
+        selected_ids = all_job_ids
+        job_chunks = build_job_chunks(all_job_ids, jobs_per_image)
+
+    all_job_colors = get_job_colors(selected_ids)
+
+    if not job_chunks:
+        print("No job data found.")
+        return
+
+    output_dir = os.path.dirname(output_base) or "."
+    base_name = os.path.splitext(os.path.basename(output_base))[0]
+    ext = os.path.splitext(output_base)[1] or ".png"
+
+    full_order = RT_FLOW_ORDER + ["CPU Task Queue Wait"] + cpu_task_types
+
+    for dev_id in sorted(per_device.keys()):
+        grouped, sorted_keys = group_events(per_device[dev_id], full_order)
+        tag = f"Device_{dev_id}"
+        print(f"[Device {dev_id}]")
+        generate_images_for_group(
+            grouped, sorted_keys, all_job_colors,
+            job_chunks, output_dir, base_name, ext,
+            tag, start_ratio, end_ratio, show_text,
+        )
+
     print("Done.")
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Draw timing chart from profiler data.")
-    parser.add_argument("-i", "--input", default="profiler.json", help="Input json file to plot")
-    parser.add_argument("-o", "--output", default="profiler.png", help="Output image file to save the plot")
-    parser.add_argument("-s", "--start", type=float, default=0.0, help="Starting point( > 0.0) when the entire interval is 1")
-    parser.add_argument("-e", "--end", type=float, default=1.0, help="End point( < 1.0) when the entire interval is 1")
-    parser.add_argument("-g", "--show_gap", action="store_true", help="Show time gap between starting points")
-    parser.add_argument("-t", "--hide_text", action="store_true", default=False, help="Hide duration text")
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Draw timeline charts from DX-RT profiler JSON data.",
+    )
+    parser.add_argument(
+        "-i", "--input", default="profiler.json",
+        help="Input profiler JSON file (default: profiler.json)",
+    )
+    parser.add_argument(
+        "-o", "--output", default="profiler.png",
+        help="Output base filename; device/job suffixes are added automatically",
+    )
+    parser.add_argument(
+        "-s", "--start", type=float, default=0.0,
+        help="Start ratio (0.0-1.0) of the time window",
+    )
+    parser.add_argument(
+        "-e", "--end", type=float, default=1.0,
+        help="End ratio (0.0-1.0) of the time window",
+    )
+    parser.add_argument(
+        "-j", "--jobs-per-image", type=int, default=200,
+        help="Max jobs per image before splitting (default: 200)",
+    )
+    parser.add_argument(
+        "-t", "--show_text", action="store_true", default=False,
+        help="Show duration text labels on bars",
+    )
+    parser.add_argument(
+        "-a", "--auto-select", action="store_true", default=False,
+        help="Auto-select 200 jobs from the stable centre region",
+    )
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit(0)
     args = parser.parse_args()
-    input = args.input
-    output = args.output
-    start_ratio = args.start
-    end_ratio = args.end
-    show_gap = args.show_gap
-    hide_text = args.hide_text
-    
-    plot(input, output, start_ratio, end_ratio, show_gap, hide_text)
+
+    plot_profiler(
+        args.input, args.output,
+        args.start, args.end,
+        args.jobs_per_image, args.show_text,
+        args.auto_select,
+    )

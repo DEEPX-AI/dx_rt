@@ -12,11 +12,15 @@
 #include "dxrt/multiprocess_memory.h"
 #include "dxrt/service_util.h"
 #include "dxrt/exception/exception.h"
+#include "shared_memory_writer.h"
 
 namespace dxrt
 {
 // ServiceLayer --------------------------------------------------
-ServiceLayer::ServiceLayer(std::shared_ptr<MultiprocessMemory> mem) : _mem(std::move(mem)) {}
+ServiceLayer::ServiceLayer(std::shared_ptr<MultiprocessMemory> mem) : _mem(std::move(mem))
+{
+    _mem->Connect();
+}
 void ServiceLayer::HandleInferenceAcc(const dxrt_request_acc_t &acc, int deviceId)
 {
     std::lock_guard<std::mutex> lock(_lock);
@@ -79,9 +83,36 @@ void ServiceLayer::SignalTaskDeInit(int deviceId, int taskId, npu_bound_op bound
     _mem->DeallocateTaskMemory(deviceId, taskId);
 }
 
-extern uint8_t DEBUG_DATA;
+extern uint8_t DEBUG_DATA;  // NOSONAR
 // NoServiceLayer ------------------------------------------------
 
+NoServiceLayer::NoServiceLayer()
+{
+    // Initialize shared memory writer
+    _shmWriter = std::make_unique<SharedMemoryWriter>();
+    if (!_shmWriter->Initialize()) {
+        LOG_DXRT_DBG << "Failed to initialize shared memory writer for monitoring" << std::endl;
+    }
+    
+    // Start monitoring thread
+    _usageMonitorRunning.store(true, std::memory_order_release);
+    _usageMonitorThread = std::thread(&NoServiceLayer::UsageMonitorThread, this);
+}
+
+NoServiceLayer::~NoServiceLayer()
+{
+    // Stop monitoring thread
+    _usageMonitorRunning.store(false, std::memory_order_release);
+    if (_usageMonitorThread.joinable())
+    {
+        _usageMonitorThread.join();
+    }
+    
+    // Cleanup shared memory
+    if (_shmWriter) {
+        _shmWriter->Cleanup();
+    }
+}
 
 #ifdef __linux__
     constexpr static int HandleInferenceAcc_BUSY_VALUE = -EBUSY;  // write done, but failed to enqueue
@@ -113,6 +144,12 @@ void NoServiceLayer::RegisterDeviceCore(DeviceCore* core)
     _ptr[id] = core;
     dxrt_device_info_t info = core->info();
     _mems.emplace(id, std::make_shared<Memory>(info, nullptr));
+    
+    // Register device in shared memory
+    if (_shmWriter && _shmWriter->IsInitialized()) {
+        _shmWriter->SetDeviceActive(id, true);
+        _shmWriter->UpdateDeviceMemory(id, info.mem_size, 0, info.mem_size);
+    }
 }
 
 void NoServiceLayer::SignalTaskInit(int deviceId, int taskId, npu_bound_op bound, uint64_t modelMemorySize)
@@ -143,7 +180,89 @@ void NoServiceLayer::DeAllocate(int deviceId, int64_t addr) { _mems[deviceId]->D
 
 void NoServiceLayer::SignalEndJobs(int id) { std::ignore = id; }
 
-void NoServiceLayer::CheckServiceRunning() {}
+void NoServiceLayer::CheckServiceRunning() { /* no service, always running */ }
 
 bool NoServiceLayer::isRunOnService() const { return false; }
+
+void NoServiceLayer::addUsage(int deviceId, int coreId, double value)
+{
+    // Initialize timer array for this device if not exists (default constructed)
+    // No need for explicit assignment - std::map creates default-constructed value
+    _usageTimers[deviceId][coreId].add(value);
+    
+    // Increment inference count in shared memory
+    if (_shmWriter && _shmWriter->IsInitialized()) {
+        _shmWriter->IncrementInferenceCount(deviceId);
+    }
+}
+
+double NoServiceLayer::getUsage(int deviceId, int coreId)
+{
+    if (_usageTimers.find(deviceId) == _usageTimers.end())
+    {
+        return 0.0;
+    }
+    return _usageTimers[deviceId][coreId].getUsage();
+}
+
+void NoServiceLayer::onTick(int deviceId, int coreId)
+{
+    if (_usageTimers.find(deviceId) != _usageTimers.end())
+    {
+        _usageTimers[deviceId][coreId].onTick();
+    }
+}
+
+void NoServiceLayer::UsageMonitorThread()
+{
+    while (_usageMonitorRunning.load(std::memory_order_acquire))
+    {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        
+        // Call onTick() for all registered devices and cores
+        for (const auto& device_pair : _usageTimers)
+        {
+            int device_id = device_pair.first;
+            std::array<double, 3> utilization = {0.0, 0.0, 0.0};
+            
+            for (int core_id = 0; core_id < 3; core_id++)
+            {
+                onTick(device_id, core_id);
+                utilization[core_id] = getUsage(device_id, core_id);
+            }
+            
+            // Write to shared memory for external monitoring tools
+            if (_shmWriter && _shmWriter->IsInitialized()) 
+            {
+                _shmWriter->UpdateDeviceUtilization(device_id, utilization);
+                
+                // Update memory information
+                if (_mems.find(device_id) != _mems.end()) 
+                {
+                    const auto& mem = _mems[device_id];
+                    _shmWriter->UpdateDeviceMemory(
+                        device_id,
+                        mem->size(),
+                        mem->used_size(),
+                        mem->free_size()
+                    );
+                }
+                
+                // Update core stats (voltage, clock, temperature)
+                if (_ptr.find(device_id) != _ptr.end()) 
+                {
+                    auto device_core = _ptr[device_id];
+                    auto status = device_core->Status();
+                    
+                    // Convert C-arrays to std::array (use first 3 elements)
+                    std::array<uint32_t, 3> voltage_arr = {status.voltage[0], status.voltage[1], status.voltage[2]};
+                    std::array<uint32_t, 3> clock_arr = {status.clock[0], status.clock[1], status.clock[2]};
+                    std::array<uint32_t, 3> temp_arr = {status.temperature[0], status.temperature[1], status.temperature[2]};
+                    
+                    _shmWriter->UpdateDeviceCoreStats(device_id, voltage_arr, clock_arr, temp_arr);
+                }
+            }
+        }
+    }
+}
 }  // namespace dxrt

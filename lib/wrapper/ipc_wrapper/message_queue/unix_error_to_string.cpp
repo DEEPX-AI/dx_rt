@@ -1,15 +1,26 @@
+/*
+ * Copyright (C) 2018- DEEPX Ltd.
+ * All rights reserved.
+ *
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
+ * Unauthorized sharing or usage is strictly prohibited by law.
+ */
+
 #include <cstdio>
 #include <errno.h>
 #include <cstring>
 #include <string>
+#include <array>
+#include "dxrt/common.h"
 
 #if __linux__
-std::string getErrorString(int error_code)
+DXRT_API std::string getErrorString(int error_code)
 {
-    char buffer[256];
-    memset(buffer, 0, sizeof(buffer));
+    std::array<char, 256> buffer;
+    memset(buffer.data(), 0, buffer.size());
     std::string error = "Error no " + std::to_string(error_code);
-    char* str = strerror_r(error_code, buffer, sizeof(buffer));
+    const char* str = strerror_r(error_code, buffer.data(), buffer.size());
     if (str != nullptr)
     {
         error += "(";
@@ -22,9 +33,9 @@ std::string getErrorString(int error_code)
     }
     return error;
 }
-#else // _WIN32
+#else  // _WIN32
 #include <windows.h>
-std::string getErrorString(int error_code)
+DXRT_API std::string getErrorString(int error_code)
 {
     LPVOID msgBuffer;
     std::string error = "Error no " + std::to_string(error_code);
@@ -54,7 +65,7 @@ std::string getErrorString(int error_code)
 }
 #endif
 
-std::string getString()
+DXRT_API std::string getString()
 {
     return getErrorString(errno);
 }

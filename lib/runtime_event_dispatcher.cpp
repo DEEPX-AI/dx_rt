@@ -42,7 +42,7 @@ namespace dxrt {
         }
     }
 
-    void RuntimeEventDispatcher::RegisterEventHandler(std::function<void(LEVEL, TYPE, CODE, const std::string&, const std::string&)> handler)
+    void RuntimeEventDispatcher::RegisterEventHandler(const std::function<void(LEVEL, TYPE, CODE, const std::string&, const std::string&)>& handler)
     {
         std::lock_guard<std::mutex> lock(_handlerMutex);
 
@@ -68,7 +68,7 @@ namespace dxrt {
         return false;
     }
 
-    void RuntimeEventDispatcher::handleEventLogging(LEVEL level, TYPE type, CODE code, const std::string& eventMessage, const std::string& timestamp)
+    void RuntimeEventDispatcher::handleEventLogging(LEVEL level, TYPE type, CODE code, const std::string& eventMessage, const std::string& timestamp) const
     {
         // Convert enum values to readable strings
         std::string levelStr;

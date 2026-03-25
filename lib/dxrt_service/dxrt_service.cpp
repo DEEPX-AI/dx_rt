@@ -16,7 +16,6 @@
 #include <atomic>
 #include <thread>
 #include <future>
-//  #include <unordered_set>
 #include <set>
 #include <map>
 #include <limits>
@@ -35,7 +34,7 @@
 
 #ifndef DXRT_DEBUG
 // to reduce consol log size
-#define DXRT_SERVICE_SIMPLE_CONSOLE_LOG 1
+#define DXRT_SERVICE_SIMPLE_CONSOLE_LOG
 
 #endif
 
@@ -49,6 +48,7 @@ using std::make_pair;
 static constexpr uint32_t UINT_MAX_CONST = std::numeric_limits<uint32_t>::max();
 
 void die_check_thread();
+static bool IsProcessRunning(pid_t procId);
 
 enum class DXRT_Schedule
 {
@@ -58,22 +58,22 @@ enum class DXRT_Schedule
 };
 
 
-class DxrtService
+class DxrtService  // NOSONAR:S1448
 {
  private:
-    void dequeueAllClientMessageQueue(long msgType);
+    void dequeueAllClientMessageQueue(long msgType) const;
     std::shared_ptr<dxrt::DxrtServiceErr> _srvErr;
     std::mutex _deviceMutex;
 
     //packet handler
-    dxrt::IPCServerMessage HandleClose(const dxrt::IPCClientMessage& clientMessage);
+    dxrt::IPCServerMessage HandleClose(const dxrt::IPCClientMessage& clientMessage) const;
     dxrt::IPCServerMessage HandleGetMemory(const dxrt::IPCClientMessage& clientMessage);
     dxrt::IPCServerMessage HandleGetMemoryForModel(const dxrt::IPCClientMessage& clientMessage);
-    dxrt::IPCServerMessage HandleFreeMemory(const dxrt::IPCClientMessage& clientMessage);
+    dxrt::IPCServerMessage HandleFreeMemory(const dxrt::IPCClientMessage& clientMessage) const;
 
-    dxrt::IPCServerMessage HandleViewMemory(const dxrt::IPCClientMessage& clientMessage);
-    dxrt::IPCServerMessage HandleViewAvailableDevice(const dxrt::IPCClientMessage& clientMessage);
-    dxrt::IPCServerMessage HandleGetUsage(const dxrt::IPCClientMessage& clientMessage);
+    dxrt::IPCServerMessage HandleViewMemory(const dxrt::IPCClientMessage& clientMessage) const;
+    dxrt::IPCServerMessage HandleViewAvailableDevice(const dxrt::IPCClientMessage& clientMessage) const;
+    dxrt::IPCServerMessage HandleGetUsage(const dxrt::IPCClientMessage& clientMessage) const;
 
     bool HandleTaskInit(const dxrt::IPCClientMessage& clientMessage);
     void HandleTaskDeInit(const dxrt::IPCClientMessage& clientMessage);
@@ -89,23 +89,29 @@ class DxrtService
     explicit DxrtService(std::vector<std::shared_ptr<dxrt::ServiceDevice> > devices_, DXRT_Schedule scheduler_option);
     void onCompleteInference(const dxrt::dxrt_response_t& response, int deviceId);
     void ErrorBroadCastToClient(dxrt::dxrt_server_err_t err, uint32_t errCode, int deviceId);
+    void RecoveryBroadcastAndWait(dxrt::dxrt_server_err_t err, uint32_t errCode, int deviceId);
 
     void InitDevice(int devId, dxrt::npu_bound_op bound);
     void DeInitDevice(int devId, dxrt::npu_bound_op bound);
     long ClearDevice(int procId);
     void handle_process_die(pid_t pid);
-    void die_check_thread();
+    [[noreturn]] void die_check_thread();
     int GetDeviceIdByProcId(int procId);
     void Dispose();
 
     bool IsTaskValid(pid_t pid, int deviceId, int taskId);
     bool IsTaskValidNoMessage(pid_t pid, int deviceId, int taskId);
-    void ClearResidualIPCMessages();
-    void PrintManagedTasks();
+    void ClearResidualIPCMessages() const;
+    void PrintManagedTasks() const;
     bool TaskInit(pid_t pid, int deviceId, int taskId, int bound, uint64_t modelMemorySize);
     void TaskDeInit(int deviceId, int taskId, int pid);
     void TaskAbnormalDeInit(int deviceId, int taskId, int pid);
+    int32_t ReceiveFromClient(dxrt::IPCClientMessage& clientMessage)  // NOSONAR: false positive
+    {
+        return _ipcServerWrapper.ReceiveFromClient(clientMessage);
+    }
 
+ private:
     dxrt::IPCServerWrapper _ipcServerWrapper;
     std::vector<std::shared_ptr<dxrt::ServiceDevice> > _devices;
     std::shared_ptr<SchedulerService> _scheduler;
@@ -116,10 +122,13 @@ class DxrtService
     std::map<std::pair<pid_t, int>, ProcessWithDeviceInfo> _infoMap;
     std::mutex _infoMapMutex;
 
+    std::atomic<bool> _recoveryInProgress{false};
+
+    void WaitForAllClientsDead(int timeoutMs);
 };
 
 DxrtService::DxrtService(std::vector<std::shared_ptr<dxrt::ServiceDevice> > devices_, DXRT_Schedule scheduler_option)
-: _ipcServerWrapper(dxrt::IPCDefaultType()), _devices(devices_)
+: _ipcServerWrapper(dxrt::IPCDefaultType()), _devices(devices_)  // NOSONAR:S3220 because IPCServerWrapper is not copyable
 {
     switch (scheduler_option)
     {
@@ -129,14 +138,13 @@ DxrtService::DxrtService(std::vector<std::shared_ptr<dxrt::ServiceDevice> > devi
         case DXRT_Schedule::SJF:
             _scheduler = make_shared<SJFSchedulerService>(devices_);
             break;
-        case DXRT_Schedule::FIFO:
-        default:
+        default: // DXRT_Schedule::FIFO
             _scheduler = make_shared<FIFOSchedulerService>(devices_);
             break;
     }
 
 
-    for (auto& device : _devices)
+    for (const auto& device : _devices)
     {
         int id = device->id();
         _devices[id]->Process(dxrt::dxrt_cmd_t::DXRT_CMD_RECOVERY, nullptr);
@@ -145,8 +153,13 @@ DxrtService::DxrtService(std::vector<std::shared_ptr<dxrt::ServiceDevice> > devi
         device->SetCallback([id, this](const dxrt::dxrt_response_t& resp_) {
             _scheduler->FinishJobs(id, resp_);
         });
-        device->SetErrorCallback([id, this](dxrt::dxrt_server_err_t err, uint32_t errCode, int deviceId) {
+        device->SetErrorCallback([this](dxrt::dxrt_server_err_t err, uint32_t errCode, int deviceId) {
             ErrorBroadCastToClient(err, errCode, deviceId);
+            _devices[deviceId]->Process(dxrt::dxrt_cmd_t::DXRT_CMD_RECOVERY, nullptr);
+            DXRT_ASSERT(false, "Device error occurred, attempted recovery");
+        });
+        device->SetRecoveryCallback([this](dxrt::dxrt_server_err_t err, uint32_t errCode, int deviceId) {
+            RecoveryBroadcastAndWait(err, errCode, deviceId);
         });
     }
     LOG_DXRT_S << "Initialized Devices count=" << _devices.size() << std::endl;
@@ -157,6 +170,8 @@ DxrtService::DxrtService(std::vector<std::shared_ptr<dxrt::ServiceDevice> > devi
     });
     _scheduler->SetErrorCallback([this](dxrt::dxrt_server_err_t err, uint32_t errCode, int deviceId) {
         ErrorBroadCastToClient(err, errCode, deviceId);
+        _devices[deviceId]->Process(dxrt::dxrt_cmd_t::DXRT_CMD_RECOVERY, nullptr);
+        DXRT_ASSERT(false, "Device error occurred, attempted recovery");
     });
 
     // Task validity verification callback
@@ -190,7 +205,7 @@ DxrtService::DxrtService(std::vector<std::shared_ptr<dxrt::ServiceDevice> > devi
         size_t ppuDataSize = dxrt::PPCPUDataLoader::GetDataSize();
         LOG_DXRT_S << "Loading PPCPU Firmware for devices, Size: " << ppuDataSize << " bytes" << std::endl;
 
-        for (auto& device : _devices)
+        for (const auto& device : _devices)
         {
             int id = device->id();
             auto memService = dxrt::MemoryService::getInstance(id);
@@ -214,7 +229,7 @@ DxrtService::DxrtService(DXRT_Schedule scheduler_option)
 
 }
 
-static std::atomic<int> chLoad{0};
+static std::atomic<int> chLoad{0};  // NOSONAR
 dxrt::RESPONSE_CODE get_ch() {
     int chno = chLoad.load();
     chno %= 3;
@@ -244,12 +259,99 @@ void DxrtService::ErrorBroadCastToClient(dxrt::dxrt_server_err_t err, uint32_t e
     }
 }
 
+void DxrtService::WaitForAllClientsDead(int timeoutMs)
+{
+    constexpr int pollIntervalMs = 50;
+    int elapsed = 0;
+
+    while (elapsed < timeoutMs)
+    {
+        std::vector<pid_t> pids;
+        {
+            std::lock_guard<std::mutex> lk(_pidSetMutex);
+            std::copy(_pid_set.begin(), _pid_set.end(), std::back_inserter(pids));
+        }
+
+        if (pids.empty())
+        {
+            LOG_DXRT_S << "All client processes have terminated." << std::endl;
+            return;
+        }
+
+        // Remove already-dead PIDs
+        std::vector<pid_t> alive;
+        for (auto pid : pids)
+        {
+            if (IsProcessRunning(pid))
+            {
+                alive.push_back(pid);
+            }
+            else
+            {
+                std::lock_guard<std::mutex> lk(_pidSetMutex);
+                _pid_set.erase(pid);
+            }
+        }
+
+        if (alive.empty())
+        {
+            LOG_DXRT_S << "All client processes have terminated." << std::endl;
+            return;
+        }
+
+        LOG_DXRT_S << "Waiting for " << alive.size() << " client(s) to terminate ("
+                    << elapsed << "ms / " << timeoutMs << "ms)..." << std::endl;
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(pollIntervalMs));
+        elapsed += pollIntervalMs;
+    }
+
+    // Timeout — force-kill remaining clients
+    std::vector<pid_t> remaining;
+    {
+        std::lock_guard<std::mutex> lk(_pidSetMutex);
+        std::copy(_pid_set.begin(), _pid_set.end(), std::back_inserter(remaining));
+    }
+
+    for (auto pid : remaining)
+    {
+        if (IsProcessRunning(pid))
+        {
+            LOG_DXRT_S_ERR("Client PID " + std::to_string(pid)
+                + " did not terminate within " + std::to_string(timeoutMs)
+                + "ms. Sending SIGKILL.");
+            kill(pid, SIGKILL);
+        }
+    }
+
+    // Brief wait for SIGKILL to take effect
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    LOG_DXRT_S << "Force-killed remaining clients after timeout." << std::endl;
+}
+
+void DxrtService::RecoveryBroadcastAndWait(dxrt::dxrt_server_err_t err, uint32_t errCode, int deviceId)
+{
+    // 1. Block new client requests
+    _recoveryInProgress.store(true);
+
+    // 2. Broadcast error to all clients — they should std::_Exit()
+    LOG_DXRT_S << "Recovery: broadcasting error to all clients (errCode="
+               << errCode << ", deviceId=" << deviceId << ")." << std::endl;
+    ErrorBroadCastToClient(err, errCode, deviceId);
+
+    // 3. Wait for all clients to die (10 second timeout, then SIGKILL)
+    constexpr int kRecoveryWaitTimeoutMs = 10000;
+    WaitForAllClientsDead(kRecoveryWaitTimeoutMs);
+
+    LOG_DXRT_S << "All clients terminated. Proceeding with device recovery." << std::endl;
+}
+
 bool DxrtService::HandleTaskInit(const dxrt::IPCClientMessage& clientMessage)
 {
     pid_t pid = clientMessage.pid;
-    int deviceId = clientMessage.deviceId;
-    int taskId = clientMessage.taskId;
-    int bound = clientMessage.data;
+    auto deviceId = static_cast<int>(clientMessage.deviceId);
+    auto taskId = clientMessage.taskId;
+    auto bound = static_cast<int>(clientMessage.data);
     uint64_t modelMemorySize = clientMessage.modelMemorySize;
     bool result = TaskInit(pid, deviceId, taskId, bound, modelMemorySize);
     if (result == true)
@@ -259,11 +361,11 @@ bool DxrtService::HandleTaskInit(const dxrt::IPCClientMessage& clientMessage)
 void DxrtService::HandleTaskDeInit(const dxrt::IPCClientMessage& clientMessage)
 {
     pid_t pid = clientMessage.pid;
-    int deviceId = clientMessage.deviceId;
-    int taskId = clientMessage.taskId;
+    auto deviceId = static_cast<int>(clientMessage.deviceId);
+    auto taskId = clientMessage.taskId;
 
 #ifndef DXRT_SERVICE_SIMPLE_CONSOLE_LOG
-    int bound = clientMessage.data;
+    auto bound = static_cast<int>(clientMessage.data);
     LOG_DXRT_S << "Task DeInit - DevId: " << deviceId << ", TaskId: " << taskId
                 << ", PID: " << pid << ", Bound: " << bound << endl;
 #endif
@@ -333,7 +435,7 @@ bool DxrtService::TaskInit(pid_t pid, int deviceId, int taskId, int bound, uint6
         auto it = _infoMap.find(make_pair(pid, deviceId));
         if (it != _infoMap.end())
         {
-            auto& pick = it->second;
+            const auto& pick = it->second;
             if (pick.hasTask(taskId))
             {
                 LOG_DXRT_S_ERR("Task " + std::to_string(taskId) + " already exists for PID " +
@@ -362,6 +464,17 @@ bool DxrtService::TaskInit(pid_t pid, int deviceId, int taskId, int bound, uint6
 
 
         auto targetDevice = _devices[deviceId];
+        if (targetDevice->CanAcceptBound(static_cast<dxrt::npu_bound_op>(bound)) == false) {
+            LOG_DXRT_S_ERR("Device " + std::to_string(deviceId) + " cannot accept more bound options, failed to initialize Task " + std::to_string(taskId));
+            // Rollback task info insertion
+            std::lock_guard<std::mutex> infoLock(_infoMapMutex);
+            auto it = _infoMap.find(make_pair(pid, deviceId));
+            if (it != _infoMap.end()) {
+                it->second.deleteTaskFromMap(taskId);
+            }
+            return false;
+        }
+
         int ret = targetDevice->AddBound(static_cast<dxrt::npu_bound_op>(bound));
         if (ret != 0) {
             LOG_DXRT_S_ERR("Failed to set NPU bound " + std::to_string(bound) +
@@ -427,7 +540,7 @@ void DxrtService::TaskDeInit(int deviceId, int taskId, int pid)
     {
         std::lock_guard<std::mutex> lock(_deviceMutex);
         auto targetDevice = _devices[deviceId];
-        int ret = targetDevice->DeleteBound(static_cast<dxrt::npu_bound_op>(bound));
+        int ret = targetDevice->DeleteBound(bound);
         if (ret == 0) {
 #ifndef DXRT_SERVICE_SIMPLE_CONSOLE_LOG
             LOG_DXRT_S << "Released NPU bound " << bound << " from device " << deviceId;
@@ -476,7 +589,7 @@ void DxrtService::TaskAbnormalDeInit(int deviceId, int taskId, int pid)
     // 1. Wait for all running requests to complete
     int runningCount = _scheduler->GetRunningRequestCount(pid, deviceId);
     if (runningCount > 0) {
-        const int MAX_WAIT_MS = runningCount * 10000;  // running count * 10 seconds
+        const int MAX_WAIT_MS = 2000;  // 2 seconds
         const int CHECK_INTERVAL_MS = 50;              // Check every 50ms
         int waited_ms = 0;
 
@@ -519,6 +632,9 @@ void DxrtService::TaskAbnormalDeInit(int deviceId, int taskId, int pid)
         if (waited_ms >= MAX_WAIT_MS) {
             LOG_DXRT_S_ERR("Timeout waiting for running requests after "
                            + std::to_string(MAX_WAIT_MS) + "ms, forcing cleanup");
+            ErrorBroadCastToClient(dxrt::dxrt_server_err_t::S_ERR_NEED_DEV_RECOVERY, -1, deviceId);
+            _devices[deviceId]->Process(dxrt::dxrt_cmd_t::DXRT_CMD_RECOVERY, nullptr);
+            DXRT_ASSERT(false, "Device error occurred, attempted recovery");
         }
     }
 
@@ -546,7 +662,7 @@ void DxrtService::TaskAbnormalDeInit(int deviceId, int taskId, int pid)
     {
         std::lock_guard<std::mutex> lock(_deviceMutex);
         auto targetDevice = _devices[deviceId];
-        int ret = targetDevice->DeleteBound(static_cast<dxrt::npu_bound_op>(bound));
+        int ret = targetDevice->DeleteBound(bound);
         if (ret == 0) {
 #ifndef DXRT_SERVICE_SIMPLE_CONSOLE_LOG
             LOG_DXRT_S << "Released NPU bound " << bound << " from device " << deviceId;
@@ -608,6 +724,7 @@ bool DxrtService::HandleRequestScheduledInference(const dxrt::IPCClientMessage& 
         }
 
         int registeredBound = it->second.getTaskBound(taskId);
+        std::ignore = registeredBound;  // To avoid unused variable warning if debug log is disabled
 
         LOG_DXRT_S_DBG << "[HandleRequestScheduledInference] Registered Bound in _infoMap: "
                    << registeredBound << endl;
@@ -637,7 +754,7 @@ bool DxrtService::HandleRequestScheduledInference(const dxrt::IPCClientMessage& 
     // Check if device is blocked before adding to scheduler
     {
         std::lock_guard<std::mutex> lock(_deviceMutex);
-        if (static_cast<uint32_t>(clientMessage.deviceId) < _devices.size() && _devices[clientMessage.deviceId]->isBlocked()) {
+        if (clientMessage.deviceId < _devices.size() && _devices[clientMessage.deviceId]->isBlocked()) {
             LOG_DXRT_S_ERR("Device " + std::to_string(clientMessage.deviceId) + " is blocked, rejecting inference request");
             dxrt::dxrt_response_t resp{};
             resp.req_id = clientMessage.npu_acc.req_id;
@@ -653,7 +770,7 @@ bool DxrtService::HandleRequestScheduledInference(const dxrt::IPCClientMessage& 
     _scheduler->AddScheduler(clientMessage.npu_acc, clientMessage.deviceId);
     return true;
 }
-dxrt::IPCServerMessage DxrtService::HandleClose(const dxrt::IPCClientMessage& clientMessage)
+dxrt::IPCServerMessage DxrtService::HandleClose(const dxrt::IPCClientMessage& clientMessage) const
 {
     dxrt::IPCServerMessage retMsg;
     dxrt::MemoryService::DeallocateAllDevice(clientMessage.pid);
@@ -718,7 +835,7 @@ dxrt::IPCServerMessage DxrtService::HandleGetMemoryForModel(const dxrt::IPCClien
     }
     return retMsg;
 }
-dxrt::IPCServerMessage DxrtService::HandleFreeMemory(const dxrt::IPCClientMessage& clientMessage)
+dxrt::IPCServerMessage DxrtService::HandleFreeMemory(const dxrt::IPCClientMessage& clientMessage) const
 {
     dxrt::IPCServerMessage retMsg;
     uint64_t address = clientMessage.data;
@@ -735,7 +852,7 @@ void DxrtService::HandleDeviceInit(const dxrt::IPCClientMessage& clientMessage)
 {
     pid_t pid = clientMessage.pid;
     int deviceId = clientMessage.deviceId;
-    int bound = clientMessage.data;
+    auto bound = static_cast<int>(clientMessage.data);
     dxrt::dxrt_custom_weight_info_t info;
     info.address = clientMessage.npu_acc.datas[0];
     info.size = clientMessage.npu_acc.datas[1];
@@ -755,7 +872,7 @@ void DxrtService::HandleDeviceDeInit(const dxrt::IPCClientMessage& clientMessage
 {
     pid_t pid = clientMessage.pid;
     int deviceId = clientMessage.deviceId;
-    int bound = clientMessage.data;
+    auto bound = static_cast<int>(clientMessage.data);
     dxrt::dxrt_custom_weight_info_t info;
     info.address = clientMessage.npu_acc.datas[0];
     info.size = clientMessage.npu_acc.datas[1];
@@ -773,7 +890,7 @@ void DxrtService::HandleDeviceDeInit(const dxrt::IPCClientMessage& clientMessage
     DeInitDevice(deviceId, static_cast<dxrt::npu_bound_op>(bound));
 }
 
-dxrt::IPCServerMessage DxrtService::HandleViewMemory(const dxrt::IPCClientMessage& clientMessage)
+dxrt::IPCServerMessage DxrtService::HandleViewMemory(const dxrt::IPCClientMessage& clientMessage) const
 {
     dxrt::IPCServerMessage retMsg;
     const dxrt::MemoryService* instance = dxrt::MemoryService::getInstance(clientMessage.deviceId);
@@ -809,14 +926,14 @@ dxrt::IPCServerMessage DxrtService::HandleViewMemory(const dxrt::IPCClientMessag
     retMsg.msgType = clientMessage.msgType;
     return retMsg;
 }
-dxrt::IPCServerMessage DxrtService::HandleViewAvailableDevice(const dxrt::IPCClientMessage& clientMessage)
+dxrt::IPCServerMessage DxrtService::HandleViewAvailableDevice(const dxrt::IPCClientMessage& clientMessage) const
 {
     dxrt::IPCServerMessage retMsg;
     uint64_t result = 0;
     uint64_t mask = 1;
-    for (size_t i = 0; i < _devices.size(); i++)
+    for (const auto& device : _devices)
     {
-        if (_devices[i]->isBlocked() == false)
+        if (device->isBlocked() == false)
         {
             result |= mask;
         }
@@ -830,12 +947,12 @@ dxrt::IPCServerMessage DxrtService::HandleViewAvailableDevice(const dxrt::IPCCli
     retMsg.msgType = clientMessage.msgType;
     return retMsg;
 }
-dxrt::IPCServerMessage DxrtService::HandleGetUsage(const dxrt::IPCClientMessage& clientMessage)
+dxrt::IPCServerMessage DxrtService::HandleGetUsage(const dxrt::IPCClientMessage& clientMessage) const
 {
     dxrt::IPCServerMessage retMsg;
-    double result = _devices[clientMessage.deviceId]->getUsage(clientMessage.data);
+    double result = _devices[clientMessage.deviceId]->getUsage(static_cast<int>(clientMessage.data));
     retMsg.code = dxrt::RESPONSE_CODE::GET_USAGE_RESULT;
-    retMsg.data = result * 1000;
+    retMsg.data = static_cast<uint64_t>(result * 1000.0);
     retMsg.result = 0;
 
     retMsg.deviceId = clientMessage.deviceId;
@@ -957,15 +1074,28 @@ void DxrtService::HandleProcessDeInit(const dxrt::IPCClientMessage& clientMessag
 void DxrtService::Process(const dxrt::IPCClientMessage& clientMessage)
 {
     dxrt::IPCServerMessage serverMessage;
-    // auto requestId = clientMessage.data;
 
     pid_t pid = clientMessage.pid;
     dxrt::REQUEST_CODE code = clientMessage.code;
 
+    // Reject all requests during recovery
+    if (_recoveryInProgress.load())
+    {
+        LOG_DXRT_S_ERR("Recovery in progress: rejecting request code="
+            + std::to_string(static_cast<uint32_t>(code))
+            + " from PID " + std::to_string(pid));
+        dxrt::IPCServerMessage errMsg{};
+        errMsg.msgType = clientMessage.msgType;
+        errMsg.code = dxrt::RESPONSE_CODE::ERROR_REPORT;
+        errMsg.result = static_cast<uint32_t>(-1);
+        _ipcServerWrapper.SendToClient(errMsg);
+        return;
+    }
+
     {
         serverMessage.msgType = clientMessage.msgType;
         // Enhanced message validation
-        uint32_t codeValue = static_cast<uint32_t>(code);
+        auto codeValue = static_cast<uint32_t>(code);
         if (codeValue > 10000) {  // Sanity check for obviously invalid codes
             LOG_DXRT_S_ERR("Invalid REQUEST_CODE received: " + std::to_string(codeValue) +
                         " from PID: " + std::to_string(pid) +
@@ -1025,7 +1155,18 @@ void DxrtService::Process(const dxrt::IPCClientMessage& clientMessage)
         }
         case dxrt::REQUEST_CODE::TASK_INIT: {
             bool result = HandleTaskInit(clientMessage);
-            if (result == false) return;
+            if (result == false)
+            {
+                serverMessage.code = dxrt::RESPONSE_CODE::TASK_INIT_FAILED;
+                serverMessage.msgType = clientMessage.msgType;
+                serverMessage.result = static_cast<uint32_t>(-1);
+            }
+            else
+            {
+                serverMessage.code = dxrt::RESPONSE_CODE::TASK_INIT_SUCCESS;
+                serverMessage.msgType = clientMessage.msgType;
+                serverMessage.result = 0;
+            }
             break;
         }
         case dxrt::REQUEST_CODE::TASK_DEINIT: {
@@ -1070,7 +1211,7 @@ void DxrtService::Process(const dxrt::IPCClientMessage& clientMessage)
     _ipcServerWrapper.SendToClient(serverMessage);
 }
 
-void DxrtService::onCompleteInference(const dxrt::dxrt_response_t& response, int deviceId)
+void DxrtService::onCompleteInference(const dxrt::dxrt_response_t& response, int deviceId)  // NOSONAR:S5817 false positive
 {
 
     dxrt::IPCServerMessage serverMessage{};
@@ -1153,13 +1294,13 @@ bool DxrtService::IsTaskValidNoMessage(pid_t pid, int deviceId, int taskId)
 }
 
 
-void DxrtService::ClearResidualIPCMessages()
+void DxrtService::ClearResidualIPCMessages() const
 {
     LOG_DXRT_S << "Clearing residual IPC messages from previous sessions..." << endl;
     LOG_DXRT_S_DBG << "IPC message queue cleanup will be handled by IPC system" << endl;
 }
 
-void DxrtService::PrintManagedTasks()
+void DxrtService::PrintManagedTasks() const
 {
 #ifndef DXRT_SERVICE_SIMPLE_CONSOLE_LOG
     std::lock_guard<std::mutex> lock(_infoMapMutex);
@@ -1199,7 +1340,7 @@ void DxrtService::PrintManagedTasks()
 #endif
 }
 
-void DxrtService::dequeueAllClientMessageQueue(long msgType)
+void DxrtService::dequeueAllClientMessageQueue(long msgType) const
 {
     dxrt::IPCClientWrapper clientWrapper(dxrt::IPCDefaultType(), msgType);
     clientWrapper.ClearMessages();  // clear remained messages
@@ -1210,10 +1351,10 @@ int DxrtService::GetDeviceIdByProcId(int procId)
 {
     std::lock_guard<std::mutex> lock(_infoMapMutex);
     int deviceId = -1;
-    for (auto it = _infoMap.begin(); it != _infoMap.end(); it++)
+    for (const auto& info :  _infoMap)
     {
-        int pid = it->first.first;
-        int deviceIdValue = it->first.second;
+        int pid = info.first.first;
+        int deviceIdValue = info.first.second;
         if (pid == procId)
         {
             deviceId = deviceIdValue;
@@ -1236,13 +1377,12 @@ void DxrtService::InitDevice(int devId, dxrt::npu_bound_op bound)
         return;
     }
 
-    ret = _devices[devId]->AddBound(static_cast<dxrt::npu_bound_op>(bound));
+    ret = _devices[devId]->AddBound(bound);
     if (ret != 0)
     {
         LOG_DXRT_S_ERR("Failed to add bound " + std::to_string(bound) + " to device " + std::to_string(devId) + ", ret: " + std::to_string(ret));
         ErrorBroadCastToClient(dxrt::dxrt_server_err_t::S_ERR_SERVICE_DEV_BOUND_ERR, ret, devId);
     }
-    // DXRT_ASSERT(ret==0, "failed to apply bound option to device");
 }
 
 void DxrtService::DeInitDevice(int devId, dxrt::npu_bound_op bound)
@@ -1253,7 +1393,7 @@ void DxrtService::DeInitDevice(int devId, dxrt::npu_bound_op bound)
     LOG_DXRT_S << "DevId : " << devId << ", delete bound : " << bound << endl;
 #endif
     std::lock_guard<std::mutex> lock(_deviceMutex);
-    ret = _devices[devId]->DeleteBound(static_cast<dxrt::npu_bound_op>(bound));
+    ret = _devices[devId]->DeleteBound(bound);
     if (ret != 0)
     {
         ErrorBroadCastToClient(dxrt::dxrt_server_err_t::S_ERR_SERVICE_DEV_BOUND_ERR, ret, devId);
@@ -1262,7 +1402,7 @@ void DxrtService::DeInitDevice(int devId, dxrt::npu_bound_op bound)
 
 #define DXRT_S_DEV_CLR_TIMEOUT_MS     (600)
 #define DXRT_S_DEV_CLR_TIMEOUT_CNT    (3)
-/*
+#if 0
 long DxrtService::ClearDevice(int procId)
 {
     LOG_DXRT_S_DBG << endl;
@@ -1322,7 +1462,7 @@ long DxrtService::ClearDevice(int procId)
     }
     // no need to return since all block has return
 }
-*/
+#endif
 #ifdef __linux__
 static bool IsProcessRunning(pid_t procId)
 {
@@ -1467,7 +1607,8 @@ void DxrtService::handle_process_die(pid_t procId)
     _scheduler->cleanDiedProcess(procId);
     _scheduler->ClearProcLoad(procId);
 
-    /* Below Recovery concept should be re-considered
+#if 0
+    // Below Recovery concept should be re-considered
     {
         std::future<long> result = std::async(std::launch::async, &DxrtService::ClearDevice, this, procId);
         long errCode = result.get();
@@ -1482,12 +1623,14 @@ void DxrtService::handle_process_die(pid_t procId)
             else
                 ErrorBroadCastToClient(dxrt::dxrt_server_err_t::S_ERR_SERVICE_UNKNOWN_ERR, errCode, -1);
         }
-    } */
+    }
+#endif
 #ifndef DXRT_SERVICE_SIMPLE_CONSOLE_LOG
     LOG_DXRT_S << "Process " << procId << ": Cleanup completed" << endl;
 #endif
 }
 
+[[noreturn]]
 void DxrtService::die_check_thread()
 {
     LOG_DXRT_S << "Started client process status check thread" << std::endl;
@@ -1548,14 +1691,15 @@ void DxrtService::die_check_thread()
     }
 }
 
-void DxrtService::Dispose()
+void DxrtService::Dispose()  // NOSONAR:S5817 false positive
 {
     _ipcServerWrapper.Close();
 }
 
 
-static DxrtService* service_dispose;
+static DxrtService* service_dispose;  // NOSONAR
 
+[[noreturn]]
 void signalHandler(int signalno)
 {
     std::ignore = signalno;
@@ -1564,7 +1708,7 @@ void signalHandler(int signalno)
 }
 
 
-int DXRT_API dxrt_service_main(int argc, char* argv[])
+int DXRT_API dxrt_service_main(int argc, char* argv[])  // NOSONAR:S5945
 {
     cxxopts::Options options("dxrtd", "dxrtd");
     std::string scheduler_option_str;
@@ -1617,7 +1761,7 @@ int DXRT_API dxrt_service_main(int argc, char* argv[])
     while (true)
     {
         dxrt::IPCClientMessage clientMessage;
-        service._ipcServerWrapper.ReceiveFromClient(clientMessage);
+        service.ReceiveFromClient(clientMessage);
 
         if ( clientMessage.code != dxrt::REQUEST_CODE::CLOSE )
         {
@@ -1630,11 +1774,14 @@ int DXRT_API dxrt_service_main(int argc, char* argv[])
     // not implemented
 #endif
 
+#if 0  // unreachable code
 
     // singleton cleanup
-    // dxrt::Scheduler::GetInstance().Cleanup();
-    // dxrt::MemoryManager::GetInstance().Cleanup();
-    // dxrt::DeviceStatus::GetInstance().Cleanup();
+    dxrt::Scheduler::GetInstance().Cleanup();
+    dxrt::MemoryManager::GetInstance().Cleanup();
+    dxrt::DeviceStatus::GetInstance().Cleanup();
 
-    //return 0;
+    return 0;
+#endif
+
 }

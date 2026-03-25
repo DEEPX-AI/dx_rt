@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -14,22 +14,22 @@
 namespace dxrt {
 
     std::string LogMessages::NotSupported_ModelCompilerVersion(
-        const std::string& currentCompilerVersion, 
+        const std::string& currentCompilerVersion,
         const std::string& requiredCompilerVersion)
     {
-        return "The model's compiler version(" 
+        return "The model's compiler version("
             + currentCompilerVersion
-            + ") is not compatible in this RT library.\nPlease use a model file generated with a compiler version " 
+            + ") is not compatible in this RT library.\nPlease use a model file generated with a compiler version "
             + requiredCompilerVersion
             + " or higher.";
     }
 
     std::string LogMessages::NotSupported_ModelFileFormatVersion(
-        int currentFileFormatVersion, 
+        int currentFileFormatVersion,
         int requiredFileFormatMinVersion,
         int requiredFileFormatMaxVersion)
     {
-        return 
+        return
                 "Model file format version "
                 + std::to_string(currentFileFormatVersion)
                 + " is not supported.\nPlease use model file version between "
@@ -41,11 +41,9 @@ namespace dxrt {
 
     std::string LogMessages::ConvertIntToVersion(int version)
     {
-
         std::string strValue = std::to_string(version);
-        //std::cout << strValue << std::endl;
 
-        if ( strValue.length() >= 3 ) 
+        if ( strValue.length() >= 3 )
         {
             std::string strVersion = "";
             strVersion += strValue[0];
@@ -73,34 +71,34 @@ namespace dxrt {
 
     std::string LogMessages::NotSupported_DeviceDriverVersion(int currentDriverVersion, int requiredDriverVersion)
     {
-        
-        return 
-            "The current device driver version is " 
-            + ConvertIntToVersion(currentDriverVersion) 
-            + ".\nPlease update your device driver to version " 
-            + ConvertIntToVersion(requiredDriverVersion) 
+
+        return
+            "The current device driver version is "
+            + ConvertIntToVersion(currentDriverVersion)
+            + ".\nPlease update your device driver to version "
+            + ConvertIntToVersion(requiredDriverVersion)
             + " or higher.";
-            
+
     }
 
     std::string LogMessages::NotSupported_PCIEDriverVersion(int currentDriverVersion, int requiredDriverVersion)
     {
-        
-        return 
-            "The current pcie driver version is " 
-            + ConvertIntToVersion(currentDriverVersion) 
-            + ".\nPlease update your pcie driver to version " 
-            + ConvertIntToVersion(requiredDriverVersion) 
+
+        return
+            "The current pcie driver version is "
+            + ConvertIntToVersion(currentDriverVersion)
+            + ".\nPlease update your pcie driver to version "
+            + ConvertIntToVersion(requiredDriverVersion)
             + " or higher.";
     }
 
     std::string LogMessages::NotSupported_FirmwareVersion(int currentVersion, int requiredVersion)
     {
-        return 
-            "The current firmware version is " 
-            + ConvertIntToVersion(currentVersion) 
-            + ".\nPlease update your firmware to version " 
-            + ConvertIntToVersion(requiredVersion) 
+        return
+            "The current firmware version is "
+            + ConvertIntToVersion(currentVersion)
+            + ".\nPlease update your firmware to version "
+            + ConvertIntToVersion(requiredVersion)
             + " or higher.";
     }
 
@@ -126,11 +124,11 @@ namespace dxrt {
     std::string LogMessages::NotSupported_ONNXRuntimeVersion(const std::string& currentVersion, const std::string& requiredVersion)
     {
 
-        return 
-            "The current ONNX Runtime version is " 
+        return
+            "The current ONNX Runtime version is "
             + currentVersion
-            + ".\nPlease update your ONNX Runtime to version " 
-            + requiredVersion 
+            + ".\nPlease update your ONNX Runtime to version "
+            + requiredVersion
             + " or higher.";
     }
 
@@ -156,14 +154,14 @@ namespace dxrt {
 
     std::string LogMessages::CPUHandle_InputTensorCountMismatch(int currentCount, int expectedCount)
     {
-    
+
         return "Input tensor count mismatch: expected " + std::to_string(expectedCount)
                     + ", got " + std::to_string(currentCount);
     }
 
     std::string LogMessages::CPUHandle_OutputTensorCountMismatch(int currentCount, int expectedCount)
     {
-    
+
         return "Output tensor count mismatch: expected " + std::to_string(expectedCount)
                     + ", got " + std::to_string(currentCount);
     }
@@ -231,7 +229,7 @@ namespace dxrt {
 
     std::string LogMessages::Profiler_MemoryUsage(uint64_t current_memory)
     {
-        return "Profiler warning: Using over " + std::to_string(current_memory/1024/1024) + "MB for profiling data"; 
+        return "Profiler warning: Using over " + std::to_string(current_memory/1024/1024) + "MB for profiling data";
     }
 
     std::string LogMessages::Device_FailToInitialize(int id)
@@ -246,8 +244,8 @@ namespace dxrt {
 
     std::string LogMessages::RuntimeDispatch_FailToReadOutput(int errorCode, int requestId, int channelId)
     {
-        return "Fail to read output, errno=" + std::to_string(errorCode) 
-                + ", reqId=" + std::to_string(requestId) 
+        return "Fail to read output, errno=" + std::to_string(errorCode)
+                + ", reqId=" + std::to_string(requestId)
                 + ", ch:" + std::to_string(channelId);
     }
 
@@ -286,6 +284,44 @@ namespace dxrt {
     std::string LogMessages::RuntimeDispatch_ThrottlingEmergency(int deviceId, int npuId, const std::string& emergencyCodeStr)
     {
         return "Throttling emergency occurred: Device-ID=" + std::to_string(deviceId) + " NPU-ID=" + std::to_string(npuId) + ". " + emergencyCodeStr;
+    }
+
+    std::string LogMessages::RuntimeDispatch_DmaAbort(int deviceId, int channel, uint32_t errStatus)
+    {
+        char buf[64];   // NOSONAR
+        snprintf(buf, sizeof(buf), "0x%08x", errStatus);
+        return "DMA HW Abort: Device-ID=" + std::to_string(deviceId)
+            + " Channel=" + std::to_string(channel)
+            + " err_status=" + std::string(buf);
+    }
+
+    std::string LogMessages::RuntimeDispatch_DmaFail(int deviceId, int channel, uint32_t errStatus)
+    {
+        char buf[64];  // NOSONAR
+        snprintf(buf, sizeof(buf), "0x%08x", errStatus);
+        return "DMA Completion Failure: Device-ID=" + std::to_string(deviceId)
+            + " Channel=" + std::to_string(channel)
+            + " err_status=" + std::string(buf);
+    }
+
+    std::string LogMessages::RuntimeDispatch_FwTimeout(int deviceId)
+    {
+        return "Firmware Timeout: Device-ID=" + std::to_string(deviceId);
+    }
+
+    std::string LogMessages::RuntimeDispatch_RecoveryStarted(int deviceId)
+    {
+        return "DMA Abort Recovery started: Device-ID=" + std::to_string(deviceId);
+    }
+
+    std::string LogMessages::RuntimeDispatch_RecoveryCompleted(int deviceId)
+    {
+        return "DMA Abort Recovery completed: Device-ID=" + std::to_string(deviceId);
+    }
+
+    std::string LogMessages::RuntimeDispatch_RecoveryFailed(int deviceId, const std::string& reason)
+    {
+        return "DMA Abort Recovery failed: Device-ID=" + std::to_string(deviceId) + " Reason=" + reason;
     }
 
 } // namespace dxrt

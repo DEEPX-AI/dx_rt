@@ -223,6 +223,10 @@ if(ENABLE_SHOW_MODEL_INFO)
     add_definitions(-DSHOW_MODEL_INFO_DEFINE)
 endif()
 
+if(USE_VNPU)
+    add_definitions(-DUSE_VNPU)
+endif()
+
 #if(MSVC)
     #include_directories("C:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared")
 #endif()

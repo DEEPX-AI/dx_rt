@@ -41,6 +41,8 @@ class ObjectsPool
     // Delete copy constructor and assignment operator
     ObjectsPool(const ObjectsPool&) = delete;
     ObjectsPool& operator=(const ObjectsPool&) = delete;
+    ObjectsPool(ObjectsPool&&) = delete;
+    ObjectsPool& operator=(ObjectsPool&&) = delete;
 
 
     void makeDeviceList();
@@ -49,7 +51,6 @@ class ObjectsPool
 
     // member variable
     std::shared_ptr<CircularDataPool<Request> > _requestPool;
-    //std::vector<std::shared_ptr<Device> > _devices;
     std::shared_ptr<MultiprocessMemory> _multiProcessMemory;
     std::once_flag _initDevicesOnceFlag;
 
@@ -63,13 +64,10 @@ class ObjectsPool
     // member functions
     static ObjectsPool& GetInstance();
 
-    RequestPtr PickRequest();  // new one
-    RequestPtr GetRequestById(int id);  // find one by id
+    RequestPtr PickRequest() const; // new one
+    RequestPtr GetRequestById(int id) const;  // find one by id
 
-
-    //DevicePtr GetDevice(int id);
-
-    MultiprocessMemoryPtr GetMultiProcessMemory();
+    MultiprocessMemoryPtr GetMultiProcessMemory() const;
 
 
 

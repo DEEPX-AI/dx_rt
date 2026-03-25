@@ -51,7 +51,7 @@
 
 using std::endl;
 
-#define MINIMUM_ORT_VERSION "1.20.0"
+static const char* const MINIMUM_ORT_VERSION = "1.20.0";
 
 namespace dxrt
 {
@@ -87,14 +87,6 @@ DataType convertDataType(ONNXTensorElementDataType dataType)
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32: return DataType::INT32;
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64: return DataType::INT64;
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT64: return DataType::UINT64;
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_STRING:
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL:
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16:
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE:
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX64:
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX128:
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_BFLOAT16:
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_UNDEFINED:
         default:
             return DataType::NONE_TYPE;
     }
@@ -127,14 +119,6 @@ size_t convertElementSize(ONNXTensorElementDataType dataType)
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32: return sizeof(int32_t);
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64: return sizeof(int64_t);
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT64: return sizeof(uint64_t);
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_STRING:
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL:
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16:
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE:
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX64:
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX128:
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_BFLOAT16:
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_UNDEFINED:
         default:
             return 0;
     }
@@ -144,7 +128,8 @@ std::pair<int, int> verson_parse(const string& str)
 {
     std::stringstream vs(str);
     char dot = '.';
-    int major = 0, minor = 0;
+    int major = 0;
+    int minor = 0;
     vs >> major >> dot >> minor;
     return std::make_pair(major, minor);
 }
@@ -157,7 +142,7 @@ bool version_check()
 }
 
 
-CpuHandle::CpuHandle(void* data_, int64_t size_, string name_, size_t device_num_, int buffer_count_)
+CpuHandle::CpuHandle(const void* data_, int64_t size_, const string& name_, size_t device_num_, int buffer_count_) // NOSONAR
 : _name(name_), _device_num(device_num_), _bufferCount(buffer_count_)
 {
     if (version_check() == false)
@@ -170,21 +155,44 @@ CpuHandle::CpuHandle(void* data_, int64_t size_, string name_, size_t device_num
     _modelData.resize(size_);
     std::memcpy(_modelData.data(), data_, size_);
 
-    // _env = Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_VERBOSE, "dxrt cpu handle");
-    // _env = Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_INFO, "dxrt cpu handle");
+
+
     _env = Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_INFO);
     /* Graph Optimization Level
     ORT_DISABLE_ALL = 0,
     ORT_ENABLE_BASIC = 1,
     ORT_ENABLE_EXTENDED = 2,
     ORT_ENABLE_ALL = 99 */
+
+    // Check whether CPU acceleration is enabled
+    bool enable_cpu_acceleration = false;
+#ifdef FORCE_CPU_TASK_ACCELERATION
+    enable_cpu_acceleration = true;
+#else
+    enable_cpu_acceleration = Configuration::GetInstance().IsCpuOpAccelerationEnabled();
+#endif
+
+    if (enable_cpu_acceleration) 
+    {
+#ifdef USE_OPENVINO
+        std::unordered_map<std::string, std::string> options;
+        options["device_type"] = "CPU";
+        _sessionOptions.AppendExecutionProvider_OpenVINO_V2(options);
+        LOG_DXRT_DBG << "OpenVINO EP enabled for CPU acceleration" << std::endl;
+#elif defined(USE_XNNPACK)
+        _sessionOptions.AppendExecutionProvider("XNNPACK");
+        LOG_DXRT_DBG << "XNNPACK EP enabled for CPU acceleration" << std::endl;
+#endif
+    }
+
     _sessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_EXTENDED);
 
     // Configure ONNX Runtime thread settings from configuration
     auto& config = Configuration::GetInstance();
 
     // Get intra-op threads setting (default: 0, auto)
-    if (config.GetEnable(Configuration::ITEM::CUSTOM_INTRA_OP_THREADS)) {
+    if (config.GetEnable(Configuration::ITEM::CUSTOM_INTRA_OP_THREADS)) 
+    {
         int intraOpThreads = config.GetIntAttribute(Configuration::ITEM::CUSTOM_INTRA_OP_THREADS, Configuration::ATTRIBUTE::CUSTOM_INTRA_OP_THREADS_NUM);
         if (intraOpThreads == 0) intraOpThreads = 1; // fallback to default if attribute returns 0
         _sessionOptions.SetIntraOpNumThreads(intraOpThreads);
@@ -192,25 +200,27 @@ CpuHandle::CpuHandle(void* data_, int64_t size_, string name_, size_t device_num
     }
 
     // Get inter-op threads setting (default: 1)
-    if (config.GetEnable(Configuration::ITEM::CUSTOM_INTER_OP_THREADS)) {
+    if (config.GetEnable(Configuration::ITEM::CUSTOM_INTER_OP_THREADS)) 
+    {
         int interOpThreads = config.GetIntAttribute(Configuration::ITEM::CUSTOM_INTER_OP_THREADS, Configuration::ATTRIBUTE::CUSTOM_INTER_OP_THREADS_NUM);
         if (interOpThreads == 0) interOpThreads = 1; // fallback to default if attribute returns 0
-        if (interOpThreads > 1) {
+        if (interOpThreads > 1) 
+        {
             _sessionOptions.SetExecutionMode(ORT_PARALLEL);
         }
-        else {
+        else 
+        {
             _sessionOptions.SetExecutionMode(ORT_SEQUENTIAL);
         }
         _sessionOptions.SetInterOpNumThreads(interOpThreads);
         LOG_DXRT_DBG << "ONNX Runtime Session configured: InterOpThreads=" << interOpThreads << std::endl;
     }
 
-    // DataDumpBin("tmp.onnx", data_, size_);
     _session = std::make_shared<Ort::Session>(_env, data_, size_, _sessionOptions);
     Ort::AllocatorWithDefaultOptions allocator;
-    // Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault);
-    _numInputs = _session->GetInputCount();
-    _numOutputs = _session->GetOutputCount();
+
+    _numInputs = static_cast<int>(_session->GetInputCount());
+    _numOutputs = static_cast<int>(_session->GetOutputCount());
     _inputNames.clear();
     _outputNames.clear();
     _inputNamesChar.clear();
@@ -230,14 +240,14 @@ CpuHandle::CpuHandle(void* data_, int64_t size_, string name_, size_t device_num
     _inputNamesChar.reserve(_numInputs);
     for (int i = 0; i < _numInputs; i++)
     {
-        _inputNames.push_back(move(string(_session->GetInputNameAllocated(i, allocator).get())) );
+        _inputNames.emplace_back(_session->GetInputNameAllocated(i, allocator).get());
         _inputNamesChar.push_back(_inputNames[i].c_str());
     }
     _outputNames.reserve(_numOutputs);
     _outputNamesChar.reserve(_numOutputs);
     for (int i = 0; i < _numOutputs; i++)
     {
-        _outputNames.push_back(move(string(_session->GetOutputNameAllocated(i, allocator).get())) );
+        _outputNames.emplace_back(_session->GetOutputNameAllocated(i, allocator).get());
         _outputNamesChar.push_back(_outputNames[i].c_str());
     }
     for (int i = 0; i < _numInputs; i++)
@@ -321,27 +331,39 @@ CpuHandle::~CpuHandle()
 void CpuHandle::SetDynamicCpuThread() {
     const char* env = getenv("DXRT_DYNAMIC_CPU_THREAD");
     bool dynamic_cpu_thread_env = false;
-    if (env != nullptr && string(env) == "ON") {
+    if (env != nullptr && string(env) == "ON") 
+    {
         dynamic_cpu_thread_env = true;
-    } else {
+    } 
+    else {
         dynamic_cpu_thread_env = false;
     }
 
     _dynamicCpuThread = Configuration::GetInstance().GetEnable(Configuration::ITEM::DYNAMIC_CPU_THREAD);
-    Configuration::GetInstance().LockEnable(Configuration::ITEM::DYNAMIC_CPU_THREAD);
 
     if (dynamic_cpu_thread_env || _dynamicCpuThread)
         _dynamicCpuThread = true;
 
-    if (_dynamicCpuThread) {
+    if (_dynamicCpuThread) 
+    {
         LOG_DXRT_DBG << "Dynamic Multi Threading : MULTI MODE" << endl;
-    } else {
+    } 
+    else 
+    {
         LOG_DXRT_DBG << "Dynamic Multi Threading : SINGLE MODE" << endl;
     }
 }
 
-int CpuHandle::InferenceRequest(RequestPtr req)
+int CpuHandle::InferenceRequest(RequestPtr req) const
 {
+#ifdef USE_PROFILER
+    auto& profiler = dxrt::Profiler::GetInstance();
+    std::string queue_wait_name =
+        "CPU Task Queue Wait[Job_" + std::to_string(req->job_id()) + "][" +
+        req->task()->name() + "][Req_" +
+        std::to_string(req->id()) + "]";
+    profiler.Start(queue_wait_name);
+#endif
     return _worker->request(req);
 }
 
@@ -373,7 +395,9 @@ void CpuHandle::RunWithSession(RequestPtr req, std::shared_ptr<Ort::Session> ses
         req->setOutputs(task->outputs(req->getData()->output_buffer_base));
     }
 
-    std::vector<Ort::Value> inputTensors, outputTensors;
+    std::vector<Ort::Value> inputTensors; 
+    std::vector<Ort::Value> outputTensors;
+
     Ort::MemoryInfo memoryInfo =
         Ort::MemoryInfo::CreateCpu(
             OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault);
@@ -382,6 +406,7 @@ void CpuHandle::RunWithSession(RequestPtr req, std::shared_ptr<Ort::Session> ses
 
     // Create input tensors for ONNX Runtime
     // Use the input tensors directly from the request - they already have correct pointers
+    
     auto reqInputs = req->inputs();
     if (!reqInputs.empty() && reqInputs.size() >= static_cast<size_t>(_numInputs))
     {
@@ -408,7 +433,7 @@ void CpuHandle::RunWithSession(RequestPtr req, std::shared_ptr<Ort::Session> ses
     }
     else
     {
-        std::string err_msg = LogMessages::CPUHandle_NoInputTensorsAvailable(task->name(), reqInputs.size(), _numInputs);
+        std::string err_msg = LogMessages::CPUHandle_NoInputTensorsAvailable(task->name(), static_cast<int>(reqInputs.size()), _numInputs);
         throw InvalidOperationException(EXCEPTION_MESSAGE(err_msg));
     }
 
@@ -439,7 +464,7 @@ void CpuHandle::RunWithSession(RequestPtr req, std::shared_ptr<Ort::Session> ses
     profiler.End(profileInstanceName);
 #endif
 }
-void CpuHandle::Terminate()
+void CpuHandle::Terminate() const
 {
     _worker->Stop();
 }
@@ -459,28 +484,29 @@ std::shared_ptr<Ort::Session> CpuHandle::CreateWorkerSession()
 
     // Use the same graph optimization level as main session
     workerSessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_EXTENDED);
-    /*
+#if 0
     // Set execution mode for parallel execution
+
     workerSessionOptions.SetExecutionMode(ORT_PARALLEL);
 
-    // Dynamic thread allocation based on system resources
+    Dynamic thread allocation based on system resources
     int systemCores = std::thread::hardware_concurrency();
     int totalActiveCpuTasks = _totalNumThreads.load();
 
-    // Calculate optimal intra_op threads per session
-    int intraOpThreads = 1; // Conservative default
+    Calculate optimal intra_op threads per session
+    int intraOpThreads = 1;  Conservative default
     if (totalActiveCpuTasks > 0) {
         intraOpThreads = std::max(1, systemCores / totalActiveCpuTasks);
-        intraOpThreads = std::min(intraOpThreads, 4); // Cap at 4 to avoid over-subscription
+        intraOpThreads = std::min(intraOpThreads, 4);  Cap at 4 to avoid over-subscription
     }
 
     workerSessionOptions.SetIntraOpNumThreads(intraOpThreads);
-    workerSessionOptions.SetInterOpNumThreads(1); // Keep simple for predictability
+    workerSessionOptions.SetInterOpNumThreads(1);  Keep simple for predictability
 
     LOG_DXRT_DBG << "Creating worker session: intra_op=" << intraOpThreads
                  << ", total_cpu_tasks=" << totalActiveCpuTasks
                  << ", system_cores=" << systemCores << std::endl;
-    */
+#endif
     return std::make_shared<Ort::Session>(_env, _modelData.data(), _modelSize, workerSessionOptions);
 }
 
@@ -497,15 +523,20 @@ void CpuHandle::SetupOutputsWithBinding(RequestPtr req, Ort::IoBinding& binding)
     Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(
         OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault);
 
-    for (int i = 0; i < _numOutputs; ++i) {
-        if (_outputIsDynamic[i]) {
+    for (int i = 0; i < _numOutputs; ++i)
+    {
+        if (_outputIsDynamic[i])
+        {
             // Dynamic output: let ORT allocate using default memory info
             binding.BindOutput(_outputNames[i].c_str(), memoryInfo);
             LOG_DXRT_DBG << "CpuHandle Dynamic Output[" << i << "]: " << _outputNames[i]
                         << " - ORT will allocate with memory info" << std::endl;
-        } else {
+        }
+        else
+        {
             // Static output: pre-bind to existing buffer
-            if (i < static_cast<int>(reqOutputs.size())) {
+            if (i < static_cast<int>(reqOutputs.size()))
+            {
                 auto& outputTensor = reqOutputs[i];
                 Ort::Value ortValue = Ort::Value::CreateTensor(
                     memoryInfo,
@@ -518,8 +549,10 @@ void CpuHandle::SetupOutputsWithBinding(RequestPtr req, Ort::IoBinding& binding)
                 binding.BindOutput(_outputNames[i].c_str(), ortValue);
                 LOG_DXRT_DBG << "CpuHandle Static Output[" << i << "]: " << _outputNames[i]
                             << " - pre-bound to buffer" << std::endl;
-            } else {
-                std::string err_msg = LogMessages::CPUHandle_NoOutputTensorsAvailable(req->task()->name(), reqOutputs.size(), _numOutputs);
+            }
+            else
+            {
+                std::string err_msg = LogMessages::CPUHandle_NoOutputTensorsAvailable(req->task()->name(), static_cast<int>(reqOutputs.size()), _numOutputs);
                 throw InvalidOperationException(EXCEPTION_MESSAGE(err_msg));
             }
         }
@@ -528,15 +561,18 @@ void CpuHandle::SetupOutputsWithBinding(RequestPtr req, Ort::IoBinding& binding)
 
 void CpuHandle::UpdateRequestOutputsFromBinding(RequestPtr req, std::vector<Ort::Value> ortOutputs)
 {
-    if (static_cast<int>(ortOutputs.size()) != _numOutputs) {
-        std::string err_msg = LogMessages::CPUHandle_OutputTensorCountMismatch(ortOutputs.size(), _numOutputs);
+    if (static_cast<int>(ortOutputs.size()) != _numOutputs)
+    {
+        std::string err_msg = LogMessages::CPUHandle_OutputTensorCountMismatch(static_cast<int>(ortOutputs.size()), _numOutputs);
         throw InvalidOperationException(EXCEPTION_MESSAGE(err_msg));
     }
 
     auto reqOutputs = req->outputs();
     bool anyDynamicUpdated = false;
-    for (int i = 0; i < _numOutputs; ++i) {
-        if (_outputIsDynamic[i]) {
+    for (int i = 0; i < _numOutputs; ++i)
+    {
+        if (_outputIsDynamic[i])
+        {
             auto &tensor = reqOutputs[i];
             auto shape = ortOutputs[i].GetTensorTypeAndShapeInfo().GetShape();
             auto data = ortOutputs[i].GetTensorMutableData<void>();
@@ -546,7 +582,8 @@ void CpuHandle::UpdateRequestOutputsFromBinding(RequestPtr req, std::vector<Ort:
             LOG_DXRT_DBG << "Updated dynamic tensor[" << i << "] with shape size " << shape.size() << std::endl;
         }
     }
-    if (anyDynamicUpdated) {
+    if (anyDynamicUpdated)
+    {
         req->setOutputs(reqOutputs);
     }
 }
@@ -554,7 +591,7 @@ void CpuHandle::UpdateRequestOutputsFromBinding(RequestPtr req, std::vector<Ort:
 #endif
 
 #else
-CpuHandle::CpuHandle(void* data_, int64_t size_, std::string name_, size_t device_num_, int buffer_count_)
+CpuHandle::CpuHandle(const void* data_, int64_t size_, const std::string& name_, size_t device_num_, int buffer_count_)
 : _name(name_), _device_num(device_num_), _bufferCount(buffer_count_)
 {
     std::ignore = size_;
@@ -562,12 +599,13 @@ CpuHandle::CpuHandle(void* data_, int64_t size_, std::string name_, size_t devic
     std::ignore = device_num_;
 }
 CpuHandle::~CpuHandle() {}
-int CpuHandle::InferenceRequest(RequestPtr req) {
+int CpuHandle::InferenceRequest(RequestPtr req) const
+{
     std::ignore = req;
     return -1;
 }
 void CpuHandle::Run(RequestPtr req) {std::ignore = req;}
-void CpuHandle::Terminate() {}
+void CpuHandle::Terminate() const {}
 void CpuHandle::Start() {}
 
 #endif

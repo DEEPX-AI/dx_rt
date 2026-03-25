@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -15,11 +15,10 @@
 namespace dxrt {
 class DXRT_API ExceptionHandler
 {
-public:
+ public:
     ExceptionHandler();
 
-private:
 };
 
-extern ExceptionHandler exceptionHandler;
-} // namespace dxrt
+
+}  // namespace dxrt

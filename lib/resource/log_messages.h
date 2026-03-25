@@ -13,7 +13,7 @@
 #include <string>
 
 namespace dxrt {
-    class DXRT_API LogMessages
+    class DXRT_API LogMessages // NOSONAR
     {
     public:
         static std::string ConvertIntToVersion(int version);
@@ -74,6 +74,14 @@ namespace dxrt {
         static std::string RuntimeDispatch_DeviceEventError(int deviceId, const std::string& errCodeStr);
         static std::string RuntimeDispatch_ThrottlingNotice(int deviceId, int npuId, const std::string& mesg, int temperature);
         static std::string RuntimeDispatch_ThrottlingEmergency(int deviceId, int npuId, const std::string& emergencyCodeStr);
+
+        // DMA Abort Recovery messages
+        static std::string RuntimeDispatch_DmaAbort(int deviceId, int channel, uint32_t errStatus);
+        static std::string RuntimeDispatch_DmaFail(int deviceId, int channel, uint32_t errStatus);
+        static std::string RuntimeDispatch_FwTimeout(int deviceId);
+        static std::string RuntimeDispatch_RecoveryStarted(int deviceId);
+        static std::string RuntimeDispatch_RecoveryCompleted(int deviceId);
+        static std::string RuntimeDispatch_RecoveryFailed(int deviceId, const std::string& reason);
         
     };
 

@@ -1,0 +1,62 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+# Use gzip compression for compatibility with older dpkg versions
+export DEB_BUILD_OPTIONS=nocheck
+export DEB_BUILD_MAINT_OPTIONS=hardening=-all
+export DH_OPTIONS=-O--no-automatic-dbgsym
+
+override_dh_builddeb:
+	dh_builddeb -- -Zgzip
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	# Skip configure - we use pre-built binaries from cross-compilation
+
+override_dh_auto_build:
+	# Skip build - we use pre-built binaries from build_aarch64
+
+override_dh_auto_test:
+	# Skip tests
+
+override_dh_auto_install:
+	# Create installation directories
+	mkdir -p debian/dx-vnpu-rt-ep/usr/bin
+	mkdir -p debian/dx-vnpu-rt-ep/usr/lib
+	mkdir -p debian/dx-vnpu-rt-ep/usr/include/dxrt
+	mkdir -p debian/dx-vnpu-rt-ep/usr/share/doc/dx-vnpu-rt-ep
+	
+	# Copy binaries from build_aarch64
+	cp -f build_aarch64/bin/dxrt-cli debian/dx-vnpu-rt-ep/usr/bin/
+	cp -f build_aarch64/bin/parse_model debian/dx-vnpu-rt-ep/usr/bin/
+	cp -f build_aarch64/bin/run_model debian/dx-vnpu-rt-ep/usr/bin/
+	
+	# Copy runtime libraries from build_aarch64
+	cp -f build_aarch64/lib/libdxrt.so* debian/dx-vnpu-rt-ep/usr/lib/ || true
+	
+	# Copy ONNX Runtime libraries from util/onnxruntime_aarch64
+	cp -f util/onnxruntime_aarch64/lib/libonnxruntime.so* debian/dx-vnpu-rt-ep/usr/lib/
+	cp -f util/onnxruntime_aarch64/lib/libonnxruntime_providers_shared.so debian/dx-vnpu-rt-ep/usr/lib/
+	
+	# Copy header files if they exist
+	if [ -d "build_aarch64/include" ]; then \
+		cp -rf build_aarch64/include/* debian/dx-vnpu-rt-ep/usr/include/dxrt/ || true; \
+	fi
+	
+	# Copy documentation
+	cp -f README.md debian/dx-vnpu-rt-ep/usr/share/doc/dx-vnpu-rt-ep/ || true
+	cp -f LICENSE debian/dx-vnpu-rt-ep/usr/share/doc/dx-vnpu-rt-ep/ || true
+	cp -f CHANGELOG.md debian/dx-vnpu-rt-ep/usr/share/doc/dx-vnpu-rt-ep/ || true
+
+override_dh_shlibdeps:
+	# Skip dependency detection for cross-compiled binaries
+	# Dependencies will be handled manually in the control file
+
+override_dh_strip:
+	# Skip stripping debug symbols to preserve binary compatibility
+	dh_strip --no-automatic-dbgsym

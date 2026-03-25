@@ -9,6 +9,7 @@
 
 #include "dxrt/fw.h"
 #include "dxrt/util.h"
+#include "dxrt/device.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -21,7 +22,7 @@ using std::endl;
 namespace dxrt
 {
 
-std::string ParseFwLog(dxrt_device_log_t &log)
+DXRT_API std::string ParseFwLog(const dxrt_device_log_t &log)
 {
     std::string ret;
     std::ostringstream oss;
@@ -129,7 +130,6 @@ std::string ParseFwLog(dxrt_device_log_t &log)
                 << log.args[3] << ", "
                 << log.args[4] << ", "
                 << log.args[5] << ", "
-                //<< log.args[6] << ", "
                 << endl;
             break;
         default:
@@ -138,25 +138,22 @@ std::string ParseFwLog(dxrt_device_log_t &log)
     return oss.str();
 }
 
-FwLog::FwLog(std::vector<dxrt_device_log_t> logs_)
-:_logs(logs_), _str("")
+FwLog::FwLog(const std::vector<dxrt_device_log_t>& logs_)
+:_logs(logs_)
 {
-    for (auto &log : _logs)
+    for (const auto &log : _logs)
     {
         _str.append(ParseFwLog(log));
     }
 }
 
-FwLog::~FwLog()
-{
+FwLog::~FwLog() = default;
 
-}
-
-std::string FwLog::str()
+std::string FwLog::str() const
 {
     return _str;
 }
-void FwLog::ToFileAppend(std::string file)
+void FwLog::ToFileAppend(const std::string& file) const
 {
     std::ofstream outputFile(file, std::ios::app);
     if (outputFile.is_open())
@@ -171,24 +168,23 @@ void FwLog::ToFileAppend(std::string file)
     }
 }
 
-Fw::Fw(std::string file)
+Fw::Fw(const std::string& file)
 {
     std::vector<char> data(sizeof(dx_fw_header_t));
     DataFromFile(file, static_cast<void*>(data.data()), sizeof(dx_fw_header_t));
     memcpy(&fwHeader, data.data(), sizeof(dx_fw_header_t));
-    //Show();
+#if 0
+    Show();
+#endif
 }
 
-Fw::~Fw()
-{
-}
+Fw::~Fw() = default;
 
 uint32_t Fw::GetBoardType() const
 {
     return fwHeader.board_type;
 }
 
-// constexpr std::array<pair_type, 3> board_types = {{{1, "SOM"}, {2, "M.2"}, {3, "H1"}}};
 std::string Fw::GetBoardTypeString() const
 {
     switch (fwHeader.board_type) {
@@ -220,28 +216,28 @@ std::string Fw::GetDdrTypeString() const
     }
 }
 
-void Fw::Show(void)
+void Fw::Show(void) const
 {
     cout << "============ FW Binary Information ============" << endl;
     cout << "Signature   : " << fwHeader.signature << endl;
-    //cout << "Total Image : " << fwHeader.length << endl;
+
     cout << "Board Type  : " << GetBoardTypeString() << endl;
     cout << "DDR Type    : " << GetDdrTypeString() << endl;
     cout << "Firmware Ver: " << fwHeader.fw_ver << endl;
 }
 
-std::string Fw::GetFwBinVersion()
+std::string Fw::GetFwBinVersion() const
 {
     return std::string(fwHeader.fw_ver);
 }
 
-bool Fw::IsMatchSignature()
+bool Fw::IsMatchSignature() const
 {
     std::string dxSign = "DEEPX GENESIS-M";
     return (dxSign.compare(std::string(fwHeader.signature)) == 0) ? true : false;
 }
 
-std::string Fw::GetFwUpdateResult(uint32_t errCode)
+std::string Fw::GetFwUpdateResult(uint32_t errCode) const
 {
     std::string errMsg = "";
     for (uint32_t i = 0; i < sizeof(fw_update_err_code_t) * 8; ++i)

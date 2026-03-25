@@ -6,16 +6,20 @@
  * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
-
+#include "dxrt/common.h"
 #include "dxrt/device_info_status.h"
-#include "dxrt/device.h"
+
 #include "dxrt/device_util.h"
 #include "dxrt/exception/exception.h"
 #include "dxrt/map_lookup_template.h"
 #include "dxrt/device_pool.h"
 #include "dxrt/device_core.h"
 #include "dxrt/device_task_layer.h"
-#include "dxrt/common.h"
+
+#include "dxrt/safe_cast.h"
+#include "dxrt/fw.h"
+#include "dxrt/device.h"
+
 #include<map>
 #include<iostream>
 #include<iomanip>
@@ -34,7 +38,7 @@ constexpr std::array<pair_type, 2> device_type_words = {{{0, "Accelerator"}, {1,
 constexpr std::array<pair_type, 7> device_variants = {{{100, "L1"}, {101, "L2"}, {102, "L3"}, {103, "L4"}, {104, "V3"},
     {200, "M1"}, {202, "M1"}}};
 constexpr std::array<pair_type, 3> memory_types{{{1, "LPDDR4"}, {2, "LPDDR5"}, {3, "LPDDR5x"}}};
-constexpr std::array<pair_type, 5> memory_vendors{{{0x0, "NOT SUPPORTED"}, {0x4, "SS"}, {6, "HY"}, {0x08, "WB"}, {0xFF, "MI"}}};
+constexpr std::array<pair_type, 5> memory_vendors{{{0x0, "NOT SUPPORTED"}, {0x4, "SS"}, {6, "HY"}, {0x08, "WB"}, {0xFF, "MI"}}};  // NOSONAR:S1481
 constexpr std::array<pair_type, 3> board_types = {{{1, "SOM"}, {2, "M.2"}, {3, "H1"}}};
 
 
@@ -44,26 +48,26 @@ string convert_capacity(uint64_t n)
     constexpr uint64_t mega = killo *killo;
     constexpr uint64_t giga = mega*killo;
     constexpr uint64_t tera = giga*killo;
-    double value = n;
+    auto value = static_cast<double>(n);
     string postfix = "B";
     if (n >= tera)
     {
-        value = static_cast<double>(n)/static_cast<double>(tera);
+        value = value / static_cast<double>(tera);
         postfix = "TiB";
     }
     else if (n >= giga)
     {
-        value = static_cast<double>(n)/static_cast<double>(giga);
+        value = value / static_cast<double>(giga);
         postfix = "GiB";
     }
     else if (n >= mega)
     {
-        value = static_cast<double>(n)/static_cast<double>(mega);
+        value = value / static_cast<double>(mega);
         postfix = "MiB";
     }
     else if (n >= killo)
     {
-        value = static_cast<double>(n)/static_cast<double>(killo);
+        value = value / static_cast<double>(killo);
         postfix = "KiB";
     }
     else
@@ -71,15 +75,15 @@ string convert_capacity(uint64_t n)
         //  in bytes
         return std::to_string(n)+" Bytes";
     }
-    char buffer[dxrt::CHARBUFFER_SIZE];
-    snprintf(buffer, dxrt::CHARBUFFER_SIZE, "%.3g", value);
-    return string(buffer)+postfix;
+    std::array<char, dxrt::CHARBUFFER_SIZE> buffer;
+    snprintf(buffer.data(), dxrt::CHARBUFFER_SIZE, "%.3g", value);
+    return string(buffer.data())+postfix;
 }
 static string insert_comma(const string& str)
 {
-    int str_len = str.length();
+    auto str_len = static_cast<int>(str.length());
     string ret = "";
-    ret.reserve(str_len * 1.5);
+    ret.reserve(static_cast<size_t>(str_len * 1.5));
     for (int i = 0; i < str_len; i++)
     {
         ret.push_back(str[i]);
@@ -92,7 +96,7 @@ static string insert_comma(const string& str)
 
 namespace dxrt {
 
-DeviceStatus::DeviceStatus(int id, dxrt_device_info_t info, dxrt_device_status_t status, dxrt_dev_info_t devInfo)
+DeviceStatus::DeviceStatus(int id, const dxrt_device_info_t& info, const dxrt_device_status_t& status, const dxrt_dev_info_t& devInfo)
 :_id(id), _info(info), _status(status), _devInfo(devInfo)
 {
 }
@@ -124,13 +128,15 @@ DeviceStatus DeviceStatus::GetCurrentStatus(int id)
 
 int DeviceStatus::GetDeviceCount()
 {
-    return DevicePool::GetInstance().GetDeviceCount();
+    return static_cast<int>(DevicePool::GetInstance().GetDeviceCount());
 }
 
 string DeviceStatus::DdrStatusStr(int ch) const
 {
-    char buf[CHARBUFFER_SIZE];
-    uint32_t rm_1, rm_0 = 0, derate = 0;
+    std::array<char, CHARBUFFER_SIZE> buf;
+    uint32_t rm_1;
+    uint32_t rm_0 = 0;
+    uint32_t derate = 0;
 
     switch(_status.ddr_status[ch]) {
 		case 0x01 : rm_1 = 8;             break;
@@ -150,26 +156,26 @@ string DeviceStatus::DdrStatusStr(int ch) const
 		case 0x0F : rm_1 = 0; rm_0 = 125; derate = 1; break;
 		default   : rm_1 = 0xF; break;
     }
-    snprintf(buf, CHARBUFFER_SIZE, "LPDDR CH[%d]: RM: 0x%x(%u.%ux)%s",
+    snprintf(buf.data(), CHARBUFFER_SIZE, "LPDDR CH[%d]: RM: 0x%x(%u.%ux)%s",
             ch, _status.ddr_status[ch], rm_1, rm_0, (derate ? " with de-rating" : ""));
-    return string(buf);
+    return string(buf.data());
 }
 
 string DeviceStatus::DdrBitErrStr(void) const
 {
-    char buf[CHARBUFFER_SIZE];
-    snprintf(buf, CHARBUFFER_SIZE, "SBE[%u, %u, %u, %u] DBE[%u, %u, %u, %u]",
+    std::array<char, CHARBUFFER_SIZE> buf;
+    snprintf(buf.data(), CHARBUFFER_SIZE, "SBE[%u, %u, %u, %u] DBE[%u, %u, %u, %u]",
         _status.ddr_sbe_cnt[0], _status.ddr_sbe_cnt[1], _status.ddr_sbe_cnt[2], _status.ddr_sbe_cnt[3],
         _status.ddr_dbe_cnt[0], _status.ddr_dbe_cnt[1], _status.ddr_dbe_cnt[2], _status.ddr_dbe_cnt[3]);
-    return string(buf);
+    return string(buf.data());
 }
 
 string DeviceStatus::NpuStatusStr(int no) const
 {
-    char buf[CHARBUFFER_SIZE];
-    snprintf(buf, CHARBUFFER_SIZE, "NPU %d: voltage %u mV, clock %u MHz, temperature %d'C",
+    std::array<char, CHARBUFFER_SIZE> buf;
+    snprintf(buf.data(), CHARBUFFER_SIZE, "NPU %d: voltage %u mV, clock %u MHz, temperature %d'C",
         no, _status.voltage[no], _status.clock[no], static_cast<int32_t>(_status.temperature[no]));
-    return string(buf);
+    return string(buf.data());
 }
 
 string DeviceStatus::DeviceTypeStr() const
@@ -203,21 +209,21 @@ string DeviceStatus::MemorySizeStrWithComma() const
 
 string DeviceStatus::AllMemoryInfoStr() const
 {
-     char buffer[CHARBUFFER_SIZE];
-     snprintf(buffer, CHARBUFFER_SIZE, "Type:%s, Addr:%p, size: %s(%s), clock: %udMHz",
-      MemoryTypeStr().c_str(), reinterpret_cast<void*>(_info.mem_addr),
+     std::array<char, CHARBUFFER_SIZE> buffer;
+     snprintf(buffer.data(), CHARBUFFER_SIZE, "Type:%s, Addr:%p, size: %s(%s), clock: %udMHz",
+      MemoryTypeStr().c_str(), SafeCast::IntegerToPointer<void*>(_info.mem_addr),
       MemorySizeStrBinaryPrefix().c_str(), MemorySizeStrWithComma().c_str(), _info.ddr_freq);
-     return string(buffer);
+     return string(buffer.data());
 }
 
 string DeviceStatus::PcieInfoStr(int spd, int wd, int bus, int dev, int func) const
 {
-    char buf[64];
-    snprintf(buf, sizeof(buf), "Gen%d X%d [%02d:%02d:%02d]", spd, wd, bus, dev, func);
-    return string(buf);
+    std::array<char, 64> buf;
+    snprintf(buf.data(), buf.size(), "Gen%d X%d [%02x:%02x:%02x]", spd, wd, bus, dev, func);
+    return string(buf.data());
 }
 
-#define FW_VERSION_SUPPORT_SUFFIX 230
+static constexpr int FW_VERSION_SUPPORT_SUFFIX = 230;
 
 std::ostream& DeviceStatus::InfoToStream(std::ostream& os) const
 {

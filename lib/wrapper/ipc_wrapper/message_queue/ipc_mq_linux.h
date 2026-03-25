@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -12,12 +12,13 @@
 #include <stdint.h>
 #include <cstdint>
 #include <future>
+#include <array>
 
 
-namespace dxrt 
+namespace dxrt
 {
 
-    
+
     enum class IPCMessageQueueDirection
     {
         TO_SERVER,
@@ -34,7 +35,7 @@ namespace dxrt
         struct Message
         {
             long msgType;
-            uint8_t data[1024];
+            std::array<uint8_t, 1024> data;
         };
 
     private:
@@ -50,15 +51,15 @@ namespace dxrt
         int32_t Initialize(long msgType, IPCMessageQueueDirection direction);
 
         // send message
-        int32_t Send(const Message& message, size_t size);
+        int32_t Send(const Message& message, size_t size) const;
 
         // receive message
-        int32_t Receive(Message& message, size_t size, long msgType);
+        int32_t Receive(Message& message, size_t size, long msgType) const;
 
         // delete message queue
         int32_t Delete();
 
-        bool IsAvailable()
+        bool IsAvailable() const
         {
             return _msgId >= 0 ? true : false;
         }

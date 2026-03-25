@@ -13,7 +13,7 @@
 namespace dxrt
 {
 
-DXRT_API InferenceOption DefaultInferenceOption;
+DXRT_API InferenceOption DefaultInferenceOption;  // NOSONAR:S5421
 
 template <typename T>
 static void vector_output_operator(std::ostream& os, const std::vector<T>& v)

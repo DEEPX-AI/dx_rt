@@ -27,15 +27,16 @@ namespace dxrt {
 
 #define MAX_CHECKPOINT_COUNT 3
 
-typedef enum {
+typedef enum { 
     DXRT_EVENT_NONE,
     DXRT_EVENT_ERROR,
     DXRT_EVENT_NOTIFY_THROT,
     DXRT_EVENT_RECOVERY,
+    DXRT_EVENT_PROC_EXIT,
     DXRT_EVENT_NUM,
 } dxrt_event_t;
 
-typedef enum {
+typedef enum { // NOSONAR : Driver interface enum, usage sites unknown
     ERR_NONE      = 0,
     ERR_NPU0_HANG = 1,
     ERR_NPU1_HANG,
@@ -44,12 +45,18 @@ typedef enum {
     ERR_PCIE_DMA_CH0_FAIL = 100,
     ERR_PCIE_DMA_CH1_FAIL,
     ERR_PCIE_DMA_CH2_FAIL,
-    ERR_LPDDR_DED_WR     = 200,
+    ERR_PCIE_DMA_CH3_FAIL,
+    ERR_LPDDR_DED_WR       = 200,
     ERR_LPDDR_DED_RD,
-    ERR_DEVICE_ERR       = 1000,
+    ERR_FW_TIMEOUT         = 300,
+    ERR_PCIE_DMA_CH0_ABORT = 400,
+    ERR_PCIE_DMA_CH1_ABORT,
+    ERR_PCIE_DMA_CH2_ABORT,
+    ERR_PCIE_DMA_CH3_ABORT,
+    ERR_DEVICE_ERR         = 1000,
 } dxrt_error_t;
 
-typedef enum {
+typedef enum { // NOSONAR : Driver interface enum, usage sites unknown
     NTFY_NONE       = 0,
     NTFY_THROT_FREQ_DOWN,
     NTFY_THROT_FREQ_UP,
@@ -58,7 +65,6 @@ typedef enum {
     NTFY_EMERGENCY_BLOCK,
     NTFY_EMERGENCY_RELEASE,
     NTFY_EMERGENCY_WARN = 300,
-    /* TODO */
     /* NPU BOUND FOR THROT? */
 } dxrt_notify_throt_t;
 
@@ -94,7 +100,7 @@ typedef enum {
     DXRT_RECOV_DONE     = 4,
 } dxrt_recov_t;
 
-typedef struct _dx_pcie_dev_err {
+typedef struct _dx_pcie_dev_err { // NOSONAR : Driver interface struct, usage sites unknown
     uint32_t err_code;
 
     /* Version */
@@ -257,7 +263,7 @@ typedef struct _dxrt_request_t {
     uint32_t  cmd_offset = 0;
     uint32_t  weight_offset = 0;
     uint32_t  last_output_offset = 0;
-    //uint32_t  custom_offset = 0; // [TODO] necessary for V8 PPCPU on STD
+    // if V8 PPCPU on STD, a 32bit unsigned integer custom offset field is added here.
 } dxrt_request_t;
 
 typedef struct _dxrt_request_acc_t {
@@ -304,7 +310,7 @@ typedef struct _dxrt_message
 {
     int32_t cmd = 0;
     int32_t sub_cmd = 0;
-    void* data = NULL;
+    void* data = nullptr;
     uint32_t size = 0;
 } dxrt_message_t;
 typedef struct _dxrt_device_message {
@@ -344,6 +350,8 @@ typedef enum {
     DXRT_CMD_START              ,
     DXRT_CMD_TERMINATE          ,
     DXRT_CMD_PCIE               , /* Sub-command */
+    DXRT_CMD_NPU_RUN_RESP_V2    ,
+    DXRT_CMD_EVENT_V2           ,
     DXRT_CMD_MAX                ,
 } dxrt_cmd_t;
 
@@ -407,7 +415,7 @@ typedef enum {
 #ifdef _WIN32
 #define DX_NRM_IOCTL(index)                        CTL_CODE(FILE_DEVICE_VIDEO, index, METHOD_BUFFERED, FILE_ANY_ACCESS)
 #endif
-typedef enum {
+typedef enum { // NOSONAR : Driver interface enum, usage sites unknown
 #ifdef __linux__
     DXRT_IOCTL_MESSAGE = _IOW(DXRT_IOCTL_MAGIC, 0, dxrt_message_t),
     DXRT_IOCTL_DUMMY = _IOW(DXRT_IOCTL_MAGIC, 1, dxrt_message_t),
@@ -449,7 +457,7 @@ typedef struct _dxrt_model
     uint32_t  op_mode = 0;   /* operation mode - 1:large model */
 } dxrt_model_t;
 
-extern DXRT_API std::vector<std::pair<int, std::string>> ioctlTable;
+extern DXRT_API std::vector<std::pair<int, std::string>> ioctlTable; // NOSONAR
 extern DXRT_API std::string ErrTable(dxrt_error_t error);
 DXRT_API std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_err_t& error);
 DXRT_API std::ostream& operator<<(std::ostream&, const dxrt_error_t&);

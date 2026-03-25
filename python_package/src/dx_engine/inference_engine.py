@@ -85,7 +85,7 @@ class InferenceEngine:
     ) -> 'InferenceEngine':
         """
         Creates an InferenceEngine from a memory buffer without a file path.
-        
+
         This is an alternative constructor that loads the model directly from
         a pre-allocated memory buffer containing the model data.
 
@@ -105,7 +105,7 @@ class InferenceEngine:
         """
         if not isinstance(memory_buffer, np.ndarray):
             raise TypeError("memory_buffer must be a numpy.ndarray.")
-        
+
         if not memory_buffer.flags['C_CONTIGUOUS']:
             raise ValueError("memory_buffer must be C-contiguous.")
 
@@ -131,7 +131,7 @@ class InferenceEngine:
 
         # Create instance without calling __init__
         instance = cls.__new__(cls)
-        
+
         try:
             # Create engine from buffer only (no model path)
             instance.engine = C.InferenceEngine(memory_buffer, current_option_instance.instance)
@@ -144,7 +144,7 @@ class InferenceEngine:
 
         return instance
 
-    def _analyze_input_format(self, input_data: Any) -> Dict[str, Any]:
+    def _analyze_input_format(self, input_data: Any) -> Dict[str, Any]: # NOSONAR
         """
         Analyzes input data format and determines processing method.
 
@@ -312,7 +312,7 @@ class InferenceEngine:
                     'auto_split': False
                 }
 
-    def _prepare_output_buffers(self, output_buffers: Any, analysis_result: Dict[str, Any]) -> Any:
+    def _prepare_output_buffers(self, output_buffers: Any, analysis_result: Dict[str, Any]) -> Any: # NOSONAR
         """
         Prepares output buffers according to the analysis result.
 
@@ -427,7 +427,7 @@ class InferenceEngine:
             else:
                 raise TypeError("For single inference, output_buffers must be np.ndarray or List[np.ndarray].")
 
-    def _prepare_user_args(self, user_args: Any, analysis_result: Dict[str, Any]) -> Any:
+    def _prepare_user_args(self, user_args: Any, analysis_result: Dict[str, Any]) -> Any: # NOSONAR
         """
         Prepares user arguments according to the analysis result.
 
@@ -555,7 +555,7 @@ class InferenceEngine:
 
         return self.run(input_list, output_buffers=output_buffers, user_args=user_arg)
 
-    def run_async(self,
+    def run_async(self, # NOSONAR
                   input_data: Union[np.ndarray, List[np.ndarray]],
                   user_arg: Any = None,
                   output_buffer: Optional[Union[np.ndarray, List[np.ndarray]]] = None
@@ -914,14 +914,14 @@ class InferenceEngine:
             tensor_sizes = self.get_output_tensor_sizes()
             buffers = []
             for tensor_size in tensor_sizes:
-                buffer = np.zeros(tensor_size * batch_size, dtype=np.uint8)
-                buffers.append(buffer)
+                output_buffer = np.zeros(tensor_size * batch_size, dtype=np.uint8)
+                buffers.append(output_buffer)
             return buffers
         else:
             # Single output model - create one buffer
             total_size = self.get_output_size()
-            buffer = np.zeros(total_size * batch_size, dtype=np.uint8)
-            return [buffer]
+            output_buffer = np.zeros(total_size * batch_size, dtype=np.uint8)
+            return [output_buffer]
 
     def get_input_tensors_info(self) -> List[Dict[str, Any]]:
         """
@@ -1074,7 +1074,7 @@ class InferenceEngine:
 
 
     # --- Deprecated Methods ---
-    def Run(self, input_feed_list: List[np.ndarray], user_arg: object = None):
+    def Run(self, input_feed_list: List[np.ndarray], user_arg: object = None):  # NOSONAR : S1845
         warnings.warn("Method Run() is deprecated. Use run() instead.", DeprecationWarning, stacklevel=2)
         return self.run(input_feed_list, user_args=user_arg)
 
@@ -1082,27 +1082,27 @@ class InferenceEngine:
         warnings.warn("Method run_batch() is deprecated. Use run() with batch-formatted inputs/outputs.", DeprecationWarning, stacklevel=2)
         return self.run(input_buffers, output_buffers=output_buffers, user_args=user_args)
 
-    def RunBatch(self, input_buffers: List[List[np.ndarray]], output_buffers: List[List[np.ndarray]], user_args: Optional[List[object]] = None):
+    def RunBatch(self, input_buffers: List[List[np.ndarray]], output_buffers: List[List[np.ndarray]], user_args: Optional[List[object]] = None): # NOSONAR : S1845
         warnings.warn("Method RunBatch() is deprecated. Use run() with batch-formatted inputs/outputs.", DeprecationWarning, stacklevel=2)
         return self.run(input_buffers, output_buffers=output_buffers, user_args=user_args)
 
-    def RunAsync(self, input_feed_list: List[np.ndarray], user_arg: Any = None):
+    def RunAsync(self, input_feed_list: List[np.ndarray], user_arg: Any = None): # NOSONAR : S1845
         warnings.warn("Method RunAsync() is deprecated. Use run_async() instead.", DeprecationWarning, stacklevel=2)
         return self.run_async(input_feed_list, user_arg=user_arg)
 
-    def RunBenchMark(self, loop_cnt: int, input_feed_list: Optional[List[np.ndarray]] = None):
+    def RunBenchMark(self, loop_cnt: int, input_feed_list: Optional[List[np.ndarray]] = None): # NOSONAR : S1845
         warnings.warn("Method RunBenchMark() is deprecated. Use run_benchmark() instead.", DeprecationWarning, stacklevel=2)
         return self.run_benchmark(loop_cnt, input_feed_list)
 
-    def ValidateDevice(self, input_feed_list: List[np.ndarray], device_id: int = 0):
+    def ValidateDevice(self, input_feed_list: List[np.ndarray], device_id: int = 0): # NOSONAR : S1845
         warnings.warn("Method ValidateDevice() is deprecated. Use validate_device() instead.", DeprecationWarning, stacklevel=2)
         return self.validate_device(input_feed_list, device_id)
 
-    def RegisterCallBack(self, callback: Optional[Callable[[List[np.ndarray], Any], int]]):
+    def RegisterCallBack(self, callback: Optional[Callable[[List[np.ndarray], Any], int]]): # NOSONAR : S1845
         warnings.warn("Method RegisterCallBack() is deprecated. Use register_callback() instead.", DeprecationWarning, stacklevel=2)
         return self.register_callback(callback)
 
-    def Wait(self, req_id: int):
+    def Wait(self, req_id: int): # NOSONAR : S1845
         warnings.warn("Method Wait() is deprecated. Use wait() instead.", DeprecationWarning, stacklevel=2)
         return self.wait(req_id)
 
@@ -1146,11 +1146,11 @@ class InferenceEngine:
         warnings.warn("Method get_num_tails() is deprecated. Use get_num_tail_tasks() instead.", DeprecationWarning, stacklevel=2)
         return self.get_num_tail_tasks()
 
-    def is_PPU(self) -> bool:
+    def is_PPU(self) -> bool:  # NOSONAR : S1845
         warnings.warn("Method is_PPU() is deprecated. Use is_ppu() instead.", DeprecationWarning, stacklevel=2)
         return self.is_ppu()
 
-    def _validate_output_buffer_size(self, buffer: np.ndarray, tensor_index: Optional[int] = None) -> None:
+    def _validate_output_buffer_size(self, buffer: np.ndarray, tensor_index: Optional[int] = None) -> None: # NOSONAR : S1845
         """
         Validates that an output buffer has the correct size for the model.
 

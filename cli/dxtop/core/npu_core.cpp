@@ -12,6 +12,7 @@
 #include <stdexcept>
 #include <string>
 #include <cstdint>
+#include <algorithm>
 #include "util/unicode_literal_support.h"
 
 namespace dxrt {
@@ -22,7 +23,7 @@ NpuCore::NpuCore(uint8_t coreNumber, uint8_t deviceNumber)
 
 }
 
-void NpuCore::UpdateData(DXTopIPCClient& dxtopIPCClient, uint32_t voltage, uint32_t clock, uint32_t temperature)
+void NpuCore::UpdateData(IDataSource& dataSource, uint32_t voltage, uint32_t clock, uint32_t temperature)
 {
     int32_t signed_temperature = static_cast<int32_t>(temperature);
 
@@ -38,28 +39,21 @@ void NpuCore::UpdateData(DXTopIPCClient& dxtopIPCClient, uint32_t voltage, uint3
     _voltage = voltage;
     _clock = clock;
 
-    // Update Utilization By IPC
-    this->updateUtilizationByIPC(dxtopIPCClient);
+    // Update Utilization from data source
+    this->updateUtilization(dataSource);
 }
 
-uint64_t NpuCore::updateUtilizationByIPC(DXTopIPCClient& dxtopIPCClient)
+void NpuCore::updateUtilization(IDataSource& dataSource)
 {
     try
     {
-        _utilization = dxtopIPCClient.SendRequest(
-            dxrt::REQUEST_CODE::GET_USAGE,
-            _deviceNumber,
-            _coreNumber
-        );
-
-        return _utilization;
+        _utilization = static_cast<uint64_t>(dataSource.GetCoreUtilization(_deviceNumber, _coreNumber));
     }
     catch (const std::exception& e)
     {
-        std::cerr << "[NpuDevice] IPC error while getting Utilitation: " << e.what() << std::endl;
-        return -1;
+        std::cerr << "[NpuCore] Error while getting utilization: " << e.what() << std::endl;
+        _utilization = 0;
     }
-
 }
 
 uint8_t NpuCore::GetCoreNumber() const

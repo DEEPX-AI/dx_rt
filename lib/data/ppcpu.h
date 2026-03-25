@@ -14,16 +14,16 @@
 
 namespace dxrt {
 
-typedef struct
+struct dx_ppcpu_image_header_t
 {
     char fw_ver[16];
     uint32_t header_crc;
     uint32_t image_crc;
     uint32_t image_size;
     uint32_t reserved[9];
-} dx_ppcpu_image_header_t;
+};
 
-class PPCPUDataLoader
+class DXRT_API PPCPUDataLoader
 {
  public:
     static uint8_t *GetData(size_t &size);

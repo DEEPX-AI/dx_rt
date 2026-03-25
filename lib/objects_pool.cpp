@@ -53,25 +53,19 @@ ObjectsPool::ObjectsPool()
 
     // create multiprocess_memory
     #ifdef USE_SERVICE
-        if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE))
+        if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE) && (_multiProcessMemory == nullptr))
         {
-            if (_multiProcessMemory == nullptr)
-            {
-                 _multiProcessMemory = std::make_shared<MultiprocessMemory>();
-            }
+             _multiProcessMemory = std::make_shared<MultiprocessMemory>();
         }
     #endif
 
     _requestPool = std::make_shared<CircularDataPool<Request>>(ObjectsPool::REQUEST_MAX_COUNT);
-
-    //makeDeviceList();
-
 }
 
 ObjectsPool::~ObjectsPool()
 {
     LOG_DXRT_DBG << "~ObjectsPool start" << std::endl;
-    //_devices.clear();
+
     _requestPool = nullptr;
 
     // delete multiprocess_memory
@@ -86,17 +80,17 @@ ObjectsPool::~ObjectsPool()
     LOG_DXRT_DBG << "~ObjectsPool end" << std::endl;
 }
 
-RequestPtr ObjectsPool::PickRequest()  // new one
+RequestPtr ObjectsPool::PickRequest() const // new one
 {
     return _requestPool->pick();
 }
 
-RequestPtr ObjectsPool::GetRequestById(int id)  // find one by id
+RequestPtr ObjectsPool::GetRequestById(int id) const  // find one by id
 {
     return _requestPool->GetById(id);
 }
 
-std::shared_ptr<MultiprocessMemory> ObjectsPool::GetMultiProcessMemory()
+std::shared_ptr<MultiprocessMemory> ObjectsPool::GetMultiProcessMemory() const
 {
     return _multiProcessMemory;
 }

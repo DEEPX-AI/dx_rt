@@ -37,8 +37,14 @@ public:
     // When true, tensor->data() already points into the user buffer with model-global offsets
     bool outputs_is_user_buffer = false;
 
+    // Virtual addresses for CPU operations (encoding/decoding)
     void* encoded_inputs_ptr;
     void* encoded_outputs_ptr;
+#ifdef USE_VNPU
+    // Physical addresses for DMA operations (zero-copy)
+    uint64_t encoded_inputs_phy = 0;
+    uint64_t encoded_outputs_phy = 0;
+#endif // USE_VNPU
 
     std::vector<void*> encoded_input_ptrs;
     std::vector<void*> encoded_output_ptrs;
@@ -64,7 +70,7 @@ public:
             }
         }
     }
-    int16_t model_type() { return taskData->_npuModel.type; }
+    int16_t model_type() const { return taskData->_npuModel.type; }
 };
 
 }   // namespace dxrt

@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -28,6 +28,7 @@ class WindowsDriverAdapter : public DriverAdapter {
 
     ~WindowsDriverAdapter() override;
     std::string GetName() const override { return _name;  }
+    void Close() override;
 
  private:
      HANDLE AcquireEvent();

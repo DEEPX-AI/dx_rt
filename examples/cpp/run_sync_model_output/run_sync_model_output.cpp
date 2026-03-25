@@ -2,15 +2,15 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
 #include "dxrt/dxrt_api.h"
 #include "dxrt/extern/cxxopts.hpp"
 #include "../include/logger.h"
-#include "simple_circular_buffer_pool.h"
+#include "../include/simple_circular_buffer_pool.h"
 
 #include <string>
 #include <iostream>
@@ -94,22 +94,21 @@ int main(int argc, char* argv[])
             // If the device is fully loaded, this call will block until resources are available
             // provide the output buffer pointer so the user can manage the output directly
             auto outputs = ie.Run(inputPtr.data(), nullptr, outputPtr);
-            
+
             log.Debug("Inference outputs (" + std::to_string(i) + ")");
 
-            //post processing
-            //postProcessing(outputs)
+            // now there is no post processing
             (void)outputs;
 
             // check user buffer pointer
             bool check_user_buffer = false;
-            uint8_t* user_buffer_start = reinterpret_cast<uint8_t*>(outputPtr);
+            uint8_t* user_buffer_start = outputPtr;
             uint8_t* user_buffer_end = user_buffer_start + ie.GetOutputSize();
-            
-            for(const auto& output : outputs)
+
+            for (const auto& output : outputs)
             {
-                uint8_t* tensor_ptr = reinterpret_cast<uint8_t*>(output->data());
-                
+                const auto* tensor_ptr = static_cast<const uint8_t*>(output->data());
+
                 // Check if the tensor pointer is within the user buffer range
                 // This is especially important for multi-tail models where different output tensors
                 // may be located at different offsets within the user-provided buffer
@@ -120,23 +119,23 @@ int main(int argc, char* argv[])
                 }
             }
 
-            if ( !check_user_buffer ) 
+            if ( !check_user_buffer )
             {
                 std::cerr << "The output buffer pointer and the user-provided output pointer do not match" << std::endl;
-                std::cerr << "User buffer range: " << static_cast<void*>(user_buffer_start) 
+                std::cerr << "User buffer range: " << static_cast<void*>(user_buffer_start)
                          << " - " << static_cast<void*>(user_buffer_end) << std::endl;
-                for (size_t i = 0; i < outputs.size(); ++i)
+                for (size_t j = 0; j < outputs.size(); ++j)
                 {
-                    std::cerr << "Output[" << i << "] pointer: " << outputs[i]->data() << std::endl;
+                    std::cerr << "Output[" << j << "] pointer: " << outputs[j]->data() << std::endl;
                 }
             }
-            else 
+            else
             {
                 gOutputSuccessCount++;
             }
 
         } // for i
-        
+
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> duration = end - start;
 
@@ -148,7 +147,7 @@ int main(int argc, char* argv[])
         log.Info("Total Time: " + std::to_string(total_time) + " ms");
         log.Info("Average Latency: " + std::to_string(avg_latency) + " ms");
         log.Info("FPS: " + std::to_string(fps) + " frames/sec");
-        log.Info("loop-count=" + std::to_string(loop_count) + 
+        log.Info("loop-count=" + std::to_string(loop_count) +
                 " output-count=" + std::to_string(gOutputSuccessCount.load()));
         if ( gOutputSuccessCount.load() == loop_count )
             log.Info("Success");
@@ -171,7 +170,7 @@ int main(int argc, char* argv[])
         log.Error("Exception");
         return -1;
     }
-    
+
     return (gOutputSuccessCount == loop_count ? 0 : -1);
 }
 

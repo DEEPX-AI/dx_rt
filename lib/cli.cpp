@@ -39,12 +39,12 @@ namespace dxrt {
 
 
 
-static DevicePool* poolForTest = nullptr;
+static DevicePool* poolForTest = nullptr;  // NOSONAR
 void DXRT_API SetTestDevicePool(DevicePool* p) {
     poolForTest = p;
 }
 
-static string ParseFwUpdateSubCmd(string cmd, uint32_t* subCmd)
+static string ParseFwUpdateSubCmd(const string& cmd, uint32_t* subCmd)
 {
     string path = getPath(cmd);
     if ( !fileExists(path) ) {
@@ -85,22 +85,16 @@ static void HelpJsonConfig(void)
     std::cout << helpMessage;
 }
 
-CLICommand::CLICommand(cxxopts::ParseResult &cmd)
+CLICommand::CLICommand(const cxxopts::ParseResult &cmd)
 : _cmd(cmd)
 {
     if (_cmd.count("device"))
     {
         _deviceId = _cmd["device"].as<int>();
     }
-    if (poolForTest == nullptr)
-    {
-        DevicePool::GetInstance().InitCores();
-    }
 }
 
-CLICommand::~CLICommand(void)
-{
-}
+CLICommand::~CLICommand(void) = default;
 
 void CLICommand::Run(void)
 {
@@ -108,11 +102,16 @@ void CLICommand::Run(void)
 
     if (_withDevice)
     {
-        int device_total_count = 1;
         if (poolForTest == nullptr)
-            device_total_count = DevicePool::GetInstance().GetDeviceCount();
+        {
+            DevicePool::GetInstance().InitCores();
+        }
+
+        auto device_total_count = 1;
+        if (poolForTest == nullptr)
+            device_total_count = static_cast<int>(DevicePool::GetInstance().GetDeviceCount());
         else
-            device_total_count = poolForTest->GetDeviceCount();
+            device_total_count = static_cast<int>(poolForTest->GetDeviceCount());
         if (_deviceId == -1)
         {
             for (int i = 0; i < device_total_count; i++)
@@ -148,7 +147,7 @@ void CLICommand::Run(void)
 DeviceStatusCLICommand::DeviceStatusCLICommand(cxxopts::ParseResult &cmd)
 : CLICommand(cmd)
 {
-    _withDevice = true;
+    withDevice() = true;
 }
 void DeviceStatusCLICommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 {
@@ -158,15 +157,15 @@ void DeviceStatusCLICommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 DeviceStatusMonitor::DeviceStatusMonitor(cxxopts::ParseResult &cmd)
 : CLICommand(cmd)
 {
-    _withDevice = true;
+    withDevice() = true;
 }
 void DeviceStatusMonitor::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 {
-    uint32_t delay = _cmd["monitor"].as<uint32_t>();
+    uint32_t delay = cmdResult()["monitor"].as<uint32_t>();
     if ( delay < 1 ) delay = 1;
 
     // Test/diagnostic mode: run only one iteration when monitor_once flag present
-    if (_cmd.count("monitor_once")) {
+    if (cmdResult().count("monitor_once")) {
         DeviceStatus::GetCurrentStatus(devicePtr).StatusToStream(std::cout);
         return;
     }
@@ -178,13 +177,13 @@ void DeviceStatusMonitor::doCommand(std::shared_ptr<DeviceCore> devicePtr)
         for(uint32_t i = 0; i < device_total_count; i++) {
             std::cout << "====================== Device " << i << " =======================" << std::endl;
             auto device_ptr = DevicePool::GetInstance().GetDeviceCores(i);
-            if ( device_ptr != nullptr) 
+            if ( device_ptr != nullptr)
             {
                 DeviceStatus::GetCurrentStatus(device_ptr).StatusToStream(std::cout);
             } // device_ptr
         }
 
-        std::this_thread::sleep_for(std::chrono::seconds(delay));    
+        std::this_thread::sleep_for(std::chrono::seconds(delay));
         std::cout << std::endl;
     } // while
 }
@@ -193,7 +192,7 @@ void DeviceStatusMonitor::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 DeviceInfoCLICommand::DeviceInfoCLICommand(cxxopts::ParseResult &cmd)
 : CLICommand(cmd)
 {
-    _withDevice = true;
+    withDevice() = true;
 }
 void DeviceInfoCLICommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 {
@@ -203,7 +202,7 @@ void DeviceInfoCLICommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 FWVersionCommand::FWVersionCommand(cxxopts::ParseResult &cmd)
 : CLICommand(cmd)
 {
-    _withDevice = false;
+    withDevice() = false;
 }
 void FWVersionCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 {
@@ -211,48 +210,39 @@ void FWVersionCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
     using std::endl;
 
     std::ignore = devicePtr;
-    string fwFile = _cmd["fwversion"].as<string>();
+    string fwFile = cmdResult()["fwversion"].as<string>();
     cout << "fwFile:" << fwFile << endl;
     Fw fw(fwFile);
     fw.Show();
-    //fw.GetFwBinVersion();
 }
 DeviceResetCommand::DeviceResetCommand(cxxopts::ParseResult &cmd)
 : CLICommand(cmd)
 {
-    _withDevice = true;
-    //_checkDeviceSkip = SkipMode::IDENTIFY_SKIP;
+    withDevice() = true;
 }
 void DeviceResetCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 {
     using std::cout;
     using std::endl;
 
-    int resetOpt = _cmd["reset"].as<int>();
+    int resetOpt = cmdResult()["reset"].as<int>();
     cout << "    Device " << devicePtr->id() << " reset by option " << resetOpt << endl;
     devicePtr->Reset(resetOpt);
 }
 
-
-
-
-
-
 FWUpdateCommand::FWUpdateCommand(cxxopts::ParseResult &cmd)
-: CLICommand(cmd), _fwUpdateSubCmd(0), _showLogOnce(false), _showDonotTunrOff(false)
-, _updateDeviceCount(0)
+: CLICommand(cmd)
 {
-    _withDevice = true;
+    withDevice() = true;
     string path;
-    for (const auto& cmd : _cmd["fwupdate"].as<vector<string>>())
+    for (const auto& arg : cmdResult()["fwupdate"].as<vector<string>>())
     {
-        if ((path = ParseFwUpdateSubCmd(cmd, &_fwUpdateSubCmd)) != "")
+        if ((path = ParseFwUpdateSubCmd(arg, &_fwUpdateSubCmd)) != "")
             _fwUpdateFile = path;
     }
-    //_checkDeviceSkip = SkipMode::VERSION_CHECK;
 }
 
-std::string FWUpdateCommand::getSubCmdString()
+std::string FWUpdateCommand::getSubCmdString() const
 {
     if ( _fwUpdateSubCmd & FWUPDATE_DEV_UNRESET )
         return "unreset";
@@ -301,7 +291,6 @@ void FWUpdateCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
     }
 
     // Check device board type and DDR type compatibility
-    //bool isCompatible = (deviceInfo.bd_type == fw.GetBoardType()) && (deviceInfo.ddr_type == fw.GetDdrType());
     bool isCompatible = false;
     if ( fw.GetBoardType() == BOARD_TYPE_M_dot_2
         && deviceInfo.bd_type == BOARD_TYPE_M_dot_2 )
@@ -324,11 +313,11 @@ void FWUpdateCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
     {
         // H1 board type
         isCompatible = true; // H1
-        
+
     }
     //else isCompatible is false;
     // compatibility check
-        
+
     if (!isCompatible) {
         return;
     }
@@ -371,13 +360,18 @@ void FWUpdateCommand::finish()
     {
         std::cout << LogMessages::CLI_NoUpdateDeviceFound() << std::endl;
     }
+    else
+    {
+        // sleep for a while to wait for device reset after firmware update
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+    }
 }
 
 FWUploadCommand::FWUploadCommand(cxxopts::ParseResult &cmd)
 : CLICommand(cmd)
 {
-    _withDevice = true;
-    _subCmd = dxrt::dxrt_ident_sub_cmd_t::DX_IDENTIFY_FWUPLOAD;
+    withDevice() = true;
+    subCmd() = dxrt::dxrt_ident_sub_cmd_t::DX_IDENTIFY_FWUPLOAD;
 }
 
 void FWUploadCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
@@ -385,27 +379,23 @@ void FWUploadCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
     using std::cout;
     using std::endl;
 
-    vector<string> fwUploadFiles = _cmd["fwupload"].as<vector<string>>();
+    vector<string> fwUploadFiles = cmdResult()["fwupload"].as<vector<string>>();
     if (fwUploadFiles.size() != 2) {
         cout << "Please check firmware file" << endl;
-        for (auto f : fwUploadFiles)
+        for (const auto& f : fwUploadFiles)
             cout << "file :" << f << endl;
     } else {
-        for (auto f : fwUploadFiles) {
+        for (const auto& f : fwUploadFiles) {
             cout << "    Device " << devicePtr->id() << " upload firmware by " << f << endl;
             UploadFw(devicePtr, f, 0);
         }
     }
 }
 
-
-
-
-
 DeviceDumpCommand::DeviceDumpCommand(cxxopts::ParseResult &cmd)
 : CLICommand(cmd)
 {
-    _withDevice = true;
+    withDevice() = true;
 }
 void DeviceDumpCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 {
@@ -413,7 +403,7 @@ void DeviceDumpCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
     using std::endl;
     using std::hex;
 
-    string dumpFileName = _cmd["dump"].as<string>();
+    string dumpFileName = cmdResult()["dump"].as<string>();
     cout << "    Device " << devicePtr->id() << " dump to file " << dumpFileName << endl;
     auto dump = Dump(devicePtr);
     for (size_t i = 0; i < dump.size(); i+=2)
@@ -421,21 +411,21 @@ void DeviceDumpCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
         if (dump[i] == 0xFFFFFFFF) break;
         cout << hex << dump[i] << " : " << dump[i+1] << endl;
     }
-    dxrt::DataDumpBin(dumpFileName, dump.data(), dump.size());
-    dxrt::DataDumpTxt(dumpFileName+".txt", static_cast<uint32_t*>(dump.data()), 1, dump.size()/2, 2, true);
+    dxrt::DataDumpBin(dumpFileName, dump.data(), static_cast<uint32_t>(dump.size()));
+    dxrt::DataDumpTxt(dumpFileName+".txt", dump.data(), 1, dump.size()/2, 2, true);
 }
 
 FWConfigCommand::FWConfigCommand(cxxopts::ParseResult &cmd)
 : CLICommand(cmd)
 {
-    _withDevice = true;
+    withDevice() = true;
 }
 void FWConfigCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 {
     using std::cout;
     using std::endl;
 
-    auto fwConfig = _cmd["fwconfig"].as<vector<uint32_t>>();
+    auto fwConfig = cmdResult()["fwconfig"].as<vector<uint32_t>>();
     cout << "    Device " << devicePtr->id() << " update firmware config by " << fwConfig.size() << endl;
     UpdateFwConfig(devicePtr, fwConfig);
 }
@@ -443,14 +433,14 @@ void FWConfigCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 FWConfigCommandJson::FWConfigCommandJson(cxxopts::ParseResult &cmd)
 : CLICommand(cmd)
 {
-    _withDevice = true;
+    withDevice() = true;
 }
 void FWConfigCommandJson::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 {
     using std::cout;
     using std::endl;
 
-    std::string fwConfigJson = _cmd["fwconfig_json"].as<string>();
+    std::string fwConfigJson = cmdResult()["fwconfig_json"].as<string>();
     cout << "    Device " << devicePtr->id() << " update firmware config by " << fwConfigJson;
     int ret = UpdateFwConfig(devicePtr, fwConfigJson);
 
@@ -466,9 +456,9 @@ void FWConfigCommandJson::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 FWLogCommand::FWLogCommand(cxxopts::ParseResult &cmd)
 : CLICommand(cmd)
 {
-    _withDevice = true;
+    withDevice() = true;
 
-    string logFileName = _cmd["fwlog"].as<string>();
+    string logFileName = cmdResult()["fwlog"].as<string>();
 
     // create the file
     std::ofstream outputFile(logFileName);
@@ -482,7 +472,7 @@ void FWLogCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
     using std::cout;
     using std::endl;
 
-    string logFileName = _cmd["fwlog"].as<string>();
+    string logFileName = cmdResult()["fwlog"].as<string>();
     cout << "    Device " << devicePtr->id() << " get log to file " << logFileName << endl;
     auto fwLog = GetFwLog(devicePtr);
 
@@ -495,7 +485,7 @@ void FWLogCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 ShowVersionCommand::ShowVersionCommand(cxxopts::ParseResult &cmd)
 : CLICommand(cmd)
 {
-    _withDevice = false;
+    withDevice() = false;
 }
 void ShowVersionCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 {
@@ -517,7 +507,7 @@ void ShowVersionCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 PcieStatusCLICommand::PcieStatusCLICommand(cxxopts::ParseResult &cmd)
 : CLICommand(cmd)
 {
-    _withDevice = true;
+    withDevice() = true;
 }
 void PcieStatusCLICommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 {
@@ -527,7 +517,7 @@ void PcieStatusCLICommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 DDRErrorCLICommand::DDRErrorCLICommand(cxxopts::ParseResult &cmd)
 : CLICommand(cmd)
 {
-    _withDevice = true;
+    withDevice() = true;
 }
 void DDRErrorCLICommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 {
@@ -541,7 +531,7 @@ bool CheckH1Devices()
 {
     bool foundH1 = false;
     auto& pool = DevicePool::GetInstance();
-    int device_total_count = pool.GetDeviceCount();
+    auto device_total_count = static_cast<int>(pool.GetDeviceCount());
 
     int h1_count = 0;
 
@@ -589,16 +579,15 @@ bool CheckM1Devices(int deviceType)
         // M1 M.2 board type (2)
         // lpddr type (1 = lpddr4, 2= lpddr5, 3= lpddr5x)
         // board type (1 = SOM, 2 = M.2, 3 = H1)
-        //if (deviceInfo.bd_type == BOARD_TYPE_M_dot_2 && deviceInfo.ddr_type == ddr_type) 
-        if ( deviceType == CHECK_M1_DEVICE 
-             && deviceInfo.bd_type == BOARD_TYPE_M_dot_2 
+        if ( deviceType == CHECK_M1_DEVICE
+             && deviceInfo.bd_type == BOARD_TYPE_M_dot_2
              && (deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR5 || deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR5X) )
         {
             // count of devices recognized as M1
             m1_count ++;
         }
-        else if ( deviceType == CHECK_M1M_DEVICE 
-             && deviceInfo.bd_type == BOARD_TYPE_M_dot_2 
+        else if ( deviceType == CHECK_M1M_DEVICE
+             && deviceInfo.bd_type == BOARD_TYPE_M_dot_2
              && deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR4 )
         {
             // count of devices recognized as M1 or M1M

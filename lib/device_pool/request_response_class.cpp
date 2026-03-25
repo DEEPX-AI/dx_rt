@@ -22,8 +22,9 @@
 #include "dxrt/request.h"
 #include "dxrt/task.h"
 #include "dxrt/util.h"
-// #include "dxrt/objects_pool.h"
+
 #include "dxrt/npu_format_handler.h"
+#include "dxrt/model_type.h"
 
 using std::endl;
 
@@ -51,28 +52,42 @@ int RequestResponse::InferenceRequest(RequestPtr req)
       TASK_FLOW("[" + std::to_string(req->job_id()) + "]" +
             req->task()->name() + " device pick");
 
-        req->model_type() = req->taskData()->_npuModel.type;
+        req->setModelType(static_cast<ModelType>(req->taskData()->_npuModel.type));
 
         if (req->getData()->output_buffer_base == nullptr)
         {
             // Allocate an atomic buffer to avoid deadlocks
             try {
+#ifdef USE_PROFILER
+                auto& profiler = dxrt::Profiler::GetInstance();
+                std::string buffer_wait_name =
+                    "Buffer Wait[Device_" + std::to_string(device->id()) + "][Job_" + std::to_string(req->job_id()) + "][" +
+                    req->task()->name() + "][Req_" +
+                    std::to_string(req->id()) + "]";
+                profiler.Start(buffer_wait_name);
+#endif
                 BufferSet buffers = req->task()->AcquireAllBuffers();
 #ifdef USE_PROFILER
+                profiler.End(buffer_wait_name);
                 req->CheckTimePoint(0);
                 // Start profiling for overall NPU task (input preprocess + PCIe + NPU execution + output postprocess)
-                auto& profiler = dxrt::Profiler::GetInstance();
                 std::string profile_name =
-                    "NPU Task[Job_" + std::to_string(req->job_id()) + "][" +
+                    "NPU Task[Device_" + std::to_string(device->id()) + "][Job_" + std::to_string(req->job_id()) + "][" +
                     req->task()->name() + "][Req_" +
                     std::to_string(req->id()) + "]";
                 profiler.Start(profile_name);
 #endif
                 req->getData()->output_buffer_base = buffers.output;
+                // CPU always uses virtual addresses for encoding/decoding
                 req->getData()->encoded_inputs_ptr = buffers.encoded_input;
                 req->getData()->encoded_outputs_ptr = buffers.encoded_output;
+#ifdef USE_VNPU
+                // Store physical addresses separately for DMA operations
+                req->getData()->encoded_inputs_phy = buffers.encoded_input_phy;
+                req->getData()->encoded_outputs_phy = buffers.encoded_output_phy;
+#endif // USE_VNPU
                 // Store the BufferSet in the Request so it can be released automatically
-                req->setBufferSet(std::unique_ptr<BufferSet>(new BufferSet(buffers)));
+                req->setBufferSet(MAKE_UNIQUE<BufferSet>(buffers));
             }
             catch (const std::exception& e) {
                 LOG_DXRT_ERR(
@@ -112,8 +127,17 @@ int RequestResponse::InferenceRequest(RequestPtr req)
         {
             // Allocate an atomic buffer to avoid deadlocks
             try {
+#ifdef USE_PROFILER
+                auto& profiler_cpu = dxrt::Profiler::GetInstance();
+                std::string cpu_buffer_wait_name =
+                    "Buffer Wait[Job_" + std::to_string(req->job_id()) + "][" +
+                    req->task()->name() + "][Req_" +
+                    std::to_string(req->id()) + "]";
+                profiler_cpu.Start(cpu_buffer_wait_name);
+#endif
                 BufferSet buffers = req->task()->AcquireAllBuffers();
 #ifdef USE_PROFILER
+                profiler_cpu.End(cpu_buffer_wait_name);
                 req->CheckTimePoint(0);
 #endif
                 TASK_FLOW("[" + std::to_string(req->job_id()) + "]" +
@@ -124,7 +148,7 @@ int RequestResponse::InferenceRequest(RequestPtr req)
                 req->getData()->encoded_outputs_ptr = nullptr;
 
                 // Store the BufferSet in the Request so it can be released automatically
-                req->setBufferSet(std::unique_ptr<BufferSet>(new BufferSet(buffers)));
+                req->setBufferSet(MAKE_UNIQUE<BufferSet>(buffers));
             }
             catch (const std::exception& e) {
                 LOG_DXRT_ERR(
@@ -158,23 +182,23 @@ void RequestResponse::ProcessByData(int reqId, const dxrt_response_t& response, 
     }
 
     // Temproal Fix for Performance Issue
-    if (req->model_type() == 0)
+    if (req->modelType() == ModelType::MODEL_TYPE_NORMAL)
     {
-        //ProcessByDataNormal(req, response, deviceId);
+        // ProcessByDataNormal is called otherwise now
     }
 
     // Argmax
-    else if (req->model_type() == 1)
+    else if (req->modelType() == ModelType::MODEL_TYPE_ARGMAX)
     {
         ProcessByDataArgmax(req, response, deviceId);
     }
     // PPU
-    else if (req->model_type() == 2)
+    else if (req->modelType() == ModelType::MODEL_TYPE_PPU)
     {
         ProcessByDataPPU(req, response, deviceId);
     }
     // PPCPU
-    else if (req->model_type() == 3)
+    else if (req->modelType() == ModelType::MODEL_TYPE_PPCPU)
     {
         ProcessByDataPPCPU(req, response, deviceId);
     }
@@ -199,9 +223,9 @@ void RequestResponse::ProcessByDataNormal(RequestPtr req, const dxrt_response_t&
         {
             Tensor& output_tensor = req_data->outputs[i];
             deepx_rmapinfo::TensorInfo tensor_info = req_data->taskData->_npuOutputTensorInfos[i];
-            int shape_dims = tensor_info.shape_encoded().size();
+            auto shape_dims = static_cast<int>(tensor_info.shape_encoded().size());
             npu_format_handler::Bytes encoded_output = {
-                static_cast<uint32_t>(req_data->taskData->_encodedOutputSizes[i]),
+                req_data->taskData->_encodedOutputSizes[i],
                 static_cast<uint8_t*>(req_data->encoded_output_ptrs[i])
             };
             npu_format_handler::Bytes decoded_output = {
@@ -219,7 +243,7 @@ void RequestResponse::ProcessByDataNormal(RequestPtr req, const dxrt_response_t&
                     npu_format_handler::NpuFormatHandler::decode_aligned(
                         encoded_output,
                         decoded_output,
-                        tensor_info.shape_encoded()[shape_dims - 1],
+                        static_cast<int>(tensor_info.shape_encoded()[shape_dims - 1]),
                         static_cast<deepx_rmapinfo::DataType>(
                             tensor_info.dtype_encoded()),
                         tensor_info.align_unit());
@@ -234,7 +258,7 @@ void RequestResponse::ProcessByDataNormal(RequestPtr req, const dxrt_response_t&
                     npu_format_handler::NpuFormatHandler::decode_aligned(
                         encoded_output,
                         decoded_output,
-                        tensor_info.shape_encoded()[shape_dims - 1],
+                        static_cast<int>(tensor_info.shape_encoded()[shape_dims - 1]),
                         static_cast<deepx_rmapinfo::DataType>(
                             tensor_info.dtype_encoded()),
                         tensor_info.align_unit());
@@ -244,17 +268,16 @@ void RequestResponse::ProcessByDataNormal(RequestPtr req, const dxrt_response_t&
                         << ", decoded_output size: " << decoded_output.size
                         << endl;
                     npu_format_handler::Bytes transposed_output = {encoded_output.size, decoded_output.data};
-                    ///*
-                    int col = tensor_info.shape_encoded()[shape_dims - 1];
+                    auto col = static_cast<int>(tensor_info.shape_encoded()[shape_dims - 1]);
                     int row = 1;
                     for (int j = 0; j < shape_dims - 1; j++)
                     {
-                        row *= tensor_info.shape_encoded()[j];
+                        row *= static_cast<int>(tensor_info.shape_encoded()[j]);
                     }
                     int elem_size = GetDataSize_rmapinfo_datatype(
                         static_cast<deepx_rmapinfo::DataType>(
                             tensor_info.dtype_encoded()));
-                    //*/
+
                     npu_format_handler::NpuFormatHandler::bidirectional_transpose(
                         transposed_output.data,
                         decoded_output.data,
@@ -262,15 +285,7 @@ void RequestResponse::ProcessByDataNormal(RequestPtr req, const dxrt_response_t&
                         col,
                         elem_size);
 
-                    /*
-                    npu_format_handler::NpuFormatHandler::decode_aligned_transposed(encoded_output,
-                                                                                    decoded_output,
-                                                                                    tensor_info.shape_encoded()[shape_dims - 1],
-                                                                                    static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded()),
-                                                                                    tensor_info.shape_encoded(),
-                                                                                    tensor_info.transpose()
-                                                                                    );
-                    */
+
                     LOG_DXRT_DBG
                         << "Output format is decoded (ALIGNED+CHANNEL_LAST_TO_FIRST) ["
                         << i << "] "
@@ -323,7 +338,7 @@ void RequestResponse::ProcessByDataPPU(RequestPtr req, const dxrt_response_t& re
     RequestData* req_data = req->getData();
     if (!req_data->outputs.empty())
     {
-        memcpy(static_cast<void*>(req_data->outputs[0].data()),
+        memcpy(req_data->outputs[0].data(),
                 static_cast<const void*>(req_data->encoded_output_ptrs[0]),
                 128 * 1024);
         req_data->outputs[0].shape() = {1, response.ppu_filter_num};
@@ -345,13 +360,14 @@ void RequestResponse::ProcessByDataPPCPU(RequestPtr req, const dxrt_response_t& 
     {
         DataType dtype = req_data->outputs[0].type();
         size_t unit_size = GetDataSize_Datatype(dtype);
-        memcpy(static_cast<void*>(req_data->outputs[0].data()),
+        memcpy(req_data->outputs[0].data(),
                static_cast<const void*>(req_data->encoded_output_ptrs[0]),
                response.ppu_filter_num * unit_size);
         req_data->outputs[0].shape() = {1, response.ppu_filter_num};
 
         LOG_DXRT_DBG << "PPCPU output shape set to [" << response.ppu_filter_num << "]" << std::endl;
     }
+
     else
     {
         LOG_DXRT_DBG << "PPCPU output is empty or ppu_filter_num is 0, req id: " << req->id() << std::endl;
@@ -375,7 +391,7 @@ int RequestResponse::ProcessResponse(RequestPtr req, const dxrt_response_t& resp
     // End profiling for overall NPU task
     auto& profiler = dxrt::Profiler::GetInstance();
     std::string profile_name =
-        "NPU Task[Job_" + std::to_string(req->job_id()) + "][" +
+        "NPU Task[Device_" + std::to_string(req->getData()->_processedDevId) + "][Job_" + std::to_string(req->job_id()) + "][" +
         req->task()->name() + "][Req_" + std::to_string(req->id()) + "]";
     profiler.End(profile_name);
 
@@ -385,7 +401,7 @@ int RequestResponse::ProcessResponse(RequestPtr req, const dxrt_response_t& resp
             << req->task()->name() << ", " << req->latency() << std::endl;
     if (deviceType != 1)
     {
-    req->task()->setLastOutput(req->outputs());  // TODO(dxrt): STD issue can be possible
+        req->task()->setLastOutput(req->outputs());  // TODO(dxrt): STD issue can be possible
     }
 
     if (req->task()->processor() == Processor::NPU)

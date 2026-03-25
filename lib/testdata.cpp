@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -22,15 +22,16 @@ using std::vector;
 
 namespace dxrt {
 
-TestData::TestData(int id_, string inputFile_, vector<string> refOutputFile_, string outputFile_, string modelPath_, uint32_t inputSize, uint32_t outputSize)
-:id(id_), inputFile(inputFile_), refOutputFile(refOutputFile_), outputFile(outputFile_), modelPath(modelPath_)
+TestData::TestData(int id_, const string& inputFile_, const vector<string>& refOutputFile_, const string& outputFile_,
+    const string& modelPath_, uint32_t inputSize, uint32_t outputSize)
+:id(id_), input(std::vector<uint8_t>(inputSize, 0)), inputFile(inputFile_), refOutputFile(refOutputFile_),
+    outputFile(outputFile_), modelPath(modelPath_)
 {
-    input = vector<uint8_t>(inputSize, 0);
     DataFromFile(inputFile, input.data());
-    for (auto &rf : refOutputFile)
+    for (const auto &rf : refOutputFile)
     {
-        size = getFileSize(rf);
-        refOutput.emplace_back(vector<uint8_t>(size, 0));
+        size = static_cast<int>(getFileSize(rf));
+        refOutput.emplace_back(size, 0);
         if (static_cast<uint32_t>(size) > outputSize)
             type = 0;
         else
@@ -42,9 +43,9 @@ TestData::TestData(int id_, string inputFile_, vector<string> refOutputFile_, st
         outputFile = inputFile + ".failoutputdata";
     }
 }
-TestData::TestData() {}
-TestData::~TestData() {}
-void TestData::Show()
+TestData::TestData() = default;
+TestData::~TestData() = default;
+void TestData::Show() const
 {
     cout << "  [" << id << "] " << type << ", "
         << inputFile << "(" << input.size() << " bytes) ->";

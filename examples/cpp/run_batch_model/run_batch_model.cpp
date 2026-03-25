@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -72,29 +72,29 @@ int main(int argc, char* argv[])
             // assigns the same buffer pointer in this example
             inputBuffers.emplace_back(inputBuffer.data());
         }
-        
+
         log.Debug("[output-internal] Use user's output buffers");
-        
+
 
         // output buffer vector
-        std::vector<void*> output_buffers(batch_count, 0);
+        std::vector<void*> output_buffers(batch_count, nullptr);
 
         // create user output buffers
         uint64_t outputSize = ie.GetOutputSize();
         bool isDynamic = ie.HasDynamicOutput();  // Explicit check for dynamic output
-        
+
         if (isDynamic) {
             log.Info("Dynamic shape model detected - using engine-managed output buffers");
             log.Info("Model has dynamic output shapes that vary based on input");
             log.Info("Static output size calculation: " + std::to_string(outputSize) + " bytes (may be 0 for dynamic tensors)");
-            
+
             // Show individual tensor size estimates
             auto tensorSizes = ie.GetOutputTensorSizes();
             log.Info("Output tensor count: " + std::to_string(tensorSizes.size()));
             for (size_t i = 0; i < tensorSizes.size(); ++i) {
                 log.Info("Tensor " + std::to_string(i) + " estimated size: " + std::to_string(tensorSizes[i]) + " bytes");
             }
-            
+
             // For dynamic models, pass nullptr to use engine-managed buffers
             // The engine will allocate appropriate buffers based on actual output shapes
         } else {
@@ -124,7 +124,7 @@ int main(int argc, char* argv[])
             log.Debug("[output-user] Inference outputs (" + std::to_string(i) + ")");
             log.Debug("[output-user] Inference outputs size=" + std::to_string(outputPtrs.size()));
             log.Debug("[output-user] Inference outputs first-tensor-name=" + outputPtrs.front().front()->name());
-            
+
             // For dynamic shape models, show actual output shapes
             if (isDynamic && logging && i == 0) {  // Use explicit dynamic flag
                 log.Debug("[Dynamic] Actual output shapes for first batch:");
@@ -137,15 +137,15 @@ int main(int argc, char* argv[])
                             shape_str += std::to_string(tensor->shape()[dim_idx]);
                         }
                         shape_str += "]";
-                        log.Debug("[Dynamic] Batch " + std::to_string(batch_idx) + 
-                                 ", Tensor " + std::to_string(tensor_idx) + 
-                                 " (" + tensor->name() + "): " + shape_str + 
+                        log.Debug("[Dynamic] Batch " + std::to_string(batch_idx) +
+                                 ", Tensor " + std::to_string(tensor_idx) +
+                                 " (" + tensor->name() + "): " + shape_str +
                                  " = " + std::to_string(tensor->size_in_bytes()) + " bytes");
                     }
                 }
             }
 
-            // postProcessing(outputs);
+            // now there is no post processing
             (void)outputPtrs;
             log.Debug("[output-user] Reuse the user's output buffers");
         }
@@ -198,6 +198,6 @@ int main(int argc, char* argv[])
         log.Error("Exception");
         return -1;
     }
-    
+
     return 0;
 }

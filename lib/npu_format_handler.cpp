@@ -8,6 +8,7 @@
  */
 
 #include "dxrt/npu_format_handler.h"
+#include "dxrt/configuration.h"
 #include <vector>
 #include <numeric>
 #include <functional>
@@ -18,6 +19,13 @@
 #include <cstdint>
 #include <cstddef>
 #include <limits>
+#include <memory>
+#ifdef USE_IPP
+#include <ipp.h>
+#endif
+#ifdef USE_NEON
+#include "dxrt/xnn_kernel.h"
+#endif
 // High-level NFH function dependencies
 #include "dxrt/request_data.h"
 #include "dxrt/request.h"
@@ -27,11 +35,14 @@
 #include "dxrt/driver.h"
 #include "dxrt/exception/exception.h"
 
-namespace npu_format_handler {
+namespace npu_format_handler
+{
 
 // Helper function: Integer division rounding up
-int cdiv(int a, int b) {
-    if (b == 0) {
+int cdiv(int a, int b)
+{
+    if (b == 0)
+    {
         LOG_DXRT_ERR("[cdiv] Error: Division by zero.");
         return 0; // Or handle error appropriately
     }
@@ -39,17 +50,30 @@ int cdiv(int a, int b) {
 }
 
 // --- Existing encode function (modified error handling) ---
-int NpuFormatHandler::encode(Bytes& input, Bytes& output, int col, int unit) {
-    if (col <= 0 || unit <= 0) {
+int NpuFormatHandler::encode(const Bytes& input, Bytes& output, int col, int unit)
+{
+
+#ifndef USE_VNPU
+    if (input.size == output.size && input.data == output.data)
+    {
+        return 0;
+    }
+#endif
+
+    if (col <= 0 || unit <= 0)
+    {
          LOG_DXRT_ERR("[encode] Error: Column size (" << col << ") and unit size (" << unit << ") must be positive.");
          return -1;
     }
-    if (input.size % col != 0) {
-        LOG_DXRT_ERR("[encode] Error: Input size (" << input.size << ") is not a multiple of column size (" << col << ")");
-        // perror("Reason"); // perror is for system errors, not logical errors
+    if (input.size % col != 0)
+    {
+        std::string error_msg = "[encode] Error: Input size (" + std::to_string(input.size) +
+                                ") is not a multiple of column size (" + std::to_string(col) + ")";
+        LOG_DXRT_ERR(error_msg);
         return -1;
     }
-    if (input.data == nullptr) {
+    if (input.data == nullptr)
+    {
          LOG_DXRT_ERR("[encode] Error: Input data buffer is null.");
          return -1;
     }
@@ -59,14 +83,15 @@ int NpuFormatHandler::encode(Bytes& input, Bytes& output, int col, int unit) {
     int aligned_col = cdiv(col, unit) * unit;
     uint32_t expected_size = (uint32_t)row * aligned_col;
 
-    if (output.data == nullptr) {
+    if (output.data == nullptr)
+    {
         LOG_DXRT_ERR("[encode] Error: Output data buffer is null.");
-        // perror("[encode] Error allocating memory"); // Misleading - memory should be pre-allocated
         return -1;
     }
      // It's generally better if the caller provides a sufficiently sized buffer.
      // Warn if provided size is different, then set the correct expected size.
-    if (expected_size != output.size) {
+    if (expected_size != output.size)
+    {
         LOG_DXRT_ERR("[encode] Warning: Output size is different than expected. "
                   << "Expected size: " << expected_size << ", Provided size: " << output.size
                   << ". Output size will be set to expected.");
@@ -76,41 +101,43 @@ int NpuFormatHandler::encode(Bytes& input, Bytes& output, int col, int unit) {
     uint8_t* data = output.data; // Use the provided output buffer
 
 
-    if (input.data == output.data) { // In-place operation requires temporary buffer
-        try {
+    if (input.data == output.data)
+    { // In-place operation requires temporary buffer
+        try
+        {
             // Allocate temporary buffer only if really needed
-            if (col == aligned_col) {
+            if (col == aligned_col)
+            {
                  // No padding needed, data is already in the correct format (effectively a no-op)
                  // Size check already done.
                  return 0;
             }
 
-            uint8_t* temp_buffer = new uint8_t[input.size];
+            std::vector<uint8_t> temp_buffer(input.size);
             // No need to check for nullptr, new throws std::bad_alloc on failure
 
-            memcpy(temp_buffer, input.data, input.size);
+            memcpy(temp_buffer.data(), input.data, input.size);
 
             // Clear the output area (especially padding) before copying back
             memset(data, 0, output.size);
 
-            for (int i = 0; i < row; ++i) {
-                memcpy(data + (size_t)i * aligned_col, temp_buffer + (size_t)i * col, col);
+            for (int i = 0; i < row; ++i)
+            {
+                memcpy(data + (size_t)i * aligned_col, temp_buffer.data() + (size_t)i * col, col);
             }
-
-            delete[] temp_buffer;
         }
-        catch (const std::bad_alloc& e) {
+        catch (const std::bad_alloc& e) // LCOV_EXCL_BR_LINE
+        {
             LOG_DXRT_ERR("[encode] Error: Failed to allocate temporary buffer for in-place operation: " << e.what());
             return -1;
         }
-         catch (const std::exception& e) {
-             LOG_DXRT_ERR("[encode] Error during in-place operation: " << e.what());
-             return -1;
-         }
-    } else { // Out-of-place operation
+    }
+    else
+    { // Out-of-place operation
         // Clear the output area (especially padding) before copying
         memset(data, 0, output.size);
-        for (int i = 0; i < row; ++i) {
+        for (int i = 0; i < row; ++i)
+        {
             memcpy(data + (size_t)i * aligned_col, input.data + (size_t)i * col, col);
         }
     }
@@ -119,9 +146,11 @@ int NpuFormatHandler::encode(Bytes& input, Bytes& output, int col, int unit) {
 }
 
 // --- Existing encode_preformatter (no changes needed other than calling updated encode) ---
-int NpuFormatHandler::encode_preformatter(Bytes& input, Bytes& output, int align_unit) {
-    int col = input.size; // Assumes input is a flat vector, col = total size
-    if (col == 0 && input.data == nullptr) { // Handle empty input case gracefully
+int NpuFormatHandler::encode_preformatter(const Bytes& input, Bytes& output, int align_unit)
+{
+    int col = input.size;  // Assumes input is a flat vector, col = total size
+    if (col == 0 && input.data == nullptr)  // Handle empty input case gracefully
+    {
         output.size = 0;
         // output.data should ideally be nullptr or managed by caller
         return 0;
@@ -136,9 +165,13 @@ int NpuFormatHandler::encode_preformatter(Bytes& input, Bytes& output, int align
 }
 
 // --- Existing encode_preim2col (no changes needed other than calling updated encode) ---
-int NpuFormatHandler::encode_preim2col(Bytes& input, Bytes& output, int width, int channel, int align_unit) {
-     if (width <= 0 || channel <= 0) {
-         LOG_DXRT_ERR("[encode_preim2col] Error: Width (" << width << ") and channel (" << channel << ") must be positive.");
+int NpuFormatHandler::encode_preim2col(const Bytes& input, Bytes& output, int width, int channel, int align_unit)
+{
+     if (width <= 0 || channel <= 0)
+     {
+         std::string error_msg = "[encode_preim2col] Error: Width (" + std::to_string(width) +
+                                 ") and channel (" + std::to_string(channel) + ") must be positive.";
+         LOG_DXRT_ERR(error_msg);
          return -1;
      }
     int col = width * channel;
@@ -146,22 +179,29 @@ int NpuFormatHandler::encode_preim2col(Bytes& input, Bytes& output, int width, i
 }
 
 // --- Existing encode_formatted (modified error handling) ---
-int NpuFormatHandler::encode_formatted(Bytes& input, Bytes& output, int channel, int align_unit) {
-    int col = channel; // In this context, col is the channel count
+int NpuFormatHandler::encode_formatted(const Bytes& input, Bytes& output, int channel, int align_unit)
+{
+    int col = channel;  // In this context, col is the channel count
 
-    if (col <= 0 || align_unit <= 0) {
-         LOG_DXRT_ERR("[encode_formatted] Error: Channel size (" << col << ") and unit size (" << align_unit << ") must be positive.");
+    if (col <= 0 || align_unit <= 0)
+    {
+         std::string error_msg = "[encode_formatted] Error: Channel size (" + std::to_string(col) +
+                                 ") and unit size (" + std::to_string(align_unit) + ") must be positive.";
+         LOG_DXRT_ERR(error_msg);
          return -1;
     }
-     if (input.data == nullptr) {
+    if (input.data == nullptr)
+    {
          LOG_DXRT_ERR("[encode_formatted] Error: Input data buffer is null.");
          return -1;
-     }
-    if (input.size == 0) { // Handle empty input
+    }
+    if (input.size == 0)  // Handle empty input
+    {
          output.size = 0;
          return 0;
     }
-    if (input.size % col != 0) {
+    if (input.size % col != 0)
+    {
         LOG_DXRT_ERR("[encode_formatted] Error: Input size (" << input.size << ") is not a multiple of channel size (" << col << ")");
         return -1;
     }
@@ -171,72 +211,90 @@ int NpuFormatHandler::encode_formatted(Bytes& input, Bytes& output, int channel,
     int aligned_col = col_group * align_unit; // Total width after aligning channels to unit boundary
     uint32_t expected_size = (uint32_t)row * aligned_col; // Expected output size in bytes
 
-    if (output.data == nullptr) {
+    if (output.data == nullptr)
+    {
         LOG_DXRT_ERR("[encode_formatted] Error: Output data buffer is null.");
         return -1;
     }
-     if (expected_size != output.size) {
-         LOG_DXRT_ERR("[encode_formatted] Warning: Output size is different than expected. "
-                   << "Expected size: " << expected_size << ", Provided size: " << output.size
-                   << ". Output size will be set to expected.");
-     }
-     output.size = expected_size;
+    if (expected_size != output.size)
+    {
+        LOG_DXRT_ERR("[encode_formatted] Warning: Output size is different than expected. "
+                  << "Expected size: " << expected_size << ", Provided size: " << output.size
+                  << ". Output size will be set to expected.");
+    }
+    output.size = expected_size;
 
     uint8_t* data = output.data;
 
     // Zero out the buffer initially to handle padding correctly
     memset(data, 0, output.size);
 
-    if (input.data == output.data) { // In-place
-        try {
-             uint8_t* temp_buffer = new uint8_t[input.size];
-             memcpy(temp_buffer, input.data, input.size);
+    if (input.data == output.data)
+    { // In-place
+        try
+        {
+             std::vector<uint8_t> temp_buffer(input.size);
+             memcpy(temp_buffer.data(), input.data, input.size);
 
-             for (int g = 0; g < col_group; ++g) {
-                 for (int i = 0; i < row; ++i) {
-                     // Calculate addresses relative to the start of the buffers
-                     size_t src_addr = (size_t)i * col + (size_t)g * align_unit;
-                     size_t dst_addr = (size_t)g * row * align_unit + (size_t)i * align_unit;
+            for (int g = 0; g < col_group; ++g)
+            {
+                for (int i = 0; i < row; ++i)
+                {
+                    // Calculate addresses relative to the start of the buffers
+                    size_t src_addr = static_cast<size_t>(i) * col + static_cast<size_t>(g) * align_unit;
+                    size_t dst_addr = static_cast<size_t>(g) * row * align_unit + static_cast<size_t>(i) * align_unit;
 
-                     // Calculate how many bytes to copy for this chunk
-                     int remaining_cols = col - g * align_unit;
-                     int copy_size = (remaining_cols < align_unit) ? remaining_cols : align_unit;
+                    // Calculate how many bytes to copy for this chunk
+                    int remaining_cols = col - g * align_unit;
+                    int copy_size = (remaining_cols < align_unit) ? remaining_cols : align_unit;
 
-                     // Ensure copy_size is not negative if col < g*unit (shouldn't happen with cdiv)
-                     if (copy_size > 0) {
-                         // Check bounds before memcpy
-                          if (src_addr + copy_size > input.size || dst_addr + copy_size > output.size) {
-                               LOG_DXRT_ERR("[encode_formatted] Internal Error: Memory access out of bounds during in-place copy.");
-                              delete[] temp_buffer; // Clean up memory
-                              return -1;
-                         }
-                         memcpy(data + dst_addr, temp_buffer + src_addr, copy_size);
-                     }
-                 }
-             }
-             delete[] temp_buffer;
-        } catch (const std::bad_alloc& e) {
-             LOG_DXRT_ERR("[encode_formatted] Error: Failed to allocate temporary buffer for in-place operation: " << e.what());
+                    // Ensure copy_size is not negative if col < g*unit (shouldn't happen with cdiv)
+                    if (copy_size > 0)
+                    {
+                        // LCOV_EXCL_BR_START — mathematically unreachable with valid cdiv
+                        if (src_addr + copy_size > input.size || dst_addr + copy_size > output.size)
+                        {
+                             std::string error_msg = "[encode_formatted] Internal Error: "
+                                                     "Memory access out of bounds during in-place copy.";
+                             LOG_DXRT_ERR(error_msg);
+                            return -1;
+                        }
+                        // LCOV_EXCL_BR_STOP
+                        memcpy(data + dst_addr, temp_buffer.data() + src_addr, copy_size);
+                    }
+                }
+            }
+        }
+        catch (const std::bad_alloc& e) // LCOV_EXCL_BR_LINE
+        {
+             std::string error_msg = "[encode_formatted] Error: Failed to allocate temporary buffer "
+                                     "for in-place operation: " + std::string(e.what());
+             LOG_DXRT_ERR(error_msg);
              return -1;
-        } catch (const std::exception& e) {
-             LOG_DXRT_ERR("[encode_formatted] Error during in-place operation: " << e.what());
-             return -1;
-         }
-
-    } else { // Out-of-place
-        for (int g = 0; g < col_group; ++g) {
-            for (int i = 0; i < row; ++i) {
-                size_t src_addr = (size_t)i * col + (size_t)g * align_unit;
-                size_t dst_addr = (size_t)g * row * align_unit + (size_t)i * align_unit;
+        }
+    }
+    else
+    {  // Out-of-place
+        for (int g = 0; g < col_group; ++g)
+        {
+            for (int i = 0; i < row; ++i)
+            {
+                size_t src_addr = static_cast<size_t>(i) * col + static_cast<size_t>(g) * align_unit;
+                size_t dst_addr = static_cast<size_t>(g) * row * align_unit + static_cast<size_t>(i) * align_unit;
                 int remaining_cols = col - g * align_unit;
                 int copy_size = (remaining_cols < align_unit) ? remaining_cols : align_unit;
 
-                if (copy_size > 0) {
-                     // Check bounds before memcpy
-                     if (src_addr + copy_size > input.size || dst_addr + copy_size > output.size) {
-                          LOG_DXRT_ERR("[encode_formatted] Internal Error: Memory access out of bounds during out-of-place copy.");
+                if (copy_size > 0)
+                {
+                     // LCOV_EXCL_BR_START — mathematically unreachable with valid cdiv
+                     if (src_addr + copy_size > input.size || dst_addr + copy_size > output.size)
+                     {
+                          std::string error_msg = "[encode_formatted] Internal Error: "
+                                                  "Memory access out of bounds during out-of-place copy.";
+                          LOG_DXRT_ERR(error_msg);
                           return -1;
                      }
+                     // LCOV_EXCL_BR_STOP
                     memcpy(data + dst_addr, input.data + src_addr, copy_size);
                 }
             }
@@ -248,37 +306,45 @@ int NpuFormatHandler::encode_formatted(Bytes& input, Bytes& output, int channel,
 
 
 // --- Existing decode function (modified error handling) ---
-int NpuFormatHandler::decode(Bytes& input, Bytes& output, int col, int unit) {
-     if (col <= 0 || unit <= 0) {
-         LOG_DXRT_ERR("[decode] Error: Column size (" << col << ") and unit size (" << unit << ") must be positive.");
-         return -1;
+int NpuFormatHandler::decode(const Bytes& input, Bytes& output, int col, int unit)
+{
+    if (col <= 0 || unit <= 0)
+    {
+        LOG_DXRT_ERR("[decode] Error: Column size (" << col << ") and unit size (" << unit << ") must be positive.");
+        return -1;
     }
     int aligned_col = cdiv(col, unit) * unit;
-     if (aligned_col == 0) {
-         LOG_DXRT_ERR("[decode] Error: Calculated aligned column size is zero.");
-         return -1;
-     }
-     if (input.data == nullptr) {
-         LOG_DXRT_ERR("[decode] Error: Input data buffer is null.");
-         return -1;
-     }
-    if (input.size == 0) { // Handle empty input
+    if (aligned_col == 0)
+    {
+        LOG_DXRT_ERR("[decode] Error: Calculated aligned column size is zero.");
+        return -1;
+    }
+    if (input.data == nullptr)
+    {
+        LOG_DXRT_ERR("[decode] Error: Input data buffer is null.");
+        return -1;
+    }
+    if (input.size == 0)
+    { // Handle empty input
          output.size = 0;
          return 0;
     }
-     if (input.size % aligned_col != 0) {
-         LOG_DXRT_ERR("[decode] Error: Input size (" << input.size << ") is not a multiple of aligned column size (" << aligned_col << ")");
-         return -1;
+    if (input.size % aligned_col != 0)
+    {
+        LOG_DXRT_ERR("[decode] Error: Input size (" << input.size << ") is not a multiple of aligned column size (" << aligned_col << ")");
+        return -1;
     }
 
     int row = input.size / aligned_col;
     uint32_t expected_size = (uint32_t)row * col;
 
-    if (output.data == nullptr) {
+    if (output.data == nullptr)
+    {
         LOG_DXRT_ERR("[decode] Error: Output data buffer is null.");
         return -1;
     }
-    if (expected_size != output.size) {
+    if (expected_size != output.size)
+    {
          LOG_DXRT_ERR("[decode] Warning: Output size is different than expected. "
                    << "Expected size: " << expected_size << ", Provided size: " << output.size
                    << ". Output size will be set to expected.");
@@ -288,42 +354,50 @@ int NpuFormatHandler::decode(Bytes& input, Bytes& output, int col, int unit) {
     uint8_t* data = output.data;
 
 
-    if (input.data == output.data) { // In-place
-        try {
+    if (input.data == output.data)
+    { // In-place
+        try
+        {
              // If no padding was present, it's effectively a no-op (data is already dense)
-             if (col == aligned_col) {
+             if (col == aligned_col)
+             {
                   return 0;
              }
 
              // Need temporary buffer to handle overlapping regions correctly
-             uint8_t* temp_buffer = new uint8_t[input.size];
-             memcpy(temp_buffer, input.data, input.size); // Copy original aligned data
+             std::vector<uint8_t> temp_buffer(input.size);
+             memcpy(temp_buffer.data(), input.data, input.size); // Copy original aligned data
 
              // Copy back only the valid data portions
-             for (int i = 0; i < row; ++i) {
-                  // Check bounds before memcpy
-                   if ((size_t)i * col + col > output.size || (size_t)i * aligned_col + col > input.size) {
-                        LOG_DXRT_ERR("[decode] Internal Error: Memory access out of bounds during in-place copy.");
-                        delete[] temp_buffer;
-                        return -1;
+             for (int i = 0; i < row; ++i)
+             {
+                  // LCOV_EXCL_BR_START — mathematically unreachable: row/col derived from input.size
+                  if ((size_t)i * col + col > output.size || (size_t)i * aligned_col + col > input.size)
+                  {
+                       LOG_DXRT_ERR("[decode] Internal Error: Memory access out of bounds during in-place copy.");
+                       return -1;
                   }
-                 memcpy(data + (size_t)i * col, temp_buffer + (size_t)i * aligned_col, col);
+                  // LCOV_EXCL_BR_STOP
+                 memcpy(data + i * col, temp_buffer.data() + i * aligned_col, col);
              }
-             delete[] temp_buffer;
-         } catch (const std::bad_alloc& e) {
+         }
+         catch (const std::bad_alloc& e) // LCOV_EXCL_BR_LINE
+         {
              LOG_DXRT_ERR("[decode] Error: Failed to allocate temporary buffer for in-place operation: " << e.what());
              return -1;
-         } catch (const std::exception& e) {
-             LOG_DXRT_ERR("[decode] Error during in-place operation: " << e.what());
-             return -1;
          }
-    } else { // Out-of-place
-        for (int i = 0; i < row; ++i) {
-             // Check bounds before memcpy
-             if ((size_t)i * col + col > output.size || (size_t)i * aligned_col + col > input.size) {
-                   LOG_DXRT_ERR("[decode] Internal Error: Memory access out of bounds during out-of-place copy.");
-                   return -1;
-             }
+    }
+    else
+    { // Out-of-place
+        for (int i = 0; i < row; ++i)
+        {
+            // LCOV_EXCL_BR_START — mathematically unreachable: row/col derived from input.size
+            if ((size_t)i * col + col > output.size || (size_t)i * aligned_col + col > input.size)
+            {
+                  LOG_DXRT_ERR("[decode] Internal Error: Memory access out of bounds during out-of-place copy.");
+                  return -1;
+            }
+            // LCOV_EXCL_BR_STOP
             memcpy(data + (size_t)i * col, input.data + (size_t)i * aligned_col, col);
         }
     }
@@ -332,12 +406,14 @@ int NpuFormatHandler::decode(Bytes& input, Bytes& output, int col, int unit) {
 }
 
 // --- Existing decode_aligned (no changes needed other than calling updated decode) ---
-int NpuFormatHandler::decode_aligned(Bytes& input, Bytes& output, int channel, deepx_rmapinfo::DataType dtype, int align_unit) {
+int NpuFormatHandler::decode_aligned(const Bytes& input, Bytes& output, int channel, deepx_rmapinfo::DataType dtype, int align_unit)
+{
     int unit = align_unit; // Use align_unit from tensor info
     int col = channel; // Number of columns in elements
 
      // Scale unit and col to bytes for FLOAT32 if needed
-    if (dtype == deepx_rmapinfo::DataType::FLOAT32) {
+    if (dtype == deepx_rmapinfo::DataType::FLOAT32)
+    {
         // Scale unit and col to bytes for the underlying decode function
         unit *= 4;
         col *= 4;
@@ -347,53 +423,223 @@ int NpuFormatHandler::decode_aligned(Bytes& input, Bytes& output, int channel, d
     return decode(input, output, col, unit);
 }
 
-// --- Existing bidirectional_transpose (modified error handling) ---
-void NpuFormatHandler::bidirectional_transpose(void* src, void* dst, int row, int col, size_t element_size) {
-    if (src == nullptr || dst == nullptr) {
+// --- Bidirectional transpose with architecture-specific acceleration ---
+void NpuFormatHandler::bidirectional_transpose(void* src, void* dst, int row, int col, size_t element_size)
+{
+    if (src == nullptr || dst == nullptr)
+    {
         LOG_DXRT_ERR("[bidirectional_transpose] Error: Source or destination pointer is null.");
         return; // Keep void return for consistency? Or change API? For now, return.
     }
-     if (row <= 0 || col <= 0 || element_size == 0) {
-         LOG_DXRT_ERR("[bidirectional_transpose] Error: Invalid input parameters (row=" << row
-                   << ", col=" << col << ", element_size=" << element_size << ").");
-         return;
-     }
-
-
-    try {
-        if (src == dst) {
-            // Call inplace version which handles square/non-square appropriately
-            bidirectional_transpose_inplace(src, row, col, element_size);
-            return;
-        }
-
-        uint8_t* dst_ptr_base = static_cast<uint8_t*>(dst);
-        const uint8_t* src_ptr_base = static_cast<const uint8_t*>(src);
-
-        for (int i = 0; i < row; i++) {
-            for (int j = 0; j < col; j++) {
-                size_t src_offset = ((size_t)i * col + j) * element_size;
-                size_t dst_offset = ((size_t)j * row + i) * element_size; // Transposed index [j][i]
-                // Basic bounds check (optional, assumes caller allocated enough space)
-                // size_t src_total_size = (size_t)row * col * element_size;
-                // size_t dst_total_size = (size_t)col * row * element_size;
-                // if (src_offset + element_size > src_total_size || dst_offset + element_size > dst_total_size) {
-                //     LOG_DXRT_ERR("[bidirectional_transpose] Warning: Potential out-of-bounds access during transpose.");
-                //     // Continue carefully or return error
-                // }
-                memcpy(dst_ptr_base + dst_offset, src_ptr_base + src_offset, element_size);
-            }
-        }
+    if (row <= 0 || col <= 0 || element_size == 0)
+    {
+        LOG_DXRT_ERR("[bidirectional_transpose] Error: Invalid input parameters (row=" << row
+                  << ", col=" << col << ", element_size=" << element_size << ").");
+        return;
     }
-    catch (const std::exception& e) {
-        // Catch potential exceptions from memory operations if any (though memcpy usually doesn't throw std::exception)
-        LOG_DXRT_ERR("[bidirectional_transpose] Error: " << e.what());
-        // Cannot return error code easily from void function.
+
+    // Check whether NFH acceleration is enabled
+    bool nfh_accel_enabled = false;
+#ifdef FORCE_NFH_ACCELERATION
+    nfh_accel_enabled = true;
+#else
+    nfh_accel_enabled = dxrt::Configuration::GetInstance().IsNfhAccelerationEnabled();
+#endif
+    if (nfh_accel_enabled && (element_size == 1 || element_size == 4))
+    {
+#ifdef USE_IPP
+        ipp_bidirectional_transpose(src, dst, row, col, element_size);
+        return;
+#elif defined(USE_NEON)
+        neon_bidirectional_transpose(src, dst, row, col, element_size);
+        return;
+#endif
+    }
+
+    // Fallback: naive transpose implementation
+    if (src == dst)
+    {
+        // Call inplace version which handles square/non-square appropriately
+        bidirectional_transpose_inplace(src, row, col, element_size);
+        return;
+    }
+
+    auto* dst_ptr_base = static_cast<uint8_t*>(dst);
+    auto* src_ptr_base = static_cast<const uint8_t*>(src);
+
+    for (size_t i = 0; i < static_cast<size_t>(row); i++)
+    {
+        for (size_t j = 0; j < static_cast<size_t>(col); j++)
+        {
+            size_t src_offset = (i * static_cast<size_t>(col) + j) * element_size;
+            size_t dst_offset = (j * static_cast<size_t>(row) + i) * element_size;  // Transposed index [j][i]
+            memcpy(dst_ptr_base + dst_offset, src_ptr_base + src_offset, element_size);
+        }
     }
 }
 
-void NpuFormatHandler::bidirectional_transpose_inplace(void* src, int row, int col, size_t element_size) {
-    if (src == nullptr) {
+#ifdef USE_IPP
+void NpuFormatHandler::ipp_bidirectional_transpose(void* src, void* dst, int row, int col, size_t element_size)
+{
+    // Note: Validation already done by caller (bidirectional_transpose)
+    IppStatus status = ippStsNoErr;
+
+    // IPP supports direct transpose for float32 (4 bytes) and uint8 (1 byte)
+    if (element_size == 4)
+    {
+        // Float32 transpose using ippiTranspose_32f_C1R
+        const auto* src_f32 = static_cast<const Ipp32f*>(src);
+        auto* dst_f32 = static_cast<Ipp32f*>(dst);
+
+        IppiSize srcRoi = {col, row};  // Width, Height in IPP convention
+        int srcStep = col * sizeof(Ipp32f);
+        int dstStep = row * sizeof(Ipp32f);
+
+        if (src == dst)
+        {
+            // In-place transpose
+            // IPP doesn't support in-place transpose directly, need temporary buffer
+            size_t bufferSize = (size_t)row * col * element_size;
+            Ipp32f* temp_buffer = ippsMalloc_32f(row * col);
+            if (temp_buffer == nullptr)
+            {
+                LOG_DXRT_ERR("[ipp_bidirectional_transpose] Error: Failed to allocate IPP buffer.");
+                return;
+            }
+
+            // Copy to temp buffer with transpose
+            status = ippiTranspose_32f_C1R(src_f32, srcStep, temp_buffer, dstStep, srcRoi);
+            if (status != ippStsNoErr)
+            {
+                LOG_DXRT_ERR("[ipp_bidirectional_transpose] Error: IPP transpose failed with status " << status);
+                ippsFree(temp_buffer);
+                return;
+            }
+
+            // Copy back to original buffer
+            memcpy(dst_f32, temp_buffer, bufferSize);
+            ippsFree(temp_buffer);
+        }
+        else
+        {
+            // Out-of-place transpose
+            status = ippiTranspose_32f_C1R(src_f32, srcStep, dst_f32, dstStep, srcRoi);
+            if (status != ippStsNoErr)
+            {
+                LOG_DXRT_ERR("[ipp_bidirectional_transpose] Error: IPP transpose failed with status " << status);
+                return;
+            }
+        }
+
+    }
+    else if (element_size == 1)
+    {
+        // Uint8 transpose using ippiTranspose_8u_C1R
+        const auto* src_u8 = static_cast<const Ipp8u*>(src);
+        auto* dst_u8 = static_cast<Ipp8u*>(dst);
+
+        IppiSize srcRoi = {col, row};  // Width, Height in IPP convention
+        int srcStep = col * sizeof(Ipp8u);
+        int dstStep = row * sizeof(Ipp8u);
+
+        if (src == dst)
+        {
+            // In-place transpose
+            size_t bufferSize = (size_t)row * col * element_size;
+            Ipp8u* temp_buffer = ippsMalloc_8u(row * col);
+            if (temp_buffer == nullptr)
+            {
+                LOG_DXRT_ERR("[ipp_bidirectional_transpose] Error: Failed to allocate IPP buffer.");
+                return;
+            }
+
+            // Copy to temp buffer with transpose
+            status = ippiTranspose_8u_C1R(src_u8, srcStep, temp_buffer, dstStep, srcRoi);
+            if (status != ippStsNoErr)
+            {
+                LOG_DXRT_ERR("[ipp_bidirectional_transpose] Error: IPP transpose failed with status " << status);
+                ippsFree(temp_buffer);
+                return;
+            }
+
+            // Copy back to original buffer
+            memcpy(dst_u8, temp_buffer, bufferSize);
+            ippsFree(temp_buffer);
+        }
+        else
+        {
+            // Out-of-place transpose
+            status = ippiTranspose_8u_C1R(src_u8, srcStep, dst_u8, dstStep, srcRoi);
+            if (status != ippStsNoErr)
+            {
+                LOG_DXRT_ERR("[ipp_bidirectional_transpose] Error: IPP transpose failed with status " << status);
+                return;
+            }
+        }
+
+    }
+}
+#endif
+
+#ifdef USE_NEON
+// ARM NEON transpose implementation using XNNPACK optimized kernels
+// Note: Only called when element_size is 1 or 4 (checked by caller)
+void NpuFormatHandler::neon_bidirectional_transpose(void* src, void* dst, int row, int col, size_t element_size)
+{
+    // Note: Validation and element_size check already done by caller (bidirectional_transpose)
+
+    if (src == dst)
+    {
+        // For in-place transpose, use temporary buffer
+        size_t total_size = static_cast<size_t>(row) * col * element_size;
+        std::vector<uint8_t> temp_buffer(total_size);
+        memcpy(temp_buffer.data(), src, total_size);
+
+        if (element_size == 1)
+        {
+            xnnpack_transpose<uint8_t>(
+                static_cast<const uint8_t*>(static_cast<void*>(temp_buffer.data())),
+                static_cast<uint8_t*>(dst),
+                row, col
+            );
+        }
+        else  // element_size == 4
+        {
+            xnnpack_transpose<float>(
+                static_cast<const float*>(static_cast<void*>(temp_buffer.data())),
+                static_cast<float*>(dst),
+                row, col
+            );
+        }
+        return;
+    }
+
+    // Out-of-place: Use XNNPACK optimized transpose based on element size
+    if (element_size == 1)
+    {
+        // uint8_t transpose (16x16 NEON vzipq)
+        xnnpack_transpose<uint8_t>(
+            static_cast<const uint8_t*>(src),
+            static_cast<uint8_t*>(dst),
+            row, col
+        );
+    }
+    else  // element_size == 4
+    {
+        // float/uint32 transpose (4x4 NEON vqtbl4q)
+        xnnpack_transpose<float>(
+            static_cast<const float*>(src),
+            static_cast<float*>(dst),
+            row, col
+        );
+    }
+}
+#endif
+
+void NpuFormatHandler::bidirectional_transpose_inplace(void* src, int row, int col, size_t element_size)
+{
+    if (src == nullptr)
+    {
         LOG_DXRT_ERR("[bidirectional_transpose_inplace] Error: Source pointer is null.");
         return;
     }
@@ -404,10 +650,11 @@ void NpuFormatHandler::bidirectional_transpose_inplace(void* src, int row, int c
     }
 
     // Calculate total data size (consider potential overflow)
-    size_t total_elements = (size_t)row * col;
+    size_t total_elements = static_cast<size_t>(row) * static_cast<size_t>(col);
     size_t total_size_bytes = total_elements * element_size;
     // Basic overflow check (if element_size > 0 and total_elements > 0, result should match)
-    if (element_size > 0 && total_elements > 0 && total_size_bytes / element_size != total_elements) {
+    if (element_size > 0 && total_elements > 0 && total_size_bytes / element_size != total_elements)
+    {
          LOG_DXRT_ERR("[bidirectional_transpose_inplace] Error: Size calculation overflow detected.");
          return;
     }
@@ -416,22 +663,27 @@ void NpuFormatHandler::bidirectional_transpose_inplace(void* src, int row, int c
          return; // Nothing to do if size is 0
     }
 
+    auto row_size = static_cast<size_t>(row);
+    auto col_size = static_cast<size_t>(col);
 
-    if (row == col) {
+    if (row == col)
+    {
         // --- Square matrix: Use existing in-place transpose logic ---
-        try {
-            uint8_t* src_ptr = static_cast<uint8_t*>(src);
+        try
+        {
+            auto src_ptr = static_cast<uint8_t*>(src);
             // Temporary buffer (size of one element)
             // std::vector<uint8_t> temp(element_size); // Option using vector
-            uint8_t* temp = new uint8_t[element_size];
+            std::vector<uint8_t> temp(element_size);
 
-            for (int i = 0; i < row; ++i) {
+            for (size_t i = 0; i < static_cast<size_t>(row); ++i)
+            {
                 // Iterate through the upper triangle only (excluding diagonal)
-                for (int j = i + 1; j < col; ++j)
+                for (size_t j = i + 1; j < col_size; ++j)
                 {
                     // Calculate offsets for elements (i, j) and (j, i)
-                    size_t offset1 = ((size_t)i * col + j) * element_size;
-                    size_t offset2 = ((size_t)j * col + i) * element_size;
+                    size_t offset1 = (i * col_size + j) * element_size;
+                    size_t offset2 = (j * col_size + i) * element_size;
 
                     // Bounds check on original pointer access (add if necessary)
                     // if (offset1 + element_size > total_size_bytes || offset2 + element_size > total_size_bytes) { ... }
@@ -440,418 +692,62 @@ void NpuFormatHandler::bidirectional_transpose_inplace(void* src, int row, int c
                     uint8_t* ptr2 = src_ptr + offset2;
 
                     // Swap elements
-                    memcpy(temp, ptr1, element_size);
+                    memcpy(temp.data(), ptr1, element_size);
                     memcpy(ptr1, ptr2, element_size);
-                    memcpy(ptr2, temp, element_size);
-                    // If using vector:
-                    // memcpy(temp.data(), ptr1, element_size);
-                    // memcpy(ptr1, ptr2, element_size);
-                    // memcpy(ptr2, temp.data(), element_size);
+                    memcpy(ptr2, temp.data(), element_size);
                 }
             }
-            delete[] temp; // Free allocated memory
-        } catch (const std::bad_alloc& e) {
-            LOG_DXRT_ERR("[bidirectional_transpose_inplace] Error: Failed to allocate temporary buffer: " << e.what());
-        } catch (const std::exception& e) {
-            LOG_DXRT_ERR("[bidirectional_transpose_inplace] Error during square transpose: " << e.what());
         }
-    } else {
-        // --- Rectangular matrix: Use temporary buffer ---
-        uint8_t* temp_buffer = nullptr;
-        try {
+        catch (const std::bad_alloc& e) // LCOV_EXCL_BR_LINE
+        {
+            LOG_DXRT_ERR("[bidirectional_transpose_inplace] Error: Failed to allocate temporary buffer: " << e.what());
+        }
+    }
+    else
+    {
+        try
+        {
             // 1. Allocate temporary buffer (full size)
-            temp_buffer = new uint8_t[total_size_bytes];
+            std::vector<uint8_t> temp_buffer(total_size_bytes);
 
             // 2. Copy from src to temp_buffer with transpose (Out-of-place transpose)
-            uint8_t* src_ptr = static_cast<uint8_t*>(src);
-            for (int i = 0; i < row; ++i) { // Iterate through original rows
-                for (int j = 0; j < col; ++j) { // Iterate through original columns
+            const auto* src_ptr = static_cast<const uint8_t*>(src);
+            for (int i = 0; i < row; ++i)
+            { // Iterate through original rows
+                for (int j = 0; j < col; ++j)
+                { // Iterate through original columns
                     size_t src_offset = ((size_t)i * col + j) * element_size;
                     // Destination index in temp buffer is transposed (j, i)
                     // Transposed matrix is C x R, so stride is row
-                    size_t temp_dst_offset = ((size_t)j * row + i) * element_size;
+                    size_t temp_dst_offset = (j * row_size + i) * element_size;
 
-                    // Bounds check
-                    if (src_offset + element_size > total_size_bytes) {
-                         throw std::runtime_error("Source read out-of-bounds during temp transpose");
+                    // LCOV_EXCL_BR_START — mathematically unreachable: offsets derived from row*col
+                    if (src_offset + element_size > total_size_bytes)
+                    {
+                         LOG_DXRT_ERR("[bidirectional_transpose_inplace] Error: Source read out-of-bounds during temp transpose");
+                         return;
                     }
-                    if (temp_dst_offset + element_size > total_size_bytes) {
-                         throw std::runtime_error("Temp buffer write out-of-bounds during temp transpose");
+                    if (temp_dst_offset + element_size > total_size_bytes)
+                    {
+                         LOG_DXRT_ERR("[bidirectional_transpose_inplace] Error: Temp buffer write out-of-bounds during temp transpose");
+                         return;
                     }
+                    // LCOV_EXCL_BR_STOP
 
-                    memcpy(temp_buffer + temp_dst_offset, src_ptr + src_offset, element_size);
+                    memcpy(temp_buffer.data() + temp_dst_offset, src_ptr + src_offset, element_size);
                 }
             }
 
             // 3. Copy the transposed result from temp_buffer back to the original src buffer
-            memcpy(src, temp_buffer, total_size_bytes);
+            memcpy(src, temp_buffer.data(), total_size_bytes);
 
-            // 4. Free the temporary buffer
-            delete[] temp_buffer;
-            temp_buffer = nullptr; // Reset pointer (optional)
-
-        } catch (const std::bad_alloc& e) {
-            LOG_DXRT_ERR("[bidirectional_transpose_inplace] Error: Failed to allocate temporary buffer for non-square transpose: " << e.what());
-            // temp_buffer is already null or delete[] will handle null
-            // delete[] temp_buffer; // DO NOT delete here - potential double-free
-            return; // Return on error
-        } catch (const std::exception& e) {
-            LOG_DXRT_ERR("[bidirectional_transpose_inplace] Error during non-square transpose: " << e.what());
-            delete[] temp_buffer; // Attempt to free in case it was allocated before exception
-            return; // Return on error
         }
-    }
-}
-
-
-int NpuFormatHandler::encode_formatted_transposed(
-    Bytes& input, Bytes& output, int row, int col, size_t element_size, int unit)
-{
-     // --- Input Validation ---
-     if (input.data == nullptr || output.data == nullptr) {
-         LOG_DXRT_ERR("[encode_formatted_transposed] Error: Input or output data buffer is null.");
-         return -1;
-     }
-     if (row <= 0 || col <= 0 || element_size == 0 || unit <= 0) {
-         LOG_DXRT_ERR("[encode_formatted_transposed] Error: Invalid input parameters (row=" << row
-                   << ", col=" << col << ", element_size=" << element_size << ", unit=" << unit << ").");
-         return -1;
-     }
-      if (input.size != (uint32_t)row * col * element_size) {
-         LOG_DXRT_ERR("[encode_formatted_transposed] Error: Input size (" << input.size
-                   << ") does not match row * col * element_size (" << (uint32_t)row * col * element_size << ").");
-         return -1;
-     }
-     if (input.data == output.data) {
-         LOG_DXRT_ERR("[encode_formatted_transposed] Error: In-place operation (input == output) is not supported for this function.");
-         return -1;
-     }
-
-     // --- Calculate Output Layout (Based on Transposed + Encoded Structure) ---
-     // Dimensions fed into the conceptual 'encode_formatted' step are swapped
-     int enc_row = col; // Number of rows for encoding = original columns
-     int enc_col = row; // Number of columns for encoding = original rows (this is the 'channel' for encode_formatted)
-
-     int col_group = cdiv(enc_col, unit); // Grouping based on original rows, aligned to unit
-     int aligned_enc_col = col_group * unit; // Aligned width in elements (based on original rows)
-
-     // Expected output size in bytes
-     uint32_t expected_output_size = (uint32_t)enc_row * aligned_enc_col * element_size;
-
-     // Check and set output buffer size
-      if (expected_output_size != output.size) {
-         LOG_DXRT_ERR("[encode_formatted_transposed] Warning: Output size is different than expected. "
-                   << "Expected size: " << expected_output_size << ", Provided size: " << output.size
-                   << ". Output size will be set to expected.");
-     }
-     output.size = expected_output_size; // Update output size
-
-
-     // --- Perform Transpose and Encode Simultaneously ---
-     uint8_t* dst_data = static_cast<uint8_t*>(output.data);
-     const uint8_t* src_data = static_cast<const uint8_t*>(input.data);
-
-     // Zero out the destination buffer first to handle padding correctly
-     memset(dst_data, 0, output.size);
-
-     try {
-         // Outer loops iterate through the structure of the *output* buffer
-         for (int g = 0; g < col_group; ++g) { // Index for groups of 'unit' (originally rows)
-             for (int i = 0; i < enc_row; ++i) { // Index within group (originally columns 'j')
-                 // Calculate the base offset in the destination buffer for the start of this unit-chunk
-                 // Structure is: group * rows_per_group * unit_width + row_index_in_group * unit_width
-                 size_t base_dst_offset_elements = (size_t)g * enc_row * unit + (size_t)i * unit;
-
-                 // Determine how many elements to copy in this chunk (handles boundary case)
-                 int remaining_elements = enc_col - g * unit; // Remaining original rows
-                 int elements_to_copy = (remaining_elements < unit) ? remaining_elements : unit;
-
-                 if (elements_to_copy <= 0) continue; // Should not happen if col_group is calculated correctly
-
-                 // Inner loop copies individual elements from source (transposed) to destination (formatted)
-                 for (int k = 0; k < elements_to_copy; ++k) {
-                     // Calculate the original matrix indices (orig_row, orig_col)
-                     int orig_row = g * unit + k; // Row index in the original input matrix
-                     int orig_col = i;           // Column index in the original input matrix
-
-                     // Calculate source offset in input buffer (bytes)
-                     size_t src_offset_bytes = ((size_t)orig_row * col + orig_col) * element_size;
-
-                     // Calculate destination offset in output buffer (bytes)
-                     size_t dst_offset_bytes = (base_dst_offset_elements + k) * element_size;
-
-                     // Bounds check (essential for safety)
-                     if (src_offset_bytes + element_size > input.size || dst_offset_bytes + element_size > output.size) {
-                          LOG_DXRT_ERR("[encode_formatted_transposed] Internal Error: Memory access out of bounds.");
-                          return -1;
-                     }
-
-                     // Copy the element
-                     memcpy(dst_data + dst_offset_bytes, src_data + src_offset_bytes, element_size);
-                 }
-                  // Padding is implicitly handled because the destination buffer was zeroed out,
-                  // and we only copy 'elements_to_copy' elements into the allocated 'unit' space.
-             }
-         }
-     } catch (const std::exception& e) {
-         // Catch potential memory-related exceptions, although unlikely with memcpy
-         LOG_DXRT_ERR("[encode_formatted_transposed] Error during copy: " << e.what());
-         return -1;
-     }
-
-     return 0; // Success
-}
-
-int NpuFormatHandler::decode_aligned_transposed(
-    Bytes& input,
-    Bytes& output,
-    int channel_for_decode,
-    deepx_rmapinfo::DataType dtype,
-    std::vector<int64_t> shape_encoded,
-    int transpose_type,
-    int align_unit)
-{
-    // --- 1. Input Validation ---
-    if (input.data == nullptr) {
-        LOG_DXRT_ERR("[decode_aligned_transposed] Error: Input data buffer is null.");
-        return -1;
-    }
-     if (output.data == nullptr && input.size > 0) {
-         // Only check output null if output is needed (if input size is 0, output can be 0)
-         // It might be safer to forbid null output.data even if output.size is 0.
-         LOG_DXRT_ERR("[decode_aligned_transposed] Error: Output data buffer is null.");
-         return -1;
-     }
-    if (channel_for_decode <= 0) {
-        LOG_DXRT_ERR("[decode_aligned_transposed] Error: channel_for_decode (" << channel_for_decode << ") must be positive.");
-        return -1;
-    }
-     if (shape_encoded.empty()) {
-         LOG_DXRT_ERR("[decode_aligned_transposed] Error: shape_encoded is empty.");
-         return -1;
-     }
-    // Only handle supported transpose types
-    if (transpose_type != deepx_rmapinfo::Transpose::CHANNEL_FIRST_TO_LAST &&
-        transpose_type != deepx_rmapinfo::Transpose::CHANNEL_LAST_TO_FIRST) {
-         LOG_DXRT_ERR("[decode_aligned_transposed] Error: Unsupported transpose_type provided (" << static_cast<int>(transpose_type) << ").");
-         return -1;
-    }
-    if (input.data == output.data && input.size > 0) { // Allow if size is 0
-        LOG_DXRT_ERR("[decode_aligned_transposed] Error: In-place operation (input == output) is not supported.");
-        return -1;
-    }
-
-    // --- 2. Determine Element Size ---
-    size_t element_size = dxrt::GetDataSize_rmapinfo_datatype(dtype);
-
-    // --- 3. Calculate Decoding Parameters ---
-    int decode_unit_elements = align_unit; // Use align_unit from tensor info
-
-    // Calculate byte-based parameters
-    int decode_byte_col = channel_for_decode * element_size;
-    int decode_byte_unit = decode_unit_elements * element_size;
-
-    if (decode_byte_unit <= 0) {
-         LOG_DXRT_ERR("[decode_aligned_transposed] Error: Calculated byte unit is not positive.");
-         return -1;
-     }
-
-    int decode_byte_aligned_col = 0;
-     try {
-         // Calculate the aligned column width in bytes
-         decode_byte_aligned_col = cdiv(decode_byte_col, decode_byte_unit) * decode_byte_unit;
-     } catch (const std::runtime_error& e) {
-         LOG_DXRT_ERR("[decode_aligned_transposed] Error during cdiv calculation: " << e.what());
-         return -1;
-     }
-
-
-    if (decode_byte_aligned_col <= 0) {
-        // Allow if input size is 0 (result will also be 0)
-        if (input.size == 0) {
-             output.size = 0;
-             return 0;
-        }
-        LOG_DXRT_ERR("[decode_aligned_transposed] Error: Calculated aligned column size is not positive ("<< decode_byte_aligned_col <<").");
-        return -1;
-    }
-
-    // Validate input size
-    if (input.size == 0) {
-        output.size = 0;
-        return 0; // Handle empty input processed
-    }
-    if (input.size % decode_byte_aligned_col != 0) {
-        LOG_DXRT_ERR("[decode_aligned_transposed] Error: Input size (" << input.size
-                  << ") is not a multiple of aligned byte column size (" << decode_byte_aligned_col << ")");
-        return -1;
-    }
-
-    // Calculate the number of rows to be decoded
-    uint64_t decoded_rows = input.size / decode_byte_aligned_col; // Use uint64_t for intermediate calculation
-
-    // --- 4. Calculate Transpose Parameters ---
-    size_t shape_dims = shape_encoded.size();
-    uint64_t transpose_row = 0; // Number of rows in the final output matrix
-    uint64_t transpose_col = 0; // Number of columns in the final output matrix
-
-    // Lambda function for calculating product safely using uint64_t to prevent overflow
-    auto calculate_product = [&](size_t start_idx, size_t end_idx) -> uint64_t {
-        if (start_idx >= end_idx || start_idx >= shape_dims) {
-            return 1ULL; // Product of an empty range is 1
-        }
-         // Adjust end_idx if it exceeds bounds
-         if (end_idx > shape_dims) {
-             end_idx = shape_dims;
-         }
-
-        uint64_t product = 1ULL;
-        for (size_t k = start_idx; k < end_idx; ++k) {
-            if (shape_encoded[k] < 0) {
-                throw std::runtime_error("Negative dimension encountered in shape_encoded");
-            }
-            uint64_t dim_val = static_cast<uint64_t>(shape_encoded[k]);
-            if (dim_val == 0) return 0ULL; // If any dimension is 0, the total product is 0
-
-            // Overflow check (is product * dim_val > UINT64_MAX ?)
-            // Check only if product is already large enough to potentially overflow
-            if (product > UINT64_MAX / dim_val) {
-                throw std::overflow_error("Overflow detected during dimension product calculation");
-            }
-            product *= dim_val;
-        }
-        return product;
-    };
-
-    try {
-        // Calculate output dimensions based on transpose type and shape_encoded
-        if (transpose_type == deepx_rmapinfo::Transpose::CHANNEL_FIRST_TO_LAST) {
-            if (shape_dims < 1) throw std::runtime_error("shape_dims must be >= 1 for CHANNEL_FIRST_TO_LAST");
-            transpose_row = static_cast<uint64_t>(shape_encoded[0]); // First dimension becomes rows
-            transpose_col = calculate_product(1, shape_dims);        // Product of the rest becomes columns
-             if (shape_encoded[0] < 0) throw std::runtime_error("Negative dimension in shape_encoded[0]");
-        } else if (transpose_type == deepx_rmapinfo::Transpose::CHANNEL_LAST_TO_FIRST) {
-            if (shape_dims < 1) throw std::runtime_error("shape_dims must be >= 1 for CHANNEL_LAST_TO_FIRST");
-            transpose_col = static_cast<uint64_t>(shape_encoded[shape_dims - 1]); // Last dimension becomes columns
-            transpose_row = calculate_product(0, shape_dims - 1);         // Product of the preceding dimensions becomes rows
-             if (shape_encoded[shape_dims - 1] < 0) throw std::runtime_error("Negative dimension in shape_encoded[last]");
-        }
-        else
+        catch (const std::bad_alloc& e) // LCOV_EXCL_BR_LINE
         {
-            // not rechable due to earlier check, but keep for safety
-            // when c++23 is supported, use std::unreachable() with c++23 checking
-            throw dxrt::InvalidArgumentException("Unsupported transpose_type " + std::to_string(static_cast<int>(transpose_type)) + " encountered.");
+            LOG_DXRT_ERR("[bidirectional_transpose_inplace] Error: Failed to allocate temporary buffer for non-square transpose: " << e.what());
+            return;
         }
-         // Handle cases where calculated dimensions might be zero
-         if (transpose_row == 0 || transpose_col == 0) {
-              // Allow if both are zero (0-size tensor)
-              if (transpose_row != 0 || transpose_col != 0) {
-                   // If only one is zero, it might indicate an error in shape definition
-                   LOG_DXRT_ERR("[decode_aligned_transposed] Warning: Calculated transpose dimension is zero ("
-                             << transpose_row << "x" << transpose_col << "). Check shape_encoded.");
-                   // Can proceed treating as 0-size tensor or return error
-              }
-         }
-    } catch (const std::exception& e) {
-        LOG_DXRT_ERR("[decode_aligned_transposed] Error calculating transpose dimensions: " << e.what());
-        return -1;
     }
-
-
-    // --- 5. Consistency Check ---
-    uint64_t total_elements_decoded = decoded_rows * static_cast<uint64_t>(channel_for_decode);
-    uint64_t total_elements_transposed = transpose_row * transpose_col;
-
-    if (total_elements_decoded != total_elements_transposed) {
-        LOG_DXRT_ERR("[decode_aligned_transposed] Error: Mismatch in total elements. Decoded: "
-                  << total_elements_decoded << " (" << decoded_rows << "*" << channel_for_decode
-                  << "), Transposed: " << total_elements_transposed << " ("
-                  << transpose_row << "*" << transpose_col << "). Check parameters.");
-        return -1;
-    }
-
-    // --- 6. Calculate Output Buffer Size and Check ---
-    uint64_t expected_output_size_64 = total_elements_transposed * element_size;
-    // Check for overflow since output.size is uint32_t
-    if (expected_output_size_64 > UINT32_MAX) {
-        LOG_DXRT_ERR("[decode_aligned_transposed] Error: Calculated output size exceeds UINT32_MAX.");
-        return -1;
-    }
-    uint32_t expected_output_size = static_cast<uint32_t>(expected_output_size_64);
-
-    // Handle output buffer null check and size mismatch
-     if (output.data == nullptr && expected_output_size > 0) {
-          LOG_DXRT_ERR("[decode_aligned_transposed] Error: Output data buffer is null for non-zero expected size.");
-          return -1;
-     }
-    if (output.size != expected_output_size) {
-         // Warn about size mismatch but proceed, assuming caller allocated enough space. Set the correct size.
-         LOG_DXRT_ERR("[decode_aligned_transposed] Warning: Output buffer size mismatch. Provided: "
-                   << output.size << ", Expected: " << expected_output_size
-                   << ". Using expected size for operation, ensure buffer is large enough.");
-         output.size = expected_output_size;
-    }
-    // If size is 0, no work needed.
-    if (expected_output_size == 0) {
-        return 0;
-    }
-
-    // --- 7. Initialize Output Buffer (Optional but recommended) ---
-    // This ensures any padding areas or potentially unwritten elements are zero.
-    // memset(output.data, 0, output.size);
-
-    // --- 8. Core Loop: Perform Decode and Transpose Simultaneously ---
-    uint8_t* dst_data = static_cast<uint8_t*>(output.data);
-    const uint8_t* src_data = static_cast<const uint8_t*>(input.data);
-
-    // Define source (decoded) and destination (transposed) logical dimensions for clarity
-    uint64_t src_logical_rows = decoded_rows;
-    uint64_t src_logical_cols = static_cast<uint64_t>(channel_for_decode);
-    //uint64_t dst_logical_rows = transpose_row;
-    uint64_t dst_logical_cols = transpose_col;
-
-    try {
-        // Iterate based on the indices (i, j) of the conceptually decoded matrix
-        for (uint64_t i = 0; i < src_logical_rows; ++i) {       // Index for decoded rows
-            for (uint64_t j = 0; j < src_logical_cols; ++j) {   // Index for decoded columns (channels)
-
-                // 1. Calculate Source Offset (within the encoded input buffer)
-                // Start of the i-th aligned row + offset for the j-th element
-                size_t src_offset_bytes = (size_t)i * decode_byte_aligned_col + (size_t)j * element_size;
-
-                // 2. Calculate Transposed Coordinates (based on standard matrix transpose)
-                // Source logical coordinate (r, c) = (i, j) -> Transposed logical coordinate (r_t, c_t) = (j, i)
-                uint64_t r_t = j; // Transposed row index = original column index
-                uint64_t c_t = i; // Transposed column index = original row index
-
-                // 3. Calculate Destination Offset (within the transposed output buffer)
-                // Output buffer layout is dst_logical_rows x dst_logical_cols
-                size_t dst_offset_bytes = (r_t * dst_logical_cols + c_t) * element_size;
-
-                // 4. Boundary Checks (Crucial for safety)
-                if (src_offset_bytes + element_size > input.size) {
-                     LOG_DXRT_ERR("[decode_aligned_transposed] Internal Error: Source read out of bounds. "
-                               << "Offset: " << src_offset_bytes << ", ElementSize: " << element_size << ", InputSize: " << input.size);
-                     return -1;
-                }
-                if (dst_offset_bytes + element_size > output.size) {
-                     LOG_DXRT_ERR("[decode_aligned_transposed] Internal Error: Destination write out of bounds. "
-                               << "Offset: " << dst_offset_bytes << ", ElementSize: " << element_size << ", OutputSize: " << output.size);
-                     return -1;
-                }
-
-                // 5. Copy Element
-                memcpy(dst_data + dst_offset_bytes, src_data + src_offset_bytes, element_size);
-            }
-        }
-    } catch (const std::exception& e) {
-        // Catch potential exceptions during the copy loop (e.g., memory access errors)
-        LOG_DXRT_ERR("[decode_aligned_transposed] Error during copy loop: " << e.what());
-        return -1;
-    }
-
-    // --- 9. Return Success ---
-    return 0;
 }
 
 // --- High-level NFH Processing Functions Implementation ---
@@ -861,7 +757,7 @@ int NpuFormatHandler::EncodeInputs(void* reqDataPtr, int threadIdForProfiling)
 {
     using namespace dxrt;
 
-    RequestData* reqData = static_cast<RequestData*>(reqDataPtr);
+    auto reqData = static_cast<RequestData*>(reqDataPtr);
     if (!reqData || !reqData->taskData)
     {
         LOG_DXRT_ERR("EncodeInputs: invalid reqData");
@@ -907,14 +803,22 @@ int NpuFormatHandler::EncodeInputs(void* reqDataPtr, int threadIdForProfiling)
 
             Tensor& input_tensor = reqData->inputs[i];
             deepx_rmapinfo::TensorInfo tensor_info = reqData->taskData->_npuInputTensorInfos[i];
-            int shape_dims = tensor_info.shape_encoded().size();
+            auto shape_dims = static_cast<int>(tensor_info.shape_encoded().size());
+
+#ifndef USE_VNPU
+            if (input_count == 1 && input_tensor.size_in_bytes() == reqData->taskData->_encodedInputSizes[i])
+            {
+                reqData->encoded_inputs_ptr = static_cast<uint8_t*>(input_tensor.data());
+                reqData->encoded_input_ptrs[i] = static_cast<uint8_t*>(input_tensor.data());
+            }
+#endif
 
             Bytes original_input = {
                 static_cast<uint32_t>(input_tensor.size_in_bytes()),
                 static_cast<uint8_t*>(input_tensor.data())
             };
             Bytes encoded_input = {
-                static_cast<uint32_t>(reqData->taskData->_encodedInputSizes[i]),
+                reqData->taskData->_encodedInputSizes[i],
                 static_cast<uint8_t*>(reqData->encoded_input_ptrs[i])
             };
 
@@ -932,8 +836,8 @@ int NpuFormatHandler::EncodeInputs(void* reqDataPtr, int threadIdForProfiling)
             {
                 NpuFormatHandler::encode_preim2col(
                     original_input, encoded_input,
-                    tensor_info.shape_encoded()[shape_dims - 2],
-                    tensor_info.shape_encoded()[shape_dims - 1],
+                    static_cast<int>(tensor_info.shape_encoded()[shape_dims - 2]),
+                    static_cast<int>(tensor_info.shape_encoded()[shape_dims - 1]),
                     tensor_info.align_unit()
                 );
             }
@@ -943,7 +847,7 @@ int NpuFormatHandler::EncodeInputs(void* reqDataPtr, int threadIdForProfiling)
                 {
                     NpuFormatHandler::encode_formatted(
                         original_input, encoded_input,
-                        tensor_info.shape_encoded()[shape_dims - 1],
+                        static_cast<int>(tensor_info.shape_encoded()[shape_dims - 1]),
                         tensor_info.align_unit()
                     );
                 }
@@ -951,16 +855,21 @@ int NpuFormatHandler::EncodeInputs(void* reqDataPtr, int threadIdForProfiling)
                 {
                     NpuFormatHandler::encode_formatted(
                         original_input, encoded_input,
-                        tensor_info.shape_encoded()[shape_dims - 1],
+                        static_cast<int>(tensor_info.shape_encoded()[shape_dims - 1]),
                         tensor_info.align_unit()
                     );
 
                     Bytes temp_input = {original_input.size, encoded_input.data};
-                    int row = tensor_info.shape_encoded()[shape_dims - 1];
+                    auto row = static_cast<int>(tensor_info.shape_encoded()[shape_dims - 1]);
                     int col = 1;
-                    for (int j = 0; j < shape_dims - 1; j++) col *= tensor_info.shape_encoded()[j];
-                    int elem_size = dxrt::GetDataSize_rmapinfo_datatype(static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded()));
-                    NpuFormatHandler::bidirectional_transpose(temp_input.data, encoded_input.data, row, col, elem_size);
+                    for (int j = 0; j < shape_dims - 1; j++)
+                    {
+                        col *= static_cast<int>(tensor_info.shape_encoded()[j]);
+                    }
+                    auto dtype_encoded = static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded());
+                    int elem_size = dxrt::GetDataSize_rmapinfo_datatype(dtype_encoded);
+                    NpuFormatHandler::bidirectional_transpose(
+                        temp_input.data, encoded_input.data, row, col, elem_size);
                 }
                 else
                 {
@@ -973,12 +882,14 @@ int NpuFormatHandler::EncodeInputs(void* reqDataPtr, int threadIdForProfiling)
                 if (tensor_info.transpose() == deepx_rmapinfo::Transpose::TRANSPOSE_NONE)
                 {
                     // Use encode function with channel parameter (same as decode_aligned uses)
-                    int channel = tensor_info.shape_encoded()[shape_dims - 1];
+                    auto channel = static_cast<int>(tensor_info.shape_encoded()[shape_dims - 1]);
                     int unit = tensor_info.align_unit(); // Use align_unit from tensor info
                     int col = channel; // Number of columns in elements
 
                     // Scale unit and col to bytes for FLOAT32 if needed
-                    if (static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded()) == deepx_rmapinfo::DataType::FLOAT32) {
+                    auto datatype_encoded = static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded());
+                    if (datatype_encoded == deepx_rmapinfo::DataType::FLOAT32)
+                    {
                         // Scale unit and col to bytes for the underlying encode function
                         unit *= 4;
                         col *= 4;
@@ -989,25 +900,28 @@ int NpuFormatHandler::EncodeInputs(void* reqDataPtr, int threadIdForProfiling)
                 else if (tensor_info.transpose() == deepx_rmapinfo::Transpose::CHANNEL_FIRST_TO_LAST)
                 {
                     // First apply transpose, then encode with aligned format
-                    int row = tensor_info.shape_encoded()[shape_dims - 1];
+                    auto row = static_cast<int>(tensor_info.shape_encoded()[shape_dims - 1]);
                     int transpose_col = 1;
                     for (int j = 0; j < shape_dims - 1; j++)
                     {
-                        transpose_col *= tensor_info.shape_encoded()[j];
+                        transpose_col *= static_cast<int>(tensor_info.shape_encoded()[j]);
                     }
                     int elem_size = dxrt::GetDataSize_rmapinfo_datatype(static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded()));
 
                     // Apply transpose first (from original_input to encoded_input buffer)
+
                     NpuFormatHandler::bidirectional_transpose(original_input.data, encoded_input.data, row, transpose_col, elem_size);
 
                     // Then encode with aligned format (in-place on encoded_input buffer)
                     Bytes temp_transposed = {original_input.size, encoded_input.data};
-                    int channel = tensor_info.shape_encoded()[shape_dims - 1];
-                    int unit = tensor_info.align_unit(); // Use align_unit from tensor info
-                    int col = channel; // Number of columns in elements
+                    auto channel = static_cast<int>(tensor_info.shape_encoded()[shape_dims - 1]);
+                    auto unit = tensor_info.align_unit(); // Use align_unit from tensor info
+                    auto col = channel; // Number of columns in elements
 
                     // Scale unit and col to bytes for FLOAT32 if needed
-                    if (static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded()) == deepx_rmapinfo::DataType::FLOAT32) {
+                    auto datatype_encoded = static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded());
+                    if (datatype_encoded == deepx_rmapinfo::DataType::FLOAT32)
+                    {
                         // Scale unit and col to bytes for the underlying encode function
                         unit *= 4;
                         col *= 4;
@@ -1050,15 +964,21 @@ int NpuFormatHandler::DecodeOutputs(const void* reqPtr, const void* responsePtr,
     using namespace dxrt;
 
     // Cast from const void* to const std::shared_ptr<Request>*
-    const std::shared_ptr<Request>* req_ptr = static_cast<const std::shared_ptr<Request>*>(reqPtr);
-    const dxrt_response_t* response = static_cast<const dxrt_response_t*>(responsePtr);
+    const auto req_ptr = static_cast<const std::shared_ptr<Request>*>(reqPtr);
+    const auto response = static_cast<const dxrt_response_t*>(responsePtr);
 
     if (!req_ptr || !(*req_ptr)) return -1;
     std::shared_ptr<Request> req = *req_ptr;
 
-    if (req->model_type() == 0 || (req->model_type() == 1 && !(req->taskData()->_isArgMax)))
+    bool is_decoding = (req->modelType() == ModelType::MODEL_TYPE_NORMAL);
+    if (req->modelType() == ModelType::MODEL_TYPE_ARGMAX)
     {
-        RequestData* req_data = req->getData();
+        is_decoding = (req->taskData()->_isArgMax == false);
+    }
+
+    if (is_decoding)
+    {
+        auto* req_data = req->getData();
         if (!Configuration::_sNpuValidateOpt)
         {
 #ifdef USE_PROFILER
@@ -1079,7 +999,7 @@ int NpuFormatHandler::DecodeOutputs(const void* reqPtr, const void* responsePtr,
                 LOG_DXRT_DBG << "output_tensor[" << i << "] size_in_bytes: " << output_tensor.size_in_bytes() << std::endl;
                 LOG_DXRT_DBG << "encoded_output_ptrs.size(): " << req_data->encoded_output_ptrs.size() << std::endl;
                 if (i < req_data->encoded_output_ptrs.size()) {
-                    LOG_DXRT_DBG << "encoded_output_ptrs[" << i << "]: " << (void*)req_data->encoded_output_ptrs[i] << std::endl;
+                    LOG_DXRT_DBG << "encoded_output_ptrs[" << i << "]: " << req_data->encoded_output_ptrs[i] << std::endl;
                 }
 
                 if (output_tensor.memory_type() == static_cast<int>(deepx_rmapinfo::MemoryType::ARGMAX))
@@ -1102,23 +1022,26 @@ int NpuFormatHandler::DecodeOutputs(const void* reqPtr, const void* responsePtr,
                 }
 
                 deepx_rmapinfo::TensorInfo tensor_info = req_data->taskData->_npuOutputTensorInfos[i];
-                int shape_dims = tensor_info.shape_encoded().size();
+                auto shape_dims = static_cast<int>(tensor_info.shape_encoded().size());
 
                 // Validate array bounds first
-                if (i >= req_data->encoded_output_ptrs.size()) {
+                if (i >= req_data->encoded_output_ptrs.size())
+                {
                     LOG_DXRT_ERR("Encoded output pointer index out of bounds for tensor: " << output_tensor.name());
                     continue;
                 }
 
-                Bytes encoded_output = {static_cast<uint32_t>(req_data->taskData->_encodedOutputSizes[i]), static_cast<uint8_t*>(req_data->encoded_output_ptrs[i])};
+                Bytes encoded_output = {req_data->taskData->_encodedOutputSizes[i], static_cast<uint8_t*>(req_data->encoded_output_ptrs[i])};
                 Bytes decoded_output = {static_cast<uint32_t>(output_tensor.size_in_bytes()), static_cast<uint8_t*>(output_tensor.data())};
 
                 // Validate pointers before processing
-                if (encoded_output.data == nullptr) {
+                if (encoded_output.data == nullptr)
+                {
                     LOG_DXRT_ERR("Encoded output pointer is nullptr for tensor: " << output_tensor.name());
                     continue;
                 }
-                if (decoded_output.data == nullptr) {
+                if (decoded_output.data == nullptr)
+                {
                     LOG_DXRT_ERR("Decoded output pointer is nullptr for tensor: " << output_tensor.name());
                     continue;
                 }
@@ -1127,16 +1050,17 @@ int NpuFormatHandler::DecodeOutputs(const void* reqPtr, const void* responsePtr,
                 {
                     if (tensor_info.transpose() == deepx_rmapinfo::Transpose::TRANSPOSE_NONE)
                     {
-                        NpuFormatHandler::decode_aligned(encoded_output, decoded_output, tensor_info.shape_encoded()[shape_dims - 1], static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded()), tensor_info.align_unit());
+                        NpuFormatHandler::decode_aligned(encoded_output, decoded_output, static_cast<int>(tensor_info.shape_encoded()[shape_dims - 1]), static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded()), tensor_info.align_unit());
                     }
                     else if (tensor_info.transpose() == deepx_rmapinfo::Transpose::CHANNEL_LAST_TO_FIRST)
                     {
-                        NpuFormatHandler::decode_aligned(encoded_output, decoded_output, tensor_info.shape_encoded()[shape_dims - 1], static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded()), tensor_info.align_unit());
+                        NpuFormatHandler::decode_aligned(encoded_output, decoded_output, static_cast<int>(tensor_info.shape_encoded()[shape_dims - 1]), static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded()), tensor_info.align_unit());
                         Bytes transposed_output = {encoded_output.size, decoded_output.data};
-                        int col = tensor_info.shape_encoded()[shape_dims - 1];
-                        int row = 1; for (int j = 0; j < shape_dims - 1; j++) row *= tensor_info.shape_encoded()[j];
+                        auto col = static_cast<int>(tensor_info.shape_encoded()[shape_dims - 1]);
+                        int row = 1; for (int j = 0; j < shape_dims - 1; j++) row *= static_cast<int>(tensor_info.shape_encoded()[j]);
                         int elem_size = dxrt::GetDataSize_rmapinfo_datatype(static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded()));
-                        NpuFormatHandler::bidirectional_transpose(transposed_output.data, decoded_output.data, row, col, elem_size);
+                        NpuFormatHandler::bidirectional_transpose(transposed_output.data, encoded_output.data, row, col, elem_size);
+                        output_tensor.data() = static_cast<void*>(encoded_output.data);
                     }
                     else
                     {
@@ -1162,7 +1086,7 @@ int NpuFormatHandler::DecodeOutputs(const void* reqPtr, const void* responsePtr,
             DataDumpBin(req->taskData()->name() + "_decoder_output.bin", req->outputs());
         }
     }
-    else if (req->model_type() == 1 && req->taskData()->_isArgMax)
+    else if (req->modelType() == ModelType::MODEL_TYPE_ARGMAX && req->taskData()->_isArgMax)
     {
         *(static_cast<uint16_t *>(req->outputs().front().data())) = response->argmax;
 
@@ -1171,12 +1095,12 @@ int NpuFormatHandler::DecodeOutputs(const void* reqPtr, const void* responsePtr,
             DataDumpBin(req->taskData()->name() + "_output.argmax.bin", req->outputs());
         }
     }
-    else if (req->model_type() == 2)
+    else if (req->modelType() == ModelType::MODEL_TYPE_PPU)
     {
         RequestData* req_data = req->getData();
         if (!req_data->outputs.empty())
         {
-            memcpy(static_cast<void*>(req_data->outputs[0].data()), static_cast<const void*>(req_data->encoded_output_ptrs[0]), 128 * 1024);
+            memcpy(req_data->outputs[0].data(), static_cast<const void*>(req_data->encoded_output_ptrs[0]), 128 * 1024);
             req_data->outputs[0].shape() = std::vector<int64_t>{1, static_cast<int64_t>(response->ppu_filter_num)};
         }
 
@@ -1185,7 +1109,7 @@ int NpuFormatHandler::DecodeOutputs(const void* reqPtr, const void* responsePtr,
             DataDumpBin(req->taskData()->name() + "_output.ppu.bin", req->outputs());
         }
     }
-    else if (req->model_type() == 3)
+    else if (req->modelType() == ModelType::MODEL_TYPE_PPCPU)
     {
         // PPCPU: Output data is already in encoded_output_ptrs[0]
         // Just set the dynamic shape

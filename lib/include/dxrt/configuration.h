@@ -15,8 +15,30 @@
 #include <stdexcept>
 #include <utility>
 #include <memory>
+#include <atomic>
 
 #include "dxrt/common.h"
+
+// Acceleration feature availability (derived from cmake/build configuration)
+#if defined(USE_IPP) || defined(USE_NEON)
+#define DXRT_NFH_ACCELERATION_AVAILABLE
+#endif
+
+#if defined(USE_OPENVINO) || defined(USE_XNNPACK)
+#define DXRT_CPU_OP_ACCELERATION_AVAILABLE
+#endif
+
+#if DEBUG_DXRT
+#define DEBUG_DXRT_DEFAULT_VALUE true
+#else
+#define DEBUG_DXRT_DEFAULT_VALUE false
+#endif
+
+#if SHOW_TASK_FLOW
+#define SHOW_TASK_FLOW_DEFAULT_VALUE true
+#else
+#define SHOW_TASK_FLOW_DEFAULT_VALUE false
+#endif
 
 namespace dxrt {
 
@@ -38,22 +60,20 @@ namespace dxrt {
     class DXRT_API Configuration
     {
     public:
+        // constructor
+        Configuration();
+
         // destructor
         ~Configuration();
 
     private:
-
-        // constructor
-        Configuration();
-
-
 
         // Delete copy constructor and assignment operator
         Configuration(const Configuration&) = delete;
         Configuration& operator=(const Configuration&) = delete;
 
         friend class ObjectsPool;
-        static Configuration* _staticInstance;
+        static std::unique_ptr<Configuration> _staticInstance;
         static void deleteInstance();
 
     public:
@@ -92,7 +112,13 @@ namespace dxrt {
             SHOW_MODEL_INFO,                ///< Whether to display model information.
             CUSTOM_INTRA_OP_THREADS,        ///< Use custom ONNX Runtime intra-op thread count.
             CUSTOM_INTER_OP_THREADS,        ///< Use custom ONNX Runtime inter-op thread count.
-            NFH_ASYNC                       ///< Handle NPU Format Handling (NFH) asynchronously.
+            NFH_ASYNC,                      ///< Handle NPU Format Handling (NFH) asynchronously.
+#ifdef DXRT_NFH_ACCELERATION_AVAILABLE
+            NFH_ACCELERATION,               ///< Enable NFH (transpose) acceleration via SIMD libraries.
+#endif
+#ifdef DXRT_CPU_OP_ACCELERATION_AVAILABLE
+            CPU_OP_ACCELERATION             ///< Enable CPU Task acceleration via optimized ORT Execution Providers.
+#endif
         };
 
         /**
@@ -167,6 +193,15 @@ namespace dxrt {
         void LockEnable(const ITEM item);
 
         /**
+        * @brief Unlocks a specific configuration item, allowing modifications.
+        * After this function is called, the `_enableSettings` and associated
+        * `_attributes` for this `ITEM` can be modified again.
+        * @param item The configuration item to unlock.
+        * @note Uses an internal mutex to ensure thread safety.
+        */
+        void UnlockEnable(const ITEM item);
+
+        /**
         * @brief Retrieves the version of this DXRT library.
         * @return The library version as a string (e.g., "1.2.3").
         */
@@ -205,22 +240,51 @@ namespace dxrt {
          * @param json_file The path to the JSON file containing the firmware configuration.
          * @note This method reads the JSON file and applies the configuration settings to the firmware.
          */
-        void SetFWConfigWithJson(const std::string& json_file);
+        void SetFWConfigWithJson(const std::string& json_file) const;
 
     private:
         std::unordered_map<ITEM, bool> _enableSettings;
         std::unordered_map<ITEM, std::unordered_map<ATTRIBUTE, std::string> > _attributes;
         std::unordered_map<ITEM, std::pair<bool, std::unordered_map<ATTRIBUTE, bool> > > _isReadonly;
         std::mutex _mutex;
+        bool _isDebugFlag{DEBUG_DXRT_DEFAULT_VALUE};
+        bool _isShowTaskFlowFlag{SHOW_TASK_FLOW_DEFAULT_VALUE};
 
         // Implementation methods without mutex locking (for internal use)
         void setEnableWithoutLock(const ITEM item, bool enabled);
         void setAttributeWithoutLock(const ITEM item, const ATTRIBUTE attribute, const std::string& value);
 
         // Utility method for parsing and clamping thread count values
-        int parseClampThreadCount(const std::string& value);
+        int parseClampThreadCount(const std::string& value) const;
 
-    public: static std::atomic<bool> _sNpuValidateOpt; // TODO: must integrated to configuration options
+#ifdef DXRT_NFH_ACCELERATION_AVAILABLE
+        std::atomic<bool> _sNfhAcceleration{false};    ///< Lock-free flag for NFH acceleration (hot path).
+#endif
+#ifdef DXRT_CPU_OP_ACCELERATION_AVAILABLE
+        std::atomic<bool> _sCpuOpAcceleration{false};   ///< Lock-free flag for CPU op acceleration (hot path).
+#endif
+
+    public:
+        static std::atomic<bool> _sNpuValidateOpt;
+
+        /// @name Acceleration flag accessors (lock-free, hot path)
+        /// @{
+#ifdef DXRT_NFH_ACCELERATION_AVAILABLE
+        bool IsNfhAccelerationEnabled() const { return _sNfhAcceleration.load(std::memory_order_relaxed); }
+        void SetNfhAccelerationFlag(bool enabled) { _sNfhAcceleration.store(enabled, std::memory_order_relaxed); }
+#else
+        bool IsNfhAccelerationEnabled() const { return false; }
+        void SetNfhAccelerationFlag(bool) const {/* no-op when feature unavailable */}  // NOSONAR:S5817
+#endif
+
+#ifdef DXRT_CPU_OP_ACCELERATION_AVAILABLE
+        bool IsCpuOpAccelerationEnabled() const { return _sCpuOpAcceleration.load(std::memory_order_relaxed); }
+        void SetCpuOpAccelerationFlag(bool enabled) { _sCpuOpAcceleration.store(enabled, std::memory_order_relaxed); }
+#else
+        bool IsCpuOpAccelerationEnabled() const { return false; }
+        void SetCpuOpAccelerationFlag(bool) const {/* no-op when feature unavailable */}  // NOSONAR:S5817
+#endif
+        /// @}
     };
 
 }  // namespace dxrt

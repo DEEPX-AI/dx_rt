@@ -2,11 +2,11 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
- 
+
 #include "dxrt/model_parser.h"
 #include "dxrt/parsers/v6_model_parser.h"
 #include "dxrt/parsers/v7_model_parser.h"
@@ -48,52 +48,52 @@ int ModelParserFactory::GetFileFormatVersion(const std::string& filePath) {
     if (!fileExists(filePath)) {
         throw FileNotFoundException(EXCEPTION_MESSAGE("Invalid model path : " + filePath));
     }
-    
+
     if (getExtension(filePath) != "dxnn") {
         throw InvalidModelException(EXCEPTION_MESSAGE("Invalid model extension : " + filePath));
     }
-    
+
     // DXNN header: "DXNN" (4 bytes) + 4-byte little-endian int version
     std::ifstream ifs(filePath, std::ios::binary);
     if (!ifs) {
         throw FileNotFoundException(EXCEPTION_MESSAGE("Invalid model path : " + filePath));
     }
-    
-    char header[8] = {0};
-    ifs.read(header, 8);
+
+    std::array<char, 8> header = {0};
+    ifs.read(header.data(), 8);
     if (ifs.gcount() != 8) {
         throw ModelParsingException(EXCEPTION_MESSAGE("Failed to read DXNN header: " + filePath));
     }
-    
-    if (std::string(header, 4) != "DXNN") {
+
+    if (std::string(header.data(), 4) != "DXNN") {
         throw InvalidModelException(EXCEPTION_MESSAGE(LogMessages::InvalidDXNNFileFormat()));
     }
-    
-    int32_t version = static_cast<int32_t>(static_cast<unsigned char>(header[4]) |
-                                           static_cast<unsigned char>(header[5]) << 8 |
-                                           static_cast<unsigned char>(header[6]) << 16 |
-                                           static_cast<unsigned char>(header[7]) << 24);
+
+    auto version = static_cast<int32_t>(header[4]) |
+                    static_cast<int32_t>(header[5]) << 8 |
+                    static_cast<int32_t>(header[6]) << 16 |
+                    static_cast<int32_t>(header[7]) << 24;
     return version;
 }
 
 int ModelParserFactory::GetFileFormatVersion(const uint8_t* modelBuffer, size_t modelSize) {
-    
+
     // DXNN header: "DXNN" (4 bytes) + 4-byte little-endian int version
     if (modelSize < 8) {
-        throw ModelParsingException(EXCEPTION_MESSAGE("DXNN buffer too small to contain header"));   
+        throw ModelParsingException(EXCEPTION_MESSAGE("DXNN buffer too small to contain header"));
     }
 
-    char header[8] = {0};
-    memcpy(header, modelBuffer, 8);
-    
-    if (std::string(header, 4) != "DXNN") {
+    std::array<char, 8> header = {0};
+    memcpy(header.data(), modelBuffer, 8);
+
+    if (std::string(header.data(), 4) != "DXNN") {
         throw InvalidModelException(EXCEPTION_MESSAGE(LogMessages::InvalidDXNNFileFormat()));
     }
-    
-    int32_t version = static_cast<int32_t>(static_cast<unsigned char>(header[4]) |
-                                           static_cast<unsigned char>(header[5]) << 8 |
-                                           static_cast<unsigned char>(header[6]) << 16 |
-                                           static_cast<unsigned char>(header[7]) << 24);
+
+    auto version = static_cast<int32_t>(header[4]) |
+                    static_cast<int32_t>(header[5]) << 8 |
+                    static_cast<int32_t>(header[6]) << 16 |
+                    static_cast<int32_t>(header[7]) << 24;
     return version;
 }
 
@@ -105,4 +105,4 @@ std::vector<int> ModelParserFactory::GetSupportedVersions() {
     return {6, 7, 8}; // Currently supported versions
 }
 
-} // namespace dxrt 
+} // namespace dxrt

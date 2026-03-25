@@ -22,14 +22,14 @@ namespace dxrt {
 /* RT/driver sync     */
 
 #pragma pack(push, 1)
-typedef struct _net_control_info{
+struct net_control_info {
     uint32_t type;
     uint32_t cmd;
     uint32_t sub_cmd;
     uint32_t size;
     uint64_t address;
-    uint32_t data[100];
-} net_control_info;
+    uint32_t data[100]; // NOSONAR: Fixed-size array required for packed struct used in driver ioctl binary protocol
+};
 #pragma pack(pop)
 
 

@@ -12,6 +12,8 @@
 #include <vector>
 #include <unordered_map>
 #include <mutex>
+#include <atomic>
+#include <array>
 #include "dxrt/device.h"
 #include "dxrt/task.h"
 #include "dxrt/inference_engine.h"
@@ -38,11 +40,9 @@ Request::Request(int id)
     _data.inputs = {};
     _data.outputs = {};
     _timePoint = std::make_shared<TimePoint>();
-
-    // LOG_DXRT_DBG << getData()->requestId << endl;
 }
 
-Request::Request(Task *task_, Tensors &inputs_, Tensors &outputs_)
+Request::Request(Task *task_, const Tensors &inputs_, const Tensors &outputs_)
 : _task(task_)
 {
 
@@ -53,11 +53,9 @@ Request::Request(Task *task_, Tensors &inputs_, Tensors &outputs_)
 Request::~Request()
 {
     releaseBuffers();
-    // LOG_DXRT_DBG << id() << endl;
-    // LOG_DXRT << id() << endl;
 }
 
-RequestPtr Request::Create(Task *task_, Tensors inputs_, Tensors outputs_, void *userArg, int jobId)
+RequestPtr Request::Create(Task *task_, const Tensors &inputs_, const Tensors &outputs_, void *userArg, int jobId)
 {
     RequestPtr req = Request::Pick();
     req->_is_validate_request = false;
@@ -127,7 +125,7 @@ void Request::ShowAll()
     }
 }
 
-void Request::Wait()
+void Request::Wait() const
 {
     LOG_DXRT_DBG << "request " << id() << endl;
     while (status() == Request::Status::REQ_BUSY)
@@ -145,7 +143,6 @@ void Request::SetStatus(Request::Status status)
 void Request::CheckTimePoint(int opt)
 {
     LOG_DXRT_DBG << endl;
-    // std::cout << "        tp: req" << id() << ", " << opt << endl;
     if (opt == 0)
     {
         _timePoint->start = ProfilerClock::now();
@@ -153,7 +150,7 @@ void Request::CheckTimePoint(int opt)
     else
     {
         _timePoint->end = ProfilerClock::now();
-        _latency = std::chrono::duration_cast<std::chrono::microseconds>(_timePoint->end - _timePoint->start).count();
+        _latency = static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(_timePoint->end - _timePoint->start).count());
         // LOG_VALUE(_latency);
     }
 }
@@ -165,7 +162,7 @@ int Request::job_id() const
 {
     return _data.jobId;
 }
-void Request::set_processed_unit(std::string processedPU, int processedDevId, int processedId)
+void Request::set_processed_unit(const std::string &processedPU, int processedDevId, int processedId)
 {
     _data._processedPU = processedPU;
     _data._processedDevId = processedDevId;
@@ -245,11 +242,11 @@ uint32_t &Request::inference_time()
 {
     return _infTime;
 }
-TimePointPtr Request::time_point()
+TimePointPtr Request::time_point() const
 {
     return _timePoint;
 }
-Request::Status Request::status()
+Request::Status Request::status() const
 {
     return _status.load();
 }
@@ -265,11 +262,16 @@ bool &Request::validate_device()
 {
     return _validateDevice;
 }
-int16_t &Request::model_type()
+ModelType Request::modelType() const
 {
-    return _modelType;
+    return static_cast<ModelType>(_modelType);
 }
-void Request::setNpuInferenceAcc(dxrt_request_acc_t npuInferenceAcc)
+void Request::setModelType(ModelType type)
+{
+    _modelType = static_cast<int16_t>(type);
+}
+
+void Request::setNpuInferenceAcc(const dxrt_request_acc_t& npuInferenceAcc)
 {
     _npuInferenceAcc = npuInferenceAcc;
 }
@@ -277,6 +279,14 @@ void Request::setInferenceJob(InferenceJob* job)
 {
     _job = job;
 }
+
+#ifdef USE_VNPU
+InferenceJob* Request::inferenceJob() const
+{
+    return _job;
+}
+#endif // USE_VNPU
+
 void Request::onRequestComplete(RequestPtr req)
 {
     SetStatus(Request::Status::REQ_DONE);
@@ -318,13 +328,13 @@ void Request::Reset()
     _bufferReleased = false;
 }
 
-void Request::setInputs(Tensors input)
+void Request::setInputs(const Tensors &input)
 {
     std::unique_lock<std::mutex> lk(_reqLock);
     _data.inputs.clear();
     _data.inputs = input;
 }
-void Request::setOutputs(Tensors output)
+void Request::setOutputs(const Tensors &output)
 {
     std::unique_lock<std::mutex> lk(_reqLock);
     _data.outputs.clear();
@@ -347,9 +357,6 @@ RequestPtr RequestMap::GetById(int id)
     auto it = _map.find(id);
     if (it != _map.end())
     {
-        // LOG_DXRT_DBG << "found request " << id << endl;
-        // LOG_DXRT_DBG << "found request " << id << ": " << *it->second << endl;
-        // LOG_VALUE(it->second.use_count());
         return it->second;
     }
     else
@@ -515,13 +522,13 @@ Tensor Request::ValidateOutputTensor() const
     if (_validate_output_size == 0 || _validate_output_ptr == nullptr)
     {
         LOG_DXRT_DBG << "Request::ValidateOutputTensor - empty output detected "
-                     << "(size=" << _validate_output_size 
+                     << "(size=" << _validate_output_size
                      << ", ptr=" << _validate_output_ptr << "). "
                      << "Returning empty tensor.";
-        
+
         // Return empty tensor with valid dummy pointer to avoid NONE_TYPE
-        static uint8_t dummy_buffer[1] = {0};
-        return Tensor("validate_output", std::vector<int64_t>{0}, DataType::INT8, dummy_buffer);
+        static std::array<uint8_t, 1> dummy_buffer = {0};
+        return Tensor("validate_output", std::vector<int64_t>{0}, DataType::INT8, dummy_buffer.data());
     }
 
     return Tensor("validate_output", std::vector<int64_t>{_validate_output_size}, DataType::INT8, _validate_output_ptr);

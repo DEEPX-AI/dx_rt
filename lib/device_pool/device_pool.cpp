@@ -14,6 +14,7 @@
 #include <iostream>
 
 #include "dxrt/common.h"
+#include "dxrt/tsan_annotations.h"
 #include "dxrt/device_core.h"
 #include "dxrt/driver_adapter/driver_adapter.h"
 #include "dxrt/driver_adapter/driver_adapter_factory.h"
@@ -48,8 +49,9 @@ void DevicePool::InitCores_once()
 
     _deviceCores.clear();
     int cnt = 0;
+    bool shouldExit = false;
 
-    while (true)
+    while (!shouldExit)
     {
 #ifdef __linux__
         std::string devFile("/dev/" + std::string(DEVICE_FILE) + std::to_string(cnt));
@@ -57,13 +59,17 @@ void DevicePool::InitCores_once()
         std::string devFile("\\\\.\\" + std::string(DEVICE_FILE) + std::to_string(cnt));
 #endif
 #if DXRT_USB_NETWORK_DRIVER
-        if(fileExists(devFile) || (cnt == 0))
+        const bool deviceExists = fileExists(devFile) || (cnt == 0);
 #else
-        if(fileExists(devFile))
+        const bool deviceExists = fileExists(devFile);
 #endif
+        if (deviceExists)
         {
             if (forceNumDev > 0 && cnt >= forceNumDev)
-                break;
+            {
+                shouldExit = true;
+                continue;
+            }
             if (forceDevId != -1 && cnt != forceDevId)
             {
                 cnt++;
@@ -72,13 +78,14 @@ void DevicePool::InitCores_once()
 
             LOG_DBG("Found " + devFile);
             std::unique_ptr<DriverAdapter> adapter(DriverAdapterFactory::CreateForDeviceFile(devFile));
-            std::shared_ptr<DeviceCore> device = std::make_shared<DeviceCore>(cnt, std::move(adapter));
+            auto device = std::make_shared<DeviceCore>(cnt, std::move(adapter));
             device->Identify(cnt);
             _deviceCores.emplace_back(std::move(device));
         }
         else
         {
-            break;
+            shouldExit = true;
+            continue;
         }
         cnt++;
     }
@@ -98,7 +105,6 @@ void DevicePool::InitTaskLayers_once()
     {
         DeviceType type = core->GetDeviceType();
         std::shared_ptr<DeviceTaskLayer> layer;
-        //std::cout << (int)type << std::endl;
         if (type == DeviceType::ACC_TYPE)
         {
             layer = std::make_shared<AccDeviceTaskLayer>(core, _serviceLayer);
@@ -115,9 +121,12 @@ void DevicePool::InitTaskLayers_once()
         layer->RegisterCallback(std::bind(&DevicePool::AwakeDevice, this, core->id()));
         _taskLayers.push_back(layer);
     }
-    for (auto& it : _taskLayers)
+    for (const auto& it : _taskLayers)
     {
+        // TSAN annotation: thread creation synchronized by call_once
+        ANNOTATE_HAPPENS_BEFORE(it.get());
         it->StartThread();
+        ANNOTATE_HAPPENS_AFTER(it.get());
     }
 }
 
@@ -135,31 +144,31 @@ int DevicePool::pickDeviceIndex(const std::vector<int> &device_ids)
     int device_index = -1;
     int load = std::numeric_limits<int>::max();
     int curDeviceLoad;
-    int device_id_size = device_ids.size();
+    auto device_id_size = static_cast<int>(device_ids.size());
     int block_count = 0;
-    
+
     // Round-robin starting index (don't increment here to avoid side effect in predicate)
     int startIdx = _curDevIdx % device_id_size;
-    
+
     for (int i = 0; i < device_id_size; i++)
     {
         int idx = (i + startIdx) % device_id_size;
         int device_id = device_ids[idx];
-        
+
         if (_taskLayers[device_id]->isBlocked())
         {
             block_count++;
             LOG_DXRT_DBG << "Device " << device_id << " is blocked" << std::endl;
             continue;
         }
-        
+
         curDeviceLoad = _taskLayers[device_id]->load();
         int fullLoad = _taskLayers[device_id]->getFullLoad();
-        
-        LOG_DXRT_DBG << "Device " << device_id 
-                     << " load=" << curDeviceLoad 
+
+        LOG_DXRT_DBG << "Device " << device_id
+                     << " load=" << curDeviceLoad
                      << " fullLoad=" << fullLoad << std::endl;
-        
+
         // Select device if it has capacity and lowest load
         if (curDeviceLoad < fullLoad && curDeviceLoad < load)
         {
@@ -172,7 +181,7 @@ int DevicePool::pickDeviceIndex(const std::vector<int> &device_ids)
     {
         throw DeviceIOException(EXCEPTION_MESSAGE(LogMessages::AllDeviceBlocked()));
     }
-    
+
     if (device_index >= 0) {
         LOG_DXRT_DBG << "Selected device: " << device_index << " with load=" << load << std::endl;
     } else {
@@ -211,7 +220,7 @@ std::shared_ptr<NFHLayer> DevicePool::PickOneNFHDevice(const std::vector<int> &d
 std::shared_ptr<DeviceTaskLayer> DevicePool::WaitDevice(const std::vector<int> &device_ids)
 {
     std::unique_lock<std::mutex> lock(_deviceMutex);
-    
+
     LOG_DXRT_DBG << "Waiting for available device from " << device_ids.size() << " devices" << std::endl;
 
     // 3000 second timeout to prevent deadlock
@@ -233,33 +242,33 @@ std::shared_ptr<DeviceTaskLayer> DevicePool::WaitDevice(const std::vector<int> &
             error_msg += std::to_string(id) + ",";
         }
         error_msg.pop_back();
-        
+
         // Log current state of all devices
         error_msg += "\\n  Current device states: ";
         for (int id : device_ids) {
             if (id < static_cast<int>(_taskLayers.size())) {
-                error_msg += "\\n    Device " + std::to_string(id) + 
+                error_msg += "\\n    Device " + std::to_string(id) +
                              ": load=" + std::to_string(_taskLayers[id]->load()) +
                              ", fullLoad=" + std::to_string(_taskLayers[id]->getFullLoad()) +
                              ", blocked=" + std::string(_taskLayers[id]->isBlocked() ? "true" : "false");
             }
         }
-        
+
         LOG_DXRT_ERR(error_msg);
-        throw std::runtime_error("Device allocation timeout - possible deadlock detected");
+        throw std::runtime_error("Device allocation timeout - possible deadlock detected");   // NOSONAR:S112
     }
 
     auto pick = _taskLayers[_currentPickDevice];
     pick->pick();  // Increment load counter
-    
+
     // Update round-robin index after successful pick
     // Prevent overflow by resetting after a large threshold
     _curDevIdx++;
     if (_curDevIdx > 1000000) {
         _curDevIdx = 0;
     }
-    
-    LOG_DXRT_DBG << "Successfully picked device " << _currentPickDevice 
+
+    LOG_DXRT_DBG << "Successfully picked device " << _currentPickDevice
                  << " with new load=" << pick->load() << std::endl;
 
     return pick;
@@ -271,23 +280,26 @@ void DevicePool::AwakeDevice(int devIndex)
     std::ignore = devIndex;
     // Don't reset _curDevIdx to maintain round-robin scheduling
     // _curDevIdx is incremented in WaitDevice() after successful pick
-    
-    LOG_DXRT_DBG << "Device " << devIndex 
+
+    LOG_DXRT_DBG << "Device " << devIndex
                  << " completed task, notifying waiting threads" << std::endl;
-    
+
     _deviceCV.notify_all();
 }
 
 void DevicePool::InitNFHLayers_once()
 {
+    // TSAN annotation: thread creation synchronized by call_once
+    ANNOTATE_HAPPENS_BEFORE(this);
+
     InitTaskLayers();
     _nfhLayers.clear();
-    bool isDynamic = true;
+    bool is_dynamic = true;
     if (USE_ONE_NFH_LAYERS)
     {
-        auto nfhLayer = std::make_shared<NFHLayer>(nullptr, isDynamic);
+        auto nfhLayer = std::make_shared<NFHLayer>(nullptr, is_dynamic);
         _nfhLayers.push_back(nfhLayer);
-        for (auto &taskLayer : _taskLayers)
+        for (const auto &taskLayer : _taskLayers)
         {
             taskLayer->SetProcessResponseHandler(std::bind(&NFHLayer::ProcessResponse, nfhLayer.get(),
                                                            std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
@@ -295,10 +307,9 @@ void DevicePool::InitNFHLayers_once()
     }
     else
     {
-        for (auto &taskLayer : _taskLayers)
+        for (const auto &taskLayer : _taskLayers)
         {
-            bool isDynamic = true;
-            auto nfhLayer = std::make_shared<NFHLayer>(taskLayer, isDynamic);
+            auto nfhLayer = std::make_shared<NFHLayer>(taskLayer, is_dynamic);
 
             _nfhLayers.push_back(nfhLayer);
             taskLayer->SetProcessResponseHandler(std::bind(&NFHLayer::ProcessResponse, nfhLayer.get(),
@@ -306,6 +317,7 @@ void DevicePool::InitNFHLayers_once()
         }
     }
 
+    ANNOTATE_HAPPENS_AFTER(this);
 }
 
 void DevicePool::InitNFHLayers()

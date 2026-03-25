@@ -41,7 +41,7 @@ class DXRT_API DevicePool {
     }
     std::shared_ptr<NFHLayer> PickOneNFHDevice(const std::vector<int> &device_ids_);
 
-    std::shared_ptr<ServiceLayerInterface> GetServiceLayer() { return _serviceLayer;}
+    std::shared_ptr<ServiceLayerInterface> GetServiceLayer() const { return _serviceLayer;}
     void AwakeDevice(int devIndex);
 
     // member functions
@@ -50,15 +50,35 @@ class DXRT_API DevicePool {
     size_t GetDeviceCountNoInit() const;
     size_t GetDeviceCount();
 
-    std::vector<std::shared_ptr<DeviceCore>> GetAllDeviceCores() { return _deviceCores; }
-    std::vector<std::shared_ptr<DeviceTaskLayer>> GetAllDeviceTaskLayers() { return _taskLayers; }
+    std::vector<std::shared_ptr<DeviceCore>> GetAllDeviceCores() const { return _deviceCores; }
+    std::vector<std::shared_ptr<DeviceTaskLayer>> GetAllDeviceTaskLayers() const { return _taskLayers; }
 
- protected:
 
+ private:
+    
     std::vector<std::shared_ptr<DeviceTaskLayer>> _taskLayers;
     std::vector<std::shared_ptr<DeviceCore>> _deviceCores;
     std::shared_ptr<ServiceLayerInterface> _serviceLayer;
     std::vector<std::shared_ptr<NFHLayer>> _nfhLayers;
+
+    size_t _curDevIdx = 0;
+    std::once_flag _coresFlag;
+    std::once_flag _taskLayersFlag;
+    std::once_flag _nfhLayersFlag;
+
+    std::condition_variable _deviceCV;
+    std::mutex _deviceMutex;
+    std::mutex _methodMutex;
+    int _currentPickDevice = 0;
+
+
+ protected: // NOSONAR: Protected members required by test mock classes (MockDevicePool, TestDevicePool, MockDevicePoolExt)
+
+    const std::vector<std::shared_ptr<DeviceCore>>& deviceCores() const { return _deviceCores; }
+    std::vector<std::shared_ptr<DeviceCore>>& deviceCores() { return _deviceCores; }
+    std::once_flag& coresFlag() { return _coresFlag; }
+    std::once_flag& taskLayersFlag() { return _taskLayersFlag; }
+    std::once_flag& nfhLayersFlag() { return _nfhLayersFlag; }
 
     DevicePool() = default;
     ~DevicePool() = default;
@@ -70,23 +90,10 @@ class DXRT_API DevicePool {
     DevicePool& operator=(DevicePool&&) = delete;
 
 
-    size_t _curDevIdx = 0;
-
-    std::once_flag _coresFlag;
-    std::once_flag _taskLayersFlag;
-    std::once_flag _nfhLayersFlag;
     void InitCores_once();
     void InitTaskLayers_once();
     void InitNFHLayers_once();
 
-
-
-
-
-    std::condition_variable _deviceCV;
-    std::mutex _deviceMutex;
-    std::mutex _methodMutex;
-    int _currentPickDevice = 0;
 
     int pickDeviceIndex(const std::vector<int> &device_ids);
     std::shared_ptr<DeviceTaskLayer> WaitDevice(const std::vector<int> &device_ids);

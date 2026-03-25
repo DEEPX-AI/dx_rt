@@ -455,20 +455,22 @@ int pyRunAsync(InferenceEngine &ie,
 
     UserArgWrapper* wrapper = new UserArgWrapper(userArg_py, output_base_obj_for_callback);
 
-    gil_for_args.disarm();
-    py::gil_scoped_release release_gil_for_c_call;
-
     // Determine if we have multiple input tensors (multi-input case)
     bool multi_input = inputs_py.size() > 1;
 
+    // Extract all input pointers while GIL is still held (buffer::request() needs GIL)
+    std::vector<void*> input_ptr_vec;
     if (multi_input) {
-        // Build C++ vector<void*> for all input tensors
-        std::vector<void*> input_ptr_vec;
         input_ptr_vec.reserve(inputs_py.size());
         for (const auto& arr_py : inputs_py) {
             input_ptr_vec.push_back(arr_py.request().ptr);
         }
+    }
 
+    gil_for_args.disarm();
+    py::gil_scoped_release release_gil_for_c_call;
+
+    if (multi_input) {
         // For multi-input we still only pass one output pointer (first element / scalar) if provided.
         return ie.RunAsync(input_ptr_vec, reinterpret_cast<void*>(wrapper), output_c_ptr_for_engine);
     }
@@ -917,6 +919,18 @@ PYBIND11_MODULE(_pydxrt, m) {
         .def_static("get_instance", &dxrt::Configuration::GetInstance, py::return_value_policy::reference)
         ; // End of class binding
 
+    // Expose acceleration feature availability flags to Python
+#ifdef DXRT_NFH_ACCELERATION_AVAILABLE
+    m.attr("_NFH_ACCEL_AVAILABLE") = true;
+#else
+    m.attr("_NFH_ACCEL_AVAILABLE") = false;
+#endif
+#ifdef DXRT_CPU_OP_ACCELERATION_AVAILABLE
+    m.attr("_CPU_ACCEL_AVAILABLE") = true;
+#else
+    m.attr("_CPU_ACCEL_AVAILABLE") = false;
+#endif
+
     m.def("configuration_set_enable", &pyConfiguration_SetEnable,
         py::arg("configuration"), py::arg("item"), py::arg("enabled"),
         "Sets the enabled status for a specific configuration item.");
@@ -1081,8 +1095,8 @@ PYBIND11_MODULE(_pydxrt, m) {
     m.def("get_inputs_info_dev", &pyGetInputsInfoDev, py::arg("engine"), py::arg("dev_id"),
            "Get input tensor(s) information for a specific NPU device.");
 
-    // Assuming ParseModel is a free function: `std::string dxrt::ParseModel(const std::string&)`
-    m.def("parse_model", static_cast<int(*)(std::string)>(&ParseModel), py::arg("model_path"),
+    // Assuming ParseModel is a free function: `int dxrt::ParseModel(const std::string&)`
+    m.def("parse_model", static_cast<int(*)(const std::string&)>(&ParseModel), py::arg("model_path"),
           "Parses a model file and returns its string representation or info.");
 
     // Parse model with options

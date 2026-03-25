@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -37,7 +37,7 @@ class ProcessWithDeviceInfo
     };
     static constexpr int BOUND_NUM = static_cast<int>(dxrt::npu_bound_op::N_BOUND_INF_MAX);
 
-    int taskCount() const{return _taskInfo.size();}
+    int taskCount() const{return static_cast<int>(_taskInfo.size());}
     void InsertWeightInfo(dxrt::dxrt_custom_weight_info_t info){_weightInfo.insert(info);}
     void EraseWeightInfo(dxrt::dxrt_custom_weight_info_t info){_weightInfo.erase(info);}
     bool isEmpty() const{ return _weightInfo.empty() && _taskInfo.empty();}

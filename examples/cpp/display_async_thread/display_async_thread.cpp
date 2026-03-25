@@ -2,17 +2,17 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
 #include "dxrt/dxrt_api.h"
-#include "dxrt/extern/cxxopts.hpp"
-#include "concurrent_queue.h"
-#include "../include/logger.h"
 #include <string>
 #include <iostream>
+#include "dxrt/extern/cxxopts.hpp"
+#include "../include/concurrent_queue.h"
+#include "../include/logger.h"
 
 // 1 InferenceEngine and 500 threads (asyncronous)
 
@@ -31,7 +31,7 @@ public:
         _threadIndex = index;
     }
 
-    int getThreadIndex() {
+    int getThreadIndex() const {
         return _threadIndex;
     }
 
@@ -39,7 +39,7 @@ public:
         _loopIndex = index;
     }
 
-    int getLoopIndex() {
+    int getLoopIndex() const {
         return _loopIndex;
     }
 
@@ -47,7 +47,7 @@ public:
         _loopCount = count;
     }
 
-    int getLoopCount() {
+    int getLoopCount() const {
         return _loopCount;
     }
 };
@@ -55,12 +55,12 @@ public:
 // submits inference jobs using shared InferenceEngine
 static int inferenceThreadFunc(dxrt::InferenceEngine& ie, std::vector<uint8_t>& inputPtr, int threadIndex, int loopCount)
 {
-    static auto& log = dxrt::Logger::GetInstance();
+    static const auto& log = dxrt::Logger::GetInstance();
     //inference Loop
     for(int i = 0; i < loopCount; ++i )
     {
         //user argument
-        UserData *userData = new UserData();
+        auto userData = std::make_unique<UserData>();
 
         //thread index
         userData->setThreadIndex(threadIndex);
@@ -74,12 +74,12 @@ static int inferenceThreadFunc(dxrt::InferenceEngine& ie, std::vector<uint8_t>& 
         try
         {
             // inference asynchronously, use all npu cores
-            // if device-load >= max-load-value, this function will block  
-            ie.RunAsync(inputPtr.data(), userData);
+            // if device-load >= max-load-value, this function will block
+            ie.RunAsync(inputPtr.data(), userData.release());
         }
         catch(const dxrt::Exception& e)
         {
-            log.Error(std::string(e.what()) + " error-code=" + std::to_string(e.code()));
+            log.Error(std::string(e.what()) + " error-code=" + std::to_string(static_cast<int>(e.code())));
             std::exit(-1);
         }
         catch(const std::exception& e)
@@ -89,20 +89,20 @@ static int inferenceThreadFunc(dxrt::InferenceEngine& ie, std::vector<uint8_t>& 
         }
         log.Debug("inferenceThreadFunc thread-index=" + std::to_string(threadIndex) + " loop-index=" + std::to_string(i));
     }// for i
-    
+
     return 0;
 }
 
 // invoke this function asynchronously after the inference is completed
-static int onInferenceCallbackFunc(dxrt::TensorPtrs &outputs, void *userArg)
+static int onInferenceCallbackFunc(const dxrt::TensorPtrs &outputs, void *userArg)
 {
-    static auto& log = dxrt::Logger::GetInstance();
+    static const auto& log = dxrt::Logger::GetInstance();
     // the outputs are guaranteed to be valid only within this callback function
-    // processing this callback functions as quickly as possible is beneficial 
+    // processing this callback functions as quickly as possible is beneficial
     // for improving inference performance
 
-    // user data type casting
-    UserData *user_data = reinterpret_cast<UserData*>(userArg);
+    // user data type casting - take ownership back
+    std::unique_ptr<UserData> user_data(static_cast<UserData*>(userArg));
 
     // thread index
     int thread_index = user_data->getThreadIndex();
@@ -119,7 +119,7 @@ static int onInferenceCallbackFunc(dxrt::TensorPtrs &outputs, void *userArg)
 
     // result count
     {
-        // Mutex locks should be properly adjusted 
+        // Mutex locks should be properly adjusted
         // to ensure that callback functions are thread-safe.
         std::lock_guard<std::mutex> lock(gCBMutex);
 
@@ -127,8 +127,7 @@ static int onInferenceCallbackFunc(dxrt::TensorPtrs &outputs, void *userArg)
         if ( gResultCount.load() == gTotalCount.load() ) gResultQueue.push(0);
     }
 
-    // delete argument object
-    delete user_data;
+    // user_data automatically deleted when unique_ptr goes out of scope
 
     return 0;
 }
@@ -136,13 +135,13 @@ static int onInferenceCallbackFunc(dxrt::TensorPtrs &outputs, void *userArg)
 int main(int argc, char* argv[])
 {
     const bool ENABLE_ORT = false;
-    
+
     std::string model_path;
     int loop_count;
     int thread_count;
     bool verbose;
 
-    auto &log = dxrt::Logger::GetInstance();
+    auto& log = dxrt::Logger::GetInstance();
 
     cxxopts::Options options("display_async_thread", "Display async inference with multiple threads");
     options.add_options()
@@ -176,10 +175,10 @@ int main(int argc, char* argv[])
     log.Info("Start display_async_thread test for model: " + model_path);
 
     bool result = false;
-    
-    try     
+
+    try
     {
-        
+
         // create inference engine instance with model
         dxrt::InferenceOption io;
         io.useORT = ENABLE_ORT;
@@ -192,14 +191,14 @@ int main(int argc, char* argv[])
         auto start = std::chrono::high_resolution_clock::now();
 
         // create input buffers for each thread (same size as model input)
-        std::vector<uint8_t> input_buffer(ie.GetInputSize(), 0); 
+        std::vector<uint8_t> input_buffer(ie.GetInputSize(), 0);
 
         gTotalCount.store(loop_count * thread_count);
 
         // launch THREAD_COUNT threads to submit async inference jobs
         std::vector<std::thread> threads;
         threads.reserve(thread_count);
-        
+
         for(int t = 0; t < thread_count; ++t) {
             threads.emplace_back(inferenceThreadFunc, std::ref(ie), std::ref(input_buffer), t, loop_count);
         }
@@ -214,9 +213,9 @@ int main(int argc, char* argv[])
 
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> duration = end - start;
-        
+
         result = (gResultCount.load() == (loop_count * thread_count));
-        
+
         double total_time = duration.count();
         double avg_latency = total_time / static_cast<double>(loop_count);
         double fps = 1000.0 / avg_latency;
@@ -225,14 +224,14 @@ int main(int argc, char* argv[])
         log.Info("Total Time: " + std::to_string(total_time) + " ms");
         log.Info("Average Latency: " + std::to_string(avg_latency) + " ms");
         log.Info("FPS: " + std::to_string(fps) + " frames/sec");
-        log.Info("Total count=(" + std::to_string(gResultCount.load()) + "/" + std::to_string(loop_count * thread_count) + ") " + 
+        log.Info("Total count=(" + std::to_string(gResultCount.load()) + "/" + std::to_string(loop_count * thread_count) + ") " +
                     (result ? "Success" : "Failure"));
         log.Info("-----------------------------------");
 
     }
     catch (const dxrt::Exception& e)
     {
-        log.Error(std::string(e.what()) + " error-code=" + std::to_string(e.code()));
+        log.Error(std::string(e.what()) + " error-code=" + std::to_string(static_cast<int>(e.code())));
         return -1;
     }
     catch (const std::exception& e)
@@ -245,6 +244,6 @@ int main(int argc, char* argv[])
         log.Error("Exception");
         return -1;
     }
-    
+
     return result ? 0 : -1;
 }

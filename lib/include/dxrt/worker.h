@@ -36,24 +36,39 @@ using std::string;
 class DXRT_API Worker
 {
 public:
-    enum Type
+    enum class Type
     {
         DEVICE_INPUT,
         DEVICE_OUTPUT,
         DEVICE_EVENT,
         CPU_HANDLE,
     };
-    Worker(std::string name_, Type type_, int bufferCount, int numThreads = 1, Device *device_ = nullptr, CpuHandle *cpuHandle_ = nullptr);
+    Worker(const std::string& name_, Type type_, int bufferCount, int numThreads = 1, Device *device_ = nullptr, CpuHandle *cpuHandle_ = nullptr);
     Worker();
     virtual ~Worker();
-    static std::shared_ptr<Worker> Create(std::string name_, Type type_, int bufferCount, int numThreads = 1, Device *device_ = nullptr, CpuHandle *cpuHandle_ = nullptr);
+    static std::shared_ptr<Worker> Create(const std::string& name_, Type type_, int bufferCount, int numThreads = 1, Device *device_ = nullptr, CpuHandle *cpuHandle_ = nullptr);
     virtual void Stop();
     void UpdateQueueStats(int queueSize);
-    bool isStopped();
+    bool isStopped() const;
     void UnHold();
 
 protected:
     const std::string& getName() const {return _name;}
+    CpuHandle* getCpuHandle() const {return _cpuHandle;}
+    std::mutex& getLock() { return _lock; }
+    std::condition_variable& getConditionVariable() { return _cv; }
+    std::atomic<bool>& getStopFlag() { return _stop; }
+    int getBufferCount() const { return _bufferCount; }
+
+    void InitializeThread();
+    float GetAverageLoad();
+
+    virtual void ThreadWork(int id) = 0;
+
+private:
+    void DoThread(int id);
+
+    // protected variables for derived classes to control the load of worker threads
     Device *_device = nullptr;
     CpuHandle *_cpuHandle = nullptr;
     std::mutex _lock;
@@ -61,22 +76,14 @@ protected:
     std::condition_variable _cv;
     std::atomic<bool> _stop {false};
     std::vector<std::thread> _threads;
-    bool _useSystemCall = false;;
+    bool _useSystemCall = false;
     std::atomic<bool> _hold {true};
-
-    void InitializeThread();
-    float GetAverageLoad();
-    virtual void ThreadWork(int id) = 0;
     std::atomic<unsigned int> _stopCount {0};
-private:
-    void DoThread(int id);
+
     std::string _name;
     Type _type;
     std::atomic<int> _checkQueueCnt{0};
     std::atomic<int> _accumulatedQueueSize{0};
-    //std::queue<std::shared_ptr<Request>> _queue;
-
-protected:
     int _bufferCount = DXRT_TASK_MAX_LOAD_VALUE;
 
 };
@@ -85,19 +92,25 @@ protected:
 class CpuHandleWorker : public Worker
 {
 public:
-    CpuHandleWorker(string name_, int buffer_count_, int numThreads, int initDynamicThreads, CpuHandle *cpuHandle_, size_t device_num);
-    virtual ~CpuHandleWorker();
-    static shared_ptr<CpuHandleWorker> Create(string name_, int buffer_count_, int numThreads, int initDynamicThreads, CpuHandle *cpuHandle_, size_t device_num);
+    CpuHandleWorker(const string& name_, int buffer_count_, int numThreads, int initDynamicThreads, CpuHandle *cpuHandle_, size_t device_num);
+    ~CpuHandleWorker() override;
+    static shared_ptr<CpuHandleWorker> Create(const string& name_, int buffer_count_, int numThreads, int initDynamicThreads, CpuHandle *cpuHandle_, size_t device_num);
     int request(std::shared_ptr<Request> req);
 
 private:
     std::queue<std::shared_ptr<Request>> _queue;
     void ThreadWork(int id) override;
+    void ThreadWorkImpl(int id);
+    int MakeDynamicThreadId(int dynamicIndex) const;
+    void StartDynamicThread(int dynamicIndex);
+
+    constexpr static size_t MIN_EACH_CPU_TASK_THREADS = 1;
+    constexpr static size_t MAX_EACH_CPU_TASK_THREADS = 6;
 
     size_t _device_num;
     size_t _numThreads;
-    size_t _minThreads;
-    size_t _maxThreads;
+    size_t _minThreads = MIN_EACH_CPU_TASK_THREADS;
+    size_t _maxThreads = MAX_EACH_CPU_TASK_THREADS;
 
     int _initDynamicThreads;
 

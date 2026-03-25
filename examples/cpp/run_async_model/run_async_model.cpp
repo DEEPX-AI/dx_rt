@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -21,7 +21,7 @@ int main(int argc, char* argv[])
     std::string model_path;
     int loop_count;
     bool verbose;
-    
+
     auto& log = dxrt::Logger::GetInstance();
 
     cxxopts::Options options("run_async_model", "Run asynchronous model inference");
@@ -56,18 +56,18 @@ int main(int argc, char* argv[])
 
     int callback_count = 0;
 
-    try 
+    try
     {
 
         std::mutex cv_mutex;
         std::condition_variable cv;
-    
+
         // create inference engine instance with model
         dxrt::InferenceEngine ie(model_path);
 
         // register call back function
-        ie.RegisterCallback([&callback_count, &loop_count, &cv_mutex, &cv] 
-            (dxrt::TensorPtrs &outputs, void *userArg) {
+        ie.RegisterCallback([&callback_count, &loop_count, &cv_mutex, &cv]
+            (const dxrt::TensorPtrs &outputs, const void *userArg) {
 
             std::ignore = outputs;
             std::ignore = userArg;
@@ -85,10 +85,10 @@ int main(int argc, char* argv[])
         auto start = std::chrono::high_resolution_clock::now();
 
         // inference loop
-        for(int i = 0; i < loop_count; ++i)
+        for (int i = 0; i < loop_count; ++i)
         {
             // user argument
-            std::pair<int, int> *userData = new std::pair<int, int>(i, loop_count);
+            auto* userData = new std::pair<int, int>(i, loop_count);
 
             // inference asynchronously, use all npu cores
             ie.RunAsync(inputPtr.data(), userData);
@@ -98,7 +98,7 @@ int main(int argc, char* argv[])
 
         // wait until all callbacks have been processed
         std::unique_lock<std::mutex> lock(cv_mutex);
-        cv.wait(lock, [&callback_count, &loop_count] { 
+        cv.wait(lock, [&callback_count, &loop_count] {
             return callback_count == loop_count;
         });
 
@@ -113,11 +113,11 @@ int main(int argc, char* argv[])
         log.Info("Total Time: " + std::to_string(total_time) + " ms");
         log.Info("Average Latency: " + std::to_string(avg_latency) + " ms");
         log.Info("FPS: " + std::to_string(fps) + " frame/sec");
-        log.Info("Total callback-count / loop-count: " + 
-            std::to_string(callback_count) + " / " + std::to_string(loop_count) + 
+        log.Info("Total callback-count / loop-count: " +
+            std::to_string(callback_count) + " / " + std::to_string(loop_count) +
             (callback_count == loop_count ? " (Success)" : " (Failure)"));
         log.Info("-----------------------------------");
-  
+
     }
     catch (const dxrt::Exception& e)
     {
@@ -134,6 +134,6 @@ int main(int argc, char* argv[])
         log.Error("Exception");
         return -1;
     }
-    
+
     return (callback_count == loop_count ? 0 : -1);
 }

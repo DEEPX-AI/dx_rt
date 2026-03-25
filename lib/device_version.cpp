@@ -18,6 +18,7 @@
 #include "dxrt/exception/exception.h"
 #include "resource/log_messages.h"
 #include "dxrt/device_core.h"
+#include "dxrt/safe_cast.h"
 
 #ifdef USE_ORT
 #include <onnxruntime_cxx_api.h>
@@ -41,7 +42,7 @@ T DXRT_STD_MAX_FUNC(const T& a, const T& b)
  * @param delimiter The character to split by (default: '.')
  * @return Vector of integers representing version components
  */
-std::vector<int> ParseVersion(const std::string& version, char delimiter = '.') {
+DXRT_API std::vector<int> ParseVersion(const std::string& version, char delimiter = '.') {
     std::vector<int> parts;
     std::stringstream ss(version);
     std::string part;
@@ -144,10 +145,9 @@ dxrt_dev_info_t DxDeviceVersion::GetVersion(void)
     {
         uint32_t rt_drv_ver_STD;
         ret = _dev->Process(dxrt::dxrt_cmd_t::DXRT_CMD_DRV_INFO,
-            reinterpret_cast<void*>(&rt_drv_ver_STD),
+            static_cast<void*>(&rt_drv_ver_STD),
             0,
             dxrt::dxrt_drvinfo_sub_cmd_t::DRVINFO_CMD_GET_RT_INFO);
-        // DXRT_ASSERT(ret == 0, "failed to get RT driver info");
         if ( ret != 0 ) throw InvalidOperationException(EXCEPTION_MESSAGE("failed to get RT driver info"));
         devInfo.rt_drv_ver.driver_version = rt_drv_ver_STD;
     }
@@ -156,7 +156,7 @@ dxrt_dev_info_t DxDeviceVersion::GetVersion(void)
         {   // for backward compativility
             uint32_t rt_drv_vers;
             ret = _dev->Process(dxrt::dxrt_cmd_t::DXRT_CMD_DRV_INFO,
-            reinterpret_cast<void*>(&rt_drv_vers),
+            static_cast<void*>(&rt_drv_vers),
             0,
             dxrt::dxrt_drvinfo_sub_cmd_t::DRVINFO_CMD_GET_RT_INFO);
             if ( ret != 0 ) throw InvalidOperationException(EXCEPTION_MESSAGE("failed to get RT driver info"));
@@ -165,25 +165,37 @@ dxrt_dev_info_t DxDeviceVersion::GetVersion(void)
             if (rt_drv_vers > 1701)
             {
                 ret = _dev->Process(dxrt::dxrt_cmd_t::DXRT_CMD_DRV_INFO,
-                reinterpret_cast<void*>(&devInfo.rt_drv_ver),
+                static_cast<void*>(&devInfo.rt_drv_ver),
                 0,
                 dxrt::dxrt_drvinfo_sub_cmd_t::DRVINFO_CMD_GET_RT_INFO_V2);
 
-                // DXRT_ASSERT(ret == 0, "failed to get RT driver info");
                 if ( ret != 0 ) throw InvalidOperationException(EXCEPTION_MESSAGE("failed to get RT driver info with suffix"));
             }
         }
 
 
         ret = _dev->Process(dxrt::dxrt_cmd_t::DXRT_CMD_DRV_INFO,
-            reinterpret_cast<void*>(&devInfo.pcie),
+            static_cast<void*>(&devInfo.pcie),
             0,
             dxrt::dxrt_drvinfo_sub_cmd_t::DRVINFO_CMD_GET_PCIE_INFO);
-        // DXRT_ASSERT(ret == 0, "failed to get PCIE driver info");
         if ( ret != 0 ) throw InvalidOperationException(EXCEPTION_MESSAGE("failed to get PCIE driver info"));
     }
     return devInfo;
 }
+
+static inline std::string NotSupportDeviceDrvVersionMessage(int currentVersion, int requiredVersion)
+{
+    return LogMessages::NotSupported_DeviceDriverVersion(currentVersion, requiredVersion);
+}
+static inline std::string NotSupportPCIEDrvVersionMessage(int currentVersion, int requiredVersion)
+{
+    return LogMessages::NotSupported_PCIEDriverVersion(currentVersion, requiredVersion);
+}
+static inline std::string NotSupportFirmwareVersionMessage(int currentVersion, int requiredVersion)
+{
+    return LogMessages::NotSupported_FirmwareVersion(currentVersion, requiredVersion);
+}
+
 
 void DxDeviceVersion::CheckVersion(void)
 {
@@ -191,37 +203,39 @@ void DxDeviceVersion::CheckVersion(void)
     {
         (void)GetVersion();
 
-        if (_interface == DEVICE_INTERFACE_FPGA)
+        if ((_interface == DEVICE_INTERFACE_FPGA) && (devInfo.rt_drv_ver.driver_version < RT_DRV_VERSION_CHECK))
         {
-            if ( devInfo.rt_drv_ver.driver_version < RT_DRV_VERSION_CHECK )
-            {
-                throw InvalidOperationException(EXCEPTION_MESSAGE(LogMessages::NotSupported_DeviceDriverVersion(devInfo.rt_drv_ver.driver_version, RT_DRV_VERSION_CHECK)));
-            }
+            throw InvalidOperationException(EXCEPTION_MESSAGE(
+                NotSupportDeviceDrvVersionMessage(devInfo.rt_drv_ver.driver_version, RT_DRV_VERSION_CHECK)));
         }
 
         if ((_interface == DEVICE_INTERFACE_ASIC) && (_type == DEVICE_TYPE_ACCELERATOR))
         {
             if ( devInfo.rt_drv_ver.driver_version < RT_DRV_VERSION_CHECK )
             {
-                throw InvalidOperationException(EXCEPTION_MESSAGE(LogMessages::NotSupported_DeviceDriverVersion(devInfo.rt_drv_ver.driver_version, RT_DRV_VERSION_CHECK)));
+                throw InvalidOperationException(EXCEPTION_MESSAGE(
+                    NotSupportDeviceDrvVersionMessage(devInfo.rt_drv_ver.driver_version, RT_DRV_VERSION_CHECK)));
             }
 
             if ( devInfo.pcie.driver_version < PCIE_VERSION_CHECK )
             {
-                throw InvalidOperationException(EXCEPTION_MESSAGE(LogMessages::NotSupported_PCIEDriverVersion(devInfo.pcie.driver_version, PCIE_VERSION_CHECK)));
+                throw InvalidOperationException(EXCEPTION_MESSAGE(
+                    NotSupportPCIEDrvVersionMessage(devInfo.pcie.driver_version, PCIE_VERSION_CHECK)));
             }
 
             if ( _fw_ver < FW_VERSION_CHECK )
             {
-                throw InvalidOperationException(EXCEPTION_MESSAGE(LogMessages::NotSupported_FirmwareVersion(_fw_ver, FW_VERSION_CHECK)));
+                throw InvalidOperationException(EXCEPTION_MESSAGE(
+                    NotSupportFirmwareVersionMessage(_fw_ver, FW_VERSION_CHECK)));
             }
 
             // USE_ORT=ON, ONNX version check
 #ifdef USE_ORT
-            std::string onnx_version = std::string(OrtGetApiBase()->GetVersionString());
+            auto onnx_version = std::string(OrtGetApiBase()->GetVersionString());
             if ( !IsVersionEqualOrHigher(onnx_version, ONNX_RUNTIME_VERSION_CHECK) )
             {
-                throw InvalidOperationException(EXCEPTION_MESSAGE(LogMessages::NotSupported_ONNXRuntimeVersion(onnx_version, ONNX_RUNTIME_VERSION_CHECK)));
+                throw InvalidOperationException(EXCEPTION_MESSAGE(
+                    LogMessages::NotSupported_ONNXRuntimeVersion(onnx_version, ONNX_RUNTIME_VERSION_CHECK)));
             }
 
 #endif // USE_ORT

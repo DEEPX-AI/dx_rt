@@ -66,7 +66,7 @@ def parse_arguments():
 _IOC_WRITE = 1
 _IOC_NRSHIFT=0; _IOC_TYPESHIFT=8; _IOC_SIZESHIFT=16; _IOC_DIRSHIFT=30
 
-def _IOW(type_char, nr, size):
+def _IOW(type_char, nr, size): # NOSONAR
     return (_IOC_WRITE << _IOC_DIRSHIFT) | (ord(type_char) << _IOC_TYPESHIFT) | (nr << _IOC_NRSHIFT) | (size << _IOC_SIZESHIFT)
 
 DXRT_CMD_READ_MEM = 8  # enum order in driver.h
@@ -129,7 +129,7 @@ def read_profiler_region(dev_node: str, base: int, offset: int, size: int, chann
     entry_sz = ctypes.sizeof(AvcProf)
     capacity = size // entry_sz
     entries = []
-    AvcProfPtr = ctypes.POINTER(AvcProf)
+    AvcProfPtr = ctypes.POINTER(AvcProf) # NOSONAR - for cleaner access to entries
     for i in range(capacity):
         e = ctypes.cast(buf_ptr + i*entry_sz, AvcProfPtr).contents
         entries.append({
@@ -228,7 +228,7 @@ def make_scatter_graph(args, tile_list, volt_list, model_path):
         print(f"[WARN] Failed to save plot: {e}")
     plt.close(fig)
 
-def main():
+def main(): # NOSONAR
     global current_run_mode, callback_completed_count
 
     args = parse_arguments()
