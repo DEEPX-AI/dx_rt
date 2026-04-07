@@ -120,7 +120,7 @@ int main(int argc, char* argv[])
         std::vector<double> thread_times(THREAD_COUNT, 0.0);
 
         for (int t = 0; t < THREAD_COUNT; ++t) {
-            threads.emplace_back([&thread_times, t, model_path, loop_count]() {
+            threads.emplace_back([&thread_times, t, model_path, loop_count, ENABLE_ORT]() {
                 thread_times[t] = RunInferenceThread(model_path, loop_count, t, ENABLE_ORT);
             });
         }

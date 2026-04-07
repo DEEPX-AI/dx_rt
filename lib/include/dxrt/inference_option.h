@@ -19,7 +19,7 @@
 #endif
 
 namespace dxrt {
-enum class DXRT_API InferenceMode;
+enum class InferenceMode;
 /** @brief This struct specifies inference options applied to dxrt::InferenceEngine.
  * @details User can configure which npu device is used to inference.
  * @headerfile "dxrt/dxrt_api.h"

@@ -121,11 +121,25 @@ int32_t IPCMessageQueueLinux::Receive(Message& message, size_t size, long msgTyp
     if ( _msgId >= 0 )
     {
         // receive except message type
-
-        if ( msgrcv(_msgId, &message, size, msgType, 0) == -1 )
+        bool isInterrupted = true;
+        while (isInterrupted)
         {
-            LOG_DXRT_I_ERR("[IPCMessageQueueLinux] msgrcv(receive) failed" + getErrorString(errno));
-            return -1;
+            if ( msgrcv(_msgId, &message, size, msgType, 0) == -1 )
+            {
+                if (errno == EINTR)
+                {
+                    isInterrupted = true;
+                }
+                else
+                {
+                    LOG_DXRT_I_ERR("[IPCMessageQueueLinux] msgrcv(receive) failed" + getErrorString(errno));
+                    return -1;
+                }
+            }
+            else
+            {
+                isInterrupted = false;
+            }
         }
     }
     else

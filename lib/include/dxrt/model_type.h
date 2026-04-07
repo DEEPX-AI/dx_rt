@@ -13,7 +13,7 @@
 
 namespace dxrt {
 
-enum class DXRT_API ModelType : int8_t
+enum class ModelType : int8_t
 {
     MODEL_TYPE_NORMAL = 0,
     MODEL_TYPE_ARGMAX = 1,

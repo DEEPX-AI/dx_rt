@@ -161,10 +161,26 @@ dxrt-cli --status
 dxrt-cli --reset 0
 
 dxrt-cli --fwupdate fw.bin
+dxrt-cli -u fw.bin
 
 dxrt-cli -m 1
 ```
 
+!!! note "NOTE"
+    **Firmware update issue**  
+    If an issue occurs during firmware update with `dxrt-cli -u` or `dxrt-cli --fwupdate`, run the following sequence:
+     ```bash
+     # service off
+     sudo systemctl disable dxrt.service
+     sudo systemctl stop dxrt.service
+
+     dxrt-cli -u fw.bin
+
+     # service on
+     sudo systemctl enable dxrt.service
+     sudo systemctl start dxrt.service
+     ```
+ 
 ---
 
 ## NPU Monitoring Utility

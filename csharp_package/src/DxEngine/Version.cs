@@ -7,6 +7,8 @@
 // Unauthorized sharing or usage is strictly prohibited by law.
 //
 
+using System.Reflection;
+
 namespace DxEngine
 {
     /// <summary>
@@ -14,24 +16,27 @@ namespace DxEngine
     /// </summary>
     public static class Version
     {
+        private static readonly System.Version _version =
+            Assembly.GetExecutingAssembly().GetName().Version ?? new System.Version(0, 0, 0);
+
         /// <summary>
         /// Gets the current version of the DxEngine library.
         /// </summary>
-        public const string Current = "1.1.4";
+        public static string Current => $"{_version.Major}.{_version.Minor}.{_version.Build}";
 
         /// <summary>
         /// Gets the major version number.
         /// </summary>
-        public const int Major = 1;
+        public static int Major => _version.Major;
 
         /// <summary>
         /// Gets the minor version number.
         /// </summary>
-        public const int Minor = 1;
+        public static int Minor => _version.Minor;
 
         /// <summary>
         /// Gets the patch version number.
         /// </summary>
-        public const int Patch = 4;
+        public static int Patch => _version.Build;
     }
 }

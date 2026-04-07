@@ -63,7 +63,7 @@
     {
       "name": "x64-VS",
       "displayName": "x64 (Visual Studio)",
-      "description": "Visual Studio 솔루션/프로젝트 파일 생성용 (빌드는 x64-Debug/Release 사용)",
+      "description": "Generate Visual Studio solution/project files (use x64-Debug/Release for build)",
       "inherits": "cache-base",
       "generator": "Visual Studio 17 2022",
       "binaryDir": "${sourceDir}/build_vs",

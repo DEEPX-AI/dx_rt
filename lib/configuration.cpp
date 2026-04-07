@@ -591,7 +591,7 @@ const int DXRT_NFH_DEFAULT_INPUT_THREADS = 1;
 const int DXRT_NFH_DEFAULT_OUTPUT_THREADS = 2;
 #endif
 
-int GetNfhInputWorkerThreads() {
+int DXRT_API GetNfhInputWorkerThreads() {
     static int cached_value = -1;
     if (cached_value == -1) {
         const char* env_value = std::getenv("NFH_INPUT_WORKER_THREADS");
@@ -611,7 +611,7 @@ int GetNfhInputWorkerThreads() {
     return cached_value;
 }
 
-int GetNfhOutputWorkerThreads() {
+int DXRT_API GetNfhOutputWorkerThreads() {
     static int cached_value = -1;
     if (cached_value == -1) {
         const char* env_value = std::getenv("NFH_OUTPUT_WORKER_THREADS");

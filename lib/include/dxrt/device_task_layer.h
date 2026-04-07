@@ -252,11 +252,14 @@ class DXRT_API AccDeviceTaskLayer : public DeviceTaskLayer {
 
      void ProcessResponseFromService(const dxrt_response_t &resp) override;
     std::vector<Tensors> inputs(int taskId) override { return {_inputTensorFormats[taskId]}; }
+    void HandleThrottlingEvent(const dxrt::dx_pcie_dev_ntfy_throt_t &throtInfo) const;
 
+private:
+    dxrt_request_acc_t peekInference(int id);
+    int InferenceRequestACC(RequestData *req, npu_bound_op boundOp);
+    bool CatchEvent(dxrt_cmd_t cmd, dxrt::dx_pcie_dev_event_t* eventInfo);
+    bool HandleCaughtEvent(const dxrt::dx_pcie_dev_event_t& eventInfo);
 
- private:
-     dxrt_request_acc_t peekInference(int id);
-     int InferenceRequestACC(RequestData *req, npu_bound_op boundOp);
 
      dxrt_meminfo_t SetMemInfo_PPCPU(const dxrt_meminfo_t& rmap_output,
                                       size_t ppu_filter_num,
@@ -294,6 +297,10 @@ class DXRT_API AccDeviceTaskLayer : public DeviceTaskLayer {
 
     std::unordered_map<int, Tensors> _inputTensorFormats;
     std::unordered_map<int, Tensors> _outputTensorFormats;
+
+    // PPU binary storage (device-specific to prevent multi-device DMA conflicts)
+    std::unordered_map<int, std::vector<uint8_t>> _ppuBinaryData;  // taskId -> ppu_binary_copy
+    std::unordered_map<int, uint32_t> _ppuBinaryOffsets;  // taskId -> device-specific offset
 
     std::array<std::atomic<bool>, 4> _outputDispatcherTerminateFlag;
 

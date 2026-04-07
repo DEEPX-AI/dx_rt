@@ -1,6 +1,6 @@
 # RELEASE_NOTES
 
-## v3.3.0 / 2026-03-25
+## v3.3.0 / 2026-04-07
 
 ### 1. Changed
 - Update minimum versions
@@ -10,6 +10,9 @@
 - Update the Python module version to match the C++ Runtime version.
 
 ### 2. Fixed
+- Fix PPU data transfer error during multi-process execution in H1 and Multiple M1 M.2 environments.
+- Fix input data lifecycle issues in the Python Runtime Module.
+- Fix intermittent interrupt exceptions in IPC Message Queue.
 
 ### 3. Added
 - Add dxtop for No Service Mode

@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    
+    <!-- Package Information -->
+    <PackageId>DxEngine</PackageId>
+    <!-- Version is injected from release.ver via /p:Version= at build time -->
+    <Version Condition="'$(Version)' == ''">0.0.0</Version>
+    <Authors>DEEPX-RT</Authors>
+    <Company>DEEPX Ltd.</Company>
+    <Description>C# wrapper class for dx_rt - DEEPX NPU Inference Engine</Description>
+    <Copyright>Copyright (C) 2018- DEEPX Ltd. All rights reserved.</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://deepx.ai</PackageProjectUrl>
+    <PackageTags>deepx;dxrt;npu;inference;ai</PackageTags>
+    
+    <!-- Build Settings -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Native DLLs to include in NuGet package (runtimes/win-x64/native/) -->
+    <!-- DxEngineNative (C++/CLI wrapper) -->
+    <None Include="..\DxEngineNative\bin\$(Configuration)\DxEngineNative.dll" Pack="true" PackagePath="runtimes\win-x64\native" CopyToOutputDirectory="PreserveNewest" Link="DxEngineNative.dll" Condition="Exists('..\DxEngineNative\bin\$(Configuration)\DxEngineNative.dll')" />
+    <None Include="..\DxEngineNative\bin\$(Configuration)\Ijwhost.dll" Pack="true" PackagePath="runtimes\win-x64\native" CopyToOutputDirectory="PreserveNewest" Link="Ijwhost.dll" Condition="Exists('..\DxEngineNative\bin\$(Configuration)\Ijwhost.dll')" />
+    <!-- dxrt native runtime -->
+    <None Include="..\..\..\out\build\x64-$(Configuration)\bin\dxrt.dll" Pack="true" PackagePath="runtimes\win-x64\native" CopyToOutputDirectory="PreserveNewest" Link="dxrt.dll" Condition="'$(Configuration)'=='Release' And Exists('..\..\..\out\build\x64-$(Configuration)\bin\dxrt.dll')" />
+    <None Include="..\..\..\out\build\x64-$(Configuration)\bin\dxrtdbg.dll" Pack="true" PackagePath="runtimes\win-x64\native" CopyToOutputDirectory="PreserveNewest" Link="dxrtdbg.dll" Condition="'$(Configuration)'=='Debug' And Exists('..\..\..\out\build\x64-$(Configuration)\bin\dxrtdbg.dll')" />
+    <!-- ONNX Runtime -->
+    <None Include="..\..\..\out\build\x64-$(Configuration)\bin\onnxruntime.dll" Pack="true" PackagePath="runtimes\win-x64\native" CopyToOutputDirectory="PreserveNewest" Link="onnxruntime.dll" Condition="Exists('..\..\..\out\build\x64-$(Configuration)\bin\onnxruntime.dll')" />
+    <None Include="..\..\..\out\build\x64-$(Configuration)\bin\onnxruntime_providers_shared.dll" Pack="true" PackagePath="runtimes\win-x64\native" CopyToOutputDirectory="PreserveNewest" Link="onnxruntime_providers_shared.dll" Condition="Exists('..\..\..\out\build\x64-$(Configuration)\bin\onnxruntime_providers_shared.dll')" />
+  </ItemGroup>
+
+  <!-- Ensure native DLLs are copied to output for consumers -->
+  <ItemGroup>
+    <None Include="build\DxEngine.targets" Pack="true" PackagePath="build" />
+    <None Include="buildTransitive\DxEngine.targets" Pack="true" PackagePath="buildTransitive" />
+  </ItemGroup>
+
+</Project>

@@ -501,6 +501,20 @@ int ServiceDevice::EventThread()   // NOSONAR
                 std::abort();
             }
         }
+        else if (static_cast<dxrt::dxrt_event_t>(eventInfo.event_type) == dxrt::dxrt_event_t::DXRT_EVENT_NOTIFY_THROT)
+        {
+            // Notify throttling events to service scheduler for logging and potential client notification
+            dx_pcie_dev_ntfy_throt_t throtInfo = eventInfo.dx_rt_ntfy_throt;
+            LOG_DXRT_S_DBG << "Received throttling event: code=" << throtInfo.ntfy_code
+                << ", freq_before=" << throtInfo.throt_freq[0]
+                << ", freq_after=" << throtInfo.throt_freq[1]
+                << ", volt_before=" << throtInfo.throt_voltage[0]
+                << ", volt_after=" << throtInfo.throt_voltage[1]
+                << ", temperature=" << throtInfo.throt_temper
+                << std::endl;
+            _throttleCallBack(throtInfo, id());
+        }
+
         loopCnt++;
     }
     LOG_DXRT_S_DBG << "@@@ Thread End : EventThread, loopCount:" << loopCnt << std::endl;
@@ -649,6 +663,10 @@ void ServiceDevice::SetErrorCallback(const std::function<void(dxrt::dxrt_server_
 void ServiceDevice::SetRecoveryCallback(const std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)>& f)
 {
     _recoveryCallBack = f;
+}
+void ServiceDevice::SetThrottleCallback(const std::function<void(dx_pcie_dev_ntfy_throt_t, int)>& f)
+{
+    _throttleCallBack = f;
 }
 
 

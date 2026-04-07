@@ -59,6 +59,7 @@
 #include "dxrt/multiprocess_memory.h"
 #include "dxrt/driver_adapter/linux_driver_adapter.h"
 #include "dxrt/usage_timer.h"
+#include "dxrt/driver.h"
 
 #ifdef __linux__
     #include <poll.h>
@@ -116,6 +117,7 @@ class DXRT_API ServiceDevice  // NOSONAR:S1820
     void SetCallback(const std::function<void(const dxrt_response_t&)>& f);
     void SetErrorCallback(const std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)>& f);
     void SetRecoveryCallback(const std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)>& f);
+    void SetThrottleCallback(const std::function<void(dx_pcie_dev_ntfy_throt_t, int)>& f);
 
     static std::vector<shared_ptr<ServiceDevice>> CheckServiceDevices(uint32_t subCmd = 0);
     bool isBlocked () const {return _isBlocked;}
@@ -164,6 +166,7 @@ class DXRT_API ServiceDevice  // NOSONAR:S1820
 
     std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)> _errCallBack;
     std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)> _recoveryCallBack;
+    std::function<void(dx_pcie_dev_ntfy_throt_t, int)> _throttleCallBack;
     bool _isBlocked = false;
     std::array<UsageTimer, 3> _timer;
 

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <!--
+    Copy native DLLs from runtimes/win-x64/native/ to the output directory
+    so that DxEngineNative.dll (loaded via Assembly.LoadFrom) and other
+    native dependencies can be found at runtime.
+    (Transitive: applies to projects that indirectly reference DxEngine)
+  -->
+  <Target Name="DxEngineCopyNativeDlls" AfterTargets="Build">
+    <ItemGroup>
+      <DxEngineNativeDlls Include="$(MSBuildThisFileDirectory)..\runtimes\win-x64\native\*.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DxEngineNativeDlls)"
+          DestinationFolder="$(OutputPath)"
+          SkipUnchangedFiles="true"
+          Condition="'@(DxEngineNativeDlls)' != ''" />
+  </Target>
+
+</Project>

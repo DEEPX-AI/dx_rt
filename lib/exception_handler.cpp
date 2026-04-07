@@ -34,18 +34,11 @@ static void signalHandler(int signo)
 #ifdef DXRT_SHOW_STACKTRACE_ON_HANDLER
     std::array<void*, 22> array;
     size_t size;
-    char** strings;
 
     size = backtrace(array.data(), 22);
-    strings = backtrace_symbols(array.data(), static_cast<int>(size));
-    printf("Exception: Caught signal %d:\n", signo);
-    for (size_t i = 0; i < size; i++)
-    {
-        printf("[%lu] %s\n", i, strings[i]);
-    }
-    free(strings);
+    backtrace_symbols_fd(array.data(), static_cast<int>(size), STDERR_FILENO);
 #endif
-    exit(EXIT_FAILURE);
+    _exit(EXIT_FAILURE);
 }
 #elif _WIN32
 [[noreturn]]

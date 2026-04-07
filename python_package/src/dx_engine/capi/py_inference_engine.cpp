@@ -22,6 +22,8 @@
 #include <numeric>
 #include <stdexcept>
 #include <map>
+#include <unordered_map>
+#include <mutex>
 
 #include "dxrt/dxrt_api.h"
 #include "dxrt/exception/exception.h"
@@ -77,9 +79,11 @@ void translateException(const std::exception_ptr& p) {
 struct UserArgWrapper {
     py::object user_pyObj;
     py::object output_arg_pyObj;
+    py::object input_arrays_pyObj;  // Keep input arrays alive to prevent GC
+    int jobId;  // Track jobId for cleanup in both callback and wait() paths
 
-    explicit UserArgWrapper(py::object user_obj, py::object output_obj = py::none())
-        : user_pyObj(std::move(user_obj)), output_arg_pyObj(std::move(output_obj)) {}
+    explicit UserArgWrapper(py::object user_obj, py::object output_obj = py::none(), py::object input_obj = py::none(), int job_id = -1)
+        : user_pyObj(std::move(user_obj)), output_arg_pyObj(std::move(output_obj)), input_arrays_pyObj(std::move(input_obj)), jobId(job_id) {}
 
     ~UserArgWrapper() = default;
 
@@ -88,6 +92,11 @@ struct UserArgWrapper {
     UserArgWrapper(UserArgWrapper&&) = delete;
     UserArgWrapper& operator=(UserArgWrapper&&) = delete;
 };
+
+// Global map to track wrappers for wait() path cleanup
+// Key: jobId, Value: wrapper pointer
+static std::unordered_map<int, UserArgWrapper*> g_jobWrapperMap;
+static std::mutex g_jobWrapperMapMutex;
 
 std::string pyFormatDescriptorTable[DataType::MAX_TYPE];
 
@@ -453,7 +462,13 @@ int pyRunAsync(InferenceEngine &ie,
         }
     }
 
-    UserArgWrapper* wrapper = new UserArgWrapper(userArg_py, output_base_obj_for_callback);
+    // Convert inputs_py vector to py::list to keep arrays alive during async operation
+    py::list input_list_for_retention;
+    for (const auto& arr : inputs_py) {
+        input_list_for_retention.append(arr);
+    }
+
+    UserArgWrapper* wrapper = new UserArgWrapper(userArg_py, output_base_obj_for_callback, input_list_for_retention);
 
     // Determine if we have multiple input tensors (multi-input case)
     bool multi_input = inputs_py.size() > 1;
@@ -470,13 +485,23 @@ int pyRunAsync(InferenceEngine &ie,
     gil_for_args.disarm();
     py::gil_scoped_release release_gil_for_c_call;
 
+    int jobId = -1;
     if (multi_input) {
         // For multi-input we still only pass one output pointer (first element / scalar) if provided.
-        return ie.RunAsync(input_ptr_vec, reinterpret_cast<void*>(wrapper), output_c_ptr_for_engine);
+        jobId = ie.RunAsync(input_ptr_vec, reinterpret_cast<void*>(wrapper), output_c_ptr_for_engine);
+    } else {
+        // ----- single-input path remains unchanged -----
+        jobId = ie.RunAsync(first_input_c_ptr, reinterpret_cast<void*>(wrapper), output_c_ptr_for_engine);
     }
 
-    // ----- single-input path remains unchanged -----
-    return ie.RunAsync(first_input_c_ptr, reinterpret_cast<void*>(wrapper), output_c_ptr_for_engine);
+    // Store jobId in wrapper and register in map for cleanup
+    wrapper->jobId = jobId;
+    {
+        std::lock_guard<std::mutex> lock(g_jobWrapperMapMutex);
+        g_jobWrapperMap[jobId] = wrapper;
+    }
+
+    return jobId;
 }
 
 // Registers a Python callback for asynchronous completions.
@@ -554,6 +579,12 @@ void pyRegisterCallback(InferenceEngine &ie, const py::object &pyCallback_obj) {
         }
 
         if (wrapper) {
+            // Remove from map to prevent double-free if wait() is called
+            int job_id = wrapper->jobId;
+            if (job_id >= 0) {
+                std::lock_guard<std::mutex> lock(g_jobWrapperMapMutex);
+                g_jobWrapperMap.erase(job_id);
+            }
             delete wrapper;
         }
         return 0;
@@ -569,6 +600,22 @@ std::vector<py::array> pyWait(InferenceEngine &ie, int jobId) {
         outputs_cpp = ie.Wait(jobId);
     }
     py::gil_scoped_acquire acquire_gil;
+
+    // Retrieve and delete wrapper for this job to prevent memory leak
+    // This is critical for non-contiguous inputs where wrapper holds input_arrays_pyObj
+    UserArgWrapper* wrapper = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(g_jobWrapperMapMutex);
+        auto it = g_jobWrapperMap.find(jobId);
+        if (it != g_jobWrapperMap.end()) {
+            wrapper = it->second;
+            g_jobWrapperMap.erase(it);
+        }
+    }
+    if (wrapper) {
+        delete wrapper;  // Release wrapper and its Python object references
+    }
+
     std::vector<py::array> result_py_list;
     for(const auto &output_tensor_cpp_ptr : outputs_cpp) {
          convertToPyArray(output_tensor_cpp_ptr, py::none(), result_py_list);
@@ -793,12 +840,24 @@ int pyRunAsyncMultiInputDict(InferenceEngine &ie, const py::dict &input_tensors_
         }
     }
 
-    UserArgWrapper* wrapper = new UserArgWrapper(userArg_py, output_base_obj_for_callback);
+    // Keep input dictionary alive during async operation to prevent GC
+    py::object input_dict_for_retention = input_tensors_dict;
+
+    UserArgWrapper* wrapper = new UserArgWrapper(userArg_py, output_base_obj_for_callback, input_dict_for_retention);
 
     gil_for_args.disarm();
     py::gil_scoped_release release_gil_for_c_call;
 
-    return ie.RunAsyncMultiInput(inputTensors, reinterpret_cast<void*>(wrapper), output_c_ptr_for_engine);
+    int jobId = ie.RunAsyncMultiInput(inputTensors, reinterpret_cast<void*>(wrapper), output_c_ptr_for_engine);
+
+    // Store jobId in wrapper and register in map for cleanup
+    wrapper->jobId = jobId;
+    {
+        std::lock_guard<std::mutex> lock(g_jobWrapperMapMutex);
+        g_jobWrapperMap[jobId] = wrapper;
+    }
+
+    return jobId;
 }
 
 // Validates NPU device with multi-input dictionary format

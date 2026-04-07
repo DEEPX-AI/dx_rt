@@ -100,6 +100,13 @@ if (USE_ORT)
     )
     target_link_directories(${target} PUBLIC ${ONNXLIB_DIRS})
     target_link_libraries(${target} PUBLIC ${ONNXLIB_DIRS})
+    if (MSVC)
+        # Delay-load onnxruntime.dll so that our hook (ort_delay_load.cpp) can
+        # force it to be loaded from the same directory as dxrt.dll, avoiding
+        # a stale copy in C:\Windows\System32 being picked up first.
+        target_link_options(${target} PRIVATE "/DELAYLOAD:onnxruntime.dll")
+        target_link_libraries(${target} PRIVATE delayimp)
+    endif()
 endif()
 
 if (USE_VNPU)

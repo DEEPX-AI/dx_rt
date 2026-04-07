@@ -221,11 +221,11 @@ namespace DxEngine
                         devicesProp?.SetValue(_nativeOption, devicesList);
                     }
 
-                    _nativeEngine = Activator.CreateInstance(engineWrapperType, modelPath, _nativeOption);
+                    _nativeEngine = Activator.CreateInstance(engineWrapperType!, modelPath, _nativeOption);
                 }
                 else
                 {
-                    _nativeEngine = Activator.CreateInstance(engineWrapperType, modelPath);
+                    _nativeEngine = Activator.CreateInstance(engineWrapperType!, modelPath);
                 }
             }
             catch (Exception ex)
@@ -405,12 +405,19 @@ namespace DxEngine
                 throw new ObjectDisposedException(nameof(InferenceEngineNative));
         }
 
+        /// <summary>
+        /// Releases all resources used by the InferenceEngineNative.
+        /// </summary>
         public void Dispose()
         {
             Dispose(true);
             GC.SuppressFinalize(this);
         }
 
+        /// <summary>
+        /// Releases the unmanaged resources and optionally releases the managed resources.
+        /// </summary>
+        /// <param name="disposing">true to release both managed and unmanaged resources; false to release only unmanaged resources.</param>
         protected virtual void Dispose(bool disposing)
         {
             if (!_disposed)
@@ -432,6 +439,9 @@ namespace DxEngine
             }
         }
 
+        /// <summary>
+        /// Finalizer for InferenceEngineNative.
+        /// </summary>
         ~InferenceEngineNative()
         {
             Dispose(false);

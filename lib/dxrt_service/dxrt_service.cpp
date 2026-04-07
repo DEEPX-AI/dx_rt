@@ -30,6 +30,7 @@
 #include "process_with_device_info.h"
 
 #include "../data/ppcpu.h"
+#include "dxrt/driver.h"
 
 
 #ifndef DXRT_DEBUG
@@ -125,6 +126,7 @@ class DxrtService  // NOSONAR:S1448
     std::atomic<bool> _recoveryInProgress{false};
 
     void WaitForAllClientsDead(int timeoutMs);
+    void BroadcastThrottlingEventToClient(dxrt::dx_pcie_dev_ntfy_throt_t throtInfo, int deviceId);
 };
 
 DxrtService::DxrtService(std::vector<std::shared_ptr<dxrt::ServiceDevice> > devices_, DXRT_Schedule scheduler_option)
@@ -156,10 +158,14 @@ DxrtService::DxrtService(std::vector<std::shared_ptr<dxrt::ServiceDevice> > devi
         device->SetErrorCallback([this](dxrt::dxrt_server_err_t err, uint32_t errCode, int deviceId) {
             ErrorBroadCastToClient(err, errCode, deviceId);
             _devices[deviceId]->Process(dxrt::dxrt_cmd_t::DXRT_CMD_RECOVERY, nullptr);
-            DXRT_ASSERT(false, "Device error occurred, attempted recovery");
+            LOG_DXRT_S_ERR("Device error occurred, attempted recovery");
+            std::abort();
         });
         device->SetRecoveryCallback([this](dxrt::dxrt_server_err_t err, uint32_t errCode, int deviceId) {
             RecoveryBroadcastAndWait(err, errCode, deviceId);
+        });
+        device->SetThrottleCallback([this](dxrt::dx_pcie_dev_ntfy_throt_t throtInfo, int deviceId) {
+            BroadcastThrottlingEventToClient(throtInfo, deviceId);
         });
     }
     LOG_DXRT_S << "Initialized Devices count=" << _devices.size() << std::endl;
@@ -171,7 +177,8 @@ DxrtService::DxrtService(std::vector<std::shared_ptr<dxrt::ServiceDevice> > devi
     _scheduler->SetErrorCallback([this](dxrt::dxrt_server_err_t err, uint32_t errCode, int deviceId) {
         ErrorBroadCastToClient(err, errCode, deviceId);
         _devices[deviceId]->Process(dxrt::dxrt_cmd_t::DXRT_CMD_RECOVERY, nullptr);
-        DXRT_ASSERT(false, "Device error occurred, attempted recovery");
+        LOG_DXRT_S_ERR("Device error occurred, attempted recovery");
+        std::abort();
     });
 
     // Task validity verification callback
@@ -320,7 +327,17 @@ void DxrtService::WaitForAllClientsDead(int timeoutMs)
             LOG_DXRT_S_ERR("Client PID " + std::to_string(pid)
                 + " did not terminate within " + std::to_string(timeoutMs)
                 + "ms. Sending SIGKILL.");
+
+#ifdef __linux__
             kill(pid, SIGKILL);
+#elif _WIN32
+            // Windows-specific code to terminate a process
+            HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
+            if (hProcess != NULL) {
+                TerminateProcess(hProcess, 1);
+                CloseHandle(hProcess);
+            }
+#endif
         }
     }
 
@@ -344,6 +361,54 @@ void DxrtService::RecoveryBroadcastAndWait(dxrt::dxrt_server_err_t err, uint32_t
     WaitForAllClientsDead(kRecoveryWaitTimeoutMs);
 
     LOG_DXRT_S << "All clients terminated. Proceeding with device recovery." << std::endl;
+}
+void DxrtService::BroadcastThrottlingEventToClient(dxrt::dx_pcie_dev_ntfy_throt_t throtInfo, int deviceId)
+{
+    constexpr uint32_t kThrottlePackedReqId = 0xFFFFFFFFu;
+    constexpr uint16_t kThrottlePackedSignature = 0x5448u;  // "TH"
+
+    std::vector<pid_t> pids;
+    {
+        std::lock_guard<std::mutex> lk(_pidSetMutex);
+        std::copy(_pid_set.begin(), _pid_set.end(), std::back_inserter(pids));
+    }
+
+    if (pids.empty())
+    {
+        LOG_DXRT_S_DBG << "No clients to receive THROTTLE_EVENT" << endl;
+        return;
+    }
+
+    for (auto pid : pids)
+    {
+        dxrt::IPCServerMessage msg;
+        msg.code = dxrt::RESPONSE_CODE::THROTTLE_EVENT;
+        msg.deviceId = deviceId;
+        msg.msgType = pid;
+
+        // Reuse npu_resp as a compact payload container for throttling notifications.
+        msg.npu_resp.req_id = kThrottlePackedReqId;
+        msg.npu_resp.model_type = kThrottlePackedSignature;
+        msg.npu_resp.status = static_cast<int32_t>(throtInfo.ntfy_code);
+        msg.npu_resp.argmax = static_cast<uint16_t>(throtInfo.npu_id);
+        msg.npu_resp.inf_time = throtInfo.throt_temper;
+        msg.npu_resp.ddr_wr_bw = throtInfo.throt_freq[0];
+        msg.npu_resp.ddr_rd_bw = throtInfo.throt_freq[1];
+        msg.npu_resp.dma_ch = static_cast<int32_t>(throtInfo.throt_voltage[0]);
+        msg.npu_resp.queue = throtInfo.throt_voltage[1];
+
+        int ret = _ipcServerWrapper.SendToClient(msg);
+#ifdef __linux__
+        constexpr int correct_return_value = 0;
+#elif _WIN32
+        constexpr int correct_return_value = sizeof(dxrt::IPCServerMessage);
+#endif
+        if (ret != correct_return_value)
+        {
+            LOG_DXRT_S_ERR("Failed to send THROTTLE_EVENT to pid="
+                + std::to_string(pid) + ", ret=" + std::to_string(ret));
+        }
+    }
 }
 
 bool DxrtService::HandleTaskInit(const dxrt::IPCClientMessage& clientMessage)
@@ -634,7 +699,8 @@ void DxrtService::TaskAbnormalDeInit(int deviceId, int taskId, int pid)
                            + std::to_string(MAX_WAIT_MS) + "ms, forcing cleanup");
             ErrorBroadCastToClient(dxrt::dxrt_server_err_t::S_ERR_NEED_DEV_RECOVERY, -1, deviceId);
             _devices[deviceId]->Process(dxrt::dxrt_cmd_t::DXRT_CMD_RECOVERY, nullptr);
-            DXRT_ASSERT(false, "Device error occurred, attempted recovery");
+            LOG_DXRT_S_ERR("Device error occurred, attempted recovery");
+            std::abort();
         }
     }
 
@@ -916,7 +982,8 @@ dxrt::IPCServerMessage DxrtService::HandleViewMemory(const dxrt::IPCClientMessag
             std::stringstream ss;
             ss << "Invalid Message code on HandleViewMemory: ";
             ss << clientMessage.code;
-            DXRT_ASSERT(false, ss.str());
+            LOG_DXRT_S_ERR(ss.str());
+            std::abort();
         }
         retMsg.code = dxrt::RESPONSE_CODE::VIEW_FREE_MEMORY_RESULT;
         retMsg.data = result;
@@ -1485,7 +1552,7 @@ static bool IsProcessRunning(pid_t procId)
 
 #elif _WIN32
 
-static bool IsProcessRunning(DWORD procId)
+static bool IsProcessRunning(pid_t procId)
 {
     // PID 0 is System Idle Process
     if (procId == 0) {
@@ -1698,15 +1765,18 @@ void DxrtService::Dispose()  // NOSONAR:S5817 false positive
 
 
 static DxrtService* service_dispose;  // NOSONAR
-
+#ifdef __linux__
 [[noreturn]]
 void signalHandler(int signalno)
 {
     std::ignore = signalno;
-    service_dispose->Dispose();
-    exit(EXIT_FAILURE);
+    auto ptr = service_dispose;
+    service_dispose = nullptr;
+    if (ptr != nullptr)
+        ptr->Dispose();
+    _exit(EXIT_FAILURE);
 }
-
+#endif
 
 int DXRT_API dxrt_service_main(int argc, char* argv[])  // NOSONAR:S5945
 {

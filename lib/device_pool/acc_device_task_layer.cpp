@@ -142,27 +142,32 @@ int AccDeviceTaskLayer::RegisterTask(TaskData* task)
         const auto& ppu_binary = (*task->_data)[2];  // index 2 is PPU binary
         if (!ppu_binary.empty())
         {
-            // Allocate PPU binary region right after weight
+            // Copy PPU binary to device-specific storage to prevent multi-device DMA conflicts
+            _ppuBinaryData[tId] = ppu_binary;  // Deep copy
+            const auto& ppu_binary_copy = _ppuBinaryData[tId];
+
+            // Allocate PPU binary region in device memory
             dxrt_meminfo_t ppu_mem;
             ppu_mem.base = model.rmap.base;
 
-            uint64_t ppu_offset = serviceLayer()->BackwardAllocateForTask(id(), tId, ppu_binary.size());
+            uint64_t ppu_offset = serviceLayer()->BackwardAllocateForTask(id(), tId, ppu_binary_copy.size());
             if (ppu_offset == ERROR_ALLOC)
             {
                 LOG_DXRT_ERR("Failed to allocate ppuMem memory in NPU memory");
+                _ppuBinaryData.erase(tId);
                 return -1;
             }
 
             ppu_mem.offset = static_cast<uint32_t>(ppu_offset);
-            ppu_mem.size = static_cast<uint32_t>(ppu_binary.size());
-            ppu_mem.data = SafeCast::PointerToInteger<const uint8_t*>(ppu_binary.data());
+            ppu_mem.size = static_cast<uint32_t>(ppu_binary_copy.size());
+            ppu_mem.data = SafeCast::PointerToInteger<const uint8_t*>(ppu_binary_copy.data());
             ret = core()->Write(ppu_mem);
             DXRT_ASSERT(ret == 0, "failed to write PPU binary parameters" + std::to_string(ret));
 
-            // Store PPU binary offset in task data for later use in inference request
-            task->_ppuBinaryOffset = ppu_mem.offset;
+            // Store PPU binary offset in device-specific map (not in TaskData to avoid conflicts)
+            _ppuBinaryOffsets[tId] = ppu_mem.offset;
 
-            LOG_DXRT_DBG << "Device " << id() << " wrote PPU binary: offset=0x" << std::hex << ppu_mem.offset
+            LOG_DXRT_DBG << "Device " << id() << " wrote PPU binary (device-specific copy): offset=0x" << std::hex << ppu_mem.offset
                          << ", size=" << std::dec << ppu_mem.size << " bytes" << std::endl;
         }
     }
@@ -555,6 +560,15 @@ int AccDeviceTaskLayer::Release(TaskData* task)
     serviceLayer()->DeAllocate(id(), npu_inference_acc.cmd_offset);
     serviceLayer()->DeAllocate(id(), npu_inference_acc.weight_offset);
 
+    // Cleanup device-specific PPU binary storage
+    _ppuBinaryData.erase(taskId);
+    auto ppu_offset_it = _ppuBinaryOffsets.find(taskId);
+    if (ppu_offset_it != _ppuBinaryOffsets.end())
+    {
+        serviceLayer()->DeAllocate(id(), ppu_offset_it->second);
+        _ppuBinaryOffsets.erase(ppu_offset_it);
+    }
+
     return 0;
 }
 
@@ -649,10 +663,20 @@ int AccDeviceTaskLayer::InferenceRequestACC(RequestData* req, npu_bound_op bound
         // Set custom_offset to PPU binary offset for firmware to execute PPU
         if (task->_isPPCPU)
         {
-            npu_inference_acc.custom_offset = task->_ppuBinaryOffset;
-            LOG_DXRT_DBG << "Device " << id() << " PPCPU inference: custom_offset=0x" << std::hex
-                     << task->_ppuBinaryOffset << ", model_type=" << std::dec
-                     << static_cast<int>(npu_inference_acc.model_type) << std::endl;
+            // Use device-specific PPU offset (not TaskData->_ppuBinaryOffset to avoid multi-device conflicts)
+            auto it = _ppuBinaryOffsets.find(taskId);
+            if (it != _ppuBinaryOffsets.end())
+            {
+                npu_inference_acc.custom_offset = it->second;
+                LOG_DXRT_DBG << "Device " << id() << " PPCPU inference: custom_offset=0x" << std::hex
+                         << it->second << ", model_type=" << std::dec
+                         << static_cast<int>(npu_inference_acc.model_type) << std::endl;
+            }
+            else
+            {
+                LOG_DXRT_ERR("Device " << id() << " PPCPU task " << taskId << " missing PPU offset");
+                npu_inference_acc.custom_offset = 0;
+            }
         }
         else
         {
@@ -1220,204 +1244,239 @@ void AccDeviceTaskLayer::EventThread()
             continue;
         }
         dxrt::dx_pcie_dev_event_t eventInfo;
-        memset(&eventInfo, 0, sizeof(dxrt::dx_pcie_dev_event_t));
-        int ret = core()->Process(cmd, &eventInfo); //Waiting in kernel. (device::terminate())
-#ifdef __linux__
-        if (ret == -ECANCELED)
+        if (!CatchEvent(cmd, &eventInfo))
         {
-            return;
+            shouldExit = true;
+            continue;
         }
-#endif
-        if (static_cast<dxrt::dxrt_event_t>(eventInfo.event_type) == dxrt::dxrt_event_t::DXRT_EVENT_ERROR)
-        {
-            if (static_cast<dxrt::dxrt_error_t>(eventInfo.dx_rt_err.err_code) != dxrt::dxrt_error_t::ERR_NONE)
-            {
-                uint32_t err_code = eventInfo.dx_rt_err.err_code;
-                std::string err_code_str;
-                switch (static_cast<dxrt::dxrt_error_t>(err_code)) {
-                    case dxrt::dxrt_error_t::ERR_NPU0_HANG: err_code_str = "NPU0_HANG"; break;
-                    case dxrt::dxrt_error_t::ERR_NPU1_HANG: err_code_str = "NPU1_HANG"; break;
-                    case dxrt::dxrt_error_t::ERR_NPU2_HANG: err_code_str = "NPU2_HANG"; break;
-                    case dxrt::dxrt_error_t::ERR_NPU_BUS: err_code_str = "NPU_BUS"; break;
-                    case dxrt::dxrt_error_t::ERR_PCIE_DMA_CH0_FAIL: err_code_str = "PCIE_DMA_CH0_FAIL"; break;
-                    case dxrt::dxrt_error_t::ERR_PCIE_DMA_CH1_FAIL: err_code_str = "PCIE_DMA_CH1_FAIL"; break;
-                    case dxrt::dxrt_error_t::ERR_PCIE_DMA_CH2_FAIL: err_code_str = "PCIE_DMA_CH2_FAIL"; break;
-                    case dxrt::dxrt_error_t::ERR_PCIE_DMA_CH3_FAIL: err_code_str = "PCIE_DMA_CH3_FAIL"; break;
-                    case dxrt::dxrt_error_t::ERR_LPDDR_DED_WR: err_code_str = "LPDDR_DED_WR"; break;
-                    case dxrt::dxrt_error_t::ERR_LPDDR_DED_RD: err_code_str = "LPDDR_DED_RD"; break;
-                    case dxrt::dxrt_error_t::ERR_FW_TIMEOUT: err_code_str = "FW_TIMEOUT"; break;
-                    case dxrt::dxrt_error_t::ERR_PCIE_DMA_CH0_ABORT: err_code_str = "PCIE_DMA_CH0_ABORT"; break;
-                    case dxrt::dxrt_error_t::ERR_PCIE_DMA_CH1_ABORT: err_code_str = "PCIE_DMA_CH1_ABORT"; break;
-                    case dxrt::dxrt_error_t::ERR_PCIE_DMA_CH2_ABORT: err_code_str = "PCIE_DMA_CH2_ABORT"; break;
-                    case dxrt::dxrt_error_t::ERR_PCIE_DMA_CH3_ABORT: err_code_str = "PCIE_DMA_CH3_ABORT"; break;
-                    case dxrt::dxrt_error_t::ERR_DEVICE_ERR: err_code_str = "DEVICE_ERR"; break;
-                    default: err_code_str = "UNKNOWN(" + std::to_string(err_code) + ")"; break;
-                }
 
-                LOG_DXRT_ERR(eventInfo.dx_rt_err);
-                core()->ShowPCIEDetails();
-                RuntimeEventDispatcher::GetInstance().DispatchEvent(
-                    RuntimeEventDispatcher::LEVEL::ERROR,
-                    RuntimeEventDispatcher::TYPE::DEVICE_IO,
-                    RuntimeEventDispatcher::CODE::DEVICE_EVENT,
-                    LogMessages::RuntimeDispatch_DeviceEventError(id(), err_code_str));
-#ifndef USE_VNPU
-
-                // Classify error and handle accordingly
-                //   100-103: DMA timeout + soft reset failure (driver engine_en cycle failed)
-                //   200-201: LPDDR ECC error
-                //   300:     FW timeout
-                //   400-403: DMA HW abort (Abort MSI from HW)
-                if (err_code >= 400 && err_code < 500)
-                {
-                    // DMA HW Abort (Abort MSI) — recoverable via DXRT_CMD_RECOVERY
-                    HandleDmaAbortError(&eventInfo.dx_rt_err);
-                }
-                else if (err_code >= 100 && err_code < 200)
-                {
-                    // DMA timeout + soft reset failure — driver's engine_en cycle
-                    // could not clear CS=2. Full recovery (possibly PCIe SBR) needed.
-                    HandleDmaFailError(&eventInfo.dx_rt_err);
-                }
-                else if (err_code == 300)
-                {
-                    // FW Timeout — recoverable
-                    HandleFwTimeoutError(&eventInfo.dx_rt_err);
-                }
-                else
-                {
-                    // Non-recoverable errors (NPU hang, LPDDR ECC, etc.) — fatal
-                    DXRT_ASSERT(false, LogMessages::Device_DeviceErrorEvent(static_cast<int>(err_code)));
-                }
-#endif
-                shouldExit = true;
-
-                continue;
-            }
-        }
-        else if (static_cast<dxrt::dxrt_event_t>(eventInfo.event_type) == dxrt::dxrt_event_t::DXRT_EVENT_NOTIFY_THROT)
-        {
-            if ( Configuration::GetInstance().GetEnable(Configuration::ITEM::SHOW_THROTTLING) )
-                LOG_DXRT << eventInfo.dx_rt_ntfy_throt << std::endl;
-
-            if ( eventInfo.dx_rt_ntfy_throt.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_THROT_FREQ_DOWN
-                || eventInfo.dx_rt_ntfy_throt.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_THROT_FREQ_UP
-                || eventInfo.dx_rt_ntfy_throt.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_THROT_VOLT_DOWN
-                || eventInfo.dx_rt_ntfy_throt.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_THROT_VOLT_UP ) {
-
-                std::string throt_code_str;
-                switch (eventInfo.dx_rt_ntfy_throt.ntfy_code) {
-                    case dxrt::dxrt_notify_throt_t::NTFY_THROT_FREQ_DOWN:
-                        throt_code_str = "FREQ_DOWN(MHz) "
-                            + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_freq[0])
-                            + " to " + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_freq[1]);
-                        break;
-                    case dxrt::dxrt_notify_throt_t::NTFY_THROT_FREQ_UP: throt_code_str = "FREQ_UP(MHz) "
-                            + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_freq[0])
-                            + " to " + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_freq[1]);
-                        break;
-                    case dxrt::dxrt_notify_throt_t::NTFY_THROT_VOLT_DOWN: throt_code_str = "VOLT_DOWN(mV) "
-                            + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_voltage[0])
-                            + " to " + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_voltage[1]);
-                        break;
-                    case dxrt::dxrt_notify_throt_t::NTFY_THROT_VOLT_UP: throt_code_str = "VOLT_UP(mV) "
-                            + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_voltage[0])
-                            + " to " + std::to_string(eventInfo.dx_rt_ntfy_throt.throt_voltage[1]);
-                        break;
-                    default: throt_code_str = "UNKNOWN"; break;
-                }
-
-                auto level = RuntimeEventDispatcher::LEVEL::INFO;
-                if ( eventInfo.dx_rt_ntfy_throt.throt_temper >= 95)
-                {
-                    level = RuntimeEventDispatcher::LEVEL::WARNING;
-                }
-
-                RuntimeEventDispatcher::GetInstance().DispatchEvent(
-                    level,
-                    RuntimeEventDispatcher::TYPE::DEVICE_STATUS,
-                    RuntimeEventDispatcher::CODE::THROTTLING_NOTICE,
-                    LogMessages::RuntimeDispatch_ThrottlingNotice(
-                        id(),
-                        eventInfo.dx_rt_ntfy_throt.npu_id,
-                        throt_code_str,
-                        eventInfo.dx_rt_ntfy_throt.throt_temper)
-                );
-            }
-            else if ( eventInfo.dx_rt_ntfy_throt.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_EMERGENCY_BLOCK
-                || eventInfo.dx_rt_ntfy_throt.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_EMERGENCY_RELEASE
-                || eventInfo.dx_rt_ntfy_throt.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_EMERGENCY_WARN )
-            {
-
-                std::string emergency_code_str;
-                switch (eventInfo.dx_rt_ntfy_throt.ntfy_code) {
-                    case dxrt::dxrt_notify_throt_t::NTFY_EMERGENCY_BLOCK: emergency_code_str = "EMERGENCY_BLOCK"; break;
-                    case dxrt::dxrt_notify_throt_t::NTFY_EMERGENCY_RELEASE: emergency_code_str = "EMERGENCY_RELEASE"; break;
-                    case dxrt::dxrt_notify_throt_t::NTFY_EMERGENCY_WARN: emergency_code_str = "EMERGENCY_WARN"; break;
-                    default: emergency_code_str = "UNKNOWN"; break;
-                }
-
-                RuntimeEventDispatcher::GetInstance().DispatchEvent(
-                    RuntimeEventDispatcher::LEVEL::CRITICAL,
-                    RuntimeEventDispatcher::TYPE::DEVICE_STATUS,
-                    RuntimeEventDispatcher::CODE::THROTTLING_EMERGENCY,
-                    LogMessages::RuntimeDispatch_ThrottlingEmergency(
-                        id(),
-                        eventInfo.dx_rt_ntfy_throt.npu_id,
-                        emergency_code_str)
-                );
-            }
-        }
-        else if (static_cast<dxrt::dxrt_event_t>(eventInfo.event_type)==dxrt::dxrt_event_t::DXRT_EVENT_RECOVERY)
-        {
-            std::string type = "Unknown";
-            if (eventInfo.dx_rt_recv.action==dxrt::dxrt_recov_t::DXRT_RECOV_RMAP)
-            {
-                auto model = npuModelMap().begin()->second;
-                DXRT_ASSERT(core()->Write(model.rmap, 3) == 0, "Recovery rmap failed to write model parameters(cmd)");
-                LOG_DXRT_ERR("RMAP data has been recovered. This error can cause issues with NPU operation.");
-                StartDev(RMAP_RECOVERY_DONE);
-                type = "RMAP";
-            }
-            else if (eventInfo.dx_rt_recv.action==dxrt::dxrt_recov_t::DXRT_RECOV_WEIGHT)
-            {
-                auto model = npuModelMap().begin()->second;
-                DXRT_ASSERT(core()->Write(model.weight, 3) == 0, "Recovery weight failed to write model parameters(weight)");
-                LOG_DXRT_ERR("Weight data has been recovered. This error can cause wrong result value.");
-                StartDev(WEIGHT_RECOVERY_DONE);
-                type = "WEIGHT";
-            }
-            else if (eventInfo.dx_rt_recv.action==dxrt::dxrt_recov_t::DXRT_RECOV_CPU)
-            {
-                LOG_DXRT << "Host received a message regarding a CPU abnormal case." << std::endl;
-                type = "CPU";
-            }
-            else if (eventInfo.dx_rt_recv.action==dxrt::dxrt_recov_t::DXRT_RECOV_DONE)
-            {
-                LOG_DXRT << "Device recovery is complete" << std::endl;
-                type = "DONE";
-            }
-            else
-            {
-                LOG_DXRT_ERR("Unknown data is received from device " << std::hex << eventInfo.dx_rt_recv.action << "\n");
-                core()->ShowPCIEDetails();
-            }
-
-            RuntimeEventDispatcher::GetInstance().DispatchEvent(
-                RuntimeEventDispatcher::LEVEL::WARNING,
-                RuntimeEventDispatcher::TYPE::DEVICE_CORE,
-                RuntimeEventDispatcher::CODE::RECOVERY_OCCURRED,
-                LogMessages::RuntimeDispatch_DeviceRecovery(id(), type)
-            );
-        }
-        else
-        {
-            LOG_DXRT_DBG << "!! unknown event occured from device "<< eventInfo.event_type << std::endl;
-        }
+        shouldExit = HandleCaughtEvent(eventInfo);
         loopCnt++;
     }
     LOG_DXRT_DBG << threadName << " : End, LoopCount" << loopCnt << std::endl;
     _eventThreadTerminateFlag.store(true);
+}
+
+bool AccDeviceTaskLayer::CatchEvent(dxrt_cmd_t cmd, dxrt::dx_pcie_dev_event_t* eventInfo)
+{
+    memset(eventInfo, 0, sizeof(dxrt::dx_pcie_dev_event_t));
+    int ret = core()->Process(cmd, eventInfo); // Waiting in kernel. (device::terminate())
+
+#ifdef __linux__
+    if (ret == -ECANCELED)
+    {
+        return false;
+    }
+#endif
+
+    return true;
+}
+
+bool AccDeviceTaskLayer::HandleCaughtEvent(const dxrt::dx_pcie_dev_event_t& eventInfo)
+{
+    if (static_cast<dxrt::dxrt_event_t>(eventInfo.event_type) == dxrt::dxrt_event_t::DXRT_EVENT_ERROR)
+    {
+        if (static_cast<dxrt::dxrt_error_t>(eventInfo.dx_rt_err.err_code) != dxrt::dxrt_error_t::ERR_NONE)
+        {
+            uint32_t err_code = eventInfo.dx_rt_err.err_code;
+            std::string err_code_str;
+            switch (static_cast<dxrt::dxrt_error_t>(err_code)) {
+                case dxrt::dxrt_error_t::ERR_NPU0_HANG: err_code_str = "NPU0_HANG"; break;
+                case dxrt::dxrt_error_t::ERR_NPU1_HANG: err_code_str = "NPU1_HANG"; break;
+                case dxrt::dxrt_error_t::ERR_NPU2_HANG: err_code_str = "NPU2_HANG"; break;
+                case dxrt::dxrt_error_t::ERR_NPU_BUS: err_code_str = "NPU_BUS"; break;
+                case dxrt::dxrt_error_t::ERR_PCIE_DMA_CH0_FAIL: err_code_str = "PCIE_DMA_CH0_FAIL"; break;
+                case dxrt::dxrt_error_t::ERR_PCIE_DMA_CH1_FAIL: err_code_str = "PCIE_DMA_CH1_FAIL"; break;
+                case dxrt::dxrt_error_t::ERR_PCIE_DMA_CH2_FAIL: err_code_str = "PCIE_DMA_CH2_FAIL"; break;
+                case dxrt::dxrt_error_t::ERR_PCIE_DMA_CH3_FAIL: err_code_str = "PCIE_DMA_CH3_FAIL"; break;
+                case dxrt::dxrt_error_t::ERR_LPDDR_DED_WR: err_code_str = "LPDDR_DED_WR"; break;
+                case dxrt::dxrt_error_t::ERR_LPDDR_DED_RD: err_code_str = "LPDDR_DED_RD"; break;
+                case dxrt::dxrt_error_t::ERR_FW_TIMEOUT: err_code_str = "FW_TIMEOUT"; break;
+                case dxrt::dxrt_error_t::ERR_PCIE_DMA_CH0_ABORT: err_code_str = "PCIE_DMA_CH0_ABORT"; break;
+                case dxrt::dxrt_error_t::ERR_PCIE_DMA_CH1_ABORT: err_code_str = "PCIE_DMA_CH1_ABORT"; break;
+                case dxrt::dxrt_error_t::ERR_PCIE_DMA_CH2_ABORT: err_code_str = "PCIE_DMA_CH2_ABORT"; break;
+                case dxrt::dxrt_error_t::ERR_PCIE_DMA_CH3_ABORT: err_code_str = "PCIE_DMA_CH3_ABORT"; break;
+                case dxrt::dxrt_error_t::ERR_DEVICE_ERR: err_code_str = "DEVICE_ERR"; break;
+                default: err_code_str = "UNKNOWN(" + std::to_string(err_code) + ")"; break;
+            }
+
+            LOG_DXRT_ERR(eventInfo.dx_rt_err);
+            core()->ShowPCIEDetails();
+            RuntimeEventDispatcher::GetInstance().DispatchEvent(
+                RuntimeEventDispatcher::LEVEL::ERROR,
+                RuntimeEventDispatcher::TYPE::DEVICE_IO,
+                RuntimeEventDispatcher::CODE::DEVICE_EVENT,
+                LogMessages::RuntimeDispatch_DeviceEventError(id(), err_code_str));
+#ifndef USE_VNPU
+
+            // Classify error and handle accordingly
+            //   100-103: DMA timeout + soft reset failure (driver engine_en cycle failed)
+            //   200-201: LPDDR ECC error
+            //   300:     FW timeout
+            //   400-403: DMA HW abort (Abort MSI from HW)
+            if (err_code >= 400 && err_code < 500)
+            {
+                // DMA HW Abort (Abort MSI) — recoverable via DXRT_CMD_RECOVERY
+                HandleDmaAbortError(&eventInfo.dx_rt_err);
+            }
+            else if (err_code >= 100 && err_code < 200)
+            {
+                // DMA timeout + soft reset failure — driver's engine_en cycle
+                // could not clear CS=2. Full recovery (possibly PCIe SBR) needed.
+                HandleDmaFailError(&eventInfo.dx_rt_err);
+            }
+            else if (err_code == 300)
+            {
+                // FW Timeout — recoverable
+                HandleFwTimeoutError(&eventInfo.dx_rt_err);
+            }
+            else
+            {
+                // Non-recoverable errors (NPU hang, LPDDR ECC, etc.) — fatal
+                DXRT_ASSERT(false, LogMessages::Device_DeviceErrorEvent(static_cast<int>(err_code)));
+            }
+#endif
+            return true;
+        }
+    }
+    else if (static_cast<dxrt::dxrt_event_t>(eventInfo.event_type) == dxrt::dxrt_event_t::DXRT_EVENT_NOTIFY_THROT)
+    {
+        HandleThrottlingEvent(eventInfo.dx_rt_ntfy_throt);
+    }
+    else if (static_cast<dxrt::dxrt_event_t>(eventInfo.event_type)==dxrt::dxrt_event_t::DXRT_EVENT_RECOVERY)
+    {
+        std::string type = "Unknown";
+        if (eventInfo.dx_rt_recv.action==dxrt::dxrt_recov_t::DXRT_RECOV_RMAP)
+        {
+            auto model = npuModelMap().begin()->second;
+            DXRT_ASSERT(core()->Write(model.rmap, 3) == 0, "Recovery rmap failed to write model parameters(cmd)");
+            LOG_DXRT_ERR("RMAP data has been recovered. This error can cause issues with NPU operation.");
+            StartDev(RMAP_RECOVERY_DONE);
+            type = "RMAP";
+        }
+        else if (eventInfo.dx_rt_recv.action==dxrt::dxrt_recov_t::DXRT_RECOV_WEIGHT)
+        {
+            auto model = npuModelMap().begin()->second;
+            DXRT_ASSERT(core()->Write(model.weight, 3) == 0, "Recovery weight failed to write model parameters(weight)");
+            LOG_DXRT_ERR("Weight data has been recovered. This error can cause wrong result value.");
+            StartDev(WEIGHT_RECOVERY_DONE);
+            type = "WEIGHT";
+        }
+        else if (eventInfo.dx_rt_recv.action==dxrt::dxrt_recov_t::DXRT_RECOV_CPU)
+        {
+            LOG_DXRT << "Host received a message regarding a CPU abnormal case." << std::endl;
+            type = "CPU";
+        }
+        else if (eventInfo.dx_rt_recv.action==dxrt::dxrt_recov_t::DXRT_RECOV_DONE)
+        {
+            LOG_DXRT << "Device recovery is complete" << std::endl;
+            type = "DONE";
+        }
+        else
+        {
+            LOG_DXRT_ERR("Unknown data is received from device " << std::hex << eventInfo.dx_rt_recv.action << "\n");
+            core()->ShowPCIEDetails();
+        }
+
+        RuntimeEventDispatcher::GetInstance().DispatchEvent(
+            RuntimeEventDispatcher::LEVEL::WARNING,
+            RuntimeEventDispatcher::TYPE::DEVICE_CORE,
+            RuntimeEventDispatcher::CODE::RECOVERY_OCCURRED,
+            LogMessages::RuntimeDispatch_DeviceRecovery(id(), type)
+        );
+    }
+    else
+    {
+        LOG_DXRT_DBG << "!! unknown event occured from device "<< eventInfo.event_type << std::endl;
+    }
+
+    return false;
+}
+
+void AccDeviceTaskLayer::HandleThrottlingEvent(const dxrt::dx_pcie_dev_ntfy_throt_t& throtInfo) const
+{
+    if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SHOW_THROTTLING))
+        LOG_DXRT << throtInfo << std::endl;
+
+    if (throtInfo.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_THROT_FREQ_DOWN
+        || throtInfo.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_THROT_FREQ_UP
+        || throtInfo.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_THROT_VOLT_DOWN
+        || throtInfo.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_THROT_VOLT_UP) {
+
+        std::string throt_code_str;
+        switch (throtInfo.ntfy_code) {
+            case dxrt::dxrt_notify_throt_t::NTFY_THROT_FREQ_DOWN:
+                throt_code_str = "FREQ_DOWN(MHz) "
+                    + std::to_string(throtInfo.throt_freq[0])
+                    + " to " + std::to_string(throtInfo.throt_freq[1]);
+                break;
+            case dxrt::dxrt_notify_throt_t::NTFY_THROT_FREQ_UP:
+                throt_code_str = "FREQ_UP(MHz) "
+                    + std::to_string(throtInfo.throt_freq[0])
+                    + " to " + std::to_string(throtInfo.throt_freq[1]);
+                break;
+            case dxrt::dxrt_notify_throt_t::NTFY_THROT_VOLT_DOWN:
+                throt_code_str = "VOLT_DOWN(mV) "
+                    + std::to_string(throtInfo.throt_voltage[0])
+                    + " to " + std::to_string(throtInfo.throt_voltage[1]);
+                break;
+            case dxrt::dxrt_notify_throt_t::NTFY_THROT_VOLT_UP:
+                throt_code_str = "VOLT_UP(mV) "
+                    + std::to_string(throtInfo.throt_voltage[0])
+                    + " to " + std::to_string(throtInfo.throt_voltage[1]);
+                break;
+            default:
+                throt_code_str = "UNKNOWN";
+                break;
+        }
+
+        auto level = RuntimeEventDispatcher::LEVEL::INFO;
+        if (throtInfo.throt_temper >= 95)
+        {
+            level = RuntimeEventDispatcher::LEVEL::WARNING;
+        }
+
+        RuntimeEventDispatcher::GetInstance().DispatchEvent(
+            level,
+            RuntimeEventDispatcher::TYPE::DEVICE_STATUS,
+            RuntimeEventDispatcher::CODE::THROTTLING_NOTICE,
+            LogMessages::RuntimeDispatch_ThrottlingNotice(
+                id(),
+                throtInfo.npu_id,
+                throt_code_str,
+                throtInfo.throt_temper)
+        );
+    }
+    else if (throtInfo.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_EMERGENCY_BLOCK
+        || throtInfo.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_EMERGENCY_RELEASE
+        || throtInfo.ntfy_code == dxrt::dxrt_notify_throt_t::NTFY_EMERGENCY_WARN)
+    {
+        std::string emergency_code_str;
+        switch (throtInfo.ntfy_code) {
+            case dxrt::dxrt_notify_throt_t::NTFY_EMERGENCY_BLOCK:
+                emergency_code_str = "EMERGENCY_BLOCK";
+                break;
+            case dxrt::dxrt_notify_throt_t::NTFY_EMERGENCY_RELEASE:
+                emergency_code_str = "EMERGENCY_RELEASE";
+                break;
+            case dxrt::dxrt_notify_throt_t::NTFY_EMERGENCY_WARN:
+                emergency_code_str = "EMERGENCY_WARN";
+                break;
+            default:
+                emergency_code_str = "UNKNOWN";
+                break;
+        }
+
+        RuntimeEventDispatcher::GetInstance().DispatchEvent(
+            RuntimeEventDispatcher::LEVEL::CRITICAL,
+            RuntimeEventDispatcher::TYPE::DEVICE_STATUS,
+            RuntimeEventDispatcher::CODE::THROTTLING_EMERGENCY,
+            LogMessages::RuntimeDispatch_ThrottlingEmergency(
+                id(),
+                throtInfo.npu_id,
+                emergency_code_str)
+        );
+    }
 }
 
 void AccDeviceTaskLayer::LogAbortDiagnostics(int channel, const dx_pcie_dev_err_t *err)   // NOSONAR

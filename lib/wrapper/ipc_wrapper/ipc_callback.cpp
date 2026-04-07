@@ -82,6 +82,9 @@ std::ostream& operator<< (std::ostream& os, RESPONSE_CODE code)
         case RESPONSE_CODE::DO_SCHEDULED_INFERENCE_CH2:
             os << "DO_SCHEDULED_INFERENCE_CH2";
             break;
+        case RESPONSE_CODE::THROTTLE_EVENT:
+            os << "THROTTLE_EVENT";
+            break;
         case RESPONSE_CODE::CLOSE:
             os << "CLOSE";
             break;
@@ -132,6 +135,38 @@ int ipc_callBack(const IPCServerMessage& outResponseServerMessage, void* usrData
         else
         {
             LOG_DXRT_I_ERR("the device id is out of the devices range. " + std::to_string(outResponseServerMessage.deviceId));
+        }
+    }
+    break;
+
+    case RESPONSE_CODE::THROTTLE_EVENT:
+    {
+        auto taskLayer = getDeviceTaskLayerSafe(outResponseServerMessage.deviceId);
+        if (taskLayer)
+        {
+            auto accTaskLayer = std::dynamic_pointer_cast<AccDeviceTaskLayer>(taskLayer);
+            if (accTaskLayer)
+            {
+                dx_pcie_dev_ntfy_throt_t throtInfo{};
+                throtInfo.ntfy_code = static_cast<uint32_t>(outResponseServerMessage.npu_resp.status);
+                throtInfo.npu_id = static_cast<uint32_t>(outResponseServerMessage.npu_resp.argmax);
+                throtInfo.throt_temper = outResponseServerMessage.npu_resp.inf_time;
+                throtInfo.throt_freq[0] = outResponseServerMessage.npu_resp.ddr_wr_bw;
+                throtInfo.throt_freq[1] = outResponseServerMessage.npu_resp.ddr_rd_bw;
+                throtInfo.throt_voltage[0] = static_cast<uint32_t>(outResponseServerMessage.npu_resp.dma_ch);
+                throtInfo.throt_voltage[1] = outResponseServerMessage.npu_resp.queue;
+                accTaskLayer->HandleThrottlingEvent(throtInfo);
+            }
+            else
+            {
+                LOG_DXRT_I_ERR("THROTTLE_EVENT received for non-ACC task layer on device "
+                    + std::to_string(outResponseServerMessage.deviceId));
+            }
+        }
+        else
+        {
+            LOG_DXRT_I_ERR("the device id is out of the devices range. "
+                + std::to_string(outResponseServerMessage.deviceId));
         }
     }
     break;

@@ -149,7 +149,7 @@ namespace dxrt {
 /** @brief Processors
  * @headerfile "dxrt/dxrt_api.h"
 */
-enum class DXRT_API Processor
+enum class Processor
 {
     NPU, ///< Neural Processing Unit(dxnn)
     CPU, ///< Central Processing Unit(ONNX)
@@ -160,7 +160,7 @@ DXRT_API std::ostream& operator<<(std::ostream&, const Processor&);
 /* \brief Inference modes
  * \headerfile "dxrt/dxrt_api.h"
 */
-enum class DXRT_API InferenceMode
+enum class InferenceMode
 {
     SYNC, // Synchronous inference (wait for device response after inference request)
     ASYNC,// Asynchronous inference (don't wait for device response after inference request)
@@ -189,8 +189,8 @@ T vectorProduct(const std::vector<T>& v)
 #endif
 
 // Environment variable getters for runtime configuration
-int GetNfhInputWorkerThreads();
-int GetNfhOutputWorkerThreads();
+DXRT_API int GetNfhInputWorkerThreads();
+DXRT_API int GetNfhOutputWorkerThreads();
 
 
 // ==================== NFH (NPU Format Handler) Configuration ====================

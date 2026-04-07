@@ -1,3 +1,23 @@
+## v3.3.0 (April 2026)
+
+#### Changed
+- Update minimum versions
+   - Driver : 1.8.0 -> 2.4.0
+   - PCIe Driver : 1.5.1 -> 2.2.0
+   - Firmware : 2.4.0 -> 2.5.2
+- Update the Python module version to match the C++ Runtime version.
+
+#### Fixed
+- Fix PPU data transfer error during multi-process execution in H1 and Multiple M1 M.2 environments.
+- Fix input data lifecycle issues in the Python Runtime Module.
+- Fix intermittent interrupt exceptions in IPC Message Queue.
+
+#### Added
+- Add dxtop for No Service Mode
+- Add an example that loads an entire model file into a memory buffer and performs inference directly using this memory buffer.
+- Add python InferenceEngine from numpy array
+
+
 ## v3.2.0 (December 2025)
 
 #### Changed
