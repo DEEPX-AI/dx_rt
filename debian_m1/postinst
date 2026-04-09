@@ -14,7 +14,7 @@ rm -rf $MAIN_ZIP_FILE
 
 # Build
 cd "$SRC_DIR"
-./build.sh
+./build.sh --clean
 
 # Install
 ./build.sh --install

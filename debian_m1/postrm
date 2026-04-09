@@ -1,0 +1,18 @@
+#!/bin/sh
+set -e
+
+PACKAGER="libdxrt"
+SRC_DIR="/usr/share/${PACKAGER}/src"
+
+# Remove the source directory created during postinst
+if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
+    echo "Removing $SRC_DIR..."
+    rm -rf "$SRC_DIR"
+    
+    # Remove parent directory if empty
+    if [ -d "/usr/share/${PACKAGER}" ]; then
+        rmdir --ignore-fail-on-non-empty "/usr/share/${PACKAGER}"
+    fi
+fi
+
+exit 0
