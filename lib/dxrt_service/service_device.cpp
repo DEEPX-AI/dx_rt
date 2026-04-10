@@ -30,6 +30,7 @@
 #include <iostream>
 #include <sstream>
 #include <iomanip>
+#include <fstream>
 #include <vector>
 #include <unordered_map>
 #include <string>
@@ -42,6 +43,7 @@
 #include "dxrt/common.h"
 #include "dxrt/driver.h"
 #include "dxrt/device_struct.h"
+#include "dxrt/filesys_support.h"
 #include "dxrt/driver_adapter/driver_adapter.h"
 
 #include "dxrt/profiler.h"
@@ -448,6 +450,28 @@ int ServiceDevice::EventThread()   // NOSONAR
         {
             uint32_t err_code = eventInfo.dx_rt_err.err_code;
             LOG_DXRT_S_ERR(eventInfo.dx_rt_err);
+            // log error to temp file for debug
+            {
+                const auto& e = eventInfo.dx_rt_err;
+                const std::string dumpPath = dxrt::getDxrtErrorDumpPath(id());
+                std::ofstream ofs(dumpPath, std::ios::trunc);
+                if (ofs) {
+                    ofs << e << std::endl;
+                    ofs.close();
+                }
+            }
+
+            cout << "************************************************************************" << endl;
+            cout << " * Error occurred! Please follow the steps below to recover the device." << endl;
+            cout << " * Refer to the user guide if additional help is needed." << endl;
+            cout << endl;
+            cout << " Step 1: Reset the device using dxrt-cli" << endl;
+            cout << "         > dxrt-cli -r 0" << endl;
+            cout << " Step 2: Retry the inference using run_model" << endl;
+            cout << "         > run_model -m [model.dxnn]" << endl;
+            cout << " ** If the error persists, please contact DeepX support for assistance." << endl;
+            cout << "************************************************************************" << endl;
+
 
             // Classify error by code range
             //   100-103: DMA timeout + soft reset failure

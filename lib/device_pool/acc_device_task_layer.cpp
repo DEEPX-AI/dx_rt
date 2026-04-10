@@ -1140,10 +1140,18 @@ void AccDeviceTaskLayer::OutputReceiverThread(int id)
         {
             break;
         }
+        if (ret == -ENODATA)
+        {
+            // No data available, can occur during shutdown or if the device is blocked.
+            // Sleep briefly to avoid busy loop, then check stop flag again.
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            continue;
+        }
 #endif
         if (ret != 0)
         {
             std::cout << "ERROR RET: " << ret << std::endl;
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
             continue;
         }
         if (response.status != 0)
@@ -1302,11 +1310,25 @@ bool AccDeviceTaskLayer::HandleCaughtEvent(const dxrt::dx_pcie_dev_event_t& even
 
             LOG_DXRT_ERR(eventInfo.dx_rt_err);
             core()->ShowPCIEDetails();
+            std::cout << "************************************************************************" << std::endl;
+            std::cout << " * Error occurred! Please follow the steps below to recover the device." << std::endl;
+            std::cout << " * Refer to the user guide if additional help is needed." << std::endl;
+            std::cout << std::endl;
+            std::cout << " Step 1: Reset the device using dxrt-cli" << std::endl;
+            std::cout << "         > dxrt-cli -r 0" << std::endl;
+            std::cout << " Step 2: Retry the inference using run_model" << std::endl;
+            std::cout << "         > run_model -m [model.dxnn]" << std::endl;
+            std::cout << " ** If the error persists, please contact DeepX support for assistance." << std::endl;
+            std::cout << "************************************************************************" << std::endl;
             RuntimeEventDispatcher::GetInstance().DispatchEvent(
                 RuntimeEventDispatcher::LEVEL::ERROR,
                 RuntimeEventDispatcher::TYPE::DEVICE_IO,
                 RuntimeEventDispatcher::CODE::DEVICE_EVENT,
                 LogMessages::RuntimeDispatch_DeviceEventError(id(), err_code_str));
+
+            // recovery signal
+            core()->Process(dxrt::dxrt_cmd_t::DXRT_CMD_RECOVERY, nullptr);
+
 #ifndef USE_VNPU
 
             // Classify error and handle accordingly
@@ -1744,7 +1766,7 @@ AccDeviceTaskLayer::~AccDeviceTaskLayer()
 
     _inputHandlerQueue.Stop();
     _outputHandlerQueue.Stop();
-#ifndef USE_VNPU
+
     Terminate();
     if (_eventThreadStartFlag.load(std::memory_order_acquire))
     {
@@ -1758,61 +1780,6 @@ AccDeviceTaskLayer::~AccDeviceTaskLayer()
     }
     _outputDispatcher.clear();
     //GCOVR_EXCL_STOP
-#else
-    if (_eventThreadStartFlag.load(std::memory_order_acquire))
-    {
-        Terminate();
-
-        if (_eventThread.joinable())
-        {
-            _eventThread.join();
-            LOG_DXRT_DBG << "Event thread joined successfully." << std::endl;
-        }
-    }
-
-    size_t outputDispatcher_size = _outputDispatcher.size();
-    for (size_t i = 0; i < outputDispatcher_size; i++)
-    {
-        int attempts = 0;
-        const int MAX_ATTEMPTS = 10;
-
-        while(_outputDispatcherTerminateFlag[i] == false && attempts < MAX_ATTEMPTS)
-        {
-            dxrt_response_t data;
-            memset(static_cast<void*>(&data), 0x00, sizeof(dxrt_response_t));
-            data.req_id = i;
-
-            int ret = core()->Process(dxrt::dxrt_cmd_t::DXRT_CMD_TERMINATE, &data);
-            LOG_DXRT_DBG << "Terminate output dispatcher " << i << " returned " << ret
-                     << " (attempt " << attempts << "/" << MAX_ATTEMPTS << ")" << std::endl;
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            attempts++;
-        }
-
-        if (attempts >= MAX_ATTEMPTS)
-        {
-            LOG_DXRT_WARN("Output dispatcher thread " << i
-                          << " did not terminate gracefully after "
-                          << MAX_ATTEMPTS * 100 << "ms. Forcing detach.");
-
-            // Last resort: detach the thread to prevent terminate()
-            if (_outputDispatcher[i].joinable())
-            {
-                _outputDispatcher[i].detach();  // NOSONAR:S5962
-            }
-        }
-        else
-        {
-            // Normal case: thread terminated properly
-            if (_outputDispatcher[i].joinable())
-            {
-                _outputDispatcher[i].join();
-                LOG_DXRT_DBG << "Output dispatcher thread " << i << " joined successfully." << std::endl;
-            }
-        }
-    }
-    _outputDispatcher.clear();
-#endif // USE_VNPU
 }
 
 void AccDeviceTaskLayer::ProcessResponseFromService(const dxrt::_dxrt_response_t& response)

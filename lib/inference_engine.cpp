@@ -886,10 +886,32 @@ float InferenceEngine::RunBenchmark(int num, void *inputPtr)
 
     uint64_t infTime = 0;
     int infCnt = std::max(1, num);
+
+    // For multi-input models, create per-tensor dummy buffers
+    std::vector<std::vector<uint8_t>> multi_input_buffers;
+    std::vector<void*> multi_input_ptrs;
+    if (IsMultiInputModel())
+    {
+        auto tensor_sizes = GetInputTensorSizes();
+        multi_input_buffers.resize(tensor_sizes.size());
+        for (size_t idx = 0; idx < tensor_sizes.size(); ++idx)
+        {
+            multi_input_buffers[idx].resize(tensor_sizes[idx], 0);
+            multi_input_ptrs.push_back(multi_input_buffers[idx].data());
+        }
+    }
+
     auto start_clock = std::chrono::steady_clock::now();
     for (int i=0 ; i < infCnt ; i++)
     {
-        RunAsync(inputPtr);
+        if (IsMultiInputModel())
+        {
+            RunAsyncMultiInput(multi_input_ptrs);
+        }
+        else
+        {
+            RunAsync(inputPtr);
+        }
     }
 
     std::unique_lock<std::mutex> lock(cv_mutex);

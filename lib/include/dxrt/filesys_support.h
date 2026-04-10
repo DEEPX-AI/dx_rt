@@ -2,17 +2,17 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
 #pragma once
 
 #include "dxrt/common.h"
-#include<string>
+#include <string>
 
-namespace dxrt{
+namespace dxrt {
     DXRT_API std::string getPath(const std::string& path);
     DXRT_API std::string getCurrentPath();
     DXRT_API std::string getAbsolutePath(const std::string& path);
@@ -20,4 +20,6 @@ namespace dxrt{
     DXRT_API uint64_t getFileSize(const std::string& filename);
     DXRT_API bool fileExists(const std::string& path);
     DXRT_API std::string getExtension(const std::string& path);
+    DXRT_API std::string getDxrtErrorDumpPath(int deviceId);
 }
+

@@ -12,12 +12,14 @@
 #include "dxrt/device_task_layer.h"
 
 #include <chrono>
+#include <fstream>
 #include <signal.h>
 #include <string>
 #include <thread>
 
 #include "dxrt/common.h"
 #include "dxrt/device_core.h"
+#include "dxrt/filesys_support.h"
 #include "dxrt/request_data.h"
 #include "dxrt/request_response_class.h"
 #include "dxrt/task.h"
@@ -144,6 +146,23 @@ void DeviceTaskLayer::Deallocate_npuBuf(int64_t addr, int taskId)
     std::cout << "============================================================" << std::endl;
 
     core()->ShowPCIEDetails();
+
+    // GCOV_EXCL_START
+    // Attempt to read detailed error info from temp file (written by service) for debug purposes
+    const std::string dumpPath = dxrt::getDxrtErrorDumpPath(id());
+    std::ifstream ifs(dumpPath);
+    if (ifs) {
+        std::string line;
+        while (std::getline(ifs, line)) {
+            std::cout << line << std::endl;
+        }
+        ifs.close();
+    }
+    else
+    {
+        LOG_DXRT_ERR("No additional error details available. refer " + dumpPath + " for more info.");
+    }
+    // GCOV_EXCL_STOP
 
     // Application must terminate — DDR content may have been lost due to
     // PCIe SBR during recovery. Models need to be reloaded from scratch.

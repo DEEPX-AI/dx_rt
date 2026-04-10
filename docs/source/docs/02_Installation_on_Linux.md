@@ -116,6 +116,7 @@ You can install the full toolchain using the `install.sh`, and the build and lib
 ├── install.sh
 ├── lib
 ├── python_package
+├── release
 ├── service
 └── tool
 ```
@@ -132,6 +133,7 @@ You can install the full toolchain using the `install.sh`, and the build and lib
 - `install.sh` Shell script for toolchain installation.
 - `lib` The core source code for the DX-RT libraries.
 - `python_package` Python modules for DX-RT.
+- `release` Build output directory for release artifacts, including generated Debian packages (for example, `libdxrt_<version>_all.deb`).
 - `service` Service unit files for runtime management.
 - `tool` Profiler result visualization tools.
 
@@ -234,6 +236,14 @@ To remove all library files installed by a previous `--install` command.
 
 ```
 ./build.sh --uninstall
+```
+
+**Example 4:** Install the Debian Runtime Package  
+
+If you have generated a Debian package in the `release/` directory, you can install it directly with `dpkg`. This is commonly used for release deployment validation on Debian-based systems.  
+
+```
+sudo dpkg --install release/libdxrt_[version]_all.deb
 ```
 
 ---
