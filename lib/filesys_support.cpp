@@ -161,3 +161,31 @@ string dxrt::getExtension(const string& path)
     if (pos == string::npos) return "";
     return path.substr(pos+1);
 }
+
+string dxrt::getDxrtErrorDumpPath(int deviceId)
+{
+    std::string basePath;
+#ifdef __linux__
+    const char* tempDir = std::getenv("TMPDIR"); // NOSONAR:S5443
+    basePath = (tempDir != nullptr && tempDir[0] != '\0') ? tempDir : "/tmp";  // NOSONAR:S5443
+    const char pathSep = '/';
+#elif _WIN32
+    // Use a cross-user shared location by default on Windows.
+    // If needed, this can be overridden with DXRT_ERROR_DUMP_DIR.
+    const char* sharedDir = std::getenv("DXRT_ERROR_DUMP_DIR");
+    basePath = (sharedDir != nullptr && sharedDir[0] != '\0')
+        ? sharedDir
+        : "C:\\Users\\Public\\dxrt";
+    const char pathSep = '\\';
+#endif
+
+    if (!basePath.empty() && basePath.back() != '/' && basePath.back() != '\\')
+    {
+        basePath += pathSep;
+    }
+
+    const std::string deviceIdStr = (deviceId >= 0 && deviceId < 10)
+        ? ("0" + std::to_string(deviceId))
+        : std::to_string(deviceId);
+    return basePath + "dxrt_error_dump.dev" + deviceIdStr + ".txt";
+}

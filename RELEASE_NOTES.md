@@ -18,6 +18,7 @@
 - Add dxtop for No Service Mode
 - Add an example that loads an entire model file into a memory buffer and performs inference directly using this memory buffer.
 - Add python InferenceEngine from numpy array
+- Add acceleration features for CPU operations (Requires separate option configuration and build)
 
 ## v3.2.0 / 2025-12-23
 

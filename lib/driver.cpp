@@ -154,16 +154,6 @@ std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_err_t& error) {
     //@no_else: error_handling
     os << "==========================================================================================" << endl;
 
-    os << "************************************************************************" << endl;
-    os << " * Error occurred! Please follow the steps below to recover the device." << endl;
-    os << " * Refer to the user guide if additional help is needed." << endl;
-    os << endl;
-    os << " Step 1: Reset the device using dxrt-cli" << endl;
-    os << "         > dxrt-cli -r 0" << endl;
-    os << " Step 2: Retry the inference using run_model" << endl;
-    os << "         > run_model -m [model.dxnn]" << endl;
-    os << " ** If the error persists, please contact DeepX support for assistance." << endl;
-    os << "************************************************************************" << endl;
 
     return os;
 }
