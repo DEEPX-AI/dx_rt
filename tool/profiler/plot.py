@@ -1,11 +1,51 @@
 import argparse
+import importlib
 import json
 import os
 import re
 import sys
 
-import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
+plt = None
+mcolors = None
+
+
+def ensure_dependencies():
+    """Check required third-party modules and print install guidance."""
+    global plt, mcolors
+
+    required_modules = {
+        "matplotlib": "matplotlib",
+    }
+    missing = []
+
+    for import_name, package_name in required_modules.items():
+        try:
+            importlib.import_module(import_name)
+        except ImportError:
+            missing.append((import_name, package_name))
+
+    if missing:
+        print("[Dependency check] Missing required Python module(s):")
+        for import_name, _ in missing:
+            print(f"  - {import_name}")
+
+        packages = " ".join(sorted({pkg for _, pkg in missing}))
+        python_cmd = sys.executable or "python3"
+
+        print("\nPlease install the required module(s) and run again.")
+        print("Install command:")
+        print(f"  {python_cmd} -m pip install {packages}")
+        print("\nIf your environment blocks global installs, use one of these:")
+        print(f"  {python_cmd} -m pip install --user {packages}")
+        print("  python3 -m venv .venv && source .venv/bin/activate")
+        print(f"  {python_cmd} -m pip install {packages}")
+        return False
+
+    import matplotlib.pyplot as _plt
+    import matplotlib.colors as _mcolors
+    plt = _plt
+    mcolors = _mcolors
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -496,6 +536,9 @@ def plot_profiler(input_file, output_base, start_ratio, end_ratio,
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    if not ensure_dependencies():
+        sys.exit(1)
+
     parser = argparse.ArgumentParser(
         description="Draw timeline charts from DX-RT profiler JSON data.",
     )

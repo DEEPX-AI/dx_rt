@@ -9,6 +9,7 @@
 
 #include "dxrt/filesys_support.h"
 #include <cstdlib>
+#include <cerrno>
 #include <iostream>
 #include <memory>
 #include <cstring>
@@ -162,12 +163,51 @@ string dxrt::getExtension(const string& path)
     return path.substr(pos+1);
 }
 
-string dxrt::getDxrtErrorDumpPath(int deviceId)
+namespace {
+
+string getDxrtErrorDumpPathInternal(int deviceId, bool ensureDirectory)
 {
     std::string basePath;
 #ifdef __linux__
-    const char* tempDir = std::getenv("TMPDIR"); // NOSONAR:S5443
-    basePath = (tempDir != nullptr && tempDir[0] != '\0') ? tempDir : "/tmp";  // NOSONAR:S5443
+    const char* tempDir = std::getenv("TMPDIR");
+    const std::string rootTemp = (tempDir != nullptr && tempDir[0] != '\0') ? tempDir : "/tmp";
+    basePath = rootTemp + "/dxrt";
+    struct stat stat_buf;
+    if (stat(basePath.c_str(), &stat_buf) != 0)
+    {
+        const int statErrno = errno;
+        if (statErrno != ENOENT)
+        {
+            LOG_DXRT_ERR("Failed to access dump directory '" << basePath
+                << "' (errno=" << statErrno << ", msg=" << std::strerror(statErrno)
+                << "). Falling back to '" << rootTemp << "'.");
+            basePath = rootTemp;
+        }
+        else if (ensureDirectory && mkdir(basePath.c_str(), 0755) != 0)
+        {
+            const int mkdirErrno = errno;
+            if (mkdirErrno != EEXIST)
+            {
+                LOG_DXRT_ERR("Failed to create dump directory '" << basePath
+                    << "' (errno=" << mkdirErrno << ", msg=" << std::strerror(mkdirErrno)
+                    << "). Falling back to '" << rootTemp << "'.");
+                basePath = rootTemp;
+            }
+            else if (stat(basePath.c_str(), &stat_buf) != 0 || (stat_buf.st_mode & S_IFDIR) == 0)
+            {
+                LOG_DXRT_ERR("Path '" << basePath
+                    << "' was created concurrently but is not a directory. "
+                    << "Falling back to '" << rootTemp << "'.");
+                basePath = rootTemp;
+            }
+        }
+    }
+    else if ((stat_buf.st_mode & S_IFDIR) == 0)
+    {
+        LOG_DXRT_ERR("Path '" << basePath << "' exists but is not a directory. "
+            << "Falling back to '" << rootTemp << "'.");
+        basePath = rootTemp;
+    }
     const char pathSep = '/';
 #elif _WIN32
     // Use a cross-user shared location by default on Windows.
@@ -189,3 +229,19 @@ string dxrt::getDxrtErrorDumpPath(int deviceId)
         : std::to_string(deviceId);
     return basePath + "dxrt_error_dump.dev" + deviceIdStr + ".txt";
 }
+
+}  // namespace
+
+namespace dxrt {
+
+string getDxrtErrorDumpWritePath(int deviceId)
+{
+    return getDxrtErrorDumpPathInternal(deviceId, true);
+}
+
+string getDxrtErrorDumpReadPath(int deviceId)
+{
+    return getDxrtErrorDumpPathInternal(deviceId, false);
+}
+
+}  // namespace dxrt

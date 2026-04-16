@@ -15,6 +15,7 @@
 #include <cstring>
 #include <chrono>
 #include <iomanip>
+#include <sstream>
 #include <thread>
 #include "dxrt/common.h"
 #include "dxrt/device_task_layer.h"
@@ -49,6 +50,8 @@
 #define WEIGHT_RECOVERY_DONE    (2)
 
 namespace dxrt {
+
+constexpr int THROTTLING_WARNING_TEMPERATURE = 95;
 
 AccDeviceTaskLayer::AccDeviceTaskLayer(std::shared_ptr<DeviceCore> dev, std::shared_ptr<ServiceLayerInterface> service_interface)
 : DeviceTaskLayer(dev, service_interface), _inputHandlerQueue(dev->name()+"_input", dev->GetReadChannel(),
@@ -1307,7 +1310,20 @@ bool AccDeviceTaskLayer::HandleCaughtEvent(const dxrt::dx_pcie_dev_event_t& even
                 case dxrt::dxrt_error_t::ERR_DEVICE_ERR: err_code_str = "DEVICE_ERR"; break;
                 default: err_code_str = "UNKNOWN(" + std::to_string(err_code) + ")"; break;
             }
-
+            
+#ifdef USE_VNPU
+            // Capture error details as string for LogMessage
+            std::ostringstream error_details;
+            error_details << eventInfo.dx_rt_err << "\n";
+            core()->ShowPCIEDetails(error_details);
+            
+            LOG_DXRT_ERR(error_details.str());
+            RuntimeEventDispatcher::GetInstance().DispatchEvent(
+                RuntimeEventDispatcher::LEVEL::ERROR,
+                RuntimeEventDispatcher::TYPE::DEVICE_IO,
+                RuntimeEventDispatcher::CODE::DEVICE_EVENT,
+                LogMessages::RuntimeDispatch_DeviceEventError_VNPU(id(), err_code_str, error_details.str()));
+#else
             LOG_DXRT_ERR(eventInfo.dx_rt_err);
             core()->ShowPCIEDetails();
             std::cout << "************************************************************************" << std::endl;
@@ -1328,6 +1344,7 @@ bool AccDeviceTaskLayer::HandleCaughtEvent(const dxrt::dx_pcie_dev_event_t& even
 
             // recovery signal
             core()->Process(dxrt::dxrt_cmd_t::DXRT_CMD_RECOVERY, nullptr);
+#endif
 
 #ifndef USE_VNPU
 
@@ -1453,7 +1470,7 @@ void AccDeviceTaskLayer::HandleThrottlingEvent(const dxrt::dx_pcie_dev_ntfy_thro
         }
 
         auto level = RuntimeEventDispatcher::LEVEL::INFO;
-        if (throtInfo.throt_temper >= 95)
+        if (throtInfo.throt_temper >= THROTTLING_WARNING_TEMPERATURE)
         {
             level = RuntimeEventDispatcher::LEVEL::WARNING;
         }

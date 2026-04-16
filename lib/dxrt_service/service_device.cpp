@@ -453,7 +453,7 @@ int ServiceDevice::EventThread()   // NOSONAR
             // log error to temp file for debug
             {
                 const auto& e = eventInfo.dx_rt_err;
-                const std::string dumpPath = dxrt::getDxrtErrorDumpPath(id());
+                const std::string dumpPath = dxrt::getDxrtErrorDumpWritePath(id());
                 std::ofstream ofs(dumpPath, std::ios::trunc);
                 if (ofs) {
                     ofs << e << std::endl;

@@ -72,6 +72,7 @@ namespace dxrt {
         static std::string RuntimeDispatch_RanOutOfNPUMemoryForTask(int taskId);
         static std::string RuntimeDispatch_DeviceRecovery(int deviceId, const std::string& type);
         static std::string RuntimeDispatch_DeviceEventError(int deviceId, const std::string& errCodeStr);
+        static std::string RuntimeDispatch_DeviceEventError_VNPU(int deviceId, const std::string& errCodeStr, const std::string& errorDetails = "");
         static std::string RuntimeDispatch_ThrottlingNotice(int deviceId, int npuId, const std::string& mesg, int temperature);
         static std::string RuntimeDispatch_ThrottlingEmergency(int deviceId, int npuId, const std::string& emergencyCodeStr);
 

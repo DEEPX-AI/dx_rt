@@ -590,6 +590,7 @@ const int DXRT_NFH_DEFAULT_OUTPUT_THREADS = 4;
 const int DXRT_NFH_DEFAULT_INPUT_THREADS = 1;
 const int DXRT_NFH_DEFAULT_OUTPUT_THREADS = 2;
 #endif
+static constexpr int DXRT_NFH_MAX_THREADS_LIMIT = 128;
 
 int DXRT_API GetNfhInputWorkerThreads() {
     static int cached_value = -1;
@@ -597,7 +598,7 @@ int DXRT_API GetNfhInputWorkerThreads() {
         const char* env_value = std::getenv("NFH_INPUT_WORKER_THREADS");
         if (env_value != nullptr) {
             int env_int = std::atoi(env_value);
-            if (env_int > 0 && env_int <= 32) {
+            if (env_int > 0 && env_int <= DXRT_NFH_MAX_THREADS_LIMIT) {
                 cached_value = env_int;
                 std::cout << "[DXRT] Using NFH_INPUT_WORKER_THREADS=" << cached_value << " from environment" << std::endl;
             } else {
@@ -617,7 +618,7 @@ int DXRT_API GetNfhOutputWorkerThreads() {
         const char* env_value = std::getenv("NFH_OUTPUT_WORKER_THREADS");
         if (env_value != nullptr) {
             int env_int = std::atoi(env_value);
-            if (env_int > 0 && env_int <= 32) {
+            if (env_int > 0 && env_int <= DXRT_NFH_MAX_THREADS_LIMIT) {
                 cached_value = env_int;
                 std::cout << "[DXRT] Using NFH_OUTPUT_WORKER_THREADS=" << cached_value << " from environment" << std::endl;
             } else {

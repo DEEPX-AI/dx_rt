@@ -279,6 +279,8 @@ function Build-CSharpPackage {
 
     if (-not $dotnetPath) {
         Write-Status WARNING ".NET SDK not found, skipping C# package build."
+        Write-Status WARNING "Install .NET 8 SDK from: https://dotnet.microsoft.com/download/dotnet/8.0"
+        Write-Status WARNING "  or run: winget install Microsoft.DotNet.SDK.8"
         return
     }
 

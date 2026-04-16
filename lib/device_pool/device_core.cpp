@@ -356,6 +356,8 @@ void DeviceCore::DoCustomCommand(void *data, uint32_t subCmd, uint32_t size)
 
 void DeviceCore::ShowPCIEDetails(std::ostream& os)
 {
+
+#ifndef USE_VNPU
     // check fw version
     static constexpr int MIN_PCIE_VERSION = 1700;
     static constexpr int MIN_FW_VERSION = 211;
@@ -376,6 +378,7 @@ void DeviceCore::ShowPCIEDetails(std::ostream& os)
     {
         return;
     }
+#endif
 
     dxrt_pcie_info_t pcieInfo;
     memset(&pcieInfo, 0, sizeof(dxrt_pcie_info_t));

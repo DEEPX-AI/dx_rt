@@ -270,10 +270,20 @@ namespace dxrt {
     {
         return "Device recovery occurred: Device-ID=" + std::to_string(deviceId) + " " + type;
     }
-
+    
     std::string LogMessages::RuntimeDispatch_DeviceEventError(int deviceId, const std::string& errCodeStr)
     {
         return "Device I/O event error occurred: Device-ID=" + std::to_string(deviceId) + " " + errCodeStr;
+    }
+
+    std::string LogMessages::RuntimeDispatch_DeviceEventError_VNPU(int deviceId, const std::string& errCodeStr, const std::string& errorDetails)
+    {
+        std::string msg = "Device I/O event error occurred: Device-ID=" + std::to_string(deviceId) + " " + errCodeStr;
+        
+        if (!errorDetails.empty()) {
+            msg += "\n" + errorDetails;
+        }
+        return msg;
     }
 
     std::string LogMessages::RuntimeDispatch_ThrottlingNotice(int deviceId, int npuId, const std::string& mesg, int temperature)

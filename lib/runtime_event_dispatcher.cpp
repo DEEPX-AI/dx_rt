@@ -103,13 +103,21 @@ namespace dxrt {
             default:                        codeStr = "UNKNOWN"; break;
         }
 
+        // Escape newlines in message for single-line logging
+        std::string escapedMessage = eventMessage;
+        size_t pos = 0;
+        while ((pos = escapedMessage.find('\n', pos)) != std::string::npos) {
+            escapedMessage.replace(pos, 1, "\\n");
+            pos += 2;  // Move past the inserted "\\n"
+        }
+
         static std::mutex logging_mutex;
         std::lock_guard<std::mutex> lock(logging_mutex);
 
         std::cout << "[RuntimeEventDispatcher] level=" << levelStr
                     << " type=" << typeStr
                     << " code=" << codeStr
-                    << " message=\"" << eventMessage << "\""
+                    << " message=\"" << escapedMessage << "\""
                     << " timestamp=\"" << timestamp << "\"" << std::endl;
     }
 

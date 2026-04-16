@@ -149,7 +149,7 @@ void DeviceTaskLayer::Deallocate_npuBuf(int64_t addr, int taskId)
 
     // GCOV_EXCL_START
     // Attempt to read detailed error info from temp file (written by service) for debug purposes
-    const std::string dumpPath = dxrt::getDxrtErrorDumpPath(id());
+    const std::string dumpPath = dxrt::getDxrtErrorDumpReadPath(id());
     std::ifstream ifs(dumpPath);
     if (ifs) {
         std::string line;

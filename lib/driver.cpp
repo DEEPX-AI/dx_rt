@@ -154,7 +154,6 @@ std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_err_t& error) {
     //@no_else: error_handling
     os << "==========================================================================================" << endl;
 
-
     return os;
 }
 
