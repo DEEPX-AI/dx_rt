@@ -170,7 +170,7 @@ You can build the CMake project directly using Visual Studio 2022's Open Folder 
 
 **Step 2.** CMake Configuration  
 
-When you open the projec.  
+When you open the project.  
 
 - Dependencies specified in `vcpkg.json` are automatically downloaded and installed in the `vcpkg_installed` directory.  
 - CMake automatically generates the build cache and configuration.  

@@ -355,7 +355,7 @@ Typical contents:
 After building the **DX-RT** framework, you can install the Linux device driver for **M1 AI Accelerator (NPU).**  
 
 !!! note "NOTE"  
-    To install the Linux device driver, you can choose either **Section. DKMS and Debian Package** or **Section. Drier Source**.  
+    To install the Linux device driver, you can choose either **Section. DKMS and Debian Package** or **Section. Driver Source**.  
 
 ### DKMS and Debian Package  
 
@@ -412,7 +412,7 @@ These are simply informational messages about your system's boot process, specif
 ***"Permission denied" Message (when using `apt`)***  
 
 ```
-N: Download is performed unsandboxed as root as file '/home/hslee/release/dkms_pacakge/dxrt-driver-dkms_1.5.0-1_all.deb' couldn't be accessed by user '_apt'. - pkgAcquire::Run (13: Permission denied)
+N: Download is performed unsandboxed as root as file '/home/hslee/release/dkms_package/dxrt-driver-dkms_1.5.0-1_all.deb' couldn't be accessed by user '_apt'. - pkgAcquire::Run (13: Permission denied)
 ```
 
 This message can be a bit confusing, but it generally means your package installed successfully. It appears because:  
@@ -634,7 +634,7 @@ Use this method if your system supports self-compiling kernel modules (`.ko` fil
 ***`build`*** 
 ```
 e.g $ ./build.sh -d m1 -m deepx
-(Default device: m1, PCI3 module: deepx)
+(Default device: m1, PCIe module: deepx)
 ```
 
 ***`clean`***  
@@ -666,7 +666,7 @@ Updates: `/lib/modules/$(KERNELRELEASE)/modules.dep`
 sudo depmod -A
 ```
 
-**Step 3.** Add Module Confiduration  
+**Step 3.** Add Module Configuration  
 Copy the preconfigured module config file.
 ```
 sudo cp modules/dx_dma.conf /etc/modprobe.d/
