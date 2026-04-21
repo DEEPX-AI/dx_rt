@@ -1,3 +1,14 @@
+## v3.3.1 (April 2026)
+
+#### Changed
+- None
+
+#### Fixed
+- Fix typos in the document
+
+#### Added
+- None
+
 ## v3.3.0 (April 2026)
 
 #### Changed

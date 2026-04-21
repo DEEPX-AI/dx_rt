@@ -1,5 +1,16 @@
 # RELEASE_NOTES
 
+## v3.3.1 / 2026-04-21
+
+### 1. Changed
+- None
+
+### 2. Fixed
+- Fix typos in the document
+
+### 3. Added
+- None
+
 ## v3.3.0 / 2026-04-07
 
 ### 1. Changed
