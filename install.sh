@@ -172,7 +172,7 @@ function install_onnx()
         onnxruntime_arch="x64"
         # ORT 1.23.2 requires glibc >= 2.28 (Ubuntu 20.04+)
         if [ "$glibc_major" -gt 2 ] || ([ "$glibc_major" -eq 2 ] && [ "$glibc_minor" -ge 28 ]); then
-            ONNX_VERSION="1.23.2"
+            ONNX_VERSION="1.22.0"
         else
             echo -e "${TAG_WARN} glibc $glibc_ver detected. ORT 1.23.2 requires glibc >= 2.28."
             echo -e "${TAG_WARN} Falling back to ORT 1.20.1 for compatibility."
@@ -290,7 +290,7 @@ function install_intel_libs()
 
     sudo apt update
     sudo apt install -y intel-oneapi-ipp-devel
-    sudo apt install -y openvino-2025.4.1
+    sudo apt install -y openvino-2025.1.0
 
     source /opt/intel/oneapi/setvars.sh
 }

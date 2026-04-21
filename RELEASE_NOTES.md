@@ -3,7 +3,7 @@
 ## v3.3.1 / 2026-04-21
 
 ### 1. Changed
-- None
+- Change the version of pre-built onnxruntime(1.23.2 -> 1.22.0) and openvino(25.4 -> 25.1)
 
 ### 2. Fixed
 - Fix typos in the document
