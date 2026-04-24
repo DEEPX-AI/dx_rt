@@ -736,7 +736,7 @@ This activates internal logic to automatically adjust the ONNX Runtime thread po
 !!! note "NOTE"  
      When high CPU task load is detected at runtime, the system may print the following message:  
      ```
-     To improve FPS, set: 'export DXRT_DYNAMIC_CPU_THREAD=O'
+     To improve FPS, set: 'export DXRT_DYNAMIC_CPU_THREAD=ON'
      ```
      This serves as a recommendation to enable the feature for improved inference performance. 
 
