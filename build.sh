@@ -568,19 +568,144 @@ manage_dxrt_service() {
 }
 
 uninstall_dxrt() {
-    if [ -d $build_dir ]; then
-        pushd $build_dir >/dev/null
-        sudo ninja uninstall && {
-            print_colored_v2 "SUCCESS" "Uninstalled ninja build files"
-        } || {
-            return_code=$?
-            print_colored_v2 "FAIL" "Failed to uninstall the ninja build files."
-            exit $return_code
-        }
-        popd >/dev/null
-    else
-        print_colored_v2 "INFO" "No build directory found, skip to uninstall ninja build files."
+    local INSTALL_PREFIX="${install:-/usr/local}"
+
+    if [ ! -d "$build_dir" ]; then
+        print_colored_v2 "INFO" "No build directory found, skipping uninstall."
+        return
     fi
+
+    # Run ninja uninstall for native builds (cmake-tracked files)
+    if [ "$CROSS_COMPILE" == "native" ]; then
+        pushd "$build_dir" >/dev/null
+        if [ -f build.ninja ]; then
+            sudo ninja uninstall || {
+                local return_code=$?
+                print_colored_v2 "ERROR" "Failed to ninja uninstall the project."
+                popd >/dev/null
+                return $return_code
+            }
+            print_colored_v2 "SUCCESS" "[ninja uninstall completed]"
+        else
+            print_colored_v2 "WARNING" "[build.ninja not found in $build_dir, skipping ninja uninstall]"
+        fi
+        popd >/dev/null
+
+        # remove /usr/local/include/dxrt 
+        if [ -d "${INSTALL_PREFIX}/include/dxrt" ]; then
+            sudo rm -rf "${INSTALL_PREFIX}/include/dxrt"
+            print_colored_v2 "SUCCESS" "[Removed ${INSTALL_PREFIX}/include/dxrt]"
+        fi
+
+        # remove /usr/local/bin/examples (if exist and empty)
+        if [ -d "${INSTALL_PREFIX}/bin/examples" ] && [ -z "$(ls -A ${INSTALL_PREFIX}/bin/examples 2>/dev/null)" ]; then
+            sudo rmdir "${INSTALL_PREFIX}/bin/examples"
+            print_colored_v2 "SUCCESS" "[Removed ${INSTALL_PREFIX}/bin/examples]"
+        elif [ -d "${INSTALL_PREFIX}/bin/examples" ]; then
+            print_colored_v2 "INFO" "[Directory ${INSTALL_PREFIX}/bin/examples is not empty, keeping it]"
+        fi
+
+        # onnxruntime packages installed by install.sh are not tracked by cmake/ninja,
+        # so we need to remove them manually if ort is enabled and we are doing native uninstall.
+        # The onnxruntime folder (util/onnxruntime_<arch>) contains include and lib files
+        # that were copied to ${INSTALL_PREFIX}/ via "cp -a". Remove them by referencing the source folder.
+        # Determine onnxruntime arch folder name (x86_64 -> x64, aarch64 stays aarch64)
+        local ort_arch=$(uname -m)
+        if [ "$ort_arch" == "x86_64" ]; then
+            ort_arch="x64"
+        fi
+        local ort_dir="${SCRIPT_DIR}/util/onnxruntime_${ort_arch}"
+        if [ -d "$ort_dir" ]; then
+            # Remove lib files copied from onnxruntime to ${INSTALL_PREFIX}/lib
+            if [ -d "$ort_dir/lib" ]; then
+                for entry in "$ort_dir/lib"/*; do
+                    local name=$(basename "$entry")
+                    if [ "$name" == "cmake" ] || [ "$name" == "pkgconfig" ]; then
+                        # Match files/dirs inside cmake or pkgconfig subdirectory
+                        if [ -d "$entry" ]; then
+                            for subentry in "$entry"/*; do
+                                local subname=$(basename "$subentry")
+                                if [ -f "${INSTALL_PREFIX}/lib/$name/$subname" ] || [ -L "${INSTALL_PREFIX}/lib/$name/$subname" ]; then
+                                    sudo rm -f "${INSTALL_PREFIX}/lib/$name/$subname"
+                                    print_colored_v2 "SUCCESS" "[Removed ${INSTALL_PREFIX}/lib/$name/$subname]"
+                                elif [ -d "${INSTALL_PREFIX}/lib/$name/$subname" ]; then
+                                    sudo rm -rf "${INSTALL_PREFIX}/lib/$name/$subname"
+                                    print_colored_v2 "SUCCESS" "[Removed directory ${INSTALL_PREFIX}/lib/$name/$subname]"
+                                fi
+                            done
+                            # Remove the directory itself if empty
+                            if [ -d "${INSTALL_PREFIX}/lib/$name" ] && [ -z "$(ls -A ${INSTALL_PREFIX}/lib/$name 2>/dev/null)" ]; then
+                                sudo rmdir "${INSTALL_PREFIX}/lib/$name"
+                                print_colored_v2 "SUCCESS" "[Removed directory ${INSTALL_PREFIX}/lib/$name]"
+                            else
+                                print_colored_v2 "INFO" "[Directory ${INSTALL_PREFIX}/lib/$name is not empty, keeping it]"
+                            fi
+                        fi
+                    fi
+                done
+            fi
+
+            # Remove include files copied from onnxruntime to ${INSTALL_PREFIX}/include
+            if [ -d "$ort_dir/include" ]; then
+                for entry in "$ort_dir/include"/*; do
+                    local name=$(basename "$entry")
+                    local target="${INSTALL_PREFIX}/include/$name"
+
+                    if [ "$name" = "core" ]; then
+                        # Special handling for the 'core' directory
+                        if [ -d "$target" ]; then
+                            for core_entry in "$entry"/*; do
+                                local core_file_name=$(basename "$core_entry")
+                                local core_target="$target/$core_file_name"
+
+                                if [ -f "$core_target" ] || [ -L "$core_target" ]; then
+                                    sudo rm -f "$core_target"
+                                    print_colored_v2 "SUCCESS" "[Removed $core_target]"
+                                elif [ -d "$core_target" ]; then
+                                    sudo rm -rf "$core_target"
+                                    print_colored_v2 "SUCCESS" "[Removed $core_target]"
+                                fi
+                            done
+
+                            if [ -z "$(ls -A "$target" 2>/dev/null)" ]; then
+                                sudo rmdir "$target"
+                                print_colored_v2 "SUCCESS" "[Removed directory $target]"
+                            else
+                                print_colored_v2 "INFO" "[Directory $target is not empty, keeping it]"
+                            fi
+                        fi
+                    else
+                        if [ -f "$target" ] || [ -L "$target" ]; then
+                            sudo rm -f "$target"
+                            print_colored_v2 "SUCCESS" "[Removed $target]"
+                        fi
+                    fi
+                done
+            fi
+
+            # Remove other files (excluding lib and include) copied from onnxruntime to ${INSTALL_PREFIX}
+            for entry in "$ort_dir"/*; do
+                local name=$(basename "$entry")
+                if [ "$name" == "lib" ] || [ "$name" == "include" ]; then
+                    continue
+                fi
+                if [ -f "${INSTALL_PREFIX}/$name" ] || [ -L "${INSTALL_PREFIX}/$name" ]; then
+                    sudo rm -f "${INSTALL_PREFIX}/$name"
+                    print_colored_v2 "SUCCESS" "[Removed ${INSTALL_PREFIX}/$name]"
+                fi
+            done
+
+            # Remove the onnxruntime folder itself from util
+            sudo rm -rf "$ort_dir/"
+            print_colored_v2 "SUCCESS" "[Removed $ort_dir/]"
+        fi
+    fi
+
+    # Remove the entire build directory
+    sudo rm -rf "$build_dir"
+    sudo rm -rf "$out_dir"
+    print_colored_v2 "SUCCESS" "[Removed build directory: $build_dir]"
+    print_colored_v2 "SUCCESS" "[Removed output directory: $out_dir]"
 }
 
 uninstall_python_package() {

@@ -5,6 +5,7 @@
 
 #### Fixed
 - Fix typos in the document
+- Fix error in uninstall logic
 
 #### Added
 - None
