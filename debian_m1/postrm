@@ -1,8 +1,12 @@
 #!/bin/sh
 set -e
 
+if [ "$1" = "configure" ]; then
+    ldconfig
+fi
+
 PACKAGER="libdxrt"
-SRC_DIR="/usr/share/${PACKAGER}/src"
+SRC_DIR="/usr/share/${PACKAGER}"
 
 # Remove the source directory created during postinst
 if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then

@@ -10,7 +10,7 @@
 - Fix error in uninstall logic
 
 ### 3. Added
-- None
+- Add libdxrt 3.3.1 debian package with updated build and install pipeline
 
 ## v3.3.0 / 2026-04-07
 

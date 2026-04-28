@@ -1,28 +1,27 @@
 #!/usr/bin/make -f
-#export DH_VERBOSE=1
-
-ROOTDIR := $(CURDIR)
-MAINZIPFILE := $(CURDIR)/source.zip
 
 PACKAGER := libdxrt
+DESTDIR := $(CURDIR)/debian/$(PACKAGER)
 
 %:
 	dh $@
 
-build:
-	pwd
-	rm -rf $(MAINZIPFILE)
-	echo "ROOTDIR: $(ROOTDIR)"
-	git archive -o $(MAINZIPFILE) HEAD;
-	ls -al
 
-install:
-#	dh install
-	pwd
-	mkdir -p debian/$(PACKAGER)/usr/share/$(PACKAGER)
-	cp $(MAINZIPFILE) debian/$(PACKAGER)/usr/share/$(PACKAGER)/
+override_dh_auto_build:
+	@echo "Preparing to package local changes for $(PACKAGER)..."
 
+override_dh_auto_install:
+	# Create target directory
+	mkdir -p $(DESTDIR)/usr/share/$(PACKAGER)
 
-clean:
-	dh clean
-	rm -rf $(MAINZIPFILE)
+	# Copy all contents of the current directory to the package path
+	# Use . and exclude the 'debian' directory to avoid recursive loops
+	# pyproject.toml is kept as-is so that scikit-build-core can properly
+	# build and include _pydxrt.so during postinst pip install.
+	rsync -av --exclude='debian' --exclude='.git' --exclude='.github' --exclude='release' $(CURDIR)/ $(DESTDIR)/usr/share/$(PACKAGER)/
+
+	@echo "Files synced to $(DESTDIR)"
+
+override_dh_auto_clean:
+	dh_auto_clean
+	@echo "Cleaning up build artifacts..."

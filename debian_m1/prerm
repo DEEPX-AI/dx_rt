@@ -1,0 +1,17 @@
+#!/bin/sh
+set -e
+
+PACKAGER="libdxrt"
+SRC_DIR="/usr/share/${PACKAGER}"
+
+# Execute uninstall script BEFORE files are removed
+if [ "$1" = "remove" ] || [ "$1" = "upgrade" ] || [ "$1" = "deconfigure" ]; then
+    if [ -f "$SRC_DIR/build.sh" ]; then
+        echo "Running uninstaller..."
+        cd "$SRC_DIR"
+        ./build.sh --uninstall || echo "Warning: Uninstall script failed, continuing..."
+    fi
+fi
+
+#DEBHELPER#
+exit 0
