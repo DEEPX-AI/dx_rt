@@ -262,7 +262,8 @@ if(USE_PYTHON)
     # find python library
     include_directories(${PYTHON_INCLUDE_DIRS})
     # include_directories(/usr/include/eigen3)
-    add_compile_definitions(USE_PYTHON)
+    add_compile_definitions(USE_PYTHON) 
+
 endif()
 
 # sub-directories

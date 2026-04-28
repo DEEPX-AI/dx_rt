@@ -2,12 +2,21 @@ Source: libdxrt
 Section: libs
 Priority: optional
 Maintainer: DEEPX Runtime Team <rt@deepx.ai>
-Build-Depends: debhelper (>= 9), cmake
-Standards-Version: 3.9.6
+Build-Depends: debhelper (>= 9), rsync, cmake
+Standards-Version: 4.5.0
 Homepage: https://deepx.ai
 
 Package: libdxrt
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: a DEEPX runtime library
- DXRT library
+Depends: ${shlibs:Depends}, ${misc:Depends},
+ build-essential,
+ cmake,
+ ninja-build,
+ python3 (>= 3.8),
+Description: DEEPX Runtime Library
+ DEEPX Runtime (DXRT) library for running neural network inference
+ on DEEPX NPU hardware.
+ This package contains the source code and build system. On installation,
+ the C++ runtime library and Python (dx-engine) module are built and
+ installed automatically. The build requires the dependencies listed above,
+ matching the packages installed by install.sh --all (--dep + --onnxruntime).

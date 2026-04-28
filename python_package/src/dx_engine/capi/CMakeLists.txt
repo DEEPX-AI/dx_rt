@@ -56,7 +56,6 @@ include_directories(
 
 find_package(pybind11 REQUIRED)
 
-
 pybind11_add_module( ${target}
   ${BINDING_CPP_DIR}/py_inference_engine.cpp
   ${BINDING_CPP_DIR}/py_configuration.cpp

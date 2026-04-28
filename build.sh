@@ -421,12 +421,13 @@ install_python_package() {
             pushd ${SCRIPT_DIR}/python_package >/dev/null
             
             # Attempt to install the package using python_exec -m pip (more reliable than pip3)
+            # --no-cache-dir ensures the wheel is rebuilt fresh so that the compiled
+            # _pydxrt.so (placed by CMake) is always included in the installed package.
             if [ "$python_break_system_packages" = true ]; then
-                install_result=$(${python_exec} -m pip install --break-system-packages . 2>&1)
+                install_result=$(${python_exec} -m pip install --no-cache-dir --break-system-packages . 2>&1)
             else
-                install_result=$(${python_exec} -m pip install . 2>&1)
+                install_result=$(${python_exec} -m pip install --no-cache-dir . 2>&1)
             fi
-            install_result=$(${python_exec} -m pip install . 2>&1)
             local exit_code=$?
             
             # Check for PEP 668 specific error

@@ -1,3 +1,11 @@
+libdxrt (3.3.1) unstable; urgency=medium
+
+  * Update to version 3.3.1
+  * Maintainer information updated to rt <rt@deepx.ai>
+  * Improve Python installation and libdxrt package uninstallation processes
+
+ -- Runtime <rt@deepx.ai>  Mon, 27 Apr 2026 14:03:00 +0900
+ 
 libdxrt (3.3.0) unstable; urgency=medium
 
   * Update to version 3.3.0
