@@ -34,7 +34,19 @@ show_help() {
     exit 0
 }
 
-uninstall_common_files() {
+uninstall_debian_packages() 
+{
+    if ( dpkg -l libdxrt &> /dev/null ); then
+        print_colored_v2 "INFO" "Uninstalling libdxrt debian package..."
+        sudo dpkg --purge libdxrt;
+        sudo apt clean
+        sudo apt --fix-broken install
+        sudo apt update
+    fi
+}
+
+uninstall_common_files() 
+{
     print_colored_v2 "INFO" "Uninstalling common files..."
     delete_symlinks "$DOWNLOAD_DIR"
     delete_symlinks "$PROJECT_ROOT"
@@ -45,7 +57,8 @@ uninstall_common_files() {
     delete_dir "${DOWNLOAD_DIR}" 
 }
 
-uninstall_project_specific_files() {
+uninstall_project_specific_files() 
+{
     print_colored_v2 "INFO" "Uninstalling ${PROJECT_NAME} specific files..."
     ./build.sh --uninstall || {
         return_code=$?
@@ -59,14 +72,50 @@ uninstall_project_specific_files() {
     delete_dir "util"
 }
 
+delete_legacy_file() 
+{
+    local file_path="$1"
+    if [ -f "$file_path" ]; then
+        sudo rm -f "$file_path"
+        if [ $? -eq 0 ]; then
+            print_colored_v2 "INFO" "Legacy file $file_path removed successfully."
+        fi
+    fi
+}
+
+remove_legacy_files() 
+{
+    print_colored_v2 "INFO" "Removing legacy files..."
+    delete_legacy_file "/usr/local/bin/dxrt-cli-internal"
+    delete_legacy_file "/usr/local/bin/dx_npu_runtime"
+    delete_legacy_file "/usr/local/bin/dxrt_test"
+    delete_legacy_file "/usr/local/bin/test/dxrt_test_ipc_wrapper_mq_client"
+    delete_legacy_file "/usr/local/bin/test/dxrt_test_ipc_wrapper_mq_server"
+    delete_legacy_file "/usr/local/bin/test/dxrt_test_memory"
+    delete_legacy_file "/usr/local/bin/test/performance_test"
+    delete_legacy_file "/usr/local/bin/test/validation_test"
+    if [ -d "/usr/local/bin/test" ] && [ -z "$(ls -A /usr/local/bin/test)" ]; then
+        sudo rmdir "/usr/local/bin/test"
+        if [ $? -eq 0 ]; then
+            print_colored_v2 "INFO" "Legacy directory /usr/local/bin/test removed successfully."
+        fi
+    fi
+}
+
 main() {
     echo "Uninstalling ${PROJECT_NAME} ..."
+
+    # uninstall debian packages if exist, and clean apt cache to avoid potential issues with broken packages
+    uninstall_debian_packages
 
     # Remove symlinks from DOWNLOAD_DIR and PROJECT_ROOT for 'Common' Rules
     uninstall_common_files
 
     # Uninstall the project specific files
     uninstall_project_specific_files
+
+    # Remove legacy files that may be left from previous versions of the project
+    remove_legacy_files
 
     echo "Uninstalling ${PROJECT_NAME} done"
 }

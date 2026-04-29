@@ -2,6 +2,7 @@
 
 #### Changed
 - Change the version of pre-built onnxruntime(1.23.2 -> 1.22.0) and openvino(25.4 -> 25.1)
+- Enhance uninstall script to remove debian packages, legacy binaries, and test files from previous versions
 
 #### Fixed
 - Fix typos in the document
