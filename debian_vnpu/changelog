@@ -1,7 +1,0 @@
-dx-vnpu-rt-ep (3.2.0-1) stable; urgency=medium
-
-  * Release version 3.2.0
-  * Cross-compiled binaries from build_aarch64
-  * Includes ONNX Runtime libraries for aarch64
-
- -- DeepX <support@deepx.ai>  Fri, 16 Jan 2026 11:23:46 +0900
