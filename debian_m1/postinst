@@ -1,8 +1,5 @@
 #!/bin/sh
 set -e
-if [ "$1" = "configure" ]; then
-    ldconfig
-fi
 
 PACKAGER="libdxrt"
 SRC_DIR="/usr/share/${PACKAGER}"
@@ -23,5 +20,6 @@ if [ "$MAJOR_VERSION" -eq 3 ] && [ "$MINOR_VERSION" -ge 11 ]; then
 else
     ./build.sh --clean
 fi
+ldconfig
 
 exit 0
