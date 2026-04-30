@@ -92,7 +92,9 @@ remove_legacy_files()
     delete_legacy_file "/usr/local/bin/test/dxrt_test_ipc_wrapper_mq_client"
     delete_legacy_file "/usr/local/bin/test/dxrt_test_ipc_wrapper_mq_server"
     delete_legacy_file "/usr/local/bin/test/dxrt_test_memory"
+    delete_legacy_file "/usr/local/bin/performance_test"
     delete_legacy_file "/usr/local/bin/test/performance_test"
+    delete_legacy_file "/usr/local/bin/validation_test"
     delete_legacy_file "/usr/local/bin/test/validation_test"
     if [ -d "/usr/local/bin/test" ] && [ -z "$(ls -A /usr/local/bin/test)" ]; then
         sudo rmdir "/usr/local/bin/test"

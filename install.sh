@@ -255,7 +255,8 @@ function install_onnx()
         else
             echo ""
             echo " onnxruntime install library for your local system "
-            sudo cp -a $ONNX_ARCH_FOLDER/* /usr/local/
+            sudo cp -a $ONNX_ARCH_FOLDER/lib/* /usr/local/lib/
+            sudo cp -a $ONNX_ARCH_FOLDER/include/* /usr/local/include/
             echo " copy onnxruntime libraries to your local system (/usr/local)"
             echo ""
         fi
