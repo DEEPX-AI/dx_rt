@@ -238,12 +238,97 @@ To remove all library files installed by a previous `--install` command.
 ./build.sh --uninstall
 ```
 
-**Example 4:** Install the Debian Runtime Package  
 
-If you have generated a Debian package in the `release/` directory, you can install it directly with `dpkg`. This is commonly used for release deployment validation on Debian-based systems.  
+### Debian Package Installation  
+
+DX-RT can be installed as a Debian package (`.deb`). The package installs the source to `/usr/share/libdxrt/` and automatically compiles the C++ runtime and Python module on the target machine.
+
+#### Installing the Package
+
+If you have generated a Debian package in the `release/` directory, you can install it directly with `dpkg` or `apt`. This is commonly used for release deployment validation on Debian-based systems.  
+
+```bash
+sudo dpkg -i release/[version]/libdxrt_[version]_all.deb
+# or
+sudo apt install -y release/[version]/libdxrt_[version]_all.deb  # Fix any dependency issues
+```
+
+This method is generally preferred because `apt` automatically handles any package dependencies for you.
+
+**Understanding Installation Messages**  
+You might see various messages during installation, especially when using `sudo apt install`. Here's what they mean:  
+
+"Permission denied" Message (when using `apt`)
 
 ```
-sudo dpkg --install release/libdxrt_[version]_all.deb
+N: Download is performed unsandboxed as root as file '/libdxrt_...deb' couldn't be accessed by user '_apt'. - pkgAcquire::Run (13: Permission denied)
+```
+
+This message can be a bit confusing, but it generally means your package installed successfully. It appears because:  
+
+  * You're installing a local `.deb` file directly using `sudo apt install ./...`.  
+  * Normally, `apt` downloads packages from remote repositories using a lower-privileged user (like `_apt`) for security.  
+  * However, since you're using `sudo` to install a local file, you're already operating with root privileges. The message simply tells you that the `_apt` user, which has lower permissions, couldn't access the local file.  
+
+In short, the installation went through fine because you used `sudo`. This message is just `apt` letting you know about a security check it couldn't perform on a local file, but it doesn't affect the successful installation.  
+
+
+!!! note "NOTE"  
+    When installing via a Debian package, Python modules are always installed to the system Python. For virtual environments, please refer to the sections "Using a Virtual Environment" and "Alternative: Install via Wheel File" below.  
+
+#### Post-Installation Verification
+
+```bash
+# Verify dx_engine Python module
+python3 -c "import dx_engine; print(dx_engine.__version__)"
+
+# Verify shared libraries are registered
+ldconfig -p | grep libdxrt
+```
+
+If shared library errors occur, run:
+```bash
+sudo ldconfig
+```
+
+#### Using a Virtual Environment
+
+While the Debian package installs the Python module to the system Python, instructions for using a virtual environment are provided below:
+
+```bash
+# Install python3-venv if not already installed
+sudo apt install python3-venv
+
+# Create a virtual environment with access to system site-packages
+python3 -m venv --system-site-packages my_venv
+
+# Activate the virtual environment
+source my_venv/bin/activate
+```
+
+#### Alternative: Install via Wheel File
+
+Alternatively, you can build a wheel file and install it in a virtual environment.
+
+```bash
+cd /usr/share/libdxrt/python_package
+sudo ./make_whl.sh
+# or
+sudo python3 -m pip wheel .
+```
+
+Then install the generated wheel file in your virtual environment:
+
+```bash
+source my_venv/bin/activate
+pip install dx_engine-[version]-[python-and-abi]-[os]_[arch].whl
+```
+
+
+#### Uninstalling the package
+
+```bash
+sudo dpkg --purge libdxrt
 ```
 
 ---
@@ -412,7 +497,7 @@ These are simply informational messages about your system's boot process, specif
 ***"Permission denied" Message (when using `apt`)***  
 
 ```
-N: Download is performed unsandboxed as root as file '/.../release/dkms_package/dxrt-driver-dkms_1.5.0-1_all.deb' couldn't be accessed by user '_apt'. - pkgAcquire::Run (13: Permission denied)
+N: Download is performed unsandboxed as root as file '/.../release/dkms_package/dxrt-driver-dkms_[version]_all.deb' couldn't be accessed by user '_apt'. - pkgAcquire::Run (13: Permission denied)
 ```
 
 This message can be a bit confusing, but it generally means your package installed successfully. It appears because:  
@@ -585,7 +670,7 @@ options:
    -c, --command  [command]     clean | install | uninstall
                                 - uninstall: Remove the module files installed 
                                 on the host PC.
-   -j, --jops     [jobs]        set build jobs
+   -j, --jobs     [jobs]        set build jobs
    -f, --debug    [debug]       set debug feature [debugfs | log | all]
    -v, --verbose                build verbose (V=1)
    -h, --help                   show this help

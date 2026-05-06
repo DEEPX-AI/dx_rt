@@ -341,7 +341,7 @@ def wait(job_id: int) -> List[np.ndarray]
 
 ## Input Format Parsing
 
-This section explains how the SDK determines the appropriate inference mode based on the input data format. The engine automatically analyzes invputs such as np.ndarray, `List[np.ndarray]`, and nested lists to decide between single, batch, or auto-split inference
+This section explains how the SDK determines the appropriate inference mode based on the input data format. The engine automatically analyzes inputs such as np.ndarray, `List[np.ndarray]`, and nested lists to decide between single, batch, or auto-split inference
 
 ### Python Input Parsing Flow
 
