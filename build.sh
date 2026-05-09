@@ -419,6 +419,27 @@ install_python_package() {
             check_python_version
             
             pushd ${SCRIPT_DIR}/python_package >/dev/null
+
+            # --- Start of pip version check and upgrade logic ---
+            
+            # Extract the current pip version (e.g., "20.0.2")
+            current_pip_ver=$(${python_exec} -m pip --version | awk '{print $2}')
+            
+            # Compare the version: Upgrade if pip is older than 21.3
+            # Older versions of pip often fail with modern PEP 517/518 build systems
+            # and do not support newer flags or "in-tree-build" behavior by default.
+            need_upgrade=$(echo $current_pip_ver | awk -F. '{ if ($1 < 21 || ($1 == 21 && $2 < 3)) print "true"; else print "false" }')
+
+            if [ "$need_upgrade" == "true" ]; then
+                print_colored_v2 "WARNING" "Current pip ($current_pip_ver) is below 21.3. Upgrading for build stability..."
+                
+                # Upgrade essential build tools to ensure compatibility with modern build standards
+                ${python_exec} -m pip install --upgrade pip setuptools wheel >/dev/null 2>&1
+            else
+                print_colored_v2 "INFO" "Current pip version ($current_pip_ver) is sufficient."
+            fi
+            
+            # --- End of pip version check ---
             
             # Attempt to install the package using python_exec -m pip (more reliable than pip3)
             # --no-cache-dir ensures the wheel is rebuilt fresh so that the compiled

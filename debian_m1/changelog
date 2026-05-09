@@ -1,3 +1,11 @@
+libdxrt (3.3.2) unstable; urgency=medium
+
+  * Update to version 3.3.2
+  * Maintainer information updated to rt <rt@deepx.ai>
+  * Improve Python extension module linking for _pydxrt build.
+
+-- Runtime <rt@deepx.ai> Fri, 08 May 2026
+
 libdxrt (3.3.1) unstable; urgency=medium
 
   * Update to version 3.3.1

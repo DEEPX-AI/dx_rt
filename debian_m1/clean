@@ -1,0 +1,8 @@
+obj-x86_64-linux-gnu/
+release/
+python_cross_package/
+csharp_package/
+debian_vnpu/
+.github/
+build_x86_64/
+bin/
