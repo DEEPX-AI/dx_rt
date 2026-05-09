@@ -18,7 +18,7 @@ override_dh_auto_install:
 	# Use . and exclude the 'debian' directory to avoid recursive loops
 	# pyproject.toml is kept as-is so that scikit-build-core can properly
 	# build and include _pydxrt.so during postinst pip install.
-	rsync -av --exclude='debian' --exclude='.git' --exclude='.github' --exclude='release' $(CURDIR)/ $(DESTDIR)/usr/share/$(PACKAGER)/
+	rsync -av --exclude='debian' $(CURDIR)/ $(DESTDIR)/usr/share/$(PACKAGER)/
 
 	@echo "Files synced to $(DESTDIR)"
 
