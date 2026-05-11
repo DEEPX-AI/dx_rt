@@ -1,3 +1,14 @@
+## v3.3.2 (May 2026)
+
+#### Changed
+- Removed redundant build artifacts and temporary directories from the Debian package.
+
+#### Fixed
+- Improve Python extension module linking for _pydxrt build.
+
+#### Added
+- Added conditional pip upgrade (v21.3+) to ensure build stability on legacy OS environments.
+
 ## v3.3.1 (April 2026)
 
 #### Changed
