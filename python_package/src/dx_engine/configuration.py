@@ -2,8 +2,8 @@
 # Copyright (C) 2018- DEEPX Ltd.
 # All rights reserved.
 #
-# This software is the property of DEEPX and is provided exclusively to customers 
-# who are supplied with DEEPX NPU (Neural Processing Unit). 
+# This software is the property of DEEPX and is provided exclusively to customers
+# who are supplied with DEEPX NPU (Neural Processing Unit).
 # Unauthorized sharing or usage is strictly prohibited by law.
 #
 
@@ -13,6 +13,7 @@ from enum import IntEnum
 # Acceleration feature availability (set at compile time in C++)
 _NFH_ACCEL_AVAILABLE = getattr(C, '_NFH_ACCEL_AVAILABLE', False)
 _CPU_ACCEL_AVAILABLE = getattr(C, '_CPU_ACCEL_AVAILABLE', False)
+
 
 class Configuration:
 
@@ -41,7 +42,8 @@ class Configuration:
 
     ITEM = IntEnum('ITEM', _item_members)
 
-    # IntEnum class to define attributes for configuration items with explicit synchronization to C++
+    # IntEnum class to define attributes for configuration items with explicit
+    # synchronization to C++
     class ATTRIBUTE(IntEnum):
         PROFILER_SHOW_DATA = 1001
         PROFILER_SAVE_DATA = 1002
@@ -55,10 +57,10 @@ class Configuration:
         if not isinstance(file_name, str) or not file_name:
             raise ValueError("file_name must be a non-empty string")
         return C.configuration_load_config_file(self._instance, file_name)
-    
+
     def set_enable(self, item: ITEM, enabled: bool):
         C.configuration_set_enable(self._instance, item, enabled)
-        #print('set_enable')
+        # print('set_enable')
 
     def set_attribute(self, item: ITEM, attrib: ATTRIBUTE, value: str):
         C.configuration_set_attribute(self._instance, item, attrib, value)

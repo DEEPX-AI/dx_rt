@@ -98,6 +98,7 @@ setup_env() {
     CMAKE_USE_PYTHON=true
     CMAKE_USE_VNPU=false
     CMAKE_USE_DXRT_TEST=true
+    CMAKE_USE_VALIDATION_TEST=false
     CMAKE_USE_NPU_FORMAT_CONVERSION_ACCELERATION=true
     CMAKE_USE_CPU_OP_ACCELERATION=true
     CMAKE_FORCE_NPU_FORMAT_CONVERSION_ACCELERATION=false
@@ -139,6 +140,12 @@ setup_env() {
                     CMAKE_USE_DXRT_TEST=true
                 else
                     CMAKE_USE_DXRT_TEST=false
+                fi
+            elif [ "$var_name" == 'USE_VALIDATION_TEST' ]; then
+                if [ "$default_val" == 'ON' ]; then
+                    CMAKE_USE_VALIDATION_TEST=true
+                else
+                    CMAKE_USE_VALIDATION_TEST=false
                 fi
             elif [ "$var_name" == 'USE_CPU_OP_ACCELERATION' ]; then
                 if [ "$default_val" == 'ON' ]; then
@@ -266,6 +273,13 @@ build_dxrt() {
         cmd+=(-DUSE_DXRT_TEST=ON)
     else
         cmd+=(-DUSE_DXRT_TEST=OFF)
+    fi
+
+    # set cmake options for validation_test (standalone, used in VNPU mode)
+    if [ $CMAKE_USE_VALIDATION_TEST == "true" ]; then
+        cmd+=(-DUSE_VALIDATION_TEST=ON)
+    else
+        cmd+=(-DUSE_VALIDATION_TEST=OFF)
     fi
 
     # set cmake options for npu format conversion acceleration
@@ -592,6 +606,16 @@ manage_dxrt_service() {
 uninstall_dxrt() {
     local INSTALL_PREFIX="${install:-/usr/local}"
 
+    # Guard against an empty/whitespace prefix — otherwise paths like
+    # "/bin/${alias}" would target the system /bin and `rm -rf` of
+    # "${INSTALL_PREFIX}/include/dxrt" could become "/include/dxrt".
+    # build.sh is a bash script (shebang #!/bin/bash on L1), so the
+    # ${var//pat/repl} pattern substitution is supported.
+    if [ -z "${INSTALL_PREFIX//[[:space:]]/}" ] || [ "$INSTALL_PREFIX" = "/" ]; then
+        print_colored_v2 "FAIL" "[uninstall_dxrt: refusing to operate with INSTALL_PREFIX='$INSTALL_PREFIX']"
+        return 1
+    fi
+
     if [ ! -d "$build_dir" ]; then
         print_colored_v2 "INFO" "No build directory found, skipping uninstall."
         return
@@ -609,7 +633,20 @@ uninstall_dxrt() {
             }
             print_colored_v2 "SUCCESS" "Uninstalled ninja build files"
 
-            # remove /usr/local/include/dxrt 
+            # Safety net: force-remove legacy CLI alias files. They are created
+            # at install time via install(CODE ...) in cli/CMakeLists.txt and
+            # are recorded in CMAKE_INSTALL_MANIFEST_FILES so `ninja uninstall`
+            # should remove them — but defend against an older manifest that
+            # predates the manifest-tracking change.
+            for alias in dxrt-cli dxrt-cli-internal parse_model run_model; do
+                local alias_path="${INSTALL_PREFIX}/bin/${alias}"
+                if [ -e "$alias_path" ] || [ -L "$alias_path" ]; then
+                    sudo rm -f "$alias_path"
+                    print_colored_v2 "SUCCESS" "[Removed legacy CLI alias $alias_path]"
+                fi
+            done
+
+            # remove /usr/local/include/dxrt
             if [ -d "${INSTALL_PREFIX}/include/dxrt" ]; then
                 sudo rm -rf "${INSTALL_PREFIX}/include/dxrt"
                 print_colored_v2 "SUCCESS" "[Removed ${INSTALL_PREFIX}/include/dxrt]"
@@ -790,6 +827,7 @@ while (( $# )); do
         --use_vnpu)
             # Hidden option: configure for VNPU mode
             CMAKE_USE_DXRT_TEST=false
+            CMAKE_USE_VALIDATION_TEST=true
             CMAKE_USE_VNPU=true
             CMAKE_USE_ORT=true
             CMAKE_USE_PYTHON=false

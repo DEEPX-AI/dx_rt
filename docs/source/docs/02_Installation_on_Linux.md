@@ -1,9 +1,13 @@
 This chapter describes the system requirements, source file structure, and the installation instructions for setting up **DX-RT** on a Linux-based host system.  
 
+> **Prebuilt Package (Recommended for end-users):**  
+> If you received a prebuilt `libdxrt.so` package from DEEPX, install it with the package-provided instructions. No source build is required.  
+> The build/install steps in this chapter are for developers building DX-RT from source.
+
 After you check the system requirements, follow these instructions.  
 
 - System Requirement Check  
-- Build Environment Setup  
+- Build Environment Setup (source build — for developers)  
 - Source File Structure Check  
 - Framework Build on Linux  
 - Linux Device Driver Installation  
@@ -64,10 +68,10 @@ Options:
   --all                        Install all dependencies and the ONNX Runtime library.
 
   --python_version <VERSION>   Specify the Python version to install (e.g., 3.10.4).
-                                 * Minimum supported version: .
+                                 * Minimum supported version: 3.8.10.
                                  * If not specified:
                                      - For Ubuntu 20.04+, the OS default Python 3 will be used.
-                                     - For Ubuntu 18.04, Python  will be source-built.
+                                     - For Ubuntu 18.04, Python 3.8.10 will be source-built.
   --venv_path <PATH>          Specify the path for the virtual environment.
                                  * If this option is omitted, no virtual environment will be created.
 ```
@@ -133,7 +137,7 @@ You can install the full toolchain using the `install.sh`, and the build and lib
 - `install.sh` Shell script for toolchain installation.
 - `lib` The core source code for the DX-RT libraries.
 - `python_package` Python modules for DX-RT.
-- `release` Build output directory for release artifacts, including generated Debian packages (for example, `libdxrt_<version>_all.deb`).
+- `release` Build output directory for release artifacts, including generated prebuilt binary Debian packages (for example, `libdxrt-bin_<version>_amd64.deb` and `libdxrt-bin_<version>_arm64.deb`).
 - `service` Service unit files for runtime management.
 - `tool` Profiler result visualization tools.
 
@@ -192,11 +196,10 @@ Options:
   --install <PATH>  Specify the installation path for dx-rt files.
   --uninstall       Remove previously installed dx-rt files.
   --docker          Build the project within a Docker environment.
-  --clang           Use Clang as the compiler for the build.
-  --coverage        Enable code coverage collection (automatically enabled for Debug builds).
+  --clang             Use Clang as the compiler for the build.
 
-  --python_exec <PATH> Specify the Python executable to use for the build.
-                    If omitted, the default system 'python3' will be used.
+  --python-exec <PATH> Specify the Python executable to use for the build.
+                       If omitted, the default system 'python3' will be used.
   --venv_path <PATH>  Specify the path to a virtual environment to activate for the build.
                     If omitted, no virtual environment will be activated.
 ```
@@ -241,40 +244,45 @@ To remove all library files installed by a previous `--install` command.
 
 ### Debian Package Installation  
 
-DX-RT can be installed as a Debian package (`.deb`). The package installs the source to `/usr/share/libdxrt/` and automatically compiles the C++ runtime and Python module on the target machine.
+DX-RT is distributed as a **prebuilt binary Debian package** (`libdxrt-bin`), provided per CPU architecture:
 
-#### Installing the Package
+| File name example | Target architecture |
+|-------------------|---------------------|
+| `libdxrt-bin_3.4.0_amd64.deb` | amd64 (x86_64) |
+| `libdxrt-bin_3.4.0_arm64.deb` | aarch64 (arm64) |
 
-If you have generated a Debian package in the `release/` directory, you can install it directly with `dpkg` or `apt`. This is commonly used for release deployment validation on Debian-based systems.  
+The package contains precompiled shared libraries, headers, CLI tools, and the Python module — no on-target compilation is required.
+
+!!! note "NOTE"
+    The source-based Debian package (`libdxrt_<version>_all.deb`) is **no longer distributed**. If you need to build from source, use `./build.sh` as described in the **Framework Build on Linux** section above.
+
+#### Installing the Prebuilt Binary Package (`libdxrt-bin`)
+
+Use the file that matches your target CPU architecture (check with `dpkg --print-architecture`).
+
+**For amd64 (x86_64) hosts:**
 
 ```bash
-sudo dpkg -i release/[version]/libdxrt_[version]_all.deb
-# or
-sudo apt install -y release/[version]/libdxrt_[version]_all.deb  # Fix any dependency issues
+sudo dpkg -i libdxrt-bin_3.4.0_amd64.deb
 ```
 
-This method is generally preferred because `apt` automatically handles any package dependencies for you.
+**For aarch64 (arm64) hosts:**
 
-**Understanding Installation Messages**  
-You might see various messages during installation, especially when using `sudo apt install`. Here's what they mean:  
-
-"Permission denied" Message (when using `apt`)
-
-```
-N: Download is performed unsandboxed as root as file '/libdxrt_...deb' couldn't be accessed by user '_apt'. - pkgAcquire::Run (13: Permission denied)
+```bash
+sudo dpkg -i libdxrt-bin_3.4.0_arm64.deb
 ```
 
-This message can be a bit confusing, but it generally means your package installed successfully. It appears because:  
+If `dpkg` reports unmet dependencies, resolve them with:
 
-  * You're installing a local `.deb` file directly using `sudo apt install ./...`.  
-  * Normally, `apt` downloads packages from remote repositories using a lower-privileged user (like `_apt`) for security.  
-  * However, since you're using `sudo` to install a local file, you're already operating with root privileges. The message simply tells you that the `_apt` user, which has lower permissions, couldn't access the local file.  
+```bash
+sudo apt --fix-broken install
+```
 
-In short, the installation went through fine because you used `sudo`. This message is just `apt` letting you know about a security check it couldn't perform on a local file, but it doesn't affect the successful installation.  
-
+!!! note "NOTE"
+    Replace `3.4.0` in the file name with the version you actually received.
 
 !!! note "NOTE"  
-    When installing via a Debian package, Python modules are always installed to the system Python. For virtual environments, please refer to the sections "Using a Virtual Environment" and "Alternative: Install via Wheel File" below.  
+    When installing via the Debian package, the Python module is installed to the system Python. For virtual environments, please refer to the section "Using a Virtual Environment" below.
 
 #### Post-Installation Verification
 
@@ -293,7 +301,7 @@ sudo ldconfig
 
 #### Using a Virtual Environment
 
-While the Debian package installs the Python module to the system Python, instructions for using a virtual environment are provided below:
+While the Debian package installs the Python module to the system Python, you can make it visible inside a virtual environment as follows:
 
 ```bash
 # Install python3-venv if not already installed
@@ -306,29 +314,10 @@ python3 -m venv --system-site-packages my_venv
 source my_venv/bin/activate
 ```
 
-#### Alternative: Install via Wheel File
-
-Alternatively, you can build a wheel file and install it in a virtual environment.
-
-```bash
-cd /usr/share/libdxrt/python_package
-sudo ./make_whl.sh
-# or
-sudo python3 -m pip wheel .
-```
-
-Then install the generated wheel file in your virtual environment:
-
-```bash
-source my_venv/bin/activate
-pip install dx_engine-[version]-[python-and-abi]-[os]_[arch].whl
-```
-
-
 #### Uninstalling the package
 
 ```bash
-sudo dpkg --purge libdxrt
+sudo dpkg --purge libdxrt-bin
 ```
 
 ---
@@ -414,7 +403,7 @@ Here are the examples of cross-compile cases.
 ```
 
 **Output Directory**  
-After a successful build, output binaries are int the following directory.  
+After a successful build, output binaries are in the following directory.  
 
 ```
 <build directory> /bin/
@@ -424,11 +413,14 @@ Typical contents:
 ```
 <build directory>/bin/
  ├── dxrtd
- ├── dxrt-cli
- ├── parse_model
- ├── run_model
+ ├── dxcli
+ ├── dxparse
+ ├── dxrun
  └── examples
 ```
+
+!!! note "NOTE"
+    Legacy names `dxrt-cli`, `parse_model`, and `run_model` are preserved as backward-compatible aliases and continue to work.
 
 !!! note "NOTE"  
     Python for cross-compile is **not** supported in the current version, but will be supported in the next release.  
@@ -522,8 +514,8 @@ dxrt-driver-dkms/1.7.1-1, 6.5.0-27-generic, x86_64: installed
 
 In summary, these lines mean:  
 
-- The `dxrt-driver-dkms` module, version `1.5.0-1`, is currently installed and fully operational for your system running the `6.5.0-27-generic` kernel on an `x86_64` architecture.  
-- The same `dxrt-driver-dkms` module, version `1.5.0-1`, is also installed and fully operational for your system running the `6.8.0-60-generic` kernel on an `x86_64` architecture.  
+- The `dxrt-driver-dkms` module, version `1.7.1-1`, is currently installed and fully operational for your system running the `6.5.0-27-generic` kernel on an `x86_64` architecture.  
+- The same `dxrt-driver-dkms` module, version `1.7.1-1`, is also installed and fully operational for your system running the `6.8.0-60-generic` kernel on an `x86_64` architecture.  
 
 #### Viewing Package information
 
@@ -555,7 +547,7 @@ APT-Sources: /var/lib/dpkg/status
 Description: A DEEPX NPU Driver
 ```
 
-This tells you that `dxrt-driver-dkms` is version `1.5.0-1`, is a DKMS module, requires the `dkms` package, comes from a specific APT source, and its purpose is to provide the **DX-RT** driver source for automatic rebuilding with new kernels.  
+This tells you that `dxrt-driver-dkms` is version `1.7.1-1`, is a DKMS module, requires the `dkms` package, comes from a specific APT source, and its purpose is to provide the **DX-RT** driver source for automatic rebuilding with new kernels.  
 
 #### Finding Locally Installed Source Code
 
@@ -567,7 +559,7 @@ The source code for DKMS drivers installed via packages is reliably located unde
 ```
 
 **Example:**  
-For the `dxrt-driver-dkms` package (version `1.5.0-1`), the source code would likely be in `/usr/src/dxrt-driver-1.5.0-1/`. You can then `cd` into this directory to explore the source files.  
+For the `dxrt-driver-dkms` package (version `1.7.1-1`), the source code would likely be in `/usr/src/dxrt-driver-1.7.1-1/`. You can then `cd` into this directory to explore the source files.  
 
 ---
 
@@ -650,7 +642,6 @@ Shell script to streamline the build process. It runs the Makefile with common o
 
 Here are the options for `build.sh`.
 ```
-Usage:
 Usage:
    build.sh <options>
 
@@ -757,7 +748,7 @@ Copy the preconfigured module config file.
 sudo cp modules/dx_dma.conf /etc/modprobe.d/
 ```
 
-This ensures the modules (`dx_dma`) are auto-loaded on boot.  
+This ensures the modules (`dxrt_driver`, `dx_dma`) are auto-loaded on boot.  
 
 **Step 4.** Test with modprobe  
 To verify the correct installation.  
@@ -828,7 +819,7 @@ depmod
 
 ## Python Package Installation  
 
-This chapter explains how to install the **DX-RT** Python package, provided under the module name dx_engine. The package supports Python 3.9 or later and enables Python-based applications to interface with the **DX-RT** runtime.
+This chapter explains how to install the **DX-RT** Python package, provided under the module name dx_engine. The package supports Python 3.8.10 or later and enables Python-based applications to interface with the **DX-RT** runtime.
 
 **Installation Steps**  
 
@@ -1034,9 +1025,9 @@ Log file location : /.../sanity_check_result_..._....log
    PCIe Driver Version: v1.5.1
    Firmware Version: device-id=0 v2.4.0
    ONNX Runtime Version: v1.20.1
-   dxrt-cli ...OK
-   run_model ...OK
-   parse_model ...OK
+   dxcli ...OK
+   dxrun ...OK
+   dxparse ...OK
    dxtop ...OK
    dxrtd ...OK
    Header: /usr/local/include/dxrt ...OK
@@ -1075,9 +1066,9 @@ Log file location : /.../sanity_check_result_..._....log
    PCIe Driver Version: v1.5.1
    Firmware Version: device-id=0 v2.4.0
    ONNX Runtime Version: v1.20.1
-   dxrt-cli ...OK
-   run_model ...OK
-   parse_model ...OK
+   dxcli ...OK
+   dxrun ...OK
+   dxparse ...OK
    dxtop ...OK
    dxrtd ...OK
    Header: /usr/local/include/dxrt ...OK

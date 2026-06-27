@@ -47,6 +47,7 @@
 
 #ifdef USE_ORT
 #include <onnxruntime_cxx_api.h>
+#include "dxrt/ort_profile_aggregator.h"
 #endif
 
 using std::endl;
@@ -172,7 +173,7 @@ CpuHandle::CpuHandle(const void* data_, int64_t size_, const string& name_, size
     enable_cpu_acceleration = Configuration::GetInstance().IsCpuOpAccelerationEnabled();
 #endif
 
-    if (enable_cpu_acceleration) 
+    if (enable_cpu_acceleration)
     {
 #ifdef USE_OPENVINO
         std::unordered_map<std::string, std::string> options;
@@ -187,11 +188,27 @@ CpuHandle::CpuHandle(const void* data_, int64_t size_, const string& name_, size
 
     _sessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_EXTENDED);
 
+    // Enable ORT built-in node-level profiling when requested. The generated
+    // per-session JSON is aggregated at process exit by OrtProfileAggregator.
+    auto& ortProfAgg = OrtProfileAggregator::GetInstance();
+    if (ortProfAgg.IsEnabled())
+    {
+        _ortProfilePrefix = ortProfAgg.MakeProfilePrefix(name_);
+#ifdef _WIN32
+        std::wstring wprefix(_ortProfilePrefix.begin(), _ortProfilePrefix.end());
+        _sessionOptions.EnableProfiling(wprefix.c_str());
+#else
+        _sessionOptions.EnableProfiling(_ortProfilePrefix.c_str());
+#endif
+        LOG_DXRT_DBG << "ORT profiling enabled for task '" << name_
+                     << "' with prefix: " << _ortProfilePrefix << std::endl;
+    }
+
     // Configure ONNX Runtime thread settings from configuration
     auto& config = Configuration::GetInstance();
 
     // Get intra-op threads setting (default: 0, auto)
-    if (config.GetEnable(Configuration::ITEM::CUSTOM_INTRA_OP_THREADS)) 
+    if (config.GetEnable(Configuration::ITEM::CUSTOM_INTRA_OP_THREADS))
     {
         int intraOpThreads = config.GetIntAttribute(Configuration::ITEM::CUSTOM_INTRA_OP_THREADS, Configuration::ATTRIBUTE::CUSTOM_INTRA_OP_THREADS_NUM);
         if (intraOpThreads == 0) intraOpThreads = 1; // fallback to default if attribute returns 0
@@ -200,15 +217,15 @@ CpuHandle::CpuHandle(const void* data_, int64_t size_, const string& name_, size
     }
 
     // Get inter-op threads setting (default: 1)
-    if (config.GetEnable(Configuration::ITEM::CUSTOM_INTER_OP_THREADS)) 
+    if (config.GetEnable(Configuration::ITEM::CUSTOM_INTER_OP_THREADS))
     {
         int interOpThreads = config.GetIntAttribute(Configuration::ITEM::CUSTOM_INTER_OP_THREADS, Configuration::ATTRIBUTE::CUSTOM_INTER_OP_THREADS_NUM);
         if (interOpThreads == 0) interOpThreads = 1; // fallback to default if attribute returns 0
-        if (interOpThreads > 1) 
+        if (interOpThreads > 1)
         {
             _sessionOptions.SetExecutionMode(ORT_PARALLEL);
         }
-        else 
+        else
         {
             _sessionOptions.SetExecutionMode(ORT_SEQUENTIAL);
         }
@@ -325,16 +342,36 @@ CpuHandle::~CpuHandle()
         _worker = nullptr;
     }
 
+    // Flush ORT profiling data and register file path for aggregation.
+    auto& ortProfAgg = OrtProfileAggregator::GetInstance();
+    if (ortProfAgg.IsEnabled() && _session != nullptr && !_ortProfilePrefix.empty())
+    {
+        try
+        {
+            Ort::AllocatorWithDefaultOptions alloc;
+            auto profFile = _session->EndProfilingAllocated(alloc);
+            if (profFile.get() != nullptr)
+            {
+                ortProfAgg.RegisterProfileFile(std::string(profFile.get()));
+                LOG_DXRT_DBG << "ORT profile flushed: " << profFile.get() << endl;
+            }
+        }
+        catch (const std::exception& e)
+        {
+            LOG_DXRT_DBG << "EndProfiling failed: " << e.what() << endl;
+        }
+    }
+
     LOG_DXRT_DBG <<" Done"<< endl;
 }
 
 void CpuHandle::SetDynamicCpuThread() {
     const char* env = getenv("DXRT_DYNAMIC_CPU_THREAD");
     bool dynamic_cpu_thread_env = false;
-    if (env != nullptr && string(env) == "ON") 
+    if (env != nullptr && string(env) == "ON")
     {
         dynamic_cpu_thread_env = true;
-    } 
+    }
     else {
         dynamic_cpu_thread_env = false;
     }
@@ -344,11 +381,11 @@ void CpuHandle::SetDynamicCpuThread() {
     if (dynamic_cpu_thread_env || _dynamicCpuThread)
         _dynamicCpuThread = true;
 
-    if (_dynamicCpuThread) 
+    if (_dynamicCpuThread)
     {
         LOG_DXRT_DBG << "Dynamic Multi Threading : MULTI MODE" << endl;
-    } 
-    else 
+    }
+    else
     {
         LOG_DXRT_DBG << "Dynamic Multi Threading : SINGLE MODE" << endl;
     }
@@ -358,11 +395,7 @@ int CpuHandle::InferenceRequest(RequestPtr req) const
 {
 #ifdef USE_PROFILER
     auto& profiler = dxrt::Profiler::GetInstance();
-    std::string queue_wait_name =
-        "CPU Task Queue Wait[Job_" + std::to_string(req->job_id()) + "][" +
-        req->task()->name() + "][Req_" +
-        std::to_string(req->id()) + "]";
-    profiler.Start(queue_wait_name);
+    profiler.Start(dxrt::Profiler::EventType::CPU_DISPATCH_WAIT, _name, req->job_id());
 #endif
     return _worker->request(req);
 }
@@ -376,10 +409,7 @@ void CpuHandle::RunWithSession(RequestPtr req, std::shared_ptr<Ort::Session> ses
 {
 #ifdef USE_PROFILER
     auto& profiler = dxrt::Profiler::GetInstance();
-    string processedPU = req->processed_pu();
-    int processedId = req->processed_id();
-    string profileInstanceName = processedPU + "[Job_" + std::to_string(req->job_id()) + "][" + req->task()->name() + "][Req_" + std::to_string(req->id()) + "]_t" + std::to_string(processedId);
-    profiler.Start(profileInstanceName);
+    profiler.Start(dxrt::Profiler::EventType::CPU_TASK_TOTAL, _name, req->job_id());
 #endif
 
     LOG_DXRT_DBG << "CpuHandleRun:" << req->id() << std::endl;
@@ -395,7 +425,7 @@ void CpuHandle::RunWithSession(RequestPtr req, std::shared_ptr<Ort::Session> ses
         req->setOutputs(task->outputs(req->getData()->output_buffer_base));
     }
 
-    std::vector<Ort::Value> inputTensors; 
+    std::vector<Ort::Value> inputTensors;
     std::vector<Ort::Value> outputTensors;
 
     Ort::MemoryInfo memoryInfo =
@@ -406,7 +436,7 @@ void CpuHandle::RunWithSession(RequestPtr req, std::shared_ptr<Ort::Session> ses
 
     // Create input tensors for ONNX Runtime
     // Use the input tensors directly from the request - they already have correct pointers
-    
+
     auto reqInputs = req->inputs();
     if (!reqInputs.empty() && reqInputs.size() >= static_cast<size_t>(_numInputs))
     {
@@ -461,7 +491,7 @@ void CpuHandle::RunWithSession(RequestPtr req, std::shared_ptr<Ort::Session> ses
     LOG_DXRT_DBG << "session run end (IO binding mode) : " << req->id() << std::endl;
 
 #ifdef USE_PROFILER
-    profiler.End(profileInstanceName);
+    profiler.End(dxrt::Profiler::EventType::CPU_TASK_TOTAL, _name, req->job_id());
 #endif
 }
 void CpuHandle::Terminate() const
@@ -496,8 +526,8 @@ std::shared_ptr<Ort::Session> CpuHandle::CreateWorkerSession()
     Calculate optimal intra_op threads per session
     int intraOpThreads = 1;  Conservative default
     if (totalActiveCpuTasks > 0) {
-        intraOpThreads = std::max(1, systemCores / totalActiveCpuTasks);
-        intraOpThreads = std::min(intraOpThreads, 4);  Cap at 4 to avoid over-subscription
+        intraOpThreads = (std::max)(1, systemCores / totalActiveCpuTasks);
+        intraOpThreads = (std::min)(intraOpThreads, 4);  Cap at 4 to avoid over-subscription
     }
 
     workerSessionOptions.SetIntraOpNumThreads(intraOpThreads);

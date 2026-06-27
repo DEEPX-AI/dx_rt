@@ -153,7 +153,7 @@ int32_t NetworkDriverAdapter::Read(void* buffer, uint32_t size)
     int ret = 0;
 
     while (remainingSize > 0) {
-        size_t bytesToReceive = std::min(static_cast<size_t>(CHUNK_SIZE), remainingSize);
+        size_t bytesToReceive = (std::min)(static_cast<size_t>(CHUNK_SIZE), remainingSize);
         bytesReceived = recv(sockMap[TCP_MESSAGE].first, writePointer, bytesToReceive, 0);
         if (bytesReceived <= 0) {
             if (bytesReceived == 0) {

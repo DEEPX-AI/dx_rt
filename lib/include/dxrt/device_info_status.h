@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include <array>
 #include <string>
 #include <memory>
 #include "dxrt/common.h"
@@ -23,17 +24,27 @@ class DeviceTaskLayer;
 class Device;
 
 /**
- * @brief A class that provides an abstraction of device information.
+ * @brief A class that provides an abstraction of device information and monitoring data.
  *
  * @details This class encapsulates various details about the device, including
- * specifications, clock speeds, and temperature. It allows users to
- * easily retrieve device status and characteristics.
+ * specifications, clock speeds, temperature, NPU core utilization,
+ * and DRAM memory usage. It allows users to easily retrieve device
+ * status and characteristics.
+ *
+ * Core utilization and memory usage are read from shared memory written
+ * by the runtime's monitoring thread. These values are populated when
+ * the runtime is actively running; otherwise they default to zero.
  *
  * Example usage:
  * @code
  * // Retrieve device status information
- * auto statInfo = GetCurrentStatus(DevicePtr device);
- * cout << GetInfoString() << endl << GetStatusString() << endl;
+ * auto status = DeviceStatus::GetCurrentStatus(0);
+ * cout << status.GetInfoString() << endl;
+ *
+ * // Query NPU core utilization and memory usage
+ * double util = status.GetCoreUtilization(0);  // 0.0~100.0 (%)
+ * uint64_t used = status.GetMemoryUsed();       // bytes
+ * uint64_t free = status.GetMemoryFree();        // bytes
  * @endcode
  *
  * @headerfile "dxrt/device_struct.h"
@@ -53,22 +64,21 @@ class DXRT_API DeviceStatus // NOSONAR: Too many methods - stable as-is, refacto
      * identified by the given device ID. The status includes key metrics such as power state,
      * temperature, clock speed, memory usage, and other device-specific parameters.
      *
-     * If the provided device ID is invalid or does not correspond to an existing device,
-     * the function throws an exception to signal an error.
+     * If the provided device ID is invalid, the device does not exist, or shared memory
+     * cannot be opened, the returned DeviceStatus object will have IsValid() == false.
      *
      * **Usage Example:**
      * @code
-     * try {
-     *     DeviceStatus status = DeviceManager::GetCurrentStatus(0);
+     * DeviceStatus status = DeviceStatus::GetCurrentStatus(0);
+     * if (status.IsValid()) {
      *     std::cout << "Device 0 Status: " << status.ToString() << std::endl;
-     * } catch (const InvalidArgumentException& e) {
-     *     LOG_DXRT_ERR("Error: " << e.what());
+     * } else {
+     *     LOG_DXRT_ERR("Failed to get status for device 0");
      * }
      * @endcode
      *
      * @param id The unique identifier of the device whose status is being queried.
-     * @return A `DeviceStatus` object containing various real-time operational parameters.
-     * @throws InvalidArgumentException if the specified device ID is invalid or does not exist.
+     * @return A `DeviceStatus` object. Check IsValid() to determine if the query succeeded.
      */
     static DeviceStatus GetCurrentStatus(int id);
 
@@ -80,15 +90,13 @@ class DXRT_API DeviceStatus // NOSONAR: Too many methods - stable as-is, refacto
      *
      * **Usage Example:**
      * @code
-     * int deviceCount = DeviceManager::GetDeviceCount();
+     * int deviceCount = DeviceStatus::GetDeviceCount();
      * std::cout << "Number of available devices: " << deviceCount << std::endl;
      * @endcode
      *
      * @return An integer representing the total number of available devices.
      */
     static int GetDeviceCount();
-
-
 
     /**
      * @brief Retrieves the unique identifier of the device.
@@ -415,6 +423,7 @@ class DXRT_API DeviceStatus // NOSONAR: Too many methods - stable as-is, refacto
      *
      * @param ch The NPU channel index for which temperature is to be retrieved.
      * @return The temperature of the specified NPU channel in degrees Celsius.
+     *         Returns INT16_MIN when the channel index is out of range.
      */
     int Temperature(int ch) const;
 
@@ -427,6 +436,7 @@ class DXRT_API DeviceStatus // NOSONAR: Too many methods - stable as-is, refacto
      *
      * @param ch The NPU channel index for which temperature is to be retrieved.
      * @return The temperature of the specified NPU channel in degrees Celsius.
+     *         Returns INT16_MIN when the channel index is out of range.
      */
     int GetTemperature(int ch) const
     {
@@ -454,14 +464,77 @@ class DXRT_API DeviceStatus // NOSONAR: Too many methods - stable as-is, refacto
      */
     uint64_t MemoryClock() const { return _info.ddr_freq; }
 
+    /**
+     * @brief Retrieves the utilization of the specified NPU core.
+     *
+     * This function returns the current utilization percentage of a specific NPU core,
+     * based on shared memory monitoring data written by the runtime.
+     * The value represents how busy the core has been during the last monitoring interval.
+     *
+     * @note This data is available only when a runtime process is actively writing
+     *       monitoring data to shared memory. Returns 0.0 if monitoring data is unavailable.
+     *
+     * @param coreId The NPU core index (0 to 2).
+     * @return The utilization percentage (0.0 to 100.0). Returns -1.0 if coreId is out of range.
+     *         Returns 0.0 if monitoring data is unavailable.
+     */
+    double GetCoreUtilization(int coreId) const;
+
+    /**
+     * @brief Retrieves the amount of NPU DRAM currently in use.
+     *
+     * This function returns the current DRAM usage in bytes, based on shared memory
+     * monitoring data written by the runtime.
+     *
+     * @note Returns 0 if monitoring data is unavailable.
+     *
+     * @return The amount of DRAM currently in use, in bytes.
+     */
+    uint64_t GetMemoryUsed() const;
+
+    /**
+     * @brief Retrieves the amount of free NPU DRAM.
+     *
+     * This function returns the current free DRAM in bytes, based on shared memory
+     * monitoring data written by the runtime.
+     *
+     * @note Returns 0 if monitoring data is unavailable.
+     *
+     * @return The amount of free DRAM, in bytes.
+     */
+    uint64_t GetMemoryFree() const;
+
+    /**
+     * @brief Retrieves the runtime driver version string.
+     *
+     * @return A string representing the driver version (e.g., "1.2.3").
+     */
+    std::string DriverVersionStr() const;
+
     DeviceType GetDeviceType() const {return static_cast<DeviceType>(_info.type);}
     dxrt_dev_info_t getDevInfo() const {return _devInfo;}
+
+    /**
+     * @brief Checks whether the device status data is valid (up-to-date).
+     *
+     * Returns true if the monitoring service was active when this status was queried.
+     * If false, the returned data may be stale or incomplete.
+     *
+     * @return true if data is valid, false if data may be stale.
+     */
+    bool IsValid() const { return _isValid; }
 
  private:
     int _id;
     dxrt_device_info_t   _info;
     dxrt_device_status_t _status;
     dxrt_dev_info_t      _devInfo;
+
+    // Monitoring data (from shared memory)
+    std::array<double, 3> _utilization = {};  // per-core utilization (0.0 ~ 100.0)
+    uint64_t _memoryUsed = 0;                 // bytes
+    uint64_t _memoryFree = 0;                 // bytes
+    bool _isValid = true;
 
     DeviceStatus(int id, const dxrt_device_info_t& info, const dxrt_device_status_t& status, const dxrt_dev_info_t& devInfo);
 };

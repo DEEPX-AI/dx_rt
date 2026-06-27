@@ -19,6 +19,7 @@ add_subdirectory(run_sync_model_bufcount)
 add_subdirectory(run_sync_model_memory)
 add_subdirectory(multi_input_model_inference)
 add_subdirectory(check_versions)
+add_subdirectory(device_monitoring)
 
 if(USE_VNPU)
     add_subdirectory(run_async_input_release)

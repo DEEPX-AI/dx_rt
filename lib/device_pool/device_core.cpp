@@ -12,18 +12,54 @@
 
 #include <cstring>
 #include <iostream>
+#include <vector>
 
 #include "dxrt/device_struct.h"
 #include "dxrt/device_version.h"
 #include "dxrt/driver.h"
 #include "dxrt/filesys_support.h"
 #include "dxrt/fw.h"
+#include "dxrt/safe_cast.h"
 #include "dxrt/util.h"
 #include "dxrt/exception/exception.h"
 #include "../resource/log_messages.h"
 #include "../data/ppcpu.h"
+#include "dxrt/fixed_size_buffer.h"
 
 using std::endl;
+
+#ifdef USE_VNPU
+namespace {
+
+struct FirmwareDmaInfo {
+    dxrt::dxrt_meminfo_t meminfo;
+    std::unique_ptr<dxrt::FixedSizeBuffer> dmaBuffer;
+};
+
+static FirmwareDmaInfo makeFirmwareDmaInfo(
+    uint64_t baseAddr, uint64_t memOffset, size_t fwSize, int devId)
+{
+    auto buf = std::make_unique<dxrt::FixedSizeBuffer>(fwSize, 1, dxrt::BufferAllocType::CMA_DMA);
+    void* vaddr = buf->getBuffer();
+    uint64_t paddr = buf->getPhysicalAddress(vaddr);
+    DXRT_ASSERT(vaddr != nullptr && paddr != 0,
+        "Failed to allocate CMA buffer for PPCPU firmware");
+    memcpy(vaddr, dxrt::PPCPUDataLoader::GetData(), fwSize);
+    buf->flushCache(vaddr, fwSize, false);
+    dxrt::dxrt_meminfo_t fw{};
+    fw.base   = baseAddr;
+    fw.offset = memOffset;
+    fw.size   = static_cast<uint32_t>(fwSize);
+    fw.data   = paddr;
+    LOG_DXRT << "Device " << devId << " Writing PPCPU firmware: vaddr=0x" << std::hex << vaddr
+             << ", paddr=0x" << paddr
+             << ", base=0x" << fw.base << ", offset=0x" << fw.offset
+             << ", size=" << std::dec << fw.size << std::endl;
+    return {fw, std::move(buf)};
+}
+
+}  // namespace
+#endif  // USE_VNPU
 
 namespace dxrt {
 
@@ -81,16 +117,20 @@ int DeviceCore::Write(const dxrt_meminfo_t &meminfo, int ch)
     DXRT_ASSERT(meminfo.base + meminfo.offset != 0, "DeviceCore Write ZERO NPU MEMORY ADDRESS");
     DXRT_ASSERT(meminfo.data != 0, "DeviceCore Write ZERO CPU MEMORY ADDRESS");
     DXRT_ASSERT(ch < 4, "DeviceCore Write CHANNEL INVALID");
-    DXRT_ASSERT(meminfo.offset != std::numeric_limits<uint32_t>::max(), "DeviceCore Write to ERROR offset");
+    DXRT_ASSERT(meminfo.offset != (std::numeric_limits<uint32_t>::max)(), "DeviceCore Write to ERROR offset");
     // Profiler::GetInstance().Start("Write");
 #if DXRT_USB_NETWORK_DRIVER == 0
+    BeginDmaIoctl();
     dxrt_req_meminfo_t mem_info_req;
     mem_info_req.data = meminfo.data;
     mem_info_req.base = meminfo.base;
     mem_info_req.offset = meminfo.offset;
     mem_info_req.size = meminfo.size;
     mem_info_req.ch = ch;
+
     ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_WRITE_MEM, static_cast<void*>(&mem_info_req));
+
+    EndDmaIoctl();
 #else
     ignore = ch;
     ret = _driverAdapter->NetControl(
@@ -122,8 +162,9 @@ int DeviceCore::Read(const dxrt_meminfo_t &meminfo, int ch, bool ctrlCmd)
     DXRT_ASSERT(meminfo.base + meminfo.offset != 0, "DeviceCore Read ZERO NPU MEMORY ADDRESS");
     DXRT_ASSERT(meminfo.data != 0, "DeviceCore Read ZERO CPU MEMORY ADDRESS");
     DXRT_ASSERT(ch < 4, "DeviceCore Read CHANNEL INVALID");
-    DXRT_ASSERT(meminfo.offset != std::numeric_limits<uint32_t>::max(), "DeviceCore Read to ERROR offset");
+    DXRT_ASSERT(meminfo.offset != (std::numeric_limits<uint32_t>::max)(), "DeviceCore Read to ERROR offset");
 #if DXRT_USB_NETWORK_DRIVER == 0
+    BeginDmaIoctl();
     dxrt_req_meminfo_t mem_info_req;
     mem_info_req.data = meminfo.data;
     mem_info_req.base = meminfo.base;
@@ -131,7 +172,10 @@ int DeviceCore::Read(const dxrt_meminfo_t &meminfo, int ch, bool ctrlCmd)
     mem_info_req.size = meminfo.size;
     mem_info_req.ch = ch;
 
+
     ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_READ_MEM, static_cast<void*>(&mem_info_req));
+
+    EndDmaIoctl();
     std::ignore = ctrlCmd;
 #else
     std::ignore = ch;
@@ -168,6 +212,40 @@ int DeviceCore::Wait(void)
 #endif
     std::ignore = ret;
     return 0;
+}
+
+void DeviceCore::PauseDMA()
+{
+    std::unique_lock<std::mutex> lock(_dmaPauseMutex);
+    _dmaPaused = true;
+    _dmaPauseCv.wait(lock, [this]() { return _inflightDmaIoctl == 0; });
+}
+
+void DeviceCore::ResumeDMA()
+{
+    {
+        std::lock_guard<std::mutex> lock(_dmaPauseMutex);
+        _dmaPaused = false;
+    }
+    _dmaPauseCv.notify_all();
+}
+
+void DeviceCore::BeginDmaIoctl()
+{
+    std::unique_lock<std::mutex> lock(_dmaPauseMutex);
+    _dmaPauseCv.wait(lock, [this]() { return !_dmaPaused; });
+    ++_inflightDmaIoctl;
+}
+
+void DeviceCore::EndDmaIoctl()
+{
+    std::lock_guard<std::mutex> lock(_dmaPauseMutex);
+    DXRT_ASSERT(_inflightDmaIoctl > 0, "DeviceCore DMA inflight counter underflow");
+    --_inflightDmaIoctl;
+    if (_inflightDmaIoctl == 0)
+    {
+        _dmaPauseCv.notify_all();
+    }
 }
 
 
@@ -348,10 +426,72 @@ void DeviceCore::DoCustomCommand(void *data, uint32_t subCmd, uint32_t size)
                     sCmd);
             break;
         }
+        case DX_ADD_WEIGHT_INFO:
+        {
+            Process(dxrt::dxrt_cmd_t::DXRT_CMD_CUSTOM,
+                    data,
+                    sizeof(dxrt_custom_weight_info_t),
+                    sCmd);
+            break;
+        }
+        case DX_DEL_WEIGHT_INFO:
+        {
+            Process(dxrt::dxrt_cmd_t::DXRT_CMD_CUSTOM,
+                    data,
+                    sizeof(dxrt_custom_weight_info_t),
+                    sCmd);
+            break;
+        }
         default:
             LOG_DXRT_ERR("Unknown sub command: " << sCmd);
             break;
     }
+}
+
+void DeviceCore::InitPPCPU(uint64_t mem_offset)
+{
+    size_t fw_size = PPCPUDataLoader::GetDataSize();
+
+#ifndef USE_VNPU
+    void* fw_raw = PPCPUDataLoader::GetData();
+    dxrt_meminfo_t fw_meminfo;
+    fw_meminfo.base   = _info.mem_addr;
+    fw_meminfo.offset = static_cast<uint32_t>(mem_offset);
+    fw_meminfo.size   = static_cast<uint32_t>(fw_size);
+    fw_meminfo.data   = SafeCast::PointerToInteger<void*>(fw_raw);
+#else
+    auto firmwareDma = makeFirmwareDmaInfo(_info.mem_addr, mem_offset, fw_size, _id);
+    const dxrt_meminfo_t& fw_meminfo = firmwareDma.meminfo;
+#endif  // USE_VNPU
+
+    // DeviceCore is a low-level driver-facing layer and does not depend on ServiceLayer abstractions.
+    // Use Write() directly instead of DMAWrite() here.
+    int ret = Write(fw_meminfo);
+    DXRT_ASSERT(ret == 0, "Failed to load PPCPU firmware to device: ret=" + std::to_string(ret));
+
+    dxrt_req_meminfo_t meminfo_req;
+    meminfo_req.base   = fw_meminfo.base;
+    meminfo_req.offset = fw_meminfo.offset;
+    meminfo_req.size   = fw_meminfo.size;
+    meminfo_req.data   = fw_meminfo.data;
+    meminfo_req.ch     = 0;
+
+    DoCustomCommand(&meminfo_req, dxrt_custom_sub_cmt_t::DX_INIT_PPCPU, sizeof(dxrt_req_meminfo_t));
+
+#ifndef USE_VNPU
+    // Integrity check: read back firmware and verify it matches
+    std::vector<uint8_t> readBuf(fw_size, 0);
+    dxrt_meminfo_t check_meminfo = fw_meminfo;
+    check_meminfo.data = SafeCast::PointerToInteger<void*>(readBuf.data());
+    int retCheck = Read(check_meminfo);  // directly call Read instead of DMARead because this is low layer class
+    DXRT_ASSERT(retCheck == 0,
+        "Failed to read back PPCPU firmware from device " + std::to_string(_id) + ": ret=" + std::to_string(retCheck));
+    DXRT_ASSERT(memcmp(fw_raw, readBuf.data(), fw_size) == 0,
+        "PPCPU firmware data mismatch on device " + std::to_string(_id));
+#endif  // USE_VNPU
+
+    LOG_DXRT_S << "PPCPU firmware loaded to device " << _id << " successfully." << std::endl;
+    // CMA buffer automatically released via RAII when unique_ptr goes out of scope
 }
 
 void DeviceCore::ShowPCIEDetails(std::ostream& os)

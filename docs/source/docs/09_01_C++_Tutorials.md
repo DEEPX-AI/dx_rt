@@ -25,7 +25,7 @@ The following is the simplest example of synchronous inference.
 ***`run_sync_model.cpp`***
 ```
 // DX-RT includes
-#include "dxrt/dxrt_api.h"
+#include <dxrt/dxrt_cxx_api.h>
 ...
 
 int main()
@@ -94,7 +94,7 @@ The following is an example of asynchronous inference using a callback function.
 ***`run_async_model.cpp`***
 ```
 // DX-RT includes
-#include "dxrt/dxrt_api.h"
+#include <dxrt/dxrt_cxx_api.h>
 ...
 
 int main(int argc, char* argv[])
@@ -184,7 +184,7 @@ Inference Engine RunAsync, Callback, User Argument, Thread
 ***`run_async_model_thread.cpp`***
 ```
 // DX-RT includes
-#include "dxrt/dxrt_api.h"
+#include <dxrt/dxrt_cxx_api.h>
 ...
 
 static const int THREAD_COUNT = 3;
@@ -343,7 +343,7 @@ Inference Engine RunAsync, Wait
 ***`run_async_model_wait.cpp`***
 ```
 // DX-RT includes
-#include "dxrt/dxrt_api.h"
+#include <dxrt/dxrt_cxx_api.h>
 ...
 
 // concurrent queue is a thread-safe queue data structure 
@@ -570,7 +570,7 @@ Inference Engine Run, Inference Option
 ***`run_sync_model_bound.cpp`***
 ```
 // DX-RT includes
-#include "dxrt/dxrt_api.h"
+#include <dxrt/dxrt_cxx_api.h>
 ...
 
 int main()
@@ -596,9 +596,6 @@ int main()
         // create inference engine instance with model
         dxrt::InferenceEngine ie(modelPath, op);
 
-        // create temporary input buffer for example 
-        std::vector<uint8_t> inputPtr(ie.GetInputSize(), 0);
-
         // inference loop
         for(int i = 0; i < 100; ++i)
         {
@@ -608,7 +605,7 @@ int main()
             // inference synchronously with boundOption
             // use only one npu core
             // ownership of the outputs is transferred to the user 
-            auto outputs = ie.Run(inputPtr.data());
+            auto outputs = ie.Run(inputPtr);
 
             // post processing
             postProcessing(outputs);
@@ -652,9 +649,10 @@ dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::SHOW_PRO
   - **`Configuration::GetInstance()`**: Accesses the single, global instance of the configuration manager.
   - **`.SetEnable(...)`**: Enables engine features. Here, it's configured to print detailed model information and performance profiling data when the `InferenceEngine` is initialized.
 
+
 #### Querying Device Status
 
-The `DeviceStatus` class is used to get real-time operational information from the NPU hardware. This is often done after a workload to check the device's state.
+The `DeviceStatus` class provides real-time device information including hardware spec, voltage, clock, temperature, NPU core utilization, and DRAM memory usage.
 
 ```cpp
 // Get the number of available devices
@@ -663,21 +661,23 @@ auto device_count = dxrt::DeviceStatus::GetDeviceCount();
 // Loop through each device
 for(int i = 0; i < device_count; ++i)
 {
-    // Get a status snapshot for the current device
+    // Get a status object for the current device
     auto device_status = dxrt::DeviceStatus::GetCurrentStatus(i);
     
-    // Query and print specific metrics like temperature, voltage, and clock speed
+    // Query and print specific metrics
     log.Info("Device: " + std::to_string(device_status.GetId()));
     log.Info("   Temperature: " + std::to_string(device_status.GetTemperature(0)));
     log.Info("   Voltage: " + std::to_string(device_status.GetNpuVoltage(0)));
     log.Info("   Clock: " + std::to_string(device_status.GetNpuClock(0)));
+    log.Info("   Core Utilization: " + std::to_string(device_status.GetCoreUtilization(0)) + "%");
+    log.Info("   Memory Used: " + std::to_string(device_status.GetMemoryUsed()) + " bytes");
+    log.Info("   Memory Free: " + std::to_string(device_status.GetMemoryFree()) + " bytes");
 }
 ```
 
   - **`DeviceStatus::GetDeviceCount()`**: A static method that returns the number of connected DEEPX devices.
-  - **`DeviceStatus::GetCurrentStatus(i)`**: Returns a status object containing a **snapshot** of the hardware metrics for device `i` at that specific moment.
-  - **`device_status.Get...()`**: Instance methods used to retrieve individual metrics from the status object, such as `GetTemperature()`, `GetNpuVoltage()`, and `GetNpuClock()` for a specific NPU core (e.g., core 0).
-
+  - **`DeviceStatus::GetCurrentStatus(i)`**: Returns a `DeviceStatus` object containing all device metrics for device `i`.
+  - **`device_status.Get...()`**: Instance methods to retrieve individual metrics such as `GetTemperature()`, `GetNpuVoltage()`, `GetNpuClock()`, `GetCoreUtilization()`, `GetMemoryUsed()`, `GetMemoryFree()`.
 -----
 
 ### Profiler Configuration
@@ -774,12 +774,12 @@ Figure. Multi-model and Multi-output
 </p>
 </div>
   
-Multi-model, Async, Wait Thread `(CPU_1 → {NPU_1 + NPU_2} → CPU_2`  
+Multi-model, Async, Wait Thread `(CPU_1 → {NPU_1 + NPU_2} → CPU_2)`  
 
 ***`display_async_wait.cpp`***
 ```
 // DX-RT includes
-#include "dxrt/dxrt_api.h"
+#include <dxrt/dxrt_cxx_api.h>
 ...
 
 // input processing main thread with 2 InferenceEngine (asynchronous) 
@@ -922,7 +922,7 @@ Multi-model, Async, Wait Thread `(CPU_1 → NPU_1 → CPU_2 → NPU_2 → CPU_3)
 ***`display_async_pipe.cpp`***
 ```
 // DX-RT includes
-#include "dxrt/dxrt_api.h"
+#include <dxrt/dxrt_cxx_api.h>
 ...
 
 // input main thread 

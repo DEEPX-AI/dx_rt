@@ -17,6 +17,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <csignal>
 #include <chrono>
 #elif _WIN32
 #include <windows.h>
@@ -32,22 +33,28 @@ SharedMemoryWriter::~SharedMemoryWriter()
 
 bool SharedMemoryWriter::Initialize()
 {
-    if (_initialized) 
+    if (_initialized)
     {
         return true;
     }
 
 #ifdef __linux__
-    // Create or open shared memory
+    // Open-or-create shared memory (reader-first/writer-first both supported).
     _shm_fd = shm_open(MONITOR_SHM_NAME, O_CREAT | O_RDWR, 0666);
-    if (_shm_fd == -1) 
+    if (_shm_fd != -1)
     {
-        LOG_DXRT_ERR("Failed to create shared memory: " << MONITOR_SHM_NAME);
+        // Best effort: keep permissions world-readable/writable across users.
+        (void)fchmod(_shm_fd, 0666);
+    }
+    if (_shm_fd == -1)
+    {
+        LOG_DXRT_ERR("Failed to open/create shared memory: " << MONITOR_SHM_NAME
+                     << " (" << strerror(errno) << ")");
         return false;
     }
 
     // Set size (always set to ensure correct size)
-    if (ftruncate(_shm_fd, sizeof(MonitorSharedMemory)) == -1) 
+    if (ftruncate(_shm_fd, sizeof(MonitorSharedMemory)) == -1)
     {
         LOG_DXRT_ERR("Failed to set shared memory size");
         close(_shm_fd);
@@ -57,10 +64,10 @@ bool SharedMemoryWriter::Initialize()
 
     // Map to memory
     _shm_ptr = static_cast<MonitorSharedMemory*>(
-        mmap(nullptr, sizeof(MonitorSharedMemory), 
+        mmap(nullptr, sizeof(MonitorSharedMemory),
              PROT_READ | PROT_WRITE, MAP_SHARED, _shm_fd, 0));
-    
-    if (_shm_ptr == MAP_FAILED) 
+
+    if (_shm_ptr == MAP_FAILED)
     {
         LOG_DXRT_ERR("Failed to map shared memory");
         close(_shm_fd);
@@ -69,19 +76,27 @@ bool SharedMemoryWriter::Initialize()
         return false;
     }
 
-    // Initialize structure only if magic number is invalid (first time or corrupted)
-    if (_shm_ptr->magic != MONITOR_SHM_MAGIC) 
+    // Initialize or reuse existing shared memory
+    if (_shm_ptr->magic != MONITOR_SHM_MAGIC || _shm_ptr->version != MONITOR_SHM_VERSION)
     {
         LOG_DXRT_DBG << "Initializing new shared memory";
         new (_shm_ptr) MonitorSharedMemory();
-    } 
-    else 
+    }
+    else if (_shm_ptr->writer_pid != 0 && kill(static_cast<pid_t>(_shm_ptr->writer_pid), 0) != 0 && errno != EPERM)
+    {
+        // Previous writer process is dead (stale SHM from crash/SIGKILL).
+        // Reset device data and take ownership.
+        LOG_DXRT_DBG << "Previous writer (pid=" << _shm_ptr->writer_pid
+                     << ") is dead, reclaiming shared memory";
+        new (_shm_ptr) MonitorSharedMemory();
+    }
+    else
     {
         LOG_DXRT_DBG << "Reusing existing shared memory";
     }
-    
+
     _shm_ptr->writer_pid = getpid();
-    
+
     _initialized = true;
     LOG_DXRT_DBG << "Shared memory writer initialized: " << MONITOR_SHM_NAME;
     return true;
@@ -123,8 +138,8 @@ bool SharedMemoryWriter::Initialize()
         return false;
     }
 
-    // 새로 생성되었거나 magic이 유효하지 않으면(손상) 초기화
-    if (!already_existed || _shm_ptr->magic != MONITOR_SHM_MAGIC)
+    // 새로 생성되었거나 magic/version이 유효하지 않으면(손상/비호환) 초기화
+    if (!already_existed || _shm_ptr->magic != MONITOR_SHM_MAGIC || _shm_ptr->version != MONITOR_SHM_VERSION)
     {
         LOG_DXRT << "Initializing new shared memory";
         new (_shm_ptr) MonitorSharedMemory();
@@ -147,64 +162,58 @@ bool SharedMemoryWriter::Initialize()
 
 void SharedMemoryWriter::Cleanup()
 {
-    if (!_initialized) 
+    if (!_initialized)
     {
         return;
     }
 
 #ifdef __linux__
-    if (_shm_ptr != nullptr && _shm_ptr != MAP_FAILED) 
+    if (_shm_ptr != nullptr && _shm_ptr != MAP_FAILED)
     {
         // Use sequence lock to safely reset all device data
         BeginWrite();
-        
+
         // Reset all device data before cleanup
-        for (size_t i = 0; i < _shm_ptr->device_count; ++i) 
+        for (size_t i = 0; i < _shm_ptr->device_count; ++i)
         {
             auto* device = &_shm_ptr->devices[i];
             device->is_active = false;
-            
+
             // Reset utilization to 0
             device->utilization[0] = 0.0;
             device->utilization[1] = 0.0;
             device->utilization[2] = 0.0;
-            
+
             // Reset memory stats (keep total, reset used to 0)
             device->memory_used = 0;
             device->memory_free = device->memory_total;
-            
-            // Reset core stats to 0
-            for (size_t j = 0; j < 3; ++j) 
-            {
-                device->voltage[j] = 0;
-                device->clock[j] = 0;
-                device->temperature[j] = 0;
-            }
+
+            device->spec = dxrt_device_info_t{};
+            device->dev_info = dxrt_dev_info_t{};
+            device->status = dxrt_device_status_t{};
         }
-        
+
         _shm_ptr->writer_pid = 0;  // Signal that writer is no longer active
-        
+
         auto now = std::chrono::system_clock::now();
         auto duration = now.time_since_epoch();
         _shm_ptr->last_update_timestamp = std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count();
-        
+
         EndWrite();
-        
+
         munmap(_shm_ptr, sizeof(MonitorSharedMemory));
         _shm_ptr = nullptr;
     }
 
-    if (_shm_fd != -1) 
+    if (_shm_fd != -1)
     {
         close(_shm_fd);
         _shm_fd = -1;
     }
 
-    // Unlink shared memory to clean up
-    // Note: Processes that already have it mapped can continue using it
-    // The memory will be freed when the last process unmaps it
-    shm_unlink(MONITOR_SHM_NAME);
-    LOG_DXRT_DBG << "Shared memory writer cleaned up and unlinked: " << MONITOR_SHM_NAME;
+    // Keep SHM object persistent so reader/writer can attach independently.
+    // A future writer will reopen and reuse/reinitialize this segment as needed.
+    LOG_DXRT_DBG << "Shared memory writer cleaned up: " << MONITOR_SHM_NAME;
 #elif _WIN32
     if (_shm_ptr != nullptr)
     {
@@ -219,12 +228,9 @@ void SharedMemoryWriter::Cleanup()
             device->utilization[2] = 0.0;
             device->memory_used = 0;
             device->memory_free = device->memory_total;
-            for (size_t j = 0; j < 3; ++j)
-            {
-                device->voltage[j] = 0;
-                device->clock[j] = 0;
-                device->temperature[j] = 0;
-            }
+            device->spec = dxrt_device_info_t{};
+            device->dev_info = dxrt_dev_info_t{};
+            device->status = dxrt_device_status_t{};
         }
 
         _shm_ptr->writer_pid = 0;
@@ -254,7 +260,7 @@ void SharedMemoryWriter::Cleanup()
 
 void SharedMemoryWriter::UpdateTimestamp()
 {
-    if (!_initialized || _shm_ptr == nullptr) 
+    if (!_initialized || _shm_ptr == nullptr)
     {
         return;
     }
@@ -267,22 +273,22 @@ void SharedMemoryWriter::UpdateTimestamp()
 
 MonitorDeviceData* SharedMemoryWriter::GetDeviceData(int deviceId)
 {
-    if (!_initialized || _shm_ptr == nullptr) 
+    if (!_initialized || _shm_ptr == nullptr)
     {
         return nullptr;
     }
 
     // Find existing device
-    for (size_t i = 0; i < _shm_ptr->device_count; ++i) 
+    for (size_t i = 0; i < _shm_ptr->device_count; ++i)
     {
-        if (_shm_ptr->devices[i].device_id == static_cast<uint32_t>(deviceId)) 
+        if (_shm_ptr->devices[i].device_id == static_cast<uint32_t>(deviceId))
         {
             return &_shm_ptr->devices[i];
         }
     }
 
     // Add new device if space available
-    if (_shm_ptr->device_count < MAX_MONITOR_DEVICES) 
+    if (_shm_ptr->device_count < MAX_MONITOR_DEVICES)
     {
         auto* newDevice = &_shm_ptr->devices[_shm_ptr->device_count];
         newDevice->device_id = static_cast<uint32_t>(deviceId);
@@ -296,17 +302,17 @@ MonitorDeviceData* SharedMemoryWriter::GetDeviceData(int deviceId)
 
 void SharedMemoryWriter::BeginWrite()
 {
-    if (!_initialized || _shm_ptr == nullptr) 
+    if (!_initialized || _shm_ptr == nullptr)
     {
         return;
     }
-    
+
     // Increment sequence to make it odd (signals "update in progress")
     // fetch_add returns the previous value
     auto prev = _shm_ptr->sequence.fetch_add(1, std::memory_order_release);
-    
+
     // Verify that write is not already in progress (previous value should be even)
-    if ((prev & 1) != 0) 
+    if ((prev & 1) != 0)
     {
         LOG_DXRT_DBG << "BeginWrite called while write already in progress (sequence=" << prev << ")" ;
     }
@@ -314,17 +320,17 @@ void SharedMemoryWriter::BeginWrite()
 
 void SharedMemoryWriter::EndWrite()
 {
-    if (!_initialized || _shm_ptr == nullptr) 
+    if (!_initialized || _shm_ptr == nullptr)
     {
         return;
     }
-    
+
     // Increment sequence to make it even (signals "update complete")
     // fetch_add returns the previous value
     auto prev = _shm_ptr->sequence.fetch_add(1, std::memory_order_release);
-    
+
     // Verify that write was in progress (previous value should be odd)
-    if ((prev & 1) == 0) 
+    if ((prev & 1) == 0)
     {
         LOG_DXRT_DBG << "EndWrite called without corresponding BeginWrite (sequence=" << prev << ")" ;
     }
@@ -333,7 +339,7 @@ void SharedMemoryWriter::EndWrite()
 void SharedMemoryWriter::UpdateDeviceUtilization(int deviceId, const std::array<double, 3>& utilization)
 {
     auto* device = GetDeviceData(deviceId);
-    if (device == nullptr) 
+    if (device == nullptr)
     {
         return;
     }
@@ -347,7 +353,7 @@ void SharedMemoryWriter::UpdateDeviceUtilization(int deviceId, const std::array<
 void SharedMemoryWriter::UpdateDeviceMemory(int deviceId, uint64_t total, uint64_t used, uint64_t free)
 {
     auto* device = GetDeviceData(deviceId);
-    if (device == nullptr) 
+    if (device == nullptr)
     {
         return;
     }
@@ -359,17 +365,47 @@ void SharedMemoryWriter::UpdateDeviceMemory(int deviceId, uint64_t total, uint64
     EndWrite();
 }
 
-void SharedMemoryWriter::UpdateDeviceCoreStats(int deviceId, const std::array<uint32_t, 3>& voltage, const std::array<uint32_t, 3>& clock, const std::array<uint32_t, 3>& temperature)
+void SharedMemoryWriter::UpdateDeviceSpec(int deviceId, const dxrt_device_info_t& spec, const dxrt_dev_info_t& devInfo)
 {
     auto* device = GetDeviceData(deviceId);
-    if (device == nullptr) 
+    if (device == nullptr)
     {
         return;
     }
     BeginWrite();
-    std::copy(voltage.begin(), voltage.end(), device->voltage.begin());
-    std::copy(clock.begin(), clock.end(), device->clock.begin());
-    std::copy(temperature.begin(), temperature.end(), device->temperature.begin());
+    device->spec = spec;
+    device->dev_info = devInfo;
+    UpdateTimestamp();
+    EndWrite();
+}
+
+void SharedMemoryWriter::UpdateDeviceFullStatus(int deviceId, const dxrt_device_status_t& deviceStatus)
+{
+    auto* device = GetDeviceData(deviceId);
+    if (device == nullptr)
+    {
+        return;
+    }
+    BeginWrite();
+    device->status = deviceStatus;
+    UpdateTimestamp();
+    EndWrite();
+}
+
+void SharedMemoryWriter::UpdateDeviceCoreStats(int deviceId, const std::array<uint32_t, 3>& voltage, const std::array<uint32_t, 3>& clock, const std::array<uint32_t, 3>& temperature)
+{
+    auto* device = GetDeviceData(deviceId);
+    if (device == nullptr)
+    {
+        return;
+    }
+    BeginWrite();
+    std::copy(voltage.begin(), voltage.end(), device->status.voltage);
+    std::copy(clock.begin(), clock.end(), device->status.clock);
+    std::copy(temperature.begin(), temperature.end(), device->status.temperature);
+    device->status.voltage[3] = 0;
+    device->status.clock[3] = 0;
+    device->status.temperature[3] = 0;
     UpdateTimestamp();
     EndWrite();
 }
@@ -377,7 +413,7 @@ void SharedMemoryWriter::UpdateDeviceCoreStats(int deviceId, const std::array<ui
 void SharedMemoryWriter::SetDeviceActive(int deviceId, bool active)
 {
     auto* device = GetDeviceData(deviceId);
-    if (device == nullptr) 
+    if (device == nullptr)
     {
         return;
     }
@@ -391,7 +427,7 @@ void SharedMemoryWriter::SetDeviceActive(int deviceId, bool active)
 void SharedMemoryWriter::IncrementInferenceCount(int deviceId)
 {
     auto* device = GetDeviceData(deviceId);
-    if (device == nullptr) 
+    if (device == nullptr)
     {
         return;
     }

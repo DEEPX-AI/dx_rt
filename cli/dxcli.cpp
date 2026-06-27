@@ -25,9 +25,16 @@ using std::string;
 
 int main(int argc, char *argv[])
 {
-    std::cout << "DXRT v" << dxrt::Configuration::GetInstance().GetVersion() << std::endl;
+    {
+        const std::string gitHash = dxrt::Configuration::GetInstance().GetGitHash();
+        std::cout << "DXRT v" << dxrt::Configuration::GetInstance().GetVersion()
+                  << (gitHash.empty() ? "" : "+" + gitHash) << std::endl;
+    }
 
-    cxxopts::Options options("dxrt-cli", "DXRT v" + dxrt::Configuration::GetInstance().GetVersion() + " CLI");
+    std::string prog_name(argv[0]);
+    { auto s = prog_name.rfind('/');  if (s != std::string::npos) prog_name = prog_name.substr(s + 1); }
+    { auto s = prog_name.rfind('\\'); if (s != std::string::npos) prog_name = prog_name.substr(s + 1); }
+    cxxopts::Options options(prog_name, "DXRT v" + dxrt::Configuration::GetInstance().GetVersion() + " CLI");
     options.add_options()
         ("s, status", "Get device status")
         ("i, info", "Get device info")

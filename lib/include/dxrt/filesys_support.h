@@ -20,7 +20,5 @@ namespace dxrt {
     DXRT_API uint64_t getFileSize(const std::string& filename);
     DXRT_API bool fileExists(const std::string& path);
     DXRT_API std::string getExtension(const std::string& path);
-    DXRT_API std::string getDxrtErrorDumpWritePath(int deviceId);
-    DXRT_API std::string getDxrtErrorDumpReadPath(int deviceId);
 }
 

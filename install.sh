@@ -255,6 +255,10 @@ function install_onnx()
         else
             echo ""
             echo " onnxruntime install library for your local system "
+            # Remove stale ORT libraries to prevent ldconfig from picking an
+            # older/newer version over the one we are installing.
+            sudo rm -f /usr/local/lib/libonnxruntime.so*
+            sudo rm -f /usr/local/lib/libonnxruntime_providers_shared.so*
             sudo cp -a $ONNX_ARCH_FOLDER/lib/* /usr/local/lib/
             sudo cp -a $ONNX_ARCH_FOLDER/include/* /usr/local/include/
             echo " copy onnxruntime libraries to your local system (/usr/local)"

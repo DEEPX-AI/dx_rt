@@ -11,7 +11,7 @@ The synchronous Run method uses a single NPU core to perform inference in a bloc
 ***`run_sync_model.py`***
 
 ```
-# DX-RT importes
+# DX-RT imports
 from dx_engine import InferenceEngine
 ...
 
@@ -22,7 +22,7 @@ if __name__ == "__main__":
     # create inference engine instance with model
     ie = InferenceEngine(modelPath)
 
-    input = [np.zeros(ie.GetInputSize(), dtype=np.uint8)]
+    input = [np.zeros(ie.get_input_size(), dtype=np.uint8)]
 
     # inference loop
     for i in range(loop_count):
@@ -106,7 +106,7 @@ if __name__ == "__main__":
     ie.register_callback(onInferenceCallbackFunc)
 
 
-    input = [np.zeros(ie.GetInputSize(), dtype=np.uint8)]
+    input = [np.zeros(ie.get_input_size(), dtype=np.uint8)]
 
     # inference loop
     for i in range(loop_count):
@@ -137,7 +137,7 @@ Inference Engine RunAsync, Callback, User Argument, Thread
 from dx_engine import InferenceEngine
 ...
 
-THRAD_COUNT = 3
+THREAD_COUNT = 3
 total_count = 0
 q = queue.Queue()
 
@@ -180,7 +180,7 @@ def onInferenceCallbackFunc(outputs, user_arg):
 
         total_count += 1
 
-        if ( total_count ==  loop_count * THRAD_COUNT) :
+        if ( total_count == loop_count * THREAD_COUNT) :
             q.put(0)
 
     return 0
@@ -314,7 +314,7 @@ if __name__ == "__main__":
         output_buffers = []
         index = 0
         for b in range(batch_count):
-            input_buffers.append([np.array([np.random.randint(0, 255)],  dtype=np.uint8)])
+            input_buffers.append([np.array([np.random.randint(0, 255)], dtype=np.uint8)])
             output_buffers.append([np.zeros(ie.get_output_size(), dtype=np.uint8)])
             index = index + 1
 
@@ -342,7 +342,7 @@ Inference Engine Run, Inference Option
 
 - select devices  
   : default device is `[]`  
-  : Choose the device to utilize  (ex. `[0, 2]`)  
+  : Choose the device to utilize (ex. `[0, 2]`)  
 - select bound option per device  
   : `InferenceOption.BOUND_OPTION.NPU_ALL`  
   : `InferenceOption.BOUND_OPTION.NPU_0`  
@@ -371,7 +371,7 @@ if __name__ == "__main__":
     # select devices
     option.devices = [0]
 
-    # NPU bound opion (NPU_ALL or NPU_0 or NPU_1 or NPU_2)
+    # NPU bound option (NPU_ALL or NPU_0 or NPU_1 or NPU_2)
     option.bound_option = InferenceOption.BOUND_OPTION.NPU_ALL
 
     # use ONNX Runtime (True or False)
@@ -426,9 +426,10 @@ logger.info('Device driver version: ' + config.get_driver_version())
   - **`config.set_enable(...)`**: Turns specific engine features on or off. In this case, it enables printing model information and performance profiles upon loading.
   - **`config.get_version()`**: Fetches read-only information, such as software and driver versions.
 
+
 #### Querying Device Status
 
-The `DeviceStatus` class is used to get the real-time operational status of the NPU hardware, such as temperature and clock speed. This is typically done after inference is complete to check the hardware's state.
+The `DeviceStatus` class provides real-time device information including voltage, clock, temperature, NPU core utilization, and DRAM memory usage.
 
 ```python
 # Get the number of available devices
@@ -436,24 +437,29 @@ device_count = DeviceStatus.get_device_count()
 
 # Loop through each device
 for i in range(device_count):
-    # Get a status snapshot for the current device
+    # Get a status object for the current device
     device_status = DeviceStatus.get_current_status(i)
     logger.info(f'Device {device_status.get_id()}')
 
     # Loop through each NPU core to get its metrics
-    for c in range(3): # Assuming 3 cores for this example
+    for c in range(3):
         logger.info(
             f'   NPU Core {c} '
             f'Temperature: {device_status.get_temperature(c)} '
             f'Voltage: {device_status.get_npu_voltage(c)} '
             f'Clock: {device_status.get_npu_clock(c)}'
         )
+
+    # Runtime usage (requires dxrtd service)
+    logger.info(f'   Core Utilization: {device_status.get_core_utilization(0):.1f}%')
+    logger.info(f'   Memory Used: {device_status.get_memory_used()} bytes')
+    logger.info(f'   Memory Free: {device_status.get_memory_free()} bytes')
 ```
 
-  - **`DeviceStatus.get_device_count()`**: A static method that returns the number of connected DEEPX devices.
-  - **`DeviceStatus.get_current_status(i)`**: Returns a status object containing a **snapshot** of the hardware metrics for device `i` at that moment.
-  - **`device_status.get_temperature(c)`**: An instance method that returns the temperature (in Celsius) for a specific NPU core `c`. The `get_npu_voltage` and `get_npu_clock` methods work similarly.
-
+  - **`DeviceStatus.get_device_count()`**: Returns the number of connected DEEPX devices.
+  - **`DeviceStatus.get_current_status(i)`**: Returns a `DeviceStatus` object with all device metrics.
+  - **`device_status.get_temperature(c)`**, **`get_npu_voltage(c)`**, **`get_npu_clock(c)`**: Hardware status.
+  - **`device_status.get_core_utilization(c)`**, **`get_memory_used()`**, **`get_memory_free()`**: Runtime usage data.
 ---
 
 ### Profiler Configuration

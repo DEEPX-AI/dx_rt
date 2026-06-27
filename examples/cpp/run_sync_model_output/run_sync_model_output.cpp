@@ -7,7 +7,7 @@
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
-#include "dxrt/dxrt_api.h"
+#include "dxrt/dxrt_cxx_api.h"
 #include "dxrt/extern/cxxopts.hpp"
 #include "../include/logger.h"
 #include "../include/simple_circular_buffer_pool.h"

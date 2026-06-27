@@ -26,7 +26,8 @@ enum ERROR_CODE {  // NOSONAR:S3642
     INVALID_MODEL,
     MODEL_PARSING,
     SERVICE_IO,
-    DEVICE_IO
+    DEVICE_IO,
+    INSUFFICIENT_MEMORY
 };
 
 #define EXCEPTION_MESSAGE(msg) ("\"" + std::string(msg) + "\":" + std::string(__FILE__) + ":" + std::to_string(__LINE__) + ":" + __func__)
@@ -131,6 +132,14 @@ class DXRT_API DeviceIOException : public Exception
  public:
     explicit DeviceIOException(const std::string& msg = "");
     ~DeviceIOException() override = default;
+
+};
+
+class DXRT_API InsufficientMemoryException : public Exception
+{
+ public:
+    explicit InsufficientMemoryException(const std::string& msg = "");
+    ~InsufficientMemoryException() override = default;
 
 };
 

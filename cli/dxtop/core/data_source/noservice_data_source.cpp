@@ -33,6 +33,12 @@ bool NoServiceDataSource::TryReconnect()
         // SharedMemory doesn't exist yet, Writer not started
         return false;
     }
+
+    // SHM exists but writer is dead — don't serve stale data
+    if (!_reader.IsWriterAlive())
+    {
+        return false;
+    }
     
     // Get current writer PID
     _lastWriterPid = _reader.GetWriterPid();

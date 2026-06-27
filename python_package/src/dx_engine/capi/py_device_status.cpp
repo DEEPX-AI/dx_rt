@@ -4,8 +4,7 @@
 #include <numeric>  
 #include <stdexcept>
 
-#include "dxrt/dxrt_api.h" 
-#include "dxrt/device_info_status.h"
+#include "dxrt/dxrt_cxx_api.h"
 
 namespace dxrt
 {
@@ -29,5 +28,30 @@ namespace dxrt
     {
         return deviceStatus.NpuClock(ch);
     }
-    
+
+    double pyDeviceStatus_GetCoreUtilization(DeviceStatus &deviceStatus, int coreId)
+    {
+        return deviceStatus.GetCoreUtilization(coreId);
+    }
+
+    uint64_t pyDeviceStatus_GetMemoryUsed(DeviceStatus &deviceStatus)
+    {
+        return deviceStatus.GetMemoryUsed();
+    }
+
+    uint64_t pyDeviceStatus_GetMemoryFree(DeviceStatus &deviceStatus)
+    {
+        return deviceStatus.GetMemoryFree();
+    }
+
+    bool pyDeviceStatus_IsValid(DeviceStatus &deviceStatus)
+    {
+        return deviceStatus.IsValid();
+    }
+
+    std::string pyDeviceStatus_GetDriverVersion(DeviceStatus &deviceStatus)
+    {
+        return deviceStatus.DriverVersionStr();
+    }
+
 } // namespace dxrt

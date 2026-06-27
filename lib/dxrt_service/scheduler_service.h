@@ -18,6 +18,7 @@
 #include <memory>
 #include <utility>
 #include <queue>
+#include <set>
 #include <vector>
 #include <map>
 #include "memory_service.hpp"
@@ -25,9 +26,39 @@
 #include "dxrt/device.h"
 #include "service_error.h"
 
+class SchedulerService;
+
+// Callback interface from SchedulerService to its owner (DxrtService / DxrtServiceV2).
+// Implementations must be thread-safe: methods may be called from OutputReceiverThread.
+class DXRT_INTERNAL_API ISchedulerListener
+{
+public:
+    virtual ~ISchedulerListener() = default;
+    // Called after a successful inference or a deferred error response.
+    virtual void onInferenceComplete(const dxrt::dxrt_response_t& response, int deviceId) = 0;
+    // Called on device-level errors (broadcasts to all clients on deviceId).
+    virtual void onSchedulerError(dxrt::dxrt_server_err_t err, uint32_t errCode, int deviceId) = 0;
+    // Returns true if (pid, deviceId, taskId) is still valid for inference dispatch.
+    virtual bool validateTask(pid_t pid, int deviceId, int taskId) = 0;
+    // Fired (outside _lock) when the last in-flight entry for (pid, taskId) leaves
+    // _map.  Default no-op; V2 overrides for deferred RMAP/Weight memory cleanup.
+    virtual void onTaskDrained(pid_t /*pid*/, int /*taskId*/) {}
+};
+
 class SchedulerService
 {
  public:
+    // Request lifecycle state.
+    // PENDING  : queued, not yet sent to NPU.
+    // RUNNING  : sent to NPU via ioctl, awaiting response.
+    // CANCELLED: process disconnected while request was RUNNING; FinishJobs
+    //            will silently discard the response when NPU finishes.
+    struct RequestEntry {
+        dxrt::dxrt_request_acc_t data{};
+        enum class State : uint8_t { PENDING, RUNNING, CANCELLED } state = State::PENDING;
+        int deviceId = -1;  // set when state transitions to RUNNING
+    };
+
     explicit SchedulerService(std::vector<std::shared_ptr<dxrt::ServiceDevice>> devices_);
     virtual ~SchedulerService();
     void AddScheduler(const dxrt::dxrt_request_acc_t& packet_data, int deviceId);
@@ -37,8 +68,9 @@ class SchedulerService
 
     int Load(int deviceId) const {return _loads[deviceId];}
 
-    void SetCallback(std::function<void(const dxrt::dxrt_response_t&, int)> f);
-    void SetErrorCallback(std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)> f);
+    // Replaces the old SetCallback / SetErrorCallback / SetTaskValidator.
+    // Must be called before any inference is dispatched.
+    void SetListener(ISchedulerListener* listener);
     void cleanDiedProcess(int pid);
     void StopScheduler(int procId);
     void StartScheduler(int procId);
@@ -46,15 +78,16 @@ class SchedulerService
     void ClearAllLoad();
     void ClearProcLoad(int procId);
 
-    // Task validity verification callback
-    void SetTaskValidator(std::function<bool(pid_t, int, int)> validator);
-
     // Stop inference requests for a specific task
     void StopTaskInference(pid_t pid, int deviceId, int taskId);
     void StopAllInferenceForProcess(pid_t pid, int deviceId);
 
     int GetRunningRequestCount(pid_t pid, int deviceId);
+    // Returns task IDs that have at least one RUNNING entry for this pid.
+    // Used by HandleProcessDeInit to identify tasks needing deferred memory free.
+    std::vector<int> GetRunningTaskIds(pid_t pid);
     bool IsRequestRunning(pid_t pid, int deviceId, int reqId);
+    bool HasPendingRequest(pid_t pid, int reqId);
     void AddRunningRequest(pid_t pid, int deviceId, int reqId);
     void RemoveRunningRequest(pid_t pid, int deviceId, int reqId);
     void ClearRunningRequests(pid_t pid, int deviceId);
@@ -71,18 +104,18 @@ class SchedulerService
  private:
     std::vector<std::atomic<int> > _loads;
     std::map<int,std::atomic<int>> _loadsProc;
-    std::map<int,std::map<int, dxrt::dxrt_request_acc_t>> _map;
-    std::mutex _lock;
+    // Single source of truth: [pid][reqId] -> RequestEntry (state + data).
+    // RUNNING entries remain here until FinishJobs removes them, so we always
+    // have the task_id available for updateTaskInferenceTime.
+    std::map<int, std::map<int, RequestEntry>> _map;
+    std::mutex _lock;  // guards _map, _loadsProc, _pendingErrorCallbacks
     std::vector<std::shared_ptr<dxrt::ServiceDevice>> _devices;
-    std::function<void(const dxrt::dxrt_response_t&, int)> _callBack;
-    std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)> _errCallBack;
+    // Listener for inference completion, errors, task validation, and drain events.
+    // Owned by the service; must outlive SchedulerService.
+    ISchedulerListener* _listener = nullptr;
 
-    // Tracking running requests per (pid, deviceId)
-    std::map<std::pair<pid_t, int>, std::set<int>> _runningRequests;
-    std::mutex _runningRequestsMutex;
-
-    // Task validity verification callback
-    std::function<bool(pid_t, int, int)> _taskValidator;
+    // Error responses queued while _lock is held; flushed after unlock.
+    std::vector<std::pair<dxrt::dxrt_response_t, int>> _pendingErrorCallbacks;
 };
 
 class FIFOSchedulerService : public SchedulerService

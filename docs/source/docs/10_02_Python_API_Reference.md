@@ -1,3 +1,87 @@
+## Deprecated API Migration Guide
+
+The following `InferenceEngine` methods have been deprecated and will be removed in a future release. Please update your code to use the recommended alternatives.
+
+### Naming Convention Changes (PascalCase → snake_case)
+
+| Deprecated Method | Replacement | Notes |
+|---|---|---|
+| `Run(input_feed_list, user_arg)` | `run(input_data, user_args=user_arg)` | Parameter renamed to `user_args` (plural). Note: `run_async`, `run_multi_input`, `run_async_multi_input` retain the singular `user_arg` form |
+| `RunBatch(input_buffers, output_buffers, user_args)` | `run(input_buffers, output_buffers=output_buffers, user_args=user_args)` | Use `run()` with batch-formatted inputs |
+| `RunAsync(input_feed_list, user_arg)` | `run_async(input_data, user_arg=user_arg)` | Parameter name kept as singular `user_arg` (only `run()` uses plural `user_args`) |
+| `RunBenchMark(loop_cnt, input_feed_list)` | `run_benchmark(num_loops, input_data)` | Parameter names changed |
+| `ValidateDevice(input_feed_list, device_id)` | `validate_device(input_data, device_id)` | |
+| `RegisterCallBack(callback)` | `register_callback(callback)` | |
+| `Wait(req_id)` | `wait(job_id)` | Parameter name changed: `req_id` → `job_id` |
+| `is_PPU()` | `is_ppu()` | |
+
+### Method Renaming (Consistency Improvements)
+
+| Deprecated Method | Replacement | Notes |
+|---|---|---|
+| `input_size()` | `get_input_size()` | |
+| `output_size()` | `get_output_size()` | |
+| `task_order()` | `get_task_order()` | |
+| `latency()` | `get_latency()` | |
+| `inference_time()` | `get_npu_inference_time()` | |
+| `get_outputs()` | `get_all_task_outputs()` | |
+| `bitmatch_mask(index)` | `get_bitmatch_mask(index)` | |
+| `get_num_tails()` | `get_num_tail_tasks()` | |
+| `run_batch(input_buffers, output_buffers, user_args)` | `run(input_buffers, output_buffers=output_buffers, user_args=user_args)` | Consolidated into `run()` |
+
+### Data Type Query Methods
+
+| Deprecated Method | Replacement | Notes |
+|---|---|---|
+| `input_dtype()` | `get_input_tensors_info()` | Access `'dtype'` key from returned dict list |
+| `output_dtype()` | `get_output_tensors_info()` | Access `'dtype'` key from returned dict list |
+| `get_input_data_type()` | `get_input_tensors_info()` | Access `'dtype'` key from returned dict list |
+| `get_output_data_type()` | `get_output_tensors_info()` | Access `'dtype'` key from returned dict list |
+
+### Migration Examples
+
+**Before (deprecated):**
+```python
+engine = InferenceEngine("model.dxnn")
+
+# Inference
+outputs = engine.Run([input_buffer])
+
+# Batch inference
+batch_outputs = engine.RunBatch(input_buffers, output_buffers)
+
+# Async inference
+job_id = engine.RunAsync([input_buffer])
+result = engine.Wait(job_id)
+
+# Query info
+size = engine.input_size()
+dtypes = engine.input_dtype()
+time = engine.inference_time()
+```
+
+**After (recommended):**
+```python
+engine = InferenceEngine("model.dxnn")
+
+# Inference
+outputs = engine.run(input_buffer)
+
+# Batch inference
+batch_outputs = engine.run(input_buffers, output_buffers=output_buffers)
+
+# Async inference
+job_id = engine.run_async(input_buffer)
+result = engine.wait(job_id)
+
+# Query info
+size = engine.get_input_size()
+dtypes = [info['dtype'] for info in engine.get_input_tensors_info()]
+time = engine.get_npu_inference_time()
+```
+
+---
+
 This section describes the Python bindings of the DX-RT SDK. It provides a streamlined interface to the same core functionalities as the C++ SDK, making it ideal for rapid development, prototyping, and integration with Python-based AI workflows.  
 
 ---
@@ -24,7 +108,7 @@ This class is the main Python wrapper for the DXRT Inference Engine. It provides
     # Load model with custom options
     option = InferenceOption()
     option.devices = [0, 1]
-    option.bound_option = InferenceOption.NPU_ALL
+    option.bound_option = InferenceOption.BOUND_OPTION.NPU_ALL
     engine2 = InferenceEngine("model.dxnn", option)
     ```
 
@@ -301,7 +385,7 @@ This class provides a Pythonic interface to configure inference options such as 
 -   **Type**: `bool`.  
 
 ***`buffer_count`***  
--   **Description**: Gets or sets the number of internal buffers allocated for inference. Higher values can improve throughput in pipelined inference scenarios by allowing more concurrent operations, but consume more memory. Default is 6. Valid range is 1-100.
+-   **Description**: Gets or sets the number of internal buffers allocated for inference. Higher values can improve throughput in pipelined inference scenarios by allowing more concurrent operations, but consume more memory. Default is `6` (delegate to the library default). When set explicitly, valid range is 1-100.
 -   **Type**: `int`.
 -   **Example**:
     ```python
@@ -443,7 +527,7 @@ Provides access to the global DXRT configuration singleton, allowing for system-
   
 ---  
   
-### class dx_engine.DeviceStatus  
+### class dx_engine.DeviceStatus { #class-devicestatus }
   
 Provides an interface to query real-time status and static information about hardware devices.  
   
@@ -451,14 +535,15 @@ Provides an interface to query real-time status and static information about har
   
 ***`get_current_status(cls, deviceId: int)`***  
 -   **Signature**: `def get_current_status(cls, deviceId: int) -> object`  
--   **Description**: Creates and returns a `DeviceStatus` object populated with the current status of the specified device.  
+-   **Description**: Retrieves the status for the device with the specified ID. The status includes key metrics such as core utilization and temperature. Monitoring data is refreshed every 1 second.  
 -   **Parameters**:  
     -   `deviceId`: The integer ID of the device to query.  
 -   **Returns**: An instance of `DeviceStatus`.  
+-   **Raises**: `RuntimeError` if the specified device ID is invalid or does not exist.  
   
 ***`get_device_count(cls)`***  
 -   **Signature**: `def get_device_count(cls) -> int`  
--   **Description**: Returns the total number of hardware devices detected by the system.  
+-   **Description**: Returns the total number of hardware devices detected by the system. This includes devices that are initialized and ready for operation.  
 -   **Returns**: The number of devices as an integer.  
   
 #### Instance Methods  
@@ -470,34 +555,153 @@ Provides an interface to query real-time status and static information about har
   
 ***`get_npu_clock(self, ch: int)`***  
 -   **Signature**: `def get_npu_clock(self, ch: int) -> int`  
--   **Description**: Returns the current clock frequency of a specific NPU core.  
+-   **Description**: Returns the current clock frequency of a specific NPU core. The clock frequency may change dynamically depending on performance scaling settings.  
 -   **Parameters**:  
     -   `ch`: The integer index of the NPU core.  
 -   **Returns**: The clock speed in MHz.  
   
 ***`get_npu_voltage(self, ch: int)`***  
 -   **Signature**: `def get_npu_voltage(self, ch: int) -> int`  
--   **Description**: Returns the current voltage of a specific NPU core.  
+-   **Description**: Returns the current voltage of a specific NPU core. The voltage level can vary depending on power management settings and workload.  
 -   **Parameters**:  
     -   `ch`: The integer index of the NPU core.  
 -   **Returns**: The voltage in millivolts (mV).  
   
 ***`get_temperature(self, ch: int)`***  
 -   **Signature**: `def get_temperature(self, ch: int) -> int`  
--   **Description**: Returns the current temperature of a specific NPU core.  
+-   **Description**: Returns the current temperature of a specific NPU core. Monitoring the temperature is crucial for ensuring the NPU operates within safe thermal limits.  
 -   **Parameters**:  
     -   `ch`: The integer index of the NPU core.  
--   **Returns**: The temperature in degrees Celsius.  
+-   **Returns**: The temperature in degrees Celsius. Returns `INT16_MIN` when the channel index is out of range.  
+
+***`get_core_utilization(self, core_id: int)`***
+-   **Signature**: `def get_core_utilization(self, core_id: int) -> float`
+-   **Description**: Retrieves the utilization of the specified NPU core.
+-   **Parameters**:
+    -   `core_id`: The NPU core index (0 to 2).
+-   **Returns**: Utilization percentage (0.0 ~ 100.0). Returns -1.0 if core_id is out of range.
+
+***`get_memory_used(self)`***
+-   **Signature**: `def get_memory_used(self) -> int`
+-   **Description**: Retrieves the amount of NPU DRAM currently in use.
+-   **Returns**: DRAM usage in bytes.
+
+***`get_memory_free(self)`***
+-   **Signature**: `def get_memory_free(self) -> int`
+-   **Description**: Retrieves the amount of free NPU DRAM.
+-   **Returns**: Free DRAM in bytes.
+
+---  
+  
+### class dx_engine.RuntimeEventDispatcher  
+  
+A singleton class that provides a centralized event dispatching mechanism for runtime events such as device errors, warnings, and notifications. It supports custom event handlers and automatic logging of events with different severity levels.  
+  
+#### Constructor  
+  
+***`__init__(self)`***  
+-   **Description**: Obtains the singleton instance of the underlying C++ `RuntimeEventDispatcher`. Instantiating the Python class is the standard entry point.  
+-   **Example**:
+    ```python
+    from dx_engine import RuntimeEventDispatcher
+    dispatcher = RuntimeEventDispatcher()
+    ```
+  
+#### Nested Classes  
+  
+***`class LEVEL(IntEnum)`***  
+-   **Description**: Event severity levels for categorizing runtime events.  
+-   **Members**:  
+    -   `INFO` (1): Informational messages for normal operation events.  
+    -   `WARNING` (2): Warning messages for potential issues that don't stop execution.  
+    -   `ERROR` (3): Error messages for recoverable failures.  
+    -   `CRITICAL` (4): Critical errors that may cause system instability.  
+  
+***`class TYPE(IntEnum)`***  
+-   **Description**: Event type categories for classifying the source of events.  
+-   **Members**:  
+    -   `DEVICE_CORE` (1000): Events related to NPU core operations.  
+    -   `DEVICE_STATUS` (1001): Device status change events.  
+    -   `DEVICE_IO` (1002): Input/Output operation events.  
+    -   `DEVICE_MEMORY` (1003): Memory management events.  
+    -   `UNKNOWN` (1004): Unknown or unclassified event types.  
+  
+***`class CODE(IntEnum)`***  
+-   **Description**: Specific event codes for identifying the exact nature of events.  
+-   **Members**:  
+    -   `WRITE_INPUT` (2000): Input data write operation event.  
+    -   `READ_OUTPUT` (2001): Output data read operation event.  
+    -   `MEMORY_OVERFLOW` (2002): Memory overflow or capacity exceeded.  
+    -   `MEMORY_ALLOCATION` (2003): Memory allocation failure or issue.  
+    -   `DEVICE_EVENT` (2004): General device event notification.  
+    -   `RECOVERY_OCCURRED` (2005): Device recovery action taken.  
+    -   `TIMEOUT_OCCURRED` (2006): Operation timeout event.  
+    -   `THROTTLING_NOTICE` (2007): Device throttling notification.  
+    -   `THROTTLING_EMERGENCY` (2008): Device throttling emergency notification.  
+    -   `UNKNOWN` (2009): Unknown or unclassified event code.  
+  
+#### Instance Methods  
+  
+***`dispatch_event(self, level: LEVEL, type: TYPE, code: CODE, event_message: str)`***  
+-   **Signature**: `def dispatch_event(self, level: LEVEL, type: TYPE, code: CODE, event_message: str) -> None`  
+-   **Description**: Dispatches a runtime event with the specified parameters. The event is logged and any registered custom event handler is invoked. Events are filtered based on the current level threshold set via `set_current_level`.  
+-   **Parameters**:  
+    -   `level`: Severity level of the event (`INFO`, `WARNING`, `ERROR`, `CRITICAL`).  
+    -   `type`: Category of the event (`DEVICE_CORE`, `DEVICE_IO`, etc.).  
+    -   `code`: Specific event code identifying the exact event.  
+    -   `event_message`: Descriptive string providing event details.  
+-   **Raises**: `ValueError` if `event_message` is not a string.  
+  
+***`register_event_handler(self, handler: Callable[[int, int, int, str, str], None])`***  
+-   **Signature**: `def register_event_handler(self, handler: Callable[[int, int, int, str, str], None]) -> None`  
+-   **Description**: Registers a user-defined callback function that will be invoked for each dispatched event. Only one handler can be registered at a time; subsequent calls will replace the previous handler. The handler is invoked synchronously but with minimal lock holding time to avoid blocking.  
+-   **Parameters**:  
+    -   `handler`: A callable with signature `handler(level, type, code, message, timestamp) -> None`.  
+-   **Raises**: `ValueError` if `handler` is not callable.  
+-   **Example**:
+    ```python
+    from dx_engine import RuntimeEventDispatcher
+
+    def my_handler(level, type, code, message, timestamp):
+        print(f"[{timestamp}] Level {level}: {message}")
+
+    dispatcher = RuntimeEventDispatcher()
+    dispatcher.register_event_handler(my_handler)
+    ```
+  
+***`set_current_level(self, level: LEVEL)`***  
+-   **Signature**: `def set_current_level(self, level: LEVEL) -> None`  
+-   **Description**: Sets the minimum event level threshold. Events below this level may be filtered out by custom handlers.  
+-   **Parameters**:  
+    -   `level`: Minimum severity level for events to be processed.  
+  
+***`get_current_level(self)`***  
+-   **Signature**: `def get_current_level(self) -> LEVEL`  
+-   **Description**: Gets the current minimum event level threshold.  
+-   **Returns**: The current minimum event severity level as a `LEVEL` enum value.  
   
 ---  
   
 ### Standalone Functions  
   
-***`dx_engine.parse_model(model_path: str)`***  
+***`dx_engine.inference_engine.parse_model(model_path: str)`***  
 -   **Signature**: `def parse_model(model_path: str) -> str`  
--   **Description**: Parses a model file using the C++ backend and returns a string containing information about the model's structure and properties.  
+-   **Description**: Module-level function (not a class method) that parses a `.dxnn` model file using the C++ backend and returns a string containing information about the model's structure and properties. It is defined at the top level of `dx_engine.inference_engine` and is not re-exported from the `dx_engine` package root, so it must be imported from its fully qualified module path.  
 -   **Parameters**:  
     -   `model_path`: The path to the compiled model file.  
 -   **Returns**: A string with model information.  
+-   **Raises**: `TypeError` if `model_path` is not a `str`.  
+-   **Import**:
+    ```python
+    from dx_engine.inference_engine import parse_model
+    ```
+-   **Example**:
+    ```python
+    from dx_engine.inference_engine import parse_model
+
+    info = parse_model("model.dxnn")
+    print(info)
+    ```
+-   **Note**: A separate function `dx_engine.utils.parse_model(model_path, options=None) -> int` also exists with a different signature and an `int` return code (0 on success, -1 on failure). The function documented here (returning `str`) is the recommended one for retrieving model information.  
   
 ---  

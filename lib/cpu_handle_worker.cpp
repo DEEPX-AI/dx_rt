@@ -40,6 +40,11 @@ CpuHandleWorker::CpuHandleWorker(const string& name_, int bufferCount, int numTh
 : Worker(name_, Type::CPU_HANDLE, bufferCount, numThreads, nullptr, cpuHandle_),
   _device_num(device_num), _numThreads(numThreads), _initDynamicThreads(initDynamicThreads)
 {
+    // InitializeThreadCPUWorker will be called seperately as two-phase initialization to avoid potential issues of shared_from_this in constructor
+}
+
+void CpuHandleWorker::InitializeThreadCPUWorker()
+{
     InitializeThread();
 
     if (CpuHandle::_dynamicCpuThread)
@@ -86,13 +91,132 @@ CpuHandleWorker::~CpuHandleWorker()
 
 std::shared_ptr<CpuHandleWorker> CpuHandleWorker::Create(const string& name_, int buffer_count_, int numThreads, int initDynamicThreads, CpuHandle *cpuHandle_, size_t device_num)
 {
-    auto ret = std::make_shared<CpuHandleWorker>(name_, buffer_count_, numThreads, initDynamicThreads, cpuHandle_, device_num);
+    auto ret = std::shared_ptr<CpuHandleWorker>(
+        new CpuHandleWorker(name_, buffer_count_, numThreads, initDynamicThreads, cpuHandle_, device_num));
+    ret->InitializeThreadCPUWorker();
+
     return ret;
 }
 
 void CpuHandleWorker::ThreadWork(int id)
 {
     ThreadWorkImpl(id);
+}
+
+bool CpuHandleWorker::HandleThreadStop(int id, bool isDynamic, bool& dynamicStop, const string& threadName)
+{
+    if (isDynamic && dynamicStop)
+    {
+        LOG_DXRT_DBG << threadName << " : requested to dynamic stop thread." << endl;
+        CpuHandle::_totalNumThreads--;
+        LOG_DXRT_DBG << threadName << " : dynamic thread exiting." << endl;
+        return true;
+    }
+
+    if (isDynamic)
+    {
+        LOG_DXRT_DBG << threadName << " : spurious wakeup or stop signal, continue waiting." << endl;
+        return false;
+    }
+
+    if (!getStopFlag().load(memory_order_acquire))
+    {
+        return false;
+    }
+
+    LOG_DXRT_DBG << threadName << " : requested to stop thread." << endl;
+    while (!_queue.empty())
+    {
+        _queue.pop();
+    }
+    LOG_DXRT_DBG << "Queue is flushed" << endl;
+    CpuHandle::_totalNumThreads--;
+
+    if (id == 0 &&
+        (GetAverageLoad() > 2 || SHOW_PROFILE || Configuration::GetInstance().GetEnable(Configuration::ITEM::SHOW_PROFILE)))
+    {
+        double avgLoad = GetAverageLoad();
+        double loadPercent = 0.0;
+
+        if (avgLoad > 1)
+        {
+            loadPercent = (avgLoad - 1.0) / (static_cast<double>(getBufferCount() * _device_num) - 1.0) * 100.0;
+        }
+
+        LOG << "CPU TASK [" << getName() << "] Inference Worker - Average Input Queue Load : " << loadPercent
+            << "%  (DXRT_DYNAMIC_CPU_THREAD: " << (CpuHandle::_dynamicCpuThread ? "ON" : "OFF") << ")"
+            << (avgLoad > 2 && (CpuHandle::_dynamicCpuThread == false)
+                ? " - To improve FPS, set: \'export DXRT_DYNAMIC_CPU_THREAD=ON\'"
+                : "")
+            << endl;
+    }
+
+    return true;
+}
+
+bool CpuHandleWorker::ProcessRequest(int id, const string& threadName, const shared_ptr<Request>& req)
+{
+    std::ignore = threadName;
+    std::ignore = id;  // to avoid compiler warnings, this variable is only used in trace logs
+    bool shouldExit = false;
+
+    dxrt_response_t response;
+    response.req_id = -1;
+
+    const auto finishRequest = [&]() {
+        TASK_FLOW_FINISH("[" + to_string(req->job_id()) + "]" + req->task()->name()
+            + " thread " + to_string(id) + " run");
+        RequestResponse::ProcessResponse(req, response, -1);
+    };
+
+    try
+    {
+#ifdef USE_ORT
+        std::shared_ptr<Ort::Session> workerSession = getCpuHandle()->_session;
+        if (CpuHandle::_dynamicCpuThread && workerSession)
+        {
+            getCpuHandle()->RunWithSession(req, workerSession);
+        }
+        else
+        {
+            getCpuHandle()->Run(req);
+        }
+#else
+        getCpuHandle()->Run(req);
+#endif
+
+#ifdef USE_VNPU
+        auto inferenceJob = req->inferenceJob();
+        if (inferenceJob)
+        {
+            LOG_DXRT_DBG << "[CpuWorker] CPU task '" << req->task()->name()
+                << "' completed, triggering user input release for job " << req->job_id() << std::endl;
+            inferenceJob->TriggerUserInputRelease();
+        }
+#endif  // USE_VNPU
+
+        finishRequest();
+    }
+    catch (const Exception &e)
+    {
+        LOG_DXRT_ERR(e.what());
+        finishRequest();
+        shouldExit = true;
+    }
+    catch (const std::exception &e)
+    {
+        LOG_DXRT_ERR(std::string("std::exception: ") + e.what());
+        finishRequest();
+        shouldExit = true;
+    }
+    catch (...)  // NOSONAR:S2738
+    {
+        LOG_DXRT_ERR("Unknown exception in CpuHandleWorker");
+        finishRequest();
+        shouldExit = true;
+    }
+
+    return shouldExit;
 }
 
 int CpuHandleWorker::MakeDynamicThreadId(int dynamicIndex) const
@@ -114,21 +238,7 @@ void CpuHandleWorker::ThreadWorkImpl(int id)
     int loopCnt = 0;
     size_t load;
     bool isDynamic = (static_cast<size_t>(id) >= _numThreads);
-    LOG_DXRT_DBG << threadName << " : Entry ( dynamic : " << isDynamic <<")" << endl;
-
-#ifdef USE_ORT
-    // Hybrid approach: Use shared session with worker-level synchronization
-    std::shared_ptr<Ort::Session> workerSession = getCpuHandle()->_session;
-
-    if (CpuHandle::_dynamicCpuThread) {
-        // Even in dynamic mode, use shared session for better performance
-        // ONNX Runtime's Session::Run() is thread-safe
-        // note: if you need workerSession, you can get it from CreateWorkerSession method with no args
-        LOG_DXRT_DBG << threadName << " : Using shared session in dynamic mode" << endl;
-    }
-
-#endif
-
+    LOG_DXRT_DBG << threadName << " : Entry ( dynamic : " << isDynamic << ")" << endl;
 
     bool dynamicStop = false;
     while (getStopFlag().load(memory_order_acquire) == false)
@@ -138,150 +248,49 @@ void CpuHandleWorker::ThreadWorkImpl(int id)
         std::unique_lock<std::mutex> lk(getLock());
 
         getConditionVariable().wait(lk, [this, &isDynamic, &dynamicStop] {
-            if (isDynamic && (_dynamicStopCnt.load()> 0)) {
+            if (isDynamic && (_dynamicStopCnt.load() > 0))
+            {
                 _dynamicStopCnt--;
                 dynamicStop = true;
                 return true;
-
             }
             return !_queue.empty() || getStopFlag().load();
         });
-        if (isDynamic && dynamicStop)
-        {
-            // Check if this dynamic thread is requested to stop
-            LOG_DXRT_DBG << threadName << " : requested to dynamic stop thread." << endl;
-            CpuHandle::_totalNumThreads--;
-            LOG_DXRT_DBG << threadName << " : dynamic thread exiting." << endl;
-            shouldExit = true;
-        }
-        else if (isDynamic)
-        {
-            LOG_DXRT_DBG << threadName << " : spurious wakeup or stop signal, continue waiting." << endl;
-        }
-        else
-        {
-            //not dynamic thread, check _stop flag
-            if (getStopFlag().load(memory_order_acquire))
-            {
-                LOG_DXRT_DBG << threadName << " : requested to stop thread." << endl;
-                while (!_queue.empty()) {
-                    _queue.pop();
-                }
-                LOG_DXRT_DBG << "Queue is flushed" << endl;
-                CpuHandle::_totalNumThreads--;
-                if (id == 0 &&
-                        (GetAverageLoad() > 2 || SHOW_PROFILE || Configuration::GetInstance().GetEnable(Configuration::ITEM::SHOW_PROFILE) ))
-                {
-                    double avgLoad = GetAverageLoad();
-                    double loadPercent = 0.0;
 
-                    if (avgLoad > 1) {
-                        loadPercent = (avgLoad - 1.0) / (static_cast<double>(getBufferCount()*_device_num) - 1.0) * 100.0;
-                    }
-                    LOG << "CPU TASK [" << getName() << "] Inference Worker - Average Input Queue Load : " << loadPercent
-                    << "%  (DXRT_DYNAMIC_CPU_THREAD: " << (CpuHandle::_dynamicCpuThread ? "ON" : "OFF") << ")"
-                    << (avgLoad > 2 && (CpuHandle::_dynamicCpuThread == false) ? " - To improve FPS, set: \'export DXRT_DYNAMIC_CPU_THREAD=ON\'" : "")
-                    << endl;
-                }
-#if 0
-                if (id == 0)
-                    LOG << "CPU TASK [" << getName() << "] Average Wait Load : " << ((GetAverageLoad()-1)/(getBufferCount()-1)*100)
-                    << "%  (DXRT_DYNAMIC_CPU_THREAD: " << (CpuHandle::_dynamicCpuThread ? "ON" : "OFF") << ")"
-                    << (GetAverageLoad() > 2 && (CpuHandle::_dynamicCpuThread== false) ? " - Enable \'DXRT_DYNAMIC_CPU_THREAD\' for higher FPS." : "")
-                    << endl;
-#endif
-                shouldExit = true;
-            }
-        }
+        shouldExit = HandleThreadStop(id, isDynamic, dynamicStop, threadName);
 
         if (!shouldExit)
         {
             load = _queue.size();
-            LOG_DXRT_DBG<< threadName <<" wakeup, load: " << to_string(static_cast<int>(load))
+            LOG_DXRT_DBG << threadName << " wakeup, load: " << to_string(static_cast<int>(load))
                 << ", isDynamic : " << to_string(isDynamic) << " _dynamicStopCnt: " << to_string(_dynamicStopCnt.load()) << endl;
             UpdateQueueStats(static_cast<int>(load));
 
-            if (!_queue.empty()) {
+            if (!_queue.empty())
+            {
                 auto req = _queue.front();
                 req->set_processed_unit(getName(), 0, id);
-                TASK_FLOW("["+to_string(req->job_id())+"] cpu worker "+to_string(id) +" wakeup, load: "+to_string(load));
+                TASK_FLOW("[" + to_string(req->job_id()) + "] cpu worker " + to_string(id)
+                    + " wakeup, load: " + to_string(load));
                 _queue.pop();
 #ifdef USE_PROFILER
-
-                auto& profiler = dxrt::Profiler::GetInstance();
-                std::string queue_wait_name =
-                    "CPU Task Queue Wait[Job_" + std::to_string(req->job_id()) + "][" +
-                    req->task()->name() + "][Req_" +
-                    std::to_string(req->id()) + "]";
-                profiler.End(queue_wait_name);
-
+                dxrt::Profiler::GetInstance().End(dxrt::Profiler::EventType::CPU_DISPATCH_WAIT, req->task()->name(), req->job_id());
 #endif
                 if (DEBUG_DATA > 0)
                 {
                     DataDumpBin(req->task()->name() + "_input.bin", req->inputs());
                 }
-                TASK_FLOW_START("["+to_string(req->job_id())+"]"+req->task()->name() +" thread "+to_string(id)+" run");
+                TASK_FLOW_START("[" + to_string(req->job_id()) + "]" + req->task()->name()
+                    + " thread " + to_string(id) + " run");
                 lk.unlock();
 
-
-                dxrt_response_t response;
-                response.req_id = -1;
-                try
-                {
-#ifdef USE_ORT
-                    if (CpuHandle::_dynamicCpuThread && workerSession)
-                    {
-                        getCpuHandle()->RunWithSession(req, workerSession);
-                    }
-                    else
-                    {
-                        getCpuHandle()->Run(req);
-                    }
-#else
-                    getCpuHandle()->Run(req);
-#endif
-                    TASK_FLOW_FINISH("["+to_string(req->job_id())+"]"+req->task()->name() +" thread "+to_string(id)+" run");
-#ifdef USE_VNPU
-                    // User Input Early Release: CPU execution complete, user input buffer can be released
-                    // This handles the case where CPU task is the head (first task in the graph)
-                    auto inferenceJob = req->inferenceJob();
-                    if (inferenceJob)
-                    {
-                        LOG_DXRT_DBG << "[CpuWorker] CPU task '" << req->task()->name()
-                                 << "' completed, triggering user input release for job " << req->job_id() << std::endl;
-                        inferenceJob->TriggerUserInputRelease();
-                    }
-#endif // USE_VNPU
-                    RequestResponse::ProcessResponse(req, response, -1);
-                }
-                catch (const Exception &e)
-                {
-                    // print error message
-                    LOG_DXRT_ERR(e.what());
-                    TASK_FLOW_FINISH("["+to_string(req->job_id())+"]"+req->task()->name() +" thread "+to_string(id)+" run");
-                    RequestResponse::ProcessResponse(req, response, -1);
-                    shouldExit = true;
-                }
-                catch (const std::exception &e)
-                {
-                    LOG_DXRT_ERR(std::string("std::exception: ") + e.what());
-                    TASK_FLOW_FINISH("["+to_string(req->job_id())+"]"+req->task()->name() +" thread "+to_string(id)+" run");
-                    RequestResponse::ProcessResponse(req, response, -1);
-                    shouldExit = true;
-                }
-                catch (...)  // NOSONAR:S2738
-                {
-                    LOG_DXRT_ERR("Unknown exception in CpuHandleWorker");
-                    TASK_FLOW_FINISH("["+to_string(req->job_id())+"]"+req->task()->name() +" thread "+to_string(id)+" run");
-                    RequestResponse::ProcessResponse(req, response, -1);
-                    shouldExit = true;
-                }
-
+                shouldExit = ProcessRequest(id, threadName, req);
             }
             else
             {
                 LOG_DXRT_DBG << "Warning: Attempted to pop from an empty queue!" << endl;
             }
+
             loopCnt++;
         }
 
@@ -290,6 +299,7 @@ void CpuHandleWorker::ThreadWorkImpl(int id)
             break;
         }
     }
+
     LOG_DXRT_DBG << threadName << " : End, loopCount" << loopCnt << endl;
 }
 

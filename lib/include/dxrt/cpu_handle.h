@@ -55,6 +55,11 @@ class DXRT_API CpuHandle // NOSONAR: Too many fields - stable as-is, refactoring
     std::vector<uint8_t> _modelData;
     int64_t _modelSize;
 
+    // ORT built-in profiling: file prefix passed to EnableProfiling. Non-empty
+    // when DXRT_ORT_PROFILING=ON. Used at destruction to flush via
+    // Session::EndProfiling.
+    std::string _ortProfilePrefix;
+
     // Create individual session for worker (DYNAMIC THREAD mode)
     std::shared_ptr<Ort::Session> CreateWorkerSession();
     void RunWithSession(RequestPtr req, std::shared_ptr<Ort::Session> session);

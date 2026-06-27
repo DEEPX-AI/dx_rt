@@ -123,7 +123,7 @@ class DXRT_API Request // NOSONAR
 
     std::string _requestorName;
 
-    Task* _task;
+    Task* _task = nullptr;
 
     void *_userArg;
     void *_devArg;

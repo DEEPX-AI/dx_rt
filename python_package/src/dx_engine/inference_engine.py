@@ -8,8 +8,11 @@
 #
 
 from typing import List, Union, Any, Optional, Dict, Callable, Tuple
+import os
 import warnings
 import numpy as np
+
+from dx_engine.capi import _debug_dump_loaded_dlls
 
 try:
     import dx_engine.capi._pydxrt as C
@@ -19,9 +22,13 @@ except ImportError:
         "Ensure it's compiled and in the Python path."
     ) from None
 
+if os.environ.get("DXRT_DEBUG_DLL_PATHS", "0") == "1":
+    _debug_dump_loaded_dlls("inference_engine module after _pydxrt import")
+
 from dx_engine.dtype import NumpyDataTypeMapper
 from dx_engine.utils import ensure_contiguous
 from dx_engine.inference_option import InferenceOption
+
 
 class InferenceEngine:
     """
@@ -31,6 +38,7 @@ class InferenceEngine:
     inference tasks, either synchronously or asynchronously.
     It supports both single and batch inference.
     """
+
     def __init__(
         self,
         model_path: str,
@@ -49,10 +57,11 @@ class InferenceEngine:
 
         current_option_instance: InferenceOption
         if inference_option is None:
-            current_option_instance = InferenceOption() # Create a default Python InferenceOption
+            current_option_instance = InferenceOption()  # Create a default Python InferenceOption
         else:
             if not isinstance(inference_option, InferenceOption):
-                raise TypeError("inference_option must be an instance of dx_engine.InferenceOption or None.")
+                raise TypeError(
+                    "inference_option must be an instance of dx_engine.InferenceOption or None.")
             current_option_instance = inference_option
 
         # If this build does not support ORT, force-disable it to avoid runtime exceptions
@@ -60,7 +69,8 @@ class InferenceEngine:
             if hasattr(C, 'is_ort_supported') and not C.is_ort_supported():
                 if current_option_instance.use_ort:
                     warnings.warn(
-                        "USE_ORT is disabled in this build. Forcing InferenceOption.use_ort to False.",
+                        "USE_ORT is disabled in this build. "
+                        "Forcing InferenceOption.use_ort to False.",
                         RuntimeWarning,
                     )
                     current_option_instance.use_ort = False
@@ -69,10 +79,16 @@ class InferenceEngine:
             pass
 
         try:
+            if os.environ.get("DXRT_DEBUG_DLL_PATHS", "0") == "1":
+                _debug_dump_loaded_dlls("before C.InferenceEngine(model_path, option)")
             self.engine = C.InferenceEngine(model_path, current_option_instance.instance)
+            if os.environ.get("DXRT_DEBUG_DLL_PATHS", "0") == "1":
+                _debug_dump_loaded_dlls("after C.InferenceEngine(model_path, option)")
         except Exception as e:
             # Re-raise with more context
-            raise RuntimeError(f"Failed to create InferenceEngine for model '{model_path}': {str(e)}") from e
+            raise RuntimeError(
+                f"Failed to create InferenceEngine for model '{model_path}': {str(e)}"
+            ) from e
 
         self._input_tensor_info_cache: Optional[List[Dict[str, Any]]] = None
         self._output_tensor_info_cache: Optional[List[Dict[str, Any]]] = None
@@ -114,7 +130,8 @@ class InferenceEngine:
             current_option_instance = InferenceOption()
         else:
             if not isinstance(inference_option, InferenceOption):
-                raise TypeError("inference_option must be an instance of dx_engine.InferenceOption or None.")
+                raise TypeError(
+                    "inference_option must be an instance of dx_engine.InferenceOption or None.")
             current_option_instance = inference_option
 
         # If this build does not support ORT, force-disable it
@@ -122,7 +139,8 @@ class InferenceEngine:
             if hasattr(C, 'is_ort_supported') and not C.is_ort_supported():
                 if current_option_instance.use_ort:
                     warnings.warn(
-                        "USE_ORT is disabled in this build. Forcing InferenceOption.use_ort to False.",
+                        "USE_ORT is disabled in this build. "
+                        "Forcing InferenceOption.use_ort to False.",
                         RuntimeWarning,
                     )
                     current_option_instance.use_ort = False
@@ -134,7 +152,11 @@ class InferenceEngine:
 
         try:
             # Create engine from buffer only (no model path)
+            if os.environ.get("DXRT_DEBUG_DLL_PATHS", "0") == "1":
+                _debug_dump_loaded_dlls("before C.InferenceEngine(memory_buffer, option)")
             instance.engine = C.InferenceEngine(memory_buffer, current_option_instance.instance)
+            if os.environ.get("DXRT_DEBUG_DLL_PATHS", "0") == "1":
+                _debug_dump_loaded_dlls("after C.InferenceEngine(memory_buffer, option)")
         except Exception as e:
             raise RuntimeError(f"Failed to create InferenceEngine from buffer: {str(e)}") from e
 
@@ -144,7 +166,7 @@ class InferenceEngine:
 
         return instance
 
-    def _analyze_input_format(self, input_data: Any) -> Dict[str, Any]: # NOSONAR
+    def _analyze_input_format(self, input_data: Any) -> Dict[str, Any]:  # NOSONAR
         """
         Analyzes input data format and determines processing method.
 
@@ -181,7 +203,8 @@ class InferenceEngine:
 
         # 2. Error if input is not a list
         if not isinstance(input_data, list):
-            raise TypeError("Input data must be np.ndarray, List[np.ndarray], or List[List[np.ndarray]].")
+            raise TypeError(
+                "Input data must be np.ndarray, List[np.ndarray], or List[List[np.ndarray]].")
 
         if not input_data:
             raise ValueError("Input data list cannot be empty.")
@@ -205,17 +228,21 @@ class InferenceEngine:
                     expected_count = self.get_input_tensor_count()
                     if len(batch_item) == expected_count:
                         pass  # exact match OK
-                    elif len(batch_item) == 1 and isinstance(batch_item[0], np.ndarray) and self._should_auto_split_input(batch_item[0]):
+                    elif (len(batch_item) == 1
+                          and isinstance(batch_item[0], np.ndarray)
+                          and self._should_auto_split_input(batch_item[0])):
                         # single concatenated buffer for multi-input sample -> allowed
                         pass
                     else:
                         tensor_names = self.get_input_tensor_names()
-                        raise ValueError(f"Multi-input model requires {expected_count} input tensors {tensor_names} per sample, "
-                                         f"but batch item {i} has {len(batch_item)} inputs.")
+                        raise ValueError(
+                            f"Multi-input model requires {expected_count} input tensors "
+                            f"{tensor_names} per sample, "
+                            f"but batch item {i} has {len(batch_item)} inputs.")
                 elif len(batch_item) != 1:
                     # For single-input models, each batch item should have exactly 1 tensor
                     raise ValueError(f"Single-input model requires 1 tensor per batch item, "
-                                   f"but batch item {i} has {len(batch_item)} tensors.")
+                                     f"but batch item {i} has {len(batch_item)} tensors.")
 
             return {
                 'format_type': 'list_list_ndarray',
@@ -273,8 +300,10 @@ class InferenceEngine:
                     'auto_split': False
                 }
             else:
-                # Invalid count -> Try special case: list[np.ndarray] where each ndarray is concatenated inputs per sample
-                if all(isinstance(t, np.ndarray) and self._should_auto_split_input(t) for t in input_data):
+                # Invalid count -> Try special case: list[np.ndarray] where each ndarray is
+                # concatenated inputs per sample
+                if all(isinstance(t, np.ndarray) and self._should_auto_split_input(t)
+                       for t in input_data):
                     batch_size = input_count
                     # Wrap each tensor into a list so downstream code treats as multi-input sample
                     grouped_inputs = [[t] for t in input_data]
@@ -288,8 +317,10 @@ class InferenceEngine:
 
                 # If not special case, raise error
                 tensor_names = self.get_input_tensor_names()
-                raise ValueError(f"Multi-input model requires {expected_count} input tensors {tensor_names} per sample. "
-                               f"Got {input_count} inputs, which is not a valid multiple.")
+                raise ValueError(
+                    f"Multi-input model requires {expected_count} input tensors "
+                    f"{tensor_names} per sample. "
+                    f"Got {input_count} inputs, which is not a valid multiple.")
         else:
             # Single-input model: List[np.ndarray] is either single inference or batch
             if input_count == 1:
@@ -312,7 +343,8 @@ class InferenceEngine:
                     'auto_split': False
                 }
 
-    def _prepare_output_buffers(self, output_buffers: Any, analysis_result: Dict[str, Any]) -> Any: # NOSONAR
+    def _prepare_output_buffers(self, output_buffers: Any,
+                                analysis_result: Dict[str, Any]) -> Any:  # NOSONAR
         """
         Prepares output buffers according to the analysis result.
 
@@ -335,13 +367,14 @@ class InferenceEngine:
                 if not (isinstance(output_buffers, list) and
                         len(output_buffers) > 0 and
                         isinstance(output_buffers[0], list) and
-                        all(isinstance(t, np.ndarray) for t_list in output_buffers for t in t_list)):
+                        all(isinstance(t, np.ndarray)
+                            for t_list in output_buffers for t in t_list)):
                     raise TypeError("For batch inference with List[List[np.ndarray]] input, "
-                                  "output_buffers must be List[List[np.ndarray]].")
+                                    "output_buffers must be List[List[np.ndarray]].")
 
                 if len(output_buffers) != batch_size:
                     raise ValueError(f"Output buffer batch size ({len(output_buffers)}) must match "
-                                   f"input batch size ({batch_size}).")
+                                     f"input batch size ({batch_size}).")
 
                 # Validate each batch item's output buffers
                 expected_output_count = self.get_output_tensor_count()
@@ -353,26 +386,29 @@ class InferenceEngine:
                         for tensor_idx, buffer in enumerate(batch_output_buffers):
                             self._validate_output_buffer_size(buffer, tensor_index=tensor_idx)
                         processed_batch_outputs.append(batch_output_buffers)
-                    elif len(batch_output_buffers) == 1 and self._should_auto_split_output(batch_output_buffers[0]):
+                    elif (len(batch_output_buffers) == 1
+                          and self._should_auto_split_output(batch_output_buffers[0])):
                         # Single concatenated buffer for multi-output model - auto-split
                         self._validate_output_buffer_size(batch_output_buffers[0])
                         split_buffers = self._split_output_buffer(batch_output_buffers[0])
                         processed_batch_outputs.append(split_buffers)
                     else:
-                        raise ValueError(f"Batch item {batch_idx} has {len(batch_output_buffers)} output buffers. "
-                                       f"Expected either {expected_output_count} individual buffers or "
-                                       f"1 concatenated buffer that matches total output size.")
+                        raise ValueError(
+                            f"Batch item {batch_idx} has {len(batch_output_buffers)} "
+                            f"output buffers. "
+                            f"Expected either {expected_output_count} individual buffers or "
+                            f"1 concatenated buffer that matches total output size.")
 
                 return processed_batch_outputs
             else:
                 if not (isinstance(output_buffers, list) and
                         all(isinstance(ob, np.ndarray) for ob in output_buffers)):
                     raise TypeError("For batch inference from List[np.ndarray], "
-                                  "output_buffers must be List[np.ndarray].")
+                                    "output_buffers must be List[np.ndarray].")
 
                 if len(output_buffers) != batch_size:
                     raise ValueError(f"Output buffer batch size ({len(output_buffers)}) must match "
-                                   f"input batch size ({batch_size}).")
+                                     f"input batch size ({batch_size}).")
 
                 # Check if each buffer in the batch should be auto-split for multi-output
                 processed_batch_outputs = []
@@ -383,10 +419,13 @@ class InferenceEngine:
                     if self._should_auto_split_output(buffer):
                         processed_batch_outputs.append(self._split_output_buffer(buffer))
                     else:
-                        # For single buffer per batch item, ensure it matches the expected single output size
+                        # For single buffer per batch item, ensure it matches the expected
+                        # single output size
                         if self._is_multi_output_model():
-                            raise ValueError(f"Multi-output model requires separate buffers for each output tensor "
-                                           f"in batch item {batch_idx}, or a single concatenated buffer that matches total size")
+                            raise ValueError(
+                                "Multi-output model requires separate buffers for each "
+                                f"output tensor in batch item {batch_idx}, "
+                                "or a single concatenated buffer that matches total size")
                         processed_batch_outputs.append([buffer])
 
                 return processed_batch_outputs
@@ -406,7 +445,7 @@ class InferenceEngine:
                 # Check for single-element list containing concatenated buffer
                 if (len(output_buffers) == 1 and
                     isinstance(output_buffers[0], np.ndarray) and
-                    self._should_auto_split_output(output_buffers[0])):
+                        self._should_auto_split_output(output_buffers[0])):
                     # Validate the concatenated buffer
                     self._validate_output_buffer_size(output_buffers[0])
                     return self._split_output_buffer(output_buffers[0])
@@ -414,8 +453,9 @@ class InferenceEngine:
                     # Validate each buffer and check count
                     expected_count = self.get_output_tensor_count()
                     if len(output_buffers) != expected_count:
-                        raise ValueError(f"Number of output buffers ({len(output_buffers)}) "
-                                       f"does not match expected output tensor count ({expected_count})")
+                        raise ValueError(
+                            f"Number of output buffers ({len(output_buffers)}) "
+                            f"does not match expected output tensor count ({expected_count})")
 
                     # Validate each individual buffer
                     for i, buffer in enumerate(output_buffers):
@@ -423,11 +463,13 @@ class InferenceEngine:
 
                     return output_buffers
                 else:
-                    raise TypeError("For single inference, output_buffers must be List[np.ndarray].")
+                    raise TypeError(
+                        "For single inference, output_buffers must be List[np.ndarray].")
             else:
-                raise TypeError("For single inference, output_buffers must be np.ndarray or List[np.ndarray].")
+                raise TypeError(
+                    "For single inference, output_buffers must be np.ndarray or List[np.ndarray].")
 
-    def _prepare_user_args(self, user_args: Any, analysis_result: Dict[str, Any]) -> Any: # NOSONAR
+    def _prepare_user_args(self, user_args: Any, analysis_result: Dict[str, Any]) -> Any:  # NOSONAR
         """
         Prepares user arguments according to the analysis result.
 
@@ -451,7 +493,7 @@ class InferenceEngine:
                     return user_args
                 else:
                     raise ValueError(f"For batch inference with List[List[np.ndarray]] input, "
-                                   f"user_args must be a list of size {batch_size} or None.")
+                                     f"user_args must be a list of size {batch_size} or None.")
             else:
                 # For batch converted from List[np.ndarray]
                 if isinstance(user_args, list) and len(user_args) == batch_size:
@@ -477,11 +519,14 @@ class InferenceEngine:
             input_data:
                 - Single input: np.ndarray
                 - Multi-input single: List[np.ndarray] (length = model input count)
-                - Batch: List[np.ndarray] (length = multiple of model input count for multi-input)
-                - Explicit batch: List[List[np.ndarray]] (outer list = batch, inner list = per-sample inputs)
+                - Batch: List[np.ndarray]
+                  (length = multiple of model input count for multi-input)
+                - Explicit batch: List[List[np.ndarray]]
+                  (outer list = batch, inner list = per-sample inputs)
             output_buffers (Optional):
                 - Single: List[np.ndarray]
-                - Batch: List[List[np.ndarray]] for explicit batch, List[np.ndarray] for implicit batch
+                - Batch: List[List[np.ndarray]] for explicit batch,
+                  List[np.ndarray] for implicit batch
                 For batch mode, output_buffers are required.
             user_args (Optional):
                 - Single: Any Python object
@@ -494,21 +539,27 @@ class InferenceEngine:
         # 1. Analyze input format
         analysis_result = self._analyze_input_format(input_data)
 
-        # 2. Prepare output buffers
+        # 2. Validate input dtypes against the model's expected dtypes
+        self._validate_inputs_dtype(analysis_result)
+
+        # 3. Prepare output buffers
         processed_outputs = self._prepare_output_buffers(output_buffers, analysis_result)
 
-        # 3. Prepare user arguments
+        # 4. Prepare user arguments
         processed_user_args = self._prepare_user_args(user_args, analysis_result)
 
-        # 4. Ensure data contiguity
+        # 5. Ensure data contiguity
         if analysis_result['is_batch']:
-            inputs_for_c = [ensure_contiguous(batch_item) for batch_item in analysis_result['processed_inputs']]
+            inputs_for_c = [ensure_contiguous(batch_item)
+                            for batch_item in analysis_result['processed_inputs']]
             outputs_for_c = [ensure_contiguous(batch_output) for batch_output in processed_outputs]
         else:
             inputs_for_c = ensure_contiguous(analysis_result['processed_inputs'])
-            outputs_for_c = ensure_contiguous(processed_outputs) if processed_outputs is not None else None
+            outputs_for_c = (
+                ensure_contiguous(processed_outputs) if processed_outputs is not None else None
+            )
 
-        # 5. Call C++ engine
+        # 6. Call C++ engine
         raw_outputs = C.run(self.engine, inputs_for_c, outputs_for_c, processed_user_args)
 
         return raw_outputs
@@ -555,11 +606,11 @@ class InferenceEngine:
 
         return self.run(input_list, output_buffers=output_buffers, user_args=user_arg)
 
-    def run_async(self, # NOSONAR
+    def run_async(self,  # NOSONAR
                   input_data: Union[np.ndarray, List[np.ndarray]],
                   user_arg: Any = None,
                   output_buffer: Optional[Union[np.ndarray, List[np.ndarray]]] = None
-                 ) -> int:
+                  ) -> int:
         """
         Run inference asynchronously with unified input format handling.
 
@@ -582,7 +633,10 @@ class InferenceEngine:
 
         if analysis_result['is_batch']:
             raise ValueError("Batch inference is not supported in run_async. "
-                           "Use multiple run_async calls or use run() for batch processing.")
+                             "Use multiple run_async calls or use run() for batch processing.")
+
+        # Validate input dtypes against the model's expected dtypes
+        self._validate_inputs_dtype(analysis_result)
 
         inputs_for_c = ensure_contiguous(analysis_result['processed_inputs'])
 
@@ -607,19 +661,24 @@ class InferenceEngine:
                         self._validate_output_buffer_size(buffer, tensor_index=i)
 
                     # Check for single-element list containing concatenated buffer
-                    if (len(output_buffer) == 1 and self._should_auto_split_output(output_buffer[0])):
-                        valid_output_arg = ensure_contiguous(self._split_output_buffer(output_buffer[0]))
+                    if (len(output_buffer) == 1
+                            and self._should_auto_split_output(output_buffer[0])):
+                        valid_output_arg = ensure_contiguous(
+                            self._split_output_buffer(output_buffer[0]))
                     else:
                         # Validate that the number of buffers matches expected output count
                         expected_count = self.get_output_tensor_count()
                         if len(output_buffer) != expected_count:
-                            raise ValueError(f"Number of output buffers ({len(output_buffer)}) "
-                                           f"does not match expected output tensor count ({expected_count})")
+                            raise ValueError(
+                                f"Number of output buffers ({len(output_buffer)}) "
+                                f"does not match expected output tensor count "
+                                f"({expected_count})")
                         valid_output_arg = ensure_contiguous(output_buffer)
                 else:
                     raise TypeError("All items in output buffer list must be np.ndarray.")
             else:
-                raise TypeError("output_buffer for run_async must be np.ndarray, List[np.ndarray], or None.")
+                raise TypeError(
+                    "output_buffer for run_async must be np.ndarray, List[np.ndarray], or None.")
 
         return self.engine.run_async(inputs_for_c, user_arg, valid_output_arg)
 
@@ -630,7 +689,8 @@ class InferenceEngine:
         output_buffer: Optional[List[np.ndarray]] = None
     ) -> int:
         """
-        Runs asynchronous inference on a multi-input model using a dictionary of named input tensors.
+        Runs asynchronous inference on a multi-input model using a dictionary of named
+        input tensors.
 
         Args:
             input_tensors: Dictionary mapping tensor names to numpy arrays.
@@ -678,19 +738,36 @@ class InferenceEngine:
         return self.engine.wait(job_id)
 
     def run_benchmark(self, num_loops: int, input_data: Optional[List[np.ndarray]] = None) -> float:
-        """Runs a benchmark for a specified number of loops."""
+        """Runs a benchmark for a specified number of loops.
+
+        Args:
+            num_loops: Number of inference loops to perform.
+            input_data: Optional list of input arrays. If None, internally creates
+                       a zero-filled buffer (same behavior as C++ run_model).
+
+        Returns:
+            FPS (frames per second) value.
+        """
         if not isinstance(num_loops, int) or num_loops <= 0:
             raise ValueError("num_loops must be a positive integer.")
 
-        contiguous_input: Optional[List[np.ndarray]] = None
-        if input_data is not None:
-            if not isinstance(input_data, list) or not all(isinstance(i, np.ndarray) for i in input_data):
-                raise TypeError("input_data for benchmark must be a List[np.ndarray] or None.")
-            contiguous_input = ensure_contiguous(input_data)
+        if input_data is None:
+            buffer = np.empty(self.get_input_size(), dtype=np.uint8)
+            buffer.fill(0)
+            input_data = [buffer]
 
+        if (not isinstance(input_data, list)
+                or not all(isinstance(i, np.ndarray) for i in input_data)):
+            raise TypeError("input_data for benchmark must be a List[np.ndarray].")
+
+        contiguous_input = ensure_contiguous(input_data)
         return self.engine.run_benchmark(num_loops, contiguous_input)
 
-    def validate_device(self, input_data: Union[np.ndarray, List[np.ndarray]], device_id: int = 0) -> List[np.ndarray]:
+    def validate_device(
+        self,
+        input_data: Union[np.ndarray, List[np.ndarray]],
+        device_id: int = 0
+    ) -> List[np.ndarray]:
         """
         Validates an NPU device with unified input format handling.
 
@@ -707,7 +784,10 @@ class InferenceEngine:
             Device validation only supports single inference (not batch).
         """
         if self.get_compile_type() != "debug":
-            print("Models compiled in release mode from DX-COM are not supported in validate_device.")
+            print(
+                "Models compiled in release mode from DX-COM "
+                "are not supported in validate_device."
+            )
             return []
 
         if not isinstance(device_id, int):
@@ -717,7 +797,7 @@ class InferenceEngine:
 
         if analysis_result['is_batch']:
             raise ValueError("Batch inference is not supported in validate_device. "
-                           "Use single inference only for device validation.")
+                             "Use single inference only for device validation.")
 
         inputs_for_c = ensure_contiguous(analysis_result['processed_inputs'])
 
@@ -740,7 +820,10 @@ class InferenceEngine:
             ValueError: If the model is not a multi-input model or tensor names don't match.
         """
         if not self.is_multi_input_model():
-            raise ValueError("This model is not a multi-input model. Use validate_device() instead.")
+            raise ValueError(
+                "This model is not a multi-input model. "
+                "Use validate_device() instead."
+            )
 
         if not isinstance(device_id, int):
             raise TypeError("device_id must be an integer.")
@@ -763,12 +846,16 @@ class InferenceEngine:
         input_list = [input_tensors[name] for name in expected_names]
 
         return self.validate_device(input_list, device_id=device_id)
+
     def get_input_size(self) -> int:
         """Get the total expected size of all input tensors in bytes."""
         return self.engine.get_input_size()
 
     def get_input_tensor_sizes(self) -> List[int]:
-        """Get individual input tensor sizes for multi-input models in bytes, in the order specified by GetInputTensorNames()."""
+        """Get individual input tensor sizes for multi-input models in bytes.
+
+        Returns sizes in the order specified by GetInputTensorNames().
+        """
         return self.engine.get_input_tensor_sizes()
 
     def get_output_size(self) -> int:
@@ -779,13 +866,13 @@ class InferenceEngine:
         """Check if the model has any dynamic shape outputs."""
         return self.engine.has_dynamic_output()
 
-
-
     def get_output_tensor_sizes(self) -> List[int]:
-        """Get individual output tensor sizes for multi-output models in bytes, in the order specified by GetOutputTensorNames().
+        """Get individual output tensor sizes for multi-output models in bytes.
 
-        For dynamic shape tensors, returns 0 as the size cannot be determined at compile time.
-        Actual sizes for dynamic tensors are available after inference execution.
+        Returns sizes in the order specified by GetOutputTensorNames().
+        For dynamic shape tensors, returns 0 as the size cannot be determined
+        at compile time. Actual sizes for dynamic tensors are available after
+        inference execution.
 
         Returns:
             List[int]: List of tensor sizes in bytes. Dynamic tensors return 0.
@@ -815,7 +902,7 @@ class InferenceEngine:
         return self._output_tensor_info_cache
 
     def _should_auto_split_input(self, input_data: np.ndarray) -> bool:
-        """Internal: Check if single input buffer should be auto-split for multi-input models."""
+        """Internal: Check if single input buffer should be auto-split."""
         if not self.is_multi_input_model():
             return False
 
@@ -829,7 +916,7 @@ class InferenceEngine:
         return actual_size == expected_total_size
 
     def _split_input_buffer(self, input_data: np.ndarray) -> List[np.ndarray]:
-        """Internal: Split single input buffer into multiple input tensors for multi-input models."""
+        """Internal: Split single input buffer into multiple tensors."""
         tensor_sizes = self.get_input_tensor_sizes()
         input_names = self.get_input_tensor_names()
 
@@ -857,7 +944,7 @@ class InferenceEngine:
         return self.get_output_tensor_count() > 1
 
     def _should_auto_split_output(self, output_buffer: np.ndarray) -> bool:
-        """Internal: Check if single output buffer should be auto-split for multi-output models."""
+        """Internal: Check if single output buffer should be auto-split."""
         if not self._is_multi_output_model():
             return False
 
@@ -871,7 +958,7 @@ class InferenceEngine:
         return actual_size == expected_total_size
 
     def _split_output_buffer(self, output_buffer: np.ndarray) -> List[np.ndarray]:
-        """Internal: Split single output buffer into multiple output tensors for multi-output models."""
+        """Internal: Split single output buffer into multiple tensors."""
         tensor_sizes = self.get_output_tensor_sizes()
         output_names = self.get_output_tensor_names()
 
@@ -884,8 +971,11 @@ class InferenceEngine:
         # Validate total buffer size matches expected total
         expected_total_size = sum(tensor_sizes)
         if output_buffer.nbytes != expected_total_size:
-            raise ValueError(f"Output buffer size ({output_buffer.nbytes} bytes) does not match "
-                           f"expected total size ({expected_total_size} bytes) for multi-output model")
+            raise ValueError(
+                f"Output buffer size ({output_buffer.nbytes} bytes) does not "
+                f"match expected total size ({expected_total_size} bytes) "
+                f"for multi-output model"
+            )
 
         split_tensors = []
         offset = 0
@@ -893,8 +983,11 @@ class InferenceEngine:
         for i, (tensor_size, tensor_name) in enumerate(zip(tensor_sizes, output_names)):
             remaining_bytes = output_buffer.nbytes - offset
             if remaining_bytes < tensor_size:
-                raise ValueError(f"Output buffer too small for tensor '{tensor_name}' at index {i}: "
-                               f"need {tensor_size} bytes, but only {remaining_bytes} bytes remaining")
+                raise ValueError(
+                    f"Output buffer too small for tensor '{tensor_name}' "
+                    f"at index {i}: need {tensor_size} bytes, "
+                    f"but only {remaining_bytes} bytes remaining"
+                )
 
             # Extract view for this tensor (as bytes)
             tensor_bytes = output_buffer.view(dtype=np.uint8)[offset:offset + tensor_size]
@@ -903,7 +996,10 @@ class InferenceEngine:
 
         # Ensure we used the entire buffer
         if offset != output_buffer.nbytes:
-            raise ValueError(f"Buffer splitting error: used {offset} bytes out of {output_buffer.nbytes} bytes")
+            raise ValueError(
+                f"Buffer splitting error: used {offset} bytes "
+                f"out of {output_buffer.nbytes} bytes"
+            )
 
         return split_tensors
 
@@ -945,14 +1041,16 @@ class InferenceEngine:
         """Returns the number of output tensors produced by the model."""
         return len(self._fetch_output_tensors_info())
 
-    def get_input_data_type(self) -> List[Union[type, str, None]]: # NumpyDataTypeMapper.from_string can return None
+    def get_input_data_type(self) -> List[Union[type, str, None]]:
         """
-        Get required input data type as a list of Python types using NumpyDataTypeMapper.
+        Get required input data type as a list of Python types.
+
         @deprecated: Use `get_input_tensor_info()` and access the 'dtype' key.
         """
         warnings.warn(
             "Method get_input_data_type() is deprecated. "
-            "Use get_input_tensor_info() and access the 'dtype' key, then map with NumpyDataTypeMapper if needed.",
+            "Use get_input_tensor_info() and access the 'dtype' key, "
+            "then map with NumpyDataTypeMapper if needed.",
             DeprecationWarning,
             stacklevel=2
         )
@@ -960,14 +1058,16 @@ class InferenceEngine:
         dtype_strs = self.engine.get_input_dtype()
         return [NumpyDataTypeMapper.from_string(dt) for dt in dtype_strs]
 
-    def get_output_data_type(self) -> List[Union[type, str, None]]: # NumpyDataTypeMapper.from_string can return None
+    def get_output_data_type(self) -> List[Union[type, str, None]]:
         """
-        Get required output data type as a list of Python types using NumpyDataTypeMapper.
-        @deprecated: Use `get_output_tensors_info()` and access the 'dtype' key.
+        Get required output data type as a list of Python types.
+
+        @deprecated: Use `get_output_tensors_info()` and access 'dtype' key.
         """
         warnings.warn(
             "Method get_output_data_type() is deprecated. "
-            "Use get_output_tensors_info() and access the 'dtype' key, then map with NumpyDataTypeMapper if needed.",
+            "Use get_output_tensors_info() and access the 'dtype' key, "
+            "then map with NumpyDataTypeMapper if needed.",
             DeprecationWarning,
             stacklevel=2
         )
@@ -1072,85 +1172,210 @@ class InferenceEngine:
         self.dispose()
         return False
 
-
     # --- Deprecated Methods ---
+
     def Run(self, input_feed_list: List[np.ndarray], user_arg: object = None):  # NOSONAR : S1845
-        warnings.warn("Method Run() is deprecated. Use run() instead.", DeprecationWarning, stacklevel=2)
+        warnings.warn(
+            "Method Run() is deprecated. Use run() instead.",
+            DeprecationWarning, stacklevel=2)
         return self.run(input_feed_list, user_args=user_arg)
 
-    def run_batch(self, input_buffers: List[List[np.ndarray]], output_buffers: List[List[np.ndarray]], user_args: Optional[List[object]] = None):
-        warnings.warn("Method run_batch() is deprecated. Use run() with batch-formatted inputs/outputs.", DeprecationWarning, stacklevel=2)
+    def run_batch(self, input_buffers: List[List[np.ndarray]],
+                  output_buffers: List[List[np.ndarray]],
+                  user_args: Optional[List[object]] = None):
+        warnings.warn(
+            "Method run_batch() is deprecated. Use run() with batch-formatted inputs/outputs.",
+            DeprecationWarning, stacklevel=2)
         return self.run(input_buffers, output_buffers=output_buffers, user_args=user_args)
 
-    def RunBatch(self, input_buffers: List[List[np.ndarray]], output_buffers: List[List[np.ndarray]], user_args: Optional[List[object]] = None): # NOSONAR : S1845
-        warnings.warn("Method RunBatch() is deprecated. Use run() with batch-formatted inputs/outputs.", DeprecationWarning, stacklevel=2)
+    def RunBatch(self, input_buffers: List[List[np.ndarray]],
+                 output_buffers: List[List[np.ndarray]],
+                 user_args: Optional[List[object]] = None):  # NOSONAR : S1845
+        warnings.warn(
+            "Method RunBatch() is deprecated. Use run() with batch-formatted inputs/outputs.",
+            DeprecationWarning, stacklevel=2)
         return self.run(input_buffers, output_buffers=output_buffers, user_args=user_args)
 
-    def RunAsync(self, input_feed_list: List[np.ndarray], user_arg: Any = None): # NOSONAR : S1845
-        warnings.warn("Method RunAsync() is deprecated. Use run_async() instead.", DeprecationWarning, stacklevel=2)
+    def RunAsync(self, input_feed_list: List[np.ndarray], user_arg: Any = None):  # NOSONAR : S1845
+        warnings.warn(
+            "Method RunAsync() is deprecated. Use run_async() instead.",
+            DeprecationWarning, stacklevel=2)
         return self.run_async(input_feed_list, user_arg=user_arg)
 
-    def RunBenchMark(self, loop_cnt: int, input_feed_list: Optional[List[np.ndarray]] = None): # NOSONAR : S1845
-        warnings.warn("Method RunBenchMark() is deprecated. Use run_benchmark() instead.", DeprecationWarning, stacklevel=2)
+    def RunBenchMark(self, loop_cnt: int,
+                     input_feed_list: Optional[List[np.ndarray]] = None):  # NOSONAR : S1845
+        warnings.warn(
+            "Method RunBenchMark() is deprecated. Use run_benchmark() instead.",
+            DeprecationWarning, stacklevel=2)
         return self.run_benchmark(loop_cnt, input_feed_list)
 
-    def ValidateDevice(self, input_feed_list: List[np.ndarray], device_id: int = 0): # NOSONAR : S1845
-        warnings.warn("Method ValidateDevice() is deprecated. Use validate_device() instead.", DeprecationWarning, stacklevel=2)
+    def ValidateDevice(self, input_feed_list: List[np.ndarray],
+                       device_id: int = 0):  # NOSONAR : S1845
+        warnings.warn(
+            "Method ValidateDevice() is deprecated. Use validate_device() instead.",
+            DeprecationWarning, stacklevel=2)
         return self.validate_device(input_feed_list, device_id)
 
-    def RegisterCallBack(self, callback: Optional[Callable[[List[np.ndarray], Any], int]]): # NOSONAR : S1845
-        warnings.warn("Method RegisterCallBack() is deprecated. Use register_callback() instead.", DeprecationWarning, stacklevel=2)
+    def RegisterCallBack(
+        self, callback: Optional[Callable[[List[np.ndarray], Any], int]]
+    ):  # NOSONAR : S1845
+        warnings.warn(
+            "Method RegisterCallBack() is deprecated. Use register_callback() instead.",
+            DeprecationWarning, stacklevel=2)
         return self.register_callback(callback)
 
-    def Wait(self, req_id: int): # NOSONAR : S1845
-        warnings.warn("Method Wait() is deprecated. Use wait() instead.", DeprecationWarning, stacklevel=2)
+    def Wait(self, req_id: int):  # NOSONAR : S1845
+        warnings.warn(
+            "Method Wait() is deprecated. Use wait() instead.",
+            DeprecationWarning, stacklevel=2)
         return self.wait(req_id)
 
     def input_size(self) -> int:
-        warnings.warn("Method input_size() is deprecated. Use get_input_size() instead.", DeprecationWarning, stacklevel=2)
+        warnings.warn(
+            "Method input_size() is deprecated. Use get_input_size() instead.",
+            DeprecationWarning, stacklevel=2)
         return self.get_input_size()
 
     def output_size(self) -> int:
-        warnings.warn("Method output_size() is deprecated. Use get_output_size() instead.", DeprecationWarning, stacklevel=2)
+        warnings.warn(
+            "Method output_size() is deprecated. Use get_output_size() instead.",
+            DeprecationWarning, stacklevel=2)
         return self.get_output_size()
 
-    def input_dtype(self) -> List[Union[type, None]]: # Updated return type
-        warnings.warn("Method input_dtype() is deprecated. Use get_input_tensor_info() and parse 'dtype' string.", DeprecationWarning, stacklevel=2)
-        return self.get_input_data_type() # Calls the new internal logic
+    def input_dtype(self) -> List[Union[type, None]]:  # Updated return type
+        warnings.warn(
+            "Method input_dtype() is deprecated. "
+            "Use get_input_tensor_info() and parse 'dtype' string.",
+            DeprecationWarning, stacklevel=2)
+        return self.get_input_data_type()  # Calls the new internal logic
 
-    def output_dtype(self) -> List[Union[type, None]]: # Updated return type
-        warnings.warn("Method output_dtype() is deprecated. Use get_output_tensors_info() and parse 'dtype' string.", DeprecationWarning, stacklevel=2)
-        return self.get_output_data_type() # Calls the new internal logic
+    def output_dtype(self) -> List[Union[type, None]]:  # Updated return type
+        warnings.warn(
+            "Method output_dtype() is deprecated. "
+            "Use get_output_tensors_info() and parse 'dtype' string.",
+            DeprecationWarning, stacklevel=2)
+        return self.get_output_data_type()  # Calls the new internal logic
 
     def task_order(self) -> List[str]:
-        warnings.warn("Method task_order() is deprecated. Use get_task_order() instead.", DeprecationWarning, stacklevel=2)
+        warnings.warn(
+            "Method task_order() is deprecated. Use get_task_order() instead.",
+            DeprecationWarning, stacklevel=2)
         return self.get_task_order()
 
     def latency(self) -> int:
-        warnings.warn("Method latency() is deprecated. Use get_latency() instead.", DeprecationWarning, stacklevel=2)
+        warnings.warn(
+            "Method latency() is deprecated. Use get_latency() instead.",
+            DeprecationWarning, stacklevel=2)
         return self.get_latency()
 
     def inference_time(self) -> int:
-        warnings.warn("Method inference_time() is deprecated. Use get_npu_inference_time() instead.", DeprecationWarning, stacklevel=2)
+        warnings.warn(
+            "Method inference_time() is deprecated. Use get_npu_inference_time() instead.",
+            DeprecationWarning, stacklevel=2)
         return self.get_npu_inference_time()
 
     def get_outputs(self) -> List[List[np.ndarray]]:
-        warnings.warn("Method get_outputs() is deprecated. Use get_all_task_outputs() instead.", DeprecationWarning, stacklevel=2)
+        warnings.warn(
+            "Method get_outputs() is deprecated. Use get_all_task_outputs() instead.",
+            DeprecationWarning, stacklevel=2)
         return self.get_all_task_outputs()
 
     def bitmatch_mask(self, index: int = 0) -> np.ndarray:
-        warnings.warn("Method bitmatch_mask() is deprecated. Use get_bitmatch_mask() instead.", DeprecationWarning, stacklevel=2)
+        warnings.warn(
+            "Method bitmatch_mask() is deprecated. Use get_bitmatch_mask() instead.",
+            DeprecationWarning, stacklevel=2)
         return self.get_bitmatch_mask(index)
 
     def get_num_tails(self) -> int:
-        warnings.warn("Method get_num_tails() is deprecated. Use get_num_tail_tasks() instead.", DeprecationWarning, stacklevel=2)
+        warnings.warn(
+            "Method get_num_tails() is deprecated. Use get_num_tail_tasks() instead.",
+            DeprecationWarning, stacklevel=2)
         return self.get_num_tail_tasks()
 
     def is_PPU(self) -> bool:  # NOSONAR : S1845
-        warnings.warn("Method is_PPU() is deprecated. Use is_ppu() instead.", DeprecationWarning, stacklevel=2)
+        warnings.warn(
+            "Method is_PPU() is deprecated. Use is_ppu() instead.",
+            DeprecationWarning, stacklevel=2)
         return self.is_ppu()
 
-    def _validate_output_buffer_size(self, buffer: np.ndarray, tensor_index: Optional[int] = None) -> None: # NOSONAR : S1845
+    def _validate_input_dtype(self, buffer: np.ndarray, tensor_index: int) -> None:
+        """
+        Validates that an input buffer's dtype matches the model's expected dtype
+        for the given input tensor index.
+
+        Args:
+            buffer: User-provided input ndarray.
+            tensor_index: Index of the target input tensor in the model.
+
+        Raises:
+            TypeError: If buffer is not an np.ndarray.
+            ValueError: If tensor_index is out of range or dtype does not match.
+        """
+        if not isinstance(buffer, np.ndarray):
+            raise TypeError("Input buffer must be a numpy array")
+
+        infos = self._fetch_input_tensors_info()
+        if tensor_index >= len(infos):
+            raise ValueError(f"Tensor index {tensor_index} out of range. "
+                             f"Model has {len(infos)} input tensors.")
+
+        expected_dtype = infos[tensor_index].get("dtype")
+        # If the model reports an unknown/NONE dtype, skip the check rather than
+        # false-reject the user's buffer.
+        if expected_dtype is None:
+            return
+
+        if np.dtype(buffer.dtype) != np.dtype(expected_dtype):
+            tensor_names = self.get_input_tensor_names()
+            tensor_name = (tensor_names[tensor_index]
+                           if tensor_index < len(tensor_names)
+                           else f"tensor_{tensor_index}")
+            raise ValueError(
+                f"Input dtype mismatch for '{tensor_name}': "
+                f"expected {np.dtype(expected_dtype)}, got {np.dtype(buffer.dtype)}"
+            )
+
+    def _validate_inputs_dtype(self, analysis_result: Dict[str, Any]) -> None:
+        """
+        Validates dtype for all input tensors described by an analysis result.
+
+        Auto-split buffers (a single concatenated raw byte container that spans
+        multiple logical input tensors) are skipped because their dtype is a
+        byte-container dtype, not a per-tensor logical dtype. Size/alignment for
+        those cases is already validated in `_should_auto_split_input`.
+        """
+        # Top-level auto-split (single concat ndarray for all inputs) -> skip
+        if analysis_result.get('auto_split', False):
+            return
+
+        processed = analysis_result['processed_inputs']
+
+        if analysis_result['is_batch']:
+            self._validate_batch_inputs_dtype(processed)
+        else:
+            # processed is List[np.ndarray], one per input tensor
+            for tensor_idx, buffer in enumerate(processed):
+                self._validate_input_dtype(buffer, tensor_idx)
+
+    def _validate_batch_inputs_dtype(self, batch_inputs: List[List[np.ndarray]]) -> None:
+        """Internal: Validate dtype for each tensor across a batch. Skips per-sample auto-split."""
+        for sample_idx, sample in enumerate(batch_inputs):
+            # Per-sample auto-split (one concat buffer per sample) -> skip
+            if (len(sample) == 1
+                    and isinstance(sample[0], np.ndarray)
+                    and self._should_auto_split_input(sample[0])):
+                continue
+            for tensor_idx, buffer in enumerate(sample):
+                try:
+                    self._validate_input_dtype(buffer, tensor_idx)
+                except ValueError as e:
+                    raise ValueError(f"Batch item {sample_idx}: {e}") from e
+
+    def _validate_output_buffer_size(
+        self,
+        buffer: np.ndarray,
+        tensor_index: Optional[int] = None
+    ) -> None:
         """
         Validates that an output buffer has the correct size for the model.
 
@@ -1169,28 +1394,41 @@ class InferenceEngine:
             expected_sizes = self.get_output_tensor_sizes()
             if tensor_index >= len(expected_sizes):
                 raise ValueError(f"Tensor index {tensor_index} out of range. "
-                               f"Model has {len(expected_sizes)} output tensors.")
+                                 f"Model has {len(expected_sizes)} output tensors.")
 
             expected_size = expected_sizes[tensor_index]
             if buffer.nbytes != expected_size:
                 tensor_names = self.get_output_tensor_names()
-                tensor_name = tensor_names[tensor_index] if tensor_index < len(tensor_names) else f"tensor_{tensor_index}"
-                raise ValueError(f"Output buffer size mismatch for '{tensor_name}': "
-                               f"expected {expected_size} bytes, got {buffer.nbytes} bytes")
+                tensor_name = (
+                    tensor_names[tensor_index]
+                    if tensor_index < len(tensor_names)
+                    else f"tensor_{tensor_index}"
+                )
+                raise ValueError(
+                    f"Output buffer size mismatch for '{tensor_name}': "
+                    f"expected {expected_size} bytes, "
+                    f"got {buffer.nbytes} bytes"
+                )
         else:
             # Validate total buffer size
             if self._is_multi_output_model():
                 # For multi-output, buffer should either match total size or be splittable
                 expected_total_size = self.get_output_size()
                 if buffer.nbytes != expected_total_size:
-                    raise ValueError(f"Output buffer size mismatch: "
-                                   f"expected {expected_total_size} bytes, got {buffer.nbytes} bytes")
+                    raise ValueError(
+                        f"Output buffer size mismatch: "
+                        f"expected {expected_total_size} bytes, "
+                        f"got {buffer.nbytes} bytes"
+                    )
             else:
                 # For single output, validate against the single tensor size
                 expected_sizes = self.get_output_tensor_sizes()
                 if expected_sizes and buffer.nbytes != expected_sizes[0]:
-                    raise ValueError(f"Output buffer size mismatch: "
-                                   f"expected {expected_sizes[0]} bytes, got {buffer.nbytes} bytes")
+                    raise ValueError(
+                        f"Output buffer size mismatch: "
+                        f"expected {expected_sizes[0]} bytes, "
+                        f"got {buffer.nbytes} bytes"
+                    )
 
 
 def parse_model(model_path: str) -> str:

@@ -14,20 +14,23 @@ After you check the system requirements, follow these instructions.
 ## Overview & System Requirements
 
 
-**DX-RT** is a runtime software package for operating DEEPX NPU. This software is compatible with multiple DEEPX NPU products, including **DX-M1**, **DX-M1M**, and **DX-H1 Quattro**. The main build outputs from this repository are 
+**DX-RT** is a runtime software package for operating DEEPX NPU. This software is compatible with multiple DEEPX NPU products, including **DX-M1**, **DX-M1M**, and **DX-H1 Quattro**. The main build outputs from this repository are:
 
 | Output | Description |
 |--------|-------------|
 | `dxrt.dll` | Core runtime library for NPU inference |
 | `dxrt.lib` | Link library for application builds |
 | `dxrtd.exe` | Runtime daemon service for managing apps using `dxrt.dll` |
-| `dxrt-cli.exe` | Device management and firmware interface tool |
-| `run_model.exe` | Model inference and performance verification tool |
-| `parse_model.exe` | Model information viewer |
+| `dxcli.exe` | Device management and firmware interface tool |
+| `dxrun.exe` | Model inference and performance verification tool |
+| `dxparse.exe` | Model information viewer |
 | `dxbenchmark.exe` | Benchmarking utility |
 | `dxtop.exe` | Real-time NPU monitoring tool |
 
 The built libraries are used by [dx_app](https://github.com/DEEPX-AI/dx_app), and users can also develop their own applications by referencing the dx_app code.
+
+!!! note "NOTE. Legacy Names"  
+    Legacy executable names `dxrt-cli.exe`, `run_model.exe`, and `parse_model.exe` are preserved as backward-compatible hard links and continue to work.
 
 !!! note "NOTE. Pre-built Binaries"  
     To use pre-built binaries without building, refer to the [dx_rt_windows](https://github.com/DEEPX-AI/dx_rt_windows) repository.  
@@ -347,7 +350,7 @@ dx_rt/
 │           ├── include/
 │           └── lib/
 └── build_vs/                 # Visual Studio solution (when using x64-VS preset)
-    └── dxrt.sln
+    └── dx_rt.sln
 ```
 
 
@@ -358,7 +361,7 @@ dx_rt/
 
 ---
 
-##  Runtime Setup (Service Configuration)
+## Runtime Setup (Service Configuration)
 
 After the build is complete, you must configure the runtime environment. The most critical component in this stage is the DEEPX Runtime Daemon (`dxrtd.exe`).
 
@@ -431,7 +434,7 @@ After completing the installation and service setup, follow these steps to verif
 
 ```batch
 cd out\install\x64-Release\bin
-dxrt-cli.exe -s
+dxcli.exe -s
 ```
 
 If device information is displayed without errors, the driver is installed correctly.
@@ -456,7 +459,7 @@ tasklist | findstr dxrtd.exe
 Check detailed information including hardware info, temperature, and utilization. 
 
 ```batch
-dxrt-cli.exe -i
+dxcli.exe -i
 ```
 
 ### Performance & Model Inference Test
@@ -477,12 +480,12 @@ If you have a `.dxnn` model file.
 
 Parse model
 ```batch
-parse_model.exe -m your_model.dxnn
+dxparse.exe -m your_model.dxnn
 ```
 
 Run inference
 ```batch
-run_model.exe -m your_model.dxnn -l 10
+dxrun.exe -m your_model.dxnn -l 10
 ```
 
 This command runs 10 inference loops and displays performance metrics.
@@ -517,15 +520,15 @@ Command Line Tools
 
 | Tool | Description | Key Options |
 |------|-------------|-------------|
-| `dxrt-cli.exe` | Device management and firmware interface | `-s` status, `-i` info, `-r` reset, `-u` firmware update |
-| `run_model.exe` | Model inference and performance verification tool | `-m` model, `-l` loop count, `-v` verbose |
-| `parse_model.exe` | Model information viewer | `-m` model, `-v` verbose, `-j` JSON extract |
+| `dxcli.exe` | Device management and firmware interface | `-s` status, `-i` info, `-r` reset, `-u` firmware update |
+| `dxrun.exe` | Model inference and performance verification tool | `-m` model, `-l` loop count, `-v` verbose |
+| `dxparse.exe` | Model information viewer | `-m` model, `-v` verbose, `-j` JSON extract |
 | `dxbenchmark.exe` | Batch performance benchmarking | `--dir` model directory, `-l` loop count |
 | `dxtop.exe` | Real-time NPU monitoring | - |
 
 For detailed usage of each tool, check the `-h` option
 ```batch
-run_model.exe -h
+dxrun.exe -h
 dxbenchmark.exe -h
 ```
 

@@ -14,15 +14,15 @@
 #include <mutex>
 #include <vector>
 
-#include "circular_data_pool.h"
-#include "request.h"
-#include "inference_job.h"
+#include "dxrt/circular_data_pool.h"
+#include "dxrt/request.h"
+#include "dxrt/inference_job.h"
 #include "dxrt/device.h"
-#include "dxrt/multiprocess_memory.h"
 
 namespace dxrt {
 
 class InferenceJob;
+class MultiprocessMemory;
 using RequestWeakPtr = std::weak_ptr<Request>;
 using InferenceJobPtr = std::shared_ptr<InferenceJob>;
 using InferenceJobWeakPtr = std::weak_ptr<InferenceJob>;
@@ -72,7 +72,6 @@ class ObjectsPool
 
 
  private:
-    std::condition_variable _deviceCV;
     std::mutex _deviceMutex;
     int _currentPickDevice;
     int pickDeviceIndex(const std::vector<int> &device_ids);

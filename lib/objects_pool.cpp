@@ -10,8 +10,8 @@
 #include "dxrt/objects_pool.h"
 #include "dxrt/filesys_support.h"
 #include "dxrt/configuration.h"
-#include "dxrt/multiprocess_memory.h"
 #include "dxrt/profiler.h"
+#include "dxrt/user_event_store.h"
 #include "dxrt/exception/exception.h"
 #include "resource/log_messages.h"
 #ifdef __linux__
@@ -51,13 +51,8 @@ ObjectsPool::ObjectsPool()
     // create profiler
     Profiler::GetInstance();
 
-    // create multiprocess_memory
-    #ifdef USE_SERVICE
-        if (Configuration::GetInstance().GetEnable(Configuration::ITEM::SERVICE) && (_multiProcessMemory == nullptr))
-        {
-             _multiProcessMemory = std::make_shared<MultiprocessMemory>();
-        }
-    #endif
+    // create user event store
+    UserEventStore::GetInstance();
 
     _requestPool = std::make_shared<CircularDataPool<Request>>(ObjectsPool::REQUEST_MAX_COUNT);
 }
@@ -71,8 +66,11 @@ ObjectsPool::~ObjectsPool()
     // delete multiprocess_memory
     _multiProcessMemory = nullptr;
 
-    // delete profiler
+    // delete profiler (destructor auto-save runs here, while UserEventStore is still alive)
     Profiler::deleteInstance();
+
+    // delete user event store (after profiler is done)
+    UserEventStore::deleteInstance();
 
     // delete configuration
     Configuration::deleteInstance();

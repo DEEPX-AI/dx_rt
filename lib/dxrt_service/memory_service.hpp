@@ -28,6 +28,7 @@ class MemoryService
     uint64_t Allocate(uint64_t size, pid_t pid);
     uint64_t BackwardAllocate(uint64_t size, pid_t pid);
     bool Deallocate(uint64_t ptr, pid_t pid);
+    bool DeallocateAddress(uint64_t ptr, pid_t pid);
     void DeallocateAll(pid_t pid);
     static void DeallocateAllDevice(pid_t pid);
     uint64_t free_size() const;

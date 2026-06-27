@@ -330,17 +330,17 @@ void InferenceEngine::loadModelFromMemory(const std::string& name, const uint8_t
             const auto& outputNames = pair.second;
 
             // Find the minimum position of this task's outputs in _lastOutputOrder
-            size_t minPosition = std::numeric_limits<size_t>::max();
+            size_t minPosition = (std::numeric_limits<size_t>::max)();
             for (const auto& outputName : outputNames)
             {
                 auto it = tensorOrderMap.find(outputName);
                 if (it != tensorOrderMap.end())
                 {
-                    minPosition = std::min(minPosition, it->second);
+                    minPosition = (std::min)(minPosition, it->second);
                 }
             }
 
-            if (minPosition == std::numeric_limits<size_t>::max())
+            if (minPosition == ((std::numeric_limits<size_t>::max)()))
             {
                 LOG_DXRT_ERR("Task '" + task->name() + "' is classified as a tail but its outputs are not found in the model output list");
                 LOG_DXRT_ERR("Task outputs: ");
@@ -885,7 +885,7 @@ float InferenceEngine::RunBenchmark(int num, void *inputPtr)
     RegisterCallback(callBack);
 
     uint64_t infTime = 0;
-    int infCnt = std::max(1, num);
+    int infCnt = (std::max)(1, num);
 
     // For multi-input models, create per-tensor dummy buffers
     std::vector<std::vector<uint8_t>> multi_input_buffers;
@@ -940,7 +940,7 @@ float InferenceEngine::RunBenchmark(int num, void *inputPtr)
 float InferenceEngine::RunBenchMarkWindows(int num, void* inputPtr)
 {
     float sum = 0.;
-    auto& profiler = dxrt::Profiler::GetInstance(); // NOSONAR
+    // auto& profiler = dxrt::Profiler::GetInstance(); // TODO: migrate to new profiler API
     std::vector<float> fps;
 
     std::atomic<int> done_count, i_last, done_todo;
@@ -958,9 +958,9 @@ float InferenceEngine::RunBenchMarkWindows(int num, void* inputPtr)
     while (num > 0)
     {
         uint64_t infTime = 0;
-        int infCnt = std::min(num, ObjectsPool::REQUEST_MAX_COUNT);
+        int infCnt = (std::min)(num, ObjectsPool::REQUEST_MAX_COUNT);
         done_count = 0; i_last = 0;
-        profiler.Start("benchmark");
+        // profiler.Start(deviceId, jobId, EventType::FRAMEWORK_OVERHEAD); // TODO: migrate to new profiler API
         auto start_clock = std::chrono::steady_clock::now();
         for (uint64_t i = 0; i < static_cast<uint64_t>(infCnt); i++)
         {
@@ -971,13 +971,13 @@ float InferenceEngine::RunBenchMarkWindows(int num, void* inputPtr)
             std::this_thread::sleep_for(std::chrono::microseconds(1));
         }
         auto end_clock = std::chrono::steady_clock::now();
-        profiler.End("benchmark");
+        // profiler.End(deviceId, jobId, EventType::FRAMEWORK_OVERHEAD); // TODO: migrate to new profiler API
         infTime = std::chrono::duration_cast<std::chrono::microseconds>(end_clock - start_clock).count();
         num -= infCnt;
         done_todo += infCnt;
         fps.emplace_back(1000000.0 * infCnt / infTime);
     }
-    profiler.Erase("benchmark");
+    // profiler.Erase("benchmark"); // TODO: migrate to new profiler API
     for (const auto& val : fps)
     {
         sum += val;
@@ -1008,7 +1008,6 @@ TensorPtrs InferenceEngine::ValidateDevice(void *inputPtr, int deviceId)
     {
         LOG_DBG("Auto-splitting single input buffer for multi-input model (validate)");
 
-        // Get individual tensor sizes and split the input buffer
         auto tensorSizes = GetInputTensorSizes();
         std::vector<std::vector<uint8_t>> splitBuffers(tensorSizes.size());
         std::vector<void*> splitPtrs(tensorSizes.size());
@@ -1022,8 +1021,13 @@ TensorPtrs InferenceEngine::ValidateDevice(void *inputPtr, int deviceId)
             offset += tensorSizes[i];
         }
 
-        // Use multi-input validate API
-        return ValidateDeviceMultiInput(splitPtrs, deviceId);
+        // Convert vector to map and call impl directly (lock already held)
+        std::map<std::string, void*> inputTensors;
+        for (size_t i = 0; i < splitPtrs.size(); ++i)
+        {
+            inputTensors[_modelInputOrder[i]] = splitPtrs[i];
+        }
+        return validateDeviceMultiInputImpl(inputTensors, deviceId);
     }
 
     auto npuTaskIter = std::find_if(_tasks.begin(), _tasks.end(), [](const std::shared_ptr<dxrt::Task>& task) {
@@ -1123,13 +1127,19 @@ TensorPtrs InferenceEngine::ValidateDeviceMultiInput(const std::map<std::string,
         throw InvalidArgumentException("Expected " + std::to_string(_modelInputOrder.size()) +
                                      " input tensors, but got " + std::to_string(inputTensors.size()));
     }
-    std::lock_guard<std::mutex> lock(sValidationMutex);
 
+    std::lock_guard<std::mutex> lock(sValidationMutex);
+    return validateDeviceMultiInputImpl(inputTensors, deviceId);
+}
+
+TensorPtrs InferenceEngine::validateDeviceMultiInputImpl(const std::map<std::string, void*>& inputTensors, int deviceId)
+{
     auto npuTaskIter = std::find_if(_tasks.begin(), _tasks.end(), [](const std::shared_ptr<dxrt::Task>& task) {
         return task->processor() == Processor::NPU;
     });
 
-    if (npuTaskIter == _tasks.end()) {
+    if (npuTaskIter == _tasks.end())
+    {
         throw InvalidModelException(EXCEPTION_MESSAGE("No NPU task found for device validation"));
     }
 
@@ -1137,17 +1147,13 @@ TensorPtrs InferenceEngine::ValidateDeviceMultiInput(const std::map<std::string,
 
     auto devicePtr = DevicePool::GetInstance().GetDeviceTaskLayer(deviceId);
 
-
-    if ((_option.devices.empty()== false) && (_option.devices[0] != 0))
+    if ((_option.devices.empty() == false) && (_option.devices[0] != 0))
     {
         throw DeviceIOException(EXCEPTION_MESSAGE("device 0 not registered InferenceEngine, so cannot do validation"));
     }
 
     auto firstInput = inputTensors.begin();
 
-
-    // Create a simplified request with multi-input data
-    // For validation, we'll use the first input as the base and validate the NPU task
     if (_validationOutputBuffer.empty())
     {
         _validationOutputBuffer.resize(npuTask->getData()->_npuModel.output_all_size);
@@ -1157,7 +1163,8 @@ TensorPtrs InferenceEngine::ValidateDeviceMultiInput(const std::map<std::string,
     req->SetStatus(Request::Status::REQ_BUSY);
     req->setModelType(static_cast<ModelType>(req->taskData()->_npuModel.type));
     int ret_validation = RequestResponse::ValidateRequest(req);
-    if (ret_validation != 0) {
+    if (ret_validation != 0)
+    {
         LOG_DXRT_ERR("Device validation failed with error code: " << ret_validation);
         throw InvalidOperationException(EXCEPTION_MESSAGE("Device validation failed."));
     }
@@ -1816,12 +1823,38 @@ void InferenceEngine::disposeOnce()
         task->ClearOutputBuffer();
         task->ClearEncodedInputBuffer();
     }
+
+    // Clear task graph and task-derived metadata to avoid stale state after Dispose.
     _tasks.clear();
     _taskMap.clear();
+    _taskOrder.clear();
+    _subGraphMap.clear();
     _head.reset();
     _tails.clear();
+    _numTails = 0;
+
     _inputTasks.clear();
+    _modelInputOrder.clear();
+    _lastOutputOrder.clear();
+    _inputTensorToTaskMap.clear();
+    _isMultiInput = false;
+
+    _tensorRegistry.clear();
+    {
+        std::lock_guard<std::mutex> outputLock(_outputBufferMutex);
+        _cachedOutputOffsets.clear();
+    }
+    _outputOffsetsCalculated.store(false, std::memory_order_release);
+
+    _hasUserOutputBuffer = false;
+    _userOutputPtr = nullptr;
     _userCallback = nullptr;
+#ifdef USE_VNPU
+    _userInputReleaseCallback = nullptr;
+#endif
+
+    _validationOutputBuffer.clear();
+    _maskBuf.clear();
 
     // inference job pool for IE
     _inferenceJobPool = nullptr;
@@ -1941,6 +1974,94 @@ void InferenceEngine::initializeModel(const uint8_t* modelBuffer, size_t modelSi
     _isOffloadingModel = _modelData.deepx_graph.use_offloading();
 }
 
+int InferenceEngine::adjustBufferCountForNpuMemory(int bufferCount, const std::vector<int>& deviceIds,
+    const std::vector<std::string>& taskOrder,
+    const std::unordered_map<std::string, size_t>& rmapIndexMap) const
+{
+    uint64_t min_mem_size = (std::numeric_limits<uint64_t>::max)();
+    for (int dev_id : deviceIds)
+    {
+        auto device_core = DevicePool::GetInstance().GetDeviceCores(dev_id);
+        uint64_t dev_mem_size = device_core->info().mem_size;
+        if (dev_mem_size < min_mem_size)
+            min_mem_size = dev_mem_size;
+    }
+
+    uint64_t total_fixed_cost = 0;
+    uint64_t total_per_buffer_cost = 0;
+    for (const auto& order : taskOrder)
+    {
+        auto rmap_iter = rmapIndexMap.find(order);
+        if (rmap_iter == rmapIndexMap.end())
+        {
+            continue;
+        }
+
+        size_t j = rmap_iter->second;
+        auto rmap_info = _modelData.deepx_rmap.rmap_info(static_cast<int>(j));
+        if (!rmap_info.is_initialized())
+        {
+            continue;
+        }
+
+        uint64_t rmap_size = _modelData.deepx_binary.rmap(static_cast<int>(j)).buffer().size();
+        uint64_t weight_size = _modelData.deepx_binary.weight(static_cast<int>(j)).buffer().size();
+        uint64_t ppu_size = 0;
+        if (j < _modelData.deepx_binary.ppu().size() &&
+            _modelData.deepx_binary.ppu(static_cast<int>(j)).size() > 0)
+        {
+            ppu_size = _modelData.deepx_binary.ppu(static_cast<int>(j)).buffer().size();
+        }
+        total_fixed_cost += rmap_size + weight_size + ppu_size;
+
+        uint32_t encoded_input_size = 0;
+        for (auto& input : rmap_info.inputs())
+        {
+            encoded_input_size += input.memory().size();
+        }
+
+        auto output_mem_size = static_cast<uint32_t>(rmap_info.model_memory().output().size());
+        total_per_buffer_cost += static_cast<uint64_t>(data_align(encoded_input_size, 64))
+                               + static_cast<uint64_t>(output_mem_size);
+    }
+
+    return calculateMaxBufferCount(min_mem_size, total_fixed_cost, total_per_buffer_cost, bufferCount);
+}
+
+int InferenceEngine::calculateMaxBufferCount(uint64_t npuMemSize, uint64_t totalFixedCost,
+    uint64_t totalPerBufferCost, int initialCount)
+{
+    int adjusted = initialCount;
+    while (adjusted > 1)
+    {
+        uint64_t total = totalFixedCost + totalPerBufferCost * adjusted;
+        if (total <= npuMemSize)
+        {
+            break;
+        }
+        adjusted--;
+    }
+
+    uint64_t final_total = totalFixedCost + totalPerBufferCost;
+    if (final_total > npuMemSize)
+    {
+        throw InsufficientMemoryException(EXCEPTION_MESSAGE(
+            "NPU memory insufficient for model: required "
+            + std::to_string(final_total) + " bytes (fixed "
+            + std::to_string(totalFixedCost) + " + per-buffer "
+            + std::to_string(totalPerBufferCost)
+            + "), available " + std::to_string(npuMemSize) + " bytes"));
+    }
+
+    if (adjusted < initialCount)
+    {
+        LOG_DXRT_WARN("Buffer count reduced from " << initialCount << " to " << adjusted
+            << " due to NPU memory limit (" << npuMemSize << " bytes)");
+    }
+
+    return adjusted;
+}
+
 void InferenceEngine::buildTasksAndSubgraphMap(int bufferCount)
 {
 
@@ -1995,6 +2116,10 @@ void InferenceEngine::buildTasksAndSubgraphMap(int bufferCount)
             selected_devices.push_back(dev_id);
         }
     }
+
+    // Adjust buffer count based on NPU memory constraints before building tasks
+    // If host has multiple NPUs, the buffer count will be reduced to fit the NPU with smallest memory size
+    bufferCount = adjustBufferCountForNpuMemory(bufferCount, selected_devices, orginal_task_order, rmapIndexMap);
 
     bool found = false;
     for (const auto& order : orginal_task_order )
@@ -2628,7 +2753,6 @@ void InferenceEngine::onInferenceComplete(TensorPtrs &outputs, void *userArg, in
     {
         this->_userCallback(outputs, userArg);
     }
-    infJob->SetOccupiedJob(false);
 }
 
 }  // namespace dxrt

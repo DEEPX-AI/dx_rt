@@ -27,13 +27,13 @@ void NpuCore::UpdateData(IDataSource& dataSource, uint32_t voltage, uint32_t clo
 {
     int32_t signed_temperature = static_cast<int32_t>(temperature);
 
-    if(signed_temperature >= -40 && signed_temperature <= 125)
+    if(signed_temperature >= -100 && signed_temperature <= 300)
     {
         _temperature = signed_temperature;
     }
     else
     {
-        throw std::out_of_range(convertLiteralUTF8(u8"Temperature value out of valid range ( -40 ~ 125\u00B0C)"));
+        throw std::out_of_range(convertLiteralUTF8(u8"Temperature value out of valid range ( -100 ~ 300\u00B0C)"));
     }
 
     _voltage = voltage;

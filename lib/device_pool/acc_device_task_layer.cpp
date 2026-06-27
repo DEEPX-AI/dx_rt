@@ -19,6 +19,7 @@
 #include <thread>
 #include "dxrt/common.h"
 #include "dxrt/device_task_layer.h"
+#include "inference_context.h"
 #include "dxrt/task_data.h"
 #include "dxrt/request_data.h"
 #include "dxrt/request_response_class.h"
@@ -41,7 +42,8 @@
     #include "rk_mpi_mb.h"
     #include "rk_mpi_sys.h"
     #include "rk_mpi_mmz.h"
-#endif // USE_VNPU
+    #include "dxrt/fixed_size_buffer.h"
+#endif  // USE_VNPU
 
 #include "../data/ppcpu.h"
 
@@ -52,495 +54,124 @@
 namespace dxrt {
 
 constexpr int THROTTLING_WARNING_TEMPERATURE = 95;
+constexpr int NO_TASK_ID = -1;
 
-AccDeviceTaskLayer::AccDeviceTaskLayer(std::shared_ptr<DeviceCore> dev, std::shared_ptr<ServiceLayerInterface> service_interface)
-: DeviceTaskLayer(dev, service_interface), _inputHandlerQueue(dev->name()+"_input", dev->GetReadChannel(),
-    std::bind(&AccDeviceTaskLayer::InputHandler, this, std::placeholders::_1, std::placeholders::_2)),
-    _outputHandlerQueue(dev->name()+"_output", dev->GetWriteChannel(),
-    std::bind(&AccDeviceTaskLayer::OutputHandler, this, std::placeholders::_1, std::placeholders::_2))
-{}
+namespace {
 
+// ---------------------------------------------------------------------------
+// Platform I/O address and cache-coherency helpers (VNPU vs PCIe).
+// These centralise every #ifdef USE_VNPU in the hot inference path.
+// ---------------------------------------------------------------------------
+
+// note: static not required for internal linkage due to anonymous namespace, but added for clarity
+
+uint64_t resolveInputHostAddr(RequestData* req, void* virtualPtr, int devId)
+{
 #ifndef USE_VNPU
-int AccDeviceTaskLayer::RegisterTask(TaskData* task)
-{
-    int ret = 0;
-    const int tId = task->id();
-    UniqueLock lock(_taskDataLock);
-
-    dxrt_model_t model = task->_npuModel;
-
-    npuModelMap()[tId] = model;
-
-    DXRT_ASSERT(task->input_size() > 0, "Input size is 0");
-    DXRT_ASSERT(task->output_size() > 0, "Output size is 0");
-
-    model.rmap.base = core()->info().mem_addr;
-    model.weight.base = core()->info().mem_addr;
-
-    // Allocate model param regions (simple forward allocation)
-
-
-    uint64_t weight_offset = serviceLayer()->BackwardAllocateForTask(id(), tId, model.weight.size);
-    uint64_t rmap_offset = serviceLayer()->BackwardAllocateForTask(id(), tId, model.rmap.size);
-    if (rmap_offset > weight_offset)
-    {
-        auto temp_addr = rmap_offset;
-        rmap_offset = serviceLayer()->BackwardAllocateForTask(id(), tId, model.rmap.size);
-        serviceLayer()->DeAllocate(id(), temp_addr);
-    }
-    constexpr uint64_t ERROR_ALLOC = std::numeric_limits<uint64_t>::max();
-    if (rmap_offset == ERROR_ALLOC)
-    {
-        LOG_DXRT_ERR("Failed to allocate rmap memory in NPU memory");
-        return -1;
-    }
-    if (weight_offset == ERROR_ALLOC)
-    {
-        LOG_DXRT_ERR("Failed to allocate weight memory in NPU memory");
-        return -1;
-    }
-
-    model.weight.offset = static_cast<uint32_t>(weight_offset);
-    model.rmap.offset = static_cast<uint32_t>(rmap_offset);
-
-    dxrt_request_acc_t inf{};
-    memset(static_cast<void *>(&inf), 0x00, sizeof(dxrt_request_acc_t));
-    inf.task_id = tId;
-    inf.req_id = 0;
-    inf.input.data = 0;
-    inf.input.base = model.rmap.base;
-    inf.input.offset = 0;
-    inf.input.size = task->encoded_input_size();
-    inf.output.data = 0;
-    inf.output.base = model.rmap.base;
-    // V7 default (will be overwritten during runtime request as needed)
-    inf.output.offset = model.last_output_offset;
-    inf.output.size = model.last_output_size;
-
-    inf.model_type = model.type;
-    inf.model_format = model.format;
-    inf.model_cmds = static_cast<uint32_t>(model.cmds);
-    inf.cmd_offset = model.rmap.offset;
-    inf.weight_offset = model.weight.offset;
-    inf.op_mode = model.op_mode;
-    for (int i = 0; i < MAX_CHECKPOINT_COUNT; ++i)
-    {
-        inf.datas[i] = model.checkpoints[i];
-    }
-
-    {
-        std::unique_lock<std::mutex> lk(npuInferenceLock());
-        _npuInferenceAcc[tId] = inf;
-    }
-
-    // Write model params
-    ret = core()->Write(model.rmap);
-    DXRT_ASSERT(ret == 0, "failed to write model rmap parameters" + std::to_string(ret));
-    ret = core()->Write(model.weight);
-    DXRT_ASSERT(ret == 0, "failed to write model weight parameters" + std::to_string(ret));
-
-    // v8 PPCPU: Write PPU binary if exists
-    if (task->_isPPCPU && task->_data && task->_data->size() >= 3)
-    {
-        const auto& ppu_binary = (*task->_data)[2];  // index 2 is PPU binary
-        if (!ppu_binary.empty())
-        {
-            // Copy PPU binary to device-specific storage to prevent multi-device DMA conflicts
-            _ppuBinaryData[tId] = ppu_binary;  // Deep copy
-            const auto& ppu_binary_copy = _ppuBinaryData[tId];
-
-            // Allocate PPU binary region in device memory
-            dxrt_meminfo_t ppu_mem;
-            ppu_mem.base = model.rmap.base;
-
-            uint64_t ppu_offset = serviceLayer()->BackwardAllocateForTask(id(), tId, ppu_binary_copy.size());
-            if (ppu_offset == ERROR_ALLOC)
-            {
-                LOG_DXRT_ERR("Failed to allocate ppuMem memory in NPU memory");
-                _ppuBinaryData.erase(tId);
-                return -1;
-            }
-
-            ppu_mem.offset = static_cast<uint32_t>(ppu_offset);
-            ppu_mem.size = static_cast<uint32_t>(ppu_binary_copy.size());
-            ppu_mem.data = SafeCast::PointerToInteger<const uint8_t*>(ppu_binary_copy.data());
-            ret = core()->Write(ppu_mem);
-            DXRT_ASSERT(ret == 0, "failed to write PPU binary parameters" + std::to_string(ret));
-
-            // Store PPU binary offset in device-specific map (not in TaskData to avoid conflicts)
-            _ppuBinaryOffsets[tId] = ppu_mem.offset;
-
-            LOG_DXRT_DBG << "Device " << id() << " wrote PPU binary (device-specific copy): offset=0x" << std::hex << ppu_mem.offset
-                         << ", size=" << std::dec << ppu_mem.size << " bytes" << std::endl;
-        }
-    }
-
-    // Verify (skip if size is 0)
-    if (model.rmap.size > 0 && model.weight.size > 0)
-    {
-        auto verify = [&](const dxrt_meminfo_t& info, const std::string& name) {
-            if (info.size == 0)
-            {
-                return 0;
-            }
-
-            std::vector<uint8_t> read_buf(info.size);
-            dxrt_meminfo_t read_cmd = info;
-            read_cmd.data = SafeCast::PointerToInteger<uint8_t*>(read_buf.data());
-
-            if (core()->Read(read_cmd) == 0)
-            {
-                return std::memcmp(SafeCast::IntegerToPointer<void*>(info.data),
-                    read_buf.data(), info.size) == 0 ? 0: 1;
-            }
-            else
-            {
-                LOG_DXRT_ERR("Failed to read back " + name + " for verification");
-            }
-            return 1;
-        };
-
-        int fail_count = 0;
-        fail_count += verify(model.rmap, "rmap");
-        fail_count += verify(model.weight, "weight");
-
-        DXRT_ASSERT(fail_count == 0, "failed to verify model parameters, fail count: " + std::to_string(fail_count));
-    }
-    else
-    {
-        LOG_DXRT_DBG << "Device " << id() << " skipping verify (rmap.size=" << model.rmap.size
-                        << ", weight.size=" << model.weight.size << ")" << std::endl;
-    }
-
-
-    _inputTensorFormats[tId] = task->inputs(SafeCast::IntegerToPointer<void*>(inf.input.data));
-    _outputTensorFormats[tId] = task->outputs(SafeCast::IntegerToPointer<void*>(inf.output.data));
-
-
-    // ACC cache registration similar to Device
-    const int64_t block_size = data_align(task->encoded_input_size(), 64)
-                           + static_cast<int64_t>(task->_outputMemSize);
-
-   // int npu_cache_count equals to DXRT_TASK_MAX_LOAD
-   int npu_cache_count = task->get_buffer_count();
-    while (npu_cache_count > 0)
-    {
-        if (memoryCacheManager().registerMemoryCache(task->id(), block_size, npu_cache_count) == false)
-        {
-            npu_cache_count--;
-        }
-        else
-        {
-            break;
-        }
-    }
-    if (npu_cache_count < 1)
-    {
-        LOG_DXRT_ERR("Failed to register memory cache for task " + std::to_string(task->id()));
-        ret = -1;
-    }
-    return ret;
-}
-
+    (void)req; (void)devId;
+    return SafeCast::PointerToInteger<void*>(virtualPtr);
 #else
-
-int AccDeviceTaskLayer::RegisterTask(TaskData* task)
-{
-    LOG_DXRT_DBG << "Device " << id() << " RegisterTask ACC" << std::endl;
-    int ret = 0;
-    const int tId = task->id();
-    UniqueLock lock(_taskDataLock);
-
-    dxrt_model_t model = task->_npuModel;
-
-    npuModelMap()[tId] = model;
-
-    DXRT_ASSERT(task->input_size() > 0, "Input size is 0");
-    DXRT_ASSERT(task->output_size() > 0, "Output size is 0");
-
-    model.rmap.base = core()->info().mem_addr;
-    model.weight.base = core()->info().mem_addr;
-
-    // Allocate model param regions (simple forward allocation)
-    model.weight.offset = serviceLayer()->BackwardAllocateForTask(id(), tId, model.weight.size);
-    model.rmap.offset = serviceLayer()->BackwardAllocateForTask(id(), tId, model.rmap.size);
-    if (model.rmap.offset > model.weight.offset)
+    (void)virtualPtr;
+    if (req->encoded_inputs_phy != 0)
     {
-        uint32_t temp_addr = model.rmap.offset;
-        model.rmap.offset = serviceLayer()->BackwardAllocateForTask(id(), tId, model.rmap.size);
-        serviceLayer()->DeAllocate(id(), temp_addr);
+        LOG_DXRT_DBG << "Device " << devId << " Using CMA input physical address: 0x"
+                     << std::hex << req->encoded_inputs_phy << std::dec << std::endl;
+        return req->encoded_inputs_phy;
     }
-
-    dxrt_request_acc_t inf{};
-    memset(static_cast<void *>(&inf), 0x00, sizeof(dxrt_request_acc_t));
-    inf.task_id = tId;
-    inf.req_id = 0;
-    inf.input.data = 0;
-    inf.input.base = model.rmap.base;
-    inf.input.offset = 0;
-    inf.input.size = task->encoded_input_size();
-    inf.output.data = 0;
-    inf.output.base = model.rmap.base;
-    // V7 default (will be overwritten during runtime request as needed)
-    inf.output.offset = model.last_output_offset;
-    inf.output.size = model.last_output_size;
-
-    inf.model_type = static_cast<uint32_t>(model.type);
-    inf.model_format = static_cast<uint32_t>(model.format);
-    inf.model_cmds = static_cast<uint32_t>(model.cmds);
-    inf.cmd_offset = model.rmap.offset;
-    inf.weight_offset = model.weight.offset;
-    inf.op_mode = model.op_mode;
-    for (int i = 0; i < MAX_CHECKPOINT_COUNT; ++i)
-        inf.datas[i] = model.checkpoints[i];
-    {
-        std::unique_lock<std::mutex> lk(npuInferenceLock());
-        _npuInferenceAcc[tId] = inf;
-    }
-
-    // Write model params using temporary CMA buffers for zero-copy DMA
-    // Allocate CMA buffers for DMA transmission
-    std::unique_ptr<FixedSizeBuffer> rmap_dma_buffer;
-    std::unique_ptr<FixedSizeBuffer> weight_dma_buffer;
-    void* rmap_vaddr = nullptr;
-    uint64_t rmap_paddr = 0;
-    void* weight_vaddr = nullptr;
-    uint64_t weight_paddr = 0;
-
-    // Allocate and use CMA buffer for RMAP DMA transmission
-    if (model.rmap.size > 0)
-    {
-        rmap_dma_buffer = std::make_unique<FixedSizeBuffer>(
-            model.rmap.size, 1, BufferAllocType::CMA_DMA);
-        rmap_vaddr = rmap_dma_buffer->getBuffer();
-        rmap_paddr = rmap_dma_buffer->getPhysicalAddress(rmap_vaddr);
-
-        if (rmap_vaddr && rmap_paddr)
-        {
-            // Copy model rmap data to CMA buffer (CPU uses virtual address)
-            memcpy(rmap_vaddr, reinterpret_cast<const void*>(model.rmap.data), model.rmap.size);
-
-            // Flush CPU cache to RAM before DMA Write (CPU -> RAM -> Device)
-            rmap_dma_buffer->flushCache(rmap_vaddr, model.rmap.size, false);
-
-            // Use physical address for DMA
-            dxrt_meminfo_t rmap_dma = model.rmap;
-            rmap_dma.data = rmap_paddr;
-
-            LOG_DXRT << "Device " << id() << " Writing rmap: vaddr=0x" << std::hex << rmap_vaddr
-                     << ", paddr=0x" << rmap_paddr
-                     << ", base=0x" << rmap_dma.base << ", offset=0x" << rmap_dma.offset
-                     << ", size=" << std::dec << rmap_dma.size << std::endl;
-
-            // // Save original RMAP data to file
-            // DataDumpBin("debug_rmap_original.bin", rmap_vaddr, model.rmap.size);
-            LOG_DXRT_DBG << "Saved RMAP original data to debug_rmap_original.bin" << std::endl;
-
-            ret = core()->Write(rmap_dma);
-            DXRT_ASSERT(ret == 0, "failed to write model rmap parameters" + std::to_string(ret));
-        }
-    }
-
-    if (model.weight.size > 0)
-    {
-        weight_dma_buffer = std::make_unique<FixedSizeBuffer>(
-            model.weight.size, 1, BufferAllocType::CMA_DMA);
-        weight_vaddr = weight_dma_buffer->getBuffer();
-        weight_paddr = weight_dma_buffer->getPhysicalAddress(weight_vaddr);
-
-        if (weight_vaddr && weight_paddr)
-        {
-            // Copy model weight data to CMA buffer (CPU uses virtual address)
-            memcpy(weight_vaddr, reinterpret_cast<const void*>(model.weight.data), model.weight.size);
-
-            // Flush CPU cache to RAM before DMA Write (CPU -> RAM -> Device)
-            weight_dma_buffer->flushCache(weight_vaddr, model.weight.size, false);
-
-            // Use physical address for DMA
-            dxrt_meminfo_t weight_dma = model.weight;
-            weight_dma.data = weight_paddr;
-
-            LOG_DXRT << "Device " << id() << " Writing weight: vaddr=0x" << std::hex << weight_vaddr
-                     << ", paddr=0x" << weight_paddr
-                     << ", base=0x" << weight_dma.base << ", offset=0x" << weight_dma.offset
-                     << ", size=" << std::dec << weight_dma.size << std::endl;
-
-            // // Save original Weight data to file
-            // DataDumpBin("debug_weight_original.bin", weight_vaddr, model.weight.size);
-            LOG_DXRT_DBG << "Saved Weight original data to debug_weight_original.bin" << std::endl;
-
-            ret = core()->Write(weight_dma);
-            DXRT_ASSERT(ret == 0, "failed to write model weight parameters" + std::to_string(ret));
-        }
-    }
-
-    // v8 PPCPU: Write PPU binary if exists (using CMA buffer like RMAP/Weight)
-    if (task->_isPPCPU && task->_data && task->_data->size() >= 3)
-    {
-        const auto& ppuBinary = (*task->_data)[2];  // index 2 is PPU binary
-        if (!ppuBinary.empty())
-        {
-            // Allocate CMA buffer for PPU binary DMA transmission
-            std::unique_ptr<FixedSizeBuffer> ppu_dma_buffer = std::make_unique<FixedSizeBuffer>(
-                ppuBinary.size(), 1, BufferAllocType::CMA_DMA);
-
-            void* ppu_vaddr = ppu_dma_buffer->getBuffer();
-            uint64_t ppu_paddr = ppu_dma_buffer->getPhysicalAddress(ppu_vaddr);
-
-            if (ppu_vaddr && ppu_paddr)
-            {
-                // Copy PPU binary to CMA buffer (CPU uses virtual address)
-                memcpy(ppu_vaddr, SafeCast::BytePtrToPtr<const void*>(ppuBinary.data()), ppuBinary.size());
-
-                // Flush CPU cache to RAM before DMA Write (CPU -> RAM -> Device)
-                ppu_dma_buffer->flushCache(ppu_vaddr, ppuBinary.size(), false);
-
-                // Allocate PPU binary region in device memory
-                dxrt_meminfo_t ppuMem;
-                ppuMem.base = model.rmap.base;
-                ppuMem.offset = serviceLayer()->BackwardAllocateForTask(id(), tId, ppuBinary.size());
-                ppuMem.size = ppuBinary.size();
-                ppuMem.data = ppu_paddr;  // Use physical address for DMA
-
-                LOG_DXRT << "Device " << id() << " Writing PPU binary: vaddr=0x" << std::hex << ppu_vaddr
-                         << ", paddr=0x" << ppu_paddr
-                         << ", base=0x" << ppuMem.base << ", offset=0x" << ppuMem.offset
-                         << ", size=" << std::dec << ppuMem.size << std::endl;
-
-                ret = core()->Write(ppuMem);
-                DXRT_ASSERT(ret == 0, "failed to write PPU binary parameters" + std::to_string(ret));
-
-                // Store PPU binary offset in task data for later use in inference request
-                task->_ppuBinaryOffset = ppuMem.offset;
-
-                LOG_DXRT_DBG << "Device " << id() << " wrote PPU binary: offset=0x" << std::hex << ppuMem.offset
-                             << ", size=" << std::dec << ppuMem.size << " bytes" << std::endl;
-            }
-            // CMA buffer automatically released via RAII when unique_ptr goes out of scope
-        }
-    }
-
-    // Verify using CMA buffers (reuse temp buffers allocated for Write)
-    if (model.rmap.size > 0 && model.weight.size > 0)
-    {
-        // Reuse the CMA buffers we just wrote to for verification Read
-        dxrt_meminfo_t cmd_read(model.rmap);
-        dxrt_meminfo_t weight_read(model.weight);
-
-        // Clear CMA buffers before Read
-        if (rmap_vaddr && rmap_paddr)
-        {
-            // memset(rmap_vaddr, 0, model.rmap.size);
-            cmd_read.data = rmap_paddr;  // Use physical address for DMA
-
-            LOG_DXRT << "Device " << id() << " Reading rmap for verification: "
-                     << "base=0x" << std::hex << cmd_read.base << ", offset=0x" << cmd_read.offset
-                     << ", data(paddr)=0x" << cmd_read.data << ", vaddr=0x" << rmap_vaddr
-                     << ", size=" << std::dec << cmd_read.size << std::endl;
-
-            if (core()->Read(cmd_read) == 0) {
-                // Invalidate CPU cache after DMA Read (Device -> RAM, then CPU reads RAM)
-                rmap_dma_buffer->flushCache(rmap_vaddr, model.rmap.size, true);
-
-                // // Save readback RMAP data to file
-                // DataDumpBin("debug_rmap_readback.bin", rmap_vaddr, cmd_read.size);
-                LOG_DXRT_DBG << "Saved RMAP readback data to debug_rmap_readback.bin" << std::endl;
-
-                // Compare using virtual address
-                ret += memcmp(reinterpret_cast<const void*>(model.rmap.data), rmap_vaddr, cmd_read.size);
-                if (ret != 0) {
-                    LOG_DXRT << "[WARNING] RMAP verification mismatch" << std::endl;
-                    // Show first few bytes
-                    for (size_t i = 0; i < std::min(static_cast<size_t>(cmd_read.size), static_cast<size_t>(64)); ++i) {
-                        uint8_t wrote = reinterpret_cast<const uint8_t*>(model.rmap.data)[i];
-                        uint8_t read = static_cast<uint8_t*>(rmap_vaddr)[i];
-                        if (wrote != read) {
-                            LOG_DXRT << "  RMAP mismatch at byte " << i << ": wrote=0x"
-                                     << std::hex << (int)wrote << ", read=0x" << (int)read << std::dec << std::endl;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        if (weight_vaddr && weight_paddr) {
-            // memset(weight_vaddr, 0, model.weight.size);
-            weight_read.data = weight_paddr;  // Use physical address for DMA
-
-            LOG_DXRT << "Device " << id() << " Reading weight for verification: "
-                     << "base=0x" << std::hex << weight_read.base << ", offset=0x" << weight_read.offset
-                     << ", data(paddr)=0x" << weight_read.data << ", vaddr=0x" << weight_vaddr
-                     << ", size=" << std::dec << weight_read.size << std::endl;
-
-            if (core()->Read(weight_read) == 0) {
-                // Invalidate CPU cache after DMA Read (Device -> RAM, then CPU reads RAM)
-                weight_dma_buffer->flushCache(weight_vaddr, model.weight.size, true);
-                // // Save readback Weight data to file
-                // DataDumpBin("debug_weight_readback.bin", weight_vaddr, weight_read.size);
-                LOG_DXRT_DBG << "Saved Weight readback data to debug_weight_readback.bin" << std::endl;
-
-                // Compare using virtual address
-                ret += memcmp(reinterpret_cast<const void*>(model.weight.data), weight_vaddr, weight_read.size);
-                if (ret != 0) {
-                    LOG_DXRT << "[WARNING] Weight verification mismatch" << std::endl;
-                    // Show first few bytes
-                    for (size_t i = 0; i < std::min(static_cast<size_t>(weight_read.size), static_cast<size_t>(64)); ++i) {
-                        uint8_t wrote = reinterpret_cast<const uint8_t*>(model.weight.data)[i];
-                        uint8_t read = static_cast<uint8_t*>(weight_vaddr)[i];
-                        if (wrote != read) {
-                            LOG_DXRT << "  Weight mismatch at byte " << i << ": wrote=0x"
-                                     << std::hex << (int)wrote << ", read=0x" << (int)read << std::dec << std::endl;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        if (ret != 0) {
-            LOG_DXRT << "[WARNING] Device " << id() << " model parameter verification failed: " << ret << std::endl;
-        } else {
-            LOG_DXRT << "Device " << id() << " model parameters verified successfully" << std::endl;
-        }
-
-        DXRT_ASSERT(ret == 0, "failed to check data integrity of model parameters" + std::to_string(ret));
-    } else {
-        LOG_DXRT_DBG << "Device " << id() << " skipping verify (rmap.size=" << model.rmap.size
-                     << ", weight.size=" << model.weight.size << ")" << std::endl;
-    }
-
-    // CMA buffers automatically released via RAII when unique_ptr goes out of scope
-    // No manual cleanup needed
-    _inputTensorFormats[tId] = task->inputs(reinterpret_cast<void*>(inf.input.data));
-    _outputTensorFormats[tId] = task->outputs(reinterpret_cast<void*>(inf.output.data));
-
-
-    // ACC cache registration similar to Device
-    const int64_t block_size = data_align(task->encoded_input_size(), 64)
-                           + static_cast<int64_t>(task->_outputMemSize);
-
-   //int npu_cache_count = DXRT_TASK_MAX_LOAD;
-    int npu_cache_count = task->get_buffer_count();
-    while (npu_cache_count > 0)
-    {
-        if (memoryCacheManager().registerMemoryCache(task->id(), block_size, npu_cache_count) == false)
-        {
-            npu_cache_count--;
-        }
-        else
-        {
-            break;
-        }
-    }
-    if (npu_cache_count < 1)
-    {
-        LOG_DXRT_ERR("Failed to register memory cache for task " + std::to_string(task->id()));
-        ret = -1;
-    }
-    return ret;
+    LOG_DXRT_ERR("Device " + std::to_string(devId)
+        + " Error: input physical address is zero, falling back to virtual address");
+    return 0;
+#endif
 }
-#endif // USE_VNPU
+
+uint64_t resolveOutputHostAddr(RequestData* req, int devId)
+{
+#ifndef USE_VNPU
+    (void)devId;
+    return SafeCast::PointerToInteger<void*>(req->encoded_outputs_ptr);
+#else
+    if (req->encoded_outputs_phy != 0)
+    {
+        LOG_DXRT_DBG << "Device " << devId << " Using CMA output physical address: 0x"
+                     << std::hex << req->encoded_outputs_phy << std::dec << std::endl;
+        return req->encoded_outputs_phy;
+    }
+    LOG_DXRT_ERR("Device " + std::to_string(devId)
+        + " Error: output physical address is zero, falling back to virtual address");
+    return 0;
+#endif
+}
+
+void flushInputBeforeDma(RequestPtr req, uint32_t size, int reqId, int devId)
+{
+#ifdef USE_VNPU
+    if (req->encoded_inputs_ptr() != nullptr && size > 0)
+    {
+        RK_MPI_MMZ_FlushCacheVaddrEnd(req->encoded_inputs_ptr(), size, RK_MMZ_SYNC_RW);
+        LOG_DXRT_DBG << "Device " << devId << " Flushed input cache before DMA Write for request "
+                     << reqId << ", ptr=" << req->encoded_inputs_ptr()
+                     << ", size=" << size << std::endl;
+    }
+#else
+    (void)req; (void)size; (void)reqId; (void)devId;
+#endif
+}
+
+[[maybe_unused]]
+void invalidateOutputAfterDma(RequestPtr req, uint32_t size, int ret)
+{
+#ifdef USE_VNPU
+    if (ret == 0 && req->encoded_outputs_ptr() != nullptr)
+    {
+        RK_MPI_MMZ_FlushCacheVaddrStart(req->encoded_outputs_ptr(), size, RK_MMZ_SYNC_RW);
+    }
+#else
+    (void)req; (void)size; (void)ret;
+#endif
+}
+
+void* getPpcpuOutputPtr(RequestData* reqData, uint64_t outputData)
+{
+#ifndef USE_VNPU
+    (void)outputData;
+    return reqData->encoded_output_ptrs[0];
+#else
+    (void)reqData;
+    return SafeCast::IntegerToPointer<void*>(outputData);
+#endif
+}
+
+void assertAndInvalidatePpcpuOutput(RequestPtr req, int reqId, uint32_t size, int ret, int devId)
+{
+#ifdef USE_VNPU
+    DXRT_ASSERT(ret == 0,
+        "Failed to read PPCPU output, errno=" + std::to_string(ret)
+        + ", reqId=" + std::to_string(reqId));
+
+    if (ret == 0 && req->encoded_outputs_ptr() != nullptr)
+    {
+        RK_MPI_MMZ_FlushCacheVaddrStart(req->encoded_outputs_ptr(), size, RK_MMZ_SYNC_RW);
+        LOG_DXRT_DBG << "Device " << devId << " Invalidated PPCPU output cache for request "
+                     << reqId << ", ptr=" << req->encoded_outputs_ptr()
+                     << ", size=" << size << std::endl;
+    }
+#else
+    (void)req; (void)reqId; (void)size; (void)ret; (void)devId;
+#endif
+}
+
+}  // namespace
+
+AccDeviceTaskLayer::AccDeviceTaskLayer(
+    std::shared_ptr<DeviceCore> dev,
+    std::shared_ptr<ServiceLayerInterface> service_interface)
+    : DeviceTaskLayer(dev, service_interface),
+      _inputHandlerQueue(dev->name() + "_input", dev->GetReadChannel(),
+          std::bind(&AccDeviceTaskLayer::InputHandler, this, std::placeholders::_1, std::placeholders::_2)),
+      _outputHandlerQueue(dev->name() + "_output", dev->GetWriteChannel(),
+          std::bind(&AccDeviceTaskLayer::OutputHandler, this, std::placeholders::_1, std::placeholders::_2))
+{
+}
 
 int AccDeviceTaskLayer::Release(TaskData* task)
 {
@@ -548,28 +179,69 @@ int AccDeviceTaskLayer::Release(TaskData* task)
     int taskId = task->id();
 
 
-    dxrt_request_acc_t npu_inference_acc;
+    uint32_t fallback_cmd_offset = 0;
+    uint32_t fallback_weight_offset = 0;
     {
         std::unique_lock<std::mutex> inference_lock(npuInferenceLock());
-        npu_inference_acc = _npuInferenceAcc[taskId];
-        _npuInferenceAcc.erase(taskId);
+        auto cfgIt = taskStaticConfigs().find(taskId);
+        if (cfgIt != taskStaticConfigs().end())
+        {
+            fallback_cmd_offset    = cfgIt->second.cmd_offset;
+            fallback_weight_offset = cfgIt->second.weight_offset;
+        }
         npuModelMap().erase(taskId);
+        taskStaticConfigs().erase(taskId);
     }
 
     if (memoryCacheManager().canGetCache(taskId))
     {
         memoryCacheManager().unRegisterMemoryCache(taskId);
     }
-    serviceLayer()->DeAllocate(id(), npu_inference_acc.cmd_offset);
-    serviceLayer()->DeAllocate(id(), npu_inference_acc.weight_offset);
+
+    // Deallocate memory using stored memory info
+    auto memInfosIt = modelMemoryInfos().find(taskId);
+    if (memInfosIt != modelMemoryInfos().end())
+    {
+        const auto& memInfos = memInfosIt->second;
+
+        // Deallocate RMAP memory
+        if (memInfos.rmapMemInfo.block_id > 0)
+        {
+            serviceLayer()->DeAllocate(id(), memInfos.rmapMemInfo.block_id);
+        }
+
+        // Deallocate Weight memory
+        if (memInfos.weightMemInfo.block_id > 0)
+        {
+            serviceLayer()->DeAllocate(id(), memInfos.weightMemInfo.block_id);
+        }
+
+        // Deallocate PPU memory if it exists
+        if (memInfos.ppuMemInfo.size > 0 && memInfos.ppuMemInfo.block_id > 0)
+        {
+            serviceLayer()->DeAllocate(id(), memInfos.ppuMemInfo.block_id);
+        }
+
+        modelMemoryInfos().erase(memInfosIt);
+    }
+    else
+    {
+        // Fallback to old method for backward compatibility
+        serviceLayer()->DeAllocate(id(), fallback_cmd_offset);
+        serviceLayer()->DeAllocate(id(), fallback_weight_offset);
+    }
 
     // Cleanup device-specific PPU binary storage
     _ppuBinaryData.erase(taskId);
     auto ppu_offset_it = _ppuBinaryOffsets.find(taskId);
     if (ppu_offset_it != _ppuBinaryOffsets.end())
     {
-        serviceLayer()->DeAllocate(id(), ppu_offset_it->second);
+        auto ppu_offset = ppu_offset_it->second;
         _ppuBinaryOffsets.erase(ppu_offset_it);
+        if (ppu_offset != 0 && ppu_offset != static_cast<uint32_t>(-1))
+        {
+            serviceLayer()->DeAllocate(id(), ppu_offset);
+        }
     }
 
     return 0;
@@ -578,7 +250,9 @@ int AccDeviceTaskLayer::Release(TaskData* task)
 
 int AccDeviceTaskLayer::InferenceRequest(RequestData *req, npu_bound_op boundOp)
 {
-    return InferenceRequestACC(req, boundOp);
+    auto dmaPass = _dmaStopGate.WaitIfStopped();
+    int retval = InferenceRequestACC(req, boundOp);
+    return retval;
 }
 
 int AccDeviceTaskLayer::InferenceRequestACC(RequestData* req, npu_bound_op boundOp)
@@ -587,98 +261,102 @@ int AccDeviceTaskLayer::InferenceRequestACC(RequestData* req, npu_bound_op bound
     int ret = 0;
     auto task = req->taskData;
     int taskId = task->id();
+    int reqId = req->requestId;
 
     void* req_input_ptr = nullptr;
     if (req->inputs.size() > 0)
+    {
         req_input_ptr = req->encoded_inputs_ptr;
+    }
 
     {
         SharedLock lock(_taskDataLock);
-        /* accelerator device: runtime allocation */
-        dxrt_request_acc_t npu_inference_acc;
+
+        // ---------------------------------------------------------------
+        // Layer 3: build slim request and call BuildDriverRequest()
+        // ---------------------------------------------------------------
+        TaskStaticConfig cfg;
         {
             std::unique_lock<std::mutex> inference_lock(npuInferenceLock());
-            npu_inference_acc = _npuInferenceAcc[taskId];
+            auto it = taskStaticConfigs().find(taskId);
+            DXRT_ASSERT(it != taskStaticConfigs().end(),
+                "TaskStaticConfig missing for taskId=" + std::to_string(taskId));
+            cfg = it->second;
         }
-        const auto& model = task->_npuModel;
 
         LOG_DXRT_DBG << "Device " << id() << " InferenceRequestACC: taskId=" << taskId
-                 << ", model.type=" << static_cast<int>(model.type)
-                 << ", npu_inference_acc.model_type=" << static_cast<int>(npu_inference_acc.model_type)
+                 << ", model_type=" << static_cast<int>(cfg.model_type)
                  << ", task->_isPPCPU=" << task->_isPPCPU
-                 << ", custom_offset(before)=0x" << std::hex << npu_inference_acc.custom_offset << std::dec
+                 << ", custom_offset=0x" << std::hex << cfg.custom_offset << std::dec
                  << std::endl;
 
-        npu_inference_acc.req_id = req->requestId;
+        // Build slim request with per-request runtime values
+        InferenceSlimRequest slim{};
+        slim.req_id  = req->requestId;
+        slim.task_id = static_cast<uint32_t>(taskId);
+        slim.bound   = static_cast<uint32_t>(boundOp);
+
         if (req_input_ptr == nullptr)
         {
             LOG_DXRT_ERR("Device::InferenceRequest_ACC - req_input_ptr is nullptr");
         }
         else
         {
-#ifndef USE_VNPU
-            npu_inference_acc.input.data = SafeCast::PointerToInteger<void*>(req_input_ptr);
-#else
-            // Use physical address for DMA if available (zero-copy), otherwise virtual address
-            if (req->encoded_inputs_phy != 0)
-            {
-                npu_inference_acc.input.data = req->encoded_inputs_phy;
-                LOG_DXRT_DBG << "Device " << id() << " Using CMA input physical address: 0x"
-                             << std::hex << req->encoded_inputs_phy << std::dec << std::endl;
-            }
-            else
-            {
-                LOG_DXRT_ERR("Device " << id() << " Error: input physical address is zero, falling back to virtual address");
-            }
-#endif // USE_VNPU
+            slim.input_host_addr = resolveInputHostAddr(req, req_input_ptr, id());
         }
 
-        npu_inference_acc.input.offset = static_cast<uint32_t>(AllocateFromCache(
-            data_align(task->_encodedInputSize, 64) + task->_outputMemSize, taskId));
+        slim.output_host_addr = resolveOutputHostAddr(req, id());
+
+        const uint64_t alignedInputBytes = data_align(task->_encodedInputSize, 64);
+        const uint64_t outputDelta = (cfg.output_all_offset != 0)
+            ? static_cast<uint64_t>(cfg.output_all_offset)
+            : alignedInputBytes;
+        const uint64_t requiredSliceBytes = outputDelta
+            + static_cast<uint64_t>(cfg.last_output_offset)
+            + static_cast<uint64_t>(cfg.output_size);
+        const uint64_t cacheSliceBytes = (std::max)(
+            alignedInputBytes + static_cast<uint64_t>(task->_outputMemSize),
+            requiredSliceBytes);
+
+        const NpuMemoryCacheSlice cacheSlice = AllocateFromCache(cacheSliceBytes, taskId);
+        DXRT_ASSERT(cacheSlice.isValid(), "Failed to allocate NPU memory cache slice");
+        slim.input_device_offset = cacheSlice.deviceAddress();
+
         if (Configuration::_sNpuValidateOpt.load())
         {
             loadCounter()++;
         }
 
-#ifndef USE_VNPU
-        npu_inference_acc.output.data = SafeCast::PointerToInteger<void*>(req->encoded_outputs_ptr);  // device buffer -> task buffer
-#else
-        // Use physical address for DMA if available (zero-copy), otherwise virtual address
-        if (req->encoded_outputs_phy != 0)
+        // Assemble full dxrt_request_acc_t via Layer 3
+        dxrt_request_acc_t npu_inference_acc = BuildDriverRequest(cfg, slim);
+
+        if (cfg.output_all_offset == 0)
         {
-            npu_inference_acc.output.data = req->encoded_outputs_phy;
-            LOG_DXRT_DBG << "Device " << id() << " Using CMA output physical address: 0x"
-                         << std::hex << req->encoded_outputs_phy << std::dec << std::endl;
+            LOG_DXRT_DBG << "Device " << id()
+                      << " output_all_offset is 0, output.offset=0x"
+                      << std::hex << npu_inference_acc.output.offset << std::dec << std::endl;
         }
         else
         {
-            LOG_DXRT_ERR("Device " << id() << " Error: output physical address is zero, falling back to virtual address");
+            LOG_DXRT_ERR(
+                "Device " + std::to_string(id())
+                + " using model output_all_offset, output.offset=0x"
+                + ToHexString(npu_inference_acc.output.offset));
         }
-#endif // USE_VNPU
 
-        auto outputOffset = npu_inference_acc.input.offset;
-        if (model.output_all_offset == 0)
-            outputOffset += data_align(task->_encodedInputSize, 64);
-        else
-            outputOffset += model.output_all_offset;
-
-        npu_inference_acc.output.offset = outputOffset + model.last_output_offset;
-        // Set custom_offset to PPU binary offset for firmware to execute PPU
         if (task->_isPPCPU)
         {
-            // Use device-specific PPU offset (not TaskData->_ppuBinaryOffset to avoid multi-device conflicts)
-            auto it = _ppuBinaryOffsets.find(taskId);
-            if (it != _ppuBinaryOffsets.end())
+            if (npu_inference_acc.custom_offset != 0)
             {
-                npu_inference_acc.custom_offset = it->second;
                 LOG_DXRT_DBG << "Device " << id() << " PPCPU inference: custom_offset=0x" << std::hex
-                         << it->second << ", model_type=" << std::dec
-                         << static_cast<int>(npu_inference_acc.model_type) << std::endl;
+                             << npu_inference_acc.custom_offset << ", model_type=" << std::dec
+                             << static_cast<int>(npu_inference_acc.model_type) << std::endl;
             }
             else
             {
-                LOG_DXRT_ERR("Device " << id() << " PPCPU task " << taskId << " missing PPU offset");
-                npu_inference_acc.custom_offset = 0;
+                LOG_DXRT_ERR(
+                    "Device " + std::to_string(id()) + " PPCPU task "
+                    + std::to_string(taskId) + " missing PPU offset");
             }
         }
         else
@@ -686,19 +364,18 @@ int AccDeviceTaskLayer::InferenceRequestACC(RequestData* req, npu_bound_op bound
             npu_inference_acc.custom_offset = 0;
         }
 
-        npu_inference_acc.proc_id = getpid();
-        npu_inference_acc.bound = boundOp;
         {
-            ObjectsPool::GetInstance().GetRequestById(req->requestId)->setOutputs(
+            ObjectsPool::GetInstance().GetRequestById(reqId)->setOutputs(
                 task->outputs(SafeCast::IntegerToPointer<void*>(npu_inference_acc.output.data)));
         }
         req->outputs = task->outputs(req->output_buffer_base);
         {
             std::unique_lock<std::mutex> npu_inference_lock(npuInferenceLock());
-            _ongoingRequests[req->requestId] = npu_inference_acc;
+            _ongoingRequests[reqId] = npu_inference_acc;
+            _ongoingInputAllocations[reqId] = cacheSlice;
             if (Configuration::_sNpuValidateOpt.load())
             {
-                Request::GetById(req->requestId)->setNpuInferenceAcc(npu_inference_acc);
+                Request::GetById(reqId)->setNpuInferenceAcc(npu_inference_acc);
                 auto memInfo = dxrt_meminfo_t(npu_inference_acc.output);
                 LOG_DXRT_DBG << "    data: 0x" << std::hex << memInfo.data << std::endl;
                 LOG_DXRT_DBG << "    base: 0x" << std::hex << memInfo.base << std::endl;
@@ -707,9 +384,9 @@ int AccDeviceTaskLayer::InferenceRequestACC(RequestData* req, npu_bound_op bound
             }
         }
         LOG_DXRT_DBG << "Device " << id() << " Request : " << npu_inference_acc << "Bound:" << boundOp << std::endl;
-        LOG_DXRT_DBG << "Device " << id() << " Pushing request " << req->requestId
+        LOG_DXRT_DBG << "Device " << id() << " Pushing request " << reqId
                  << " to InputHandlerQueue" << std::endl;
-        _inputHandlerQueue.PushWork(req->requestId);
+        _inputHandlerQueue.PushWork(reqId);
 
         LOG_DXRT_DBG << "request to input worker returned " << ret << std::endl;
     }
@@ -722,18 +399,37 @@ dxrt_request_acc_t AccDeviceTaskLayer::peekInference(int id)
     return _ongoingRequests[id];
 }
 
-int AccDeviceTaskLayer::InputHandler(const int& requestId, int ch)
+int AccDeviceTaskLayer::InputHandler(const int& reqId, int ch)
 {
-    LOG_DXRT_DBG << "Device " << id() << " InputHandler START for request " << requestId << std::endl;
+    _dmaStopGate.WaitIfStopped();
+    LOG_DXRT_DBG << "Device " << id() << " InputHandler START for request " << reqId << std::endl;
     auto& profiler = Profiler::GetInstance();
-    dxrt_request_acc_t inferenceAcc = peekInference(requestId);
+    dxrt_request_acc_t inferenceAcc = peekInference(reqId);
     int channel = ch;
 
+    const auto numResponseChannels = static_cast<int>(core()->info().num_dma_ch);
+    if (numResponseChannels > 0 && (channel < 0 || channel >= numResponseChannels))
+    {
+        const int normalizedChannel = ((channel % numResponseChannels) + numResponseChannels) % numResponseChannels;
+        LOG_DXRT_DBG << "Device " << id() << " InputHandler normalized NPU dma_ch for request "
+                     << reqId << ": worker_ch=" << channel
+                     << ", num_dma_ch=" << numResponseChannels
+                     << ", dma_ch=" << normalizedChannel << std::endl;
+        channel = normalizedChannel;
+    }
+
     inferenceAcc.dma_ch = channel;
-    RequestPtr req = Request::GetById(requestId);
+    RequestPtr req = Request::GetById(reqId);
+#ifdef USE_PROFILER
+    const std::string profileTagBase =
+        "[Device_" + std::to_string(id())
+        + "][Job_" + std::to_string(req->job_id())
+        + "][" + req->taskData()->name()
+        + "][Req_" + std::to_string(req->id()) + "]";
+#endif
 
     // Debug: Log input DMA parameters
-    LOG_DXRT_DBG << "Device " << id() << " InputHandler req=" << requestId
+    LOG_DXRT_DBG << "Device " << id() << " InputHandler req=" << reqId
              << ": input.data(phy)=0x" << std::hex << inferenceAcc.input.data
              << ", input.base=0x" << inferenceAcc.input.base
              << ", input.offset=0x" << inferenceAcc.input.offset
@@ -741,29 +437,49 @@ int AccDeviceTaskLayer::InputHandler(const int& requestId, int ch)
 
     if (SKIP_INFERENCE_IO != 1)
     {
-        TASK_FLOW("["+std::to_string(req->job_id())+"]"+req->taskData()->name()+" write input, load: "+std::to_string(load));
-#ifdef USE_VNPU
-        // Flush CPU cache to RAM before DMA Write (CPU -> RAM -> Device)
-        if (req->encoded_inputs_ptr() != nullptr && inferenceAcc.input.size > 0)
-        {
-            RK_MPI_MMZ_FlushCacheVaddrEnd(req->encoded_inputs_ptr(), inferenceAcc.input.size, RK_MMZ_SYNC_RW);
-            LOG_DXRT_DBG << "Device " << id() << " Flushed input cache before DMA Write for request "
-                         << requestId << ", ptr=" << req->encoded_inputs_ptr()
-                         << ", size=" << inferenceAcc.input.size << std::endl;
-        }
-#endif // USE_VNPU
+        TASK_FLOW(
+            "[" + std::to_string(req->job_id()) + "]"
+            + req->taskData()->name() + " write input, load: " + std::to_string(load));
+        flushInputBeforeDma(req, inferenceAcc.input.size, reqId, id());
 #ifdef USE_PROFILER
-        profiler.Start("PCIe Write[Device_" + std::to_string(id()) + "][Job_" + std::to_string(req->job_id()) + "][" + req->taskData()->name() + "][Req_" + std::to_string(req->id()) + "](" + std::to_string(inferenceAcc.dma_ch)+")");
+        profiler.Start(Profiler::EventType::H2D, req->task()->name(), id(), req->job_id());
 #endif
 
-        int ret = core()->Write(inferenceAcc.input);
+        int ret;
+        if (serviceLayer()->isRunOnService())
+        {
+            NpuMemoryCacheSlice inputSlice;
+            {
+                std::unique_lock<std::mutex> npu_lock(npuInferenceLock());
+                auto it = _ongoingInputAllocations.find(reqId);
+                DXRT_ASSERT(it != _ongoingInputAllocations.end(),
+                    "InputHandler missing cache allocation for reqId=" + std::to_string(reqId));
+                inputSlice = it->second;
+            }
+            if (inputSlice.view.hostPtr() != nullptr && inferenceAcc.input.size > 0)
+            {
+                std::memcpy(inputSlice.view.hostPtr(),
+                            reinterpret_cast<void*>(inferenceAcc.input.data),
+                            inferenceAcc.input.size);
+            }
+            SharedMemoryView inputView;
+            inputView.info   = inputSlice.view.info;
+            inputView.offset = inputSlice.view.offset;
+            inputView.size   = inferenceAcc.input.size;
+            ret = serviceLayer()->DMAWrite(inputView);
+        }
+        else
+        {
+            ret = serviceLayer()->DMAWrite(id(), inferenceAcc.input.data,
+                inferenceAcc.input.base + inferenceAcc.input.offset, inferenceAcc.input.size);
+        }
         if (ret < 0)
         {
             RuntimeEventDispatcher::GetInstance().DispatchEvent(
                 RuntimeEventDispatcher::LEVEL::CRITICAL,
                 RuntimeEventDispatcher::TYPE::DEVICE_IO,
                 RuntimeEventDispatcher::CODE::WRITE_INPUT,
-                LogMessages::RuntimeDispatch_FailToWriteInput(ret, requestId, ch)
+                LogMessages::RuntimeDispatch_FailToWriteInput(ret, reqId, ch)
             );
 
             // Write failure means the DMA channel is in error state (e.g. CS=2 stuck).
@@ -777,8 +493,10 @@ int AccDeviceTaskLayer::InputHandler(const int& requestId, int ch)
                 // The service's WaitThread will detect the error via NPU_RUN_RESP
                 // and perform DXRT_CMD_RECOVERY, then broadcast to all clients.
                 // Terminate this client immediately so the service can proceed.
-                LOG_DXRT_ERR("DMA write failed (errno=" << ret << ") in service mode on device "
-                    << id() << ". Terminating for service-side recovery.");
+                LOG_DXRT_ERR(
+                    "DMA write failed (errno=" + std::to_string(ret)
+                    + ") in service mode on device " + std::to_string(id())
+                    + ". Terminating for service-side recovery.");
                 std::_Exit(EXIT_FAILURE);
             }
 
@@ -786,39 +504,39 @@ int AccDeviceTaskLayer::InputHandler(const int& requestId, int ch)
             return ret;
         }
 #ifdef USE_PROFILER
-        profiler.End("PCIe Write[Device_" + std::to_string(id()) + "][Job_" + std::to_string(req->job_id()) + "][" + req->taskData()->name() + "][Req_" + std::to_string(req->id()) + "](" + std::to_string(inferenceAcc.dma_ch)+")");
-        // Store PCIe Write completion timestamp for accurate NPU Core timing
-        {
-            std::lock_guard<std::mutex> lock(_writeTimestampLock);
-            _writeCompleteTimestamps[requestId] = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                ProfilerClock::now().time_since_epoch()).count();
-        }
+        profiler.End(Profiler::EventType::H2D, req->task()->name(), id(), req->job_id());
 #endif
     }
 
     if (dxrt::DEBUG_DATA > 0)
     {
         DataDumpBin(req->taskData()->name() + "_encoder_input.bin", req->inputs());
-        DataDumpBin(req->taskData()->name() + "_input.bin", req->encoded_inputs_ptr(), req->taskData()->encoded_input_size());
+        DataDumpBin(
+            req->taskData()->name() + "_input.bin",
+            req->encoded_inputs_ptr(),
+            req->taskData()->encoded_input_size());
     }
     TASK_FLOW("["+std::to_string(req->job_id())+"]"+req->taskData()->name()+" signal to service input");
 
     serviceLayer()->HandleInferenceAcc(inferenceAcc, id());
+
     return 0;
 }
 
 int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
 {
+    std::ignore = ch;
     if (response.proc_id == 0)
     {
         return 0;
     }
     if (response.proc_id != static_cast<uint32_t>(getpid()))
     {
-        LOG_DXRT_DBG << "response from other process reqid: " << response.req_id
+        LOG_DXRT_DBG << "response from other process reqId: " << response.req_id
             << ", pid:" << response.proc_id << std::endl;
         return 0;
     }
+    _dmaStopGate.WaitIfStopped();
     uint32_t reqId = response.req_id;
     dxrt_request_acc_t request_acc = peekInference(reqId);
     auto req = Request::GetById(reqId);
@@ -829,6 +547,13 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
 
     req->set_processed_unit("NPU_"+std::to_string(core()->id()), id(), response.dma_ch);
     dxrt_meminfo_t output = request_acc.output;
+#ifdef USE_PROFILER
+    const std::string profileTagBase =
+        "[Device_" + std::to_string(id())
+        + "][Job_" + std::to_string(req->job_id())
+        + "][" + req->taskData()->name()
+        + "][Req_" + std::to_string(req->id()) + "]";
+#endif
     if (SKIP_INFERENCE_IO != 1 || req->modelType() != ModelType::MODEL_TYPE_ARGMAX)
     {
 #ifdef USE_PROFILER
@@ -851,65 +576,66 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
         }
 
         // Measure Framework Response Handling Delay
-        if (response_recv_ns > 0) {
+        if (response_recv_ns > 0)
+        {
             auto queue_delay_tp = std::make_shared<TimePoint>();
             queue_delay_tp->start = ProfilerClock::time_point(std::chrono::nanoseconds(response_recv_ns));
             queue_delay_tp->end = ProfilerClock::time_point(std::chrono::nanoseconds(output_handler_entry_ns));
-            profiler.AddTimePoint("Framework Response Handling Delay[Device_" + std::to_string(id()) + "][Job_" + std::to_string(req->job_id()) + "][" +
-                req->taskData()->name() + "][Req_" + std::to_string(req->id()) + "]_" + std::to_string(response.dma_ch),
-                queue_delay_tp);
+            profiler.AddTimePoint(Profiler::EventType::FRAMEWORK_OVERHEAD, req->task()->name(), id(), req->job_id(), queue_delay_tp);
         }
 
-        // Get PCIe Write completion timestamp for accurate NPU Core timing
-        uint64_t write_complete_ns = 0;
-        {
-            std::lock_guard<std::mutex> lock(_writeTimestampLock);
-            auto it = _writeCompleteTimestamps.find(reqId);
-            if (it != _writeCompleteTimestamps.end())
-            {
-                write_complete_ns = it->second;
-                _writeCompleteTimestamps.erase(it);  // Cleanup after use
-            }
-        }
-
-        // Calculate NPU Core execution time
-        // Strategy: Use PCIe Write completion as NPU start time (most accurate for timeline)
-        // This assumes NPU starts immediately after PCIe Write completes
+        // Calculate NPU inference time
+        // Strategy: Use response receive time as inference end, calculate backwards.
+        // The previous approach (H2D completion = inference start) assumed inference
+        // starts immediately after H2D, but NPU cores queue requests — so the actual
+        // inference start is later than H2D completion when the core is busy.
         uint64_t inf_time_ns = static_cast<uint64_t>(response.inf_time) * 1000;
 
-        if (write_complete_ns > 0)
+        if (response_recv_ns > 0)
         {
-            // Best case: Use PCIe Write completion time as NPU start
-            auto npu_tp = std::make_shared<TimePoint>();
-            npu_tp->start = ProfilerClock::time_point(std::chrono::nanoseconds(write_complete_ns));
-            npu_tp->end = ProfilerClock::time_point(std::chrono::nanoseconds(write_complete_ns + inf_time_ns));
-            profiler.AddTimePoint("NPU Core[Device_" + std::to_string(id()) + "][Job_" + std::to_string(req->job_id()) + "][" + req->taskData()->name() + "][Req_" + std::to_string(req->id()) + "]_" + std::to_string(response.dma_ch), npu_tp);
-        }
-        else if (response_recv_ns > 0)
-        {
-            // Fallback: use response receive time to estimate NPU end, calculate backwards
             auto npu_tp = std::make_shared<TimePoint>();
             npu_tp->end = ProfilerClock::time_point(std::chrono::nanoseconds(response_recv_ns));
             npu_tp->start = ProfilerClock::time_point(std::chrono::nanoseconds(response_recv_ns - inf_time_ns));
-            profiler.AddTimePoint("NPU Core[Device_" + std::to_string(id()) + "][Job_" + std::to_string(req->job_id()) + "][" + req->taskData()->name() + "][Req_" + std::to_string(req->id()) + "]_" + std::to_string(response.dma_ch), npu_tp);
+            profiler.AddTimePoint(Profiler::InferenceCoreEventType(response.dma_ch), req->task()->name(), id(), req->job_id(), npu_tp);
         }
 
-        if (response.wait_timestamp > 0) {
+        if (response.wait_timestamp > 0)
+        {
             auto wait_tp = std::make_shared<TimePoint>();
             wait_tp->start = ProfilerClock::time_point(std::chrono::nanoseconds(response.wait_start_time));
             wait_tp->end = ProfilerClock::time_point(std::chrono::nanoseconds(response.wait_end_time));
-            profiler.AddTimePoint("Service Process Wait[Device_" + std::to_string(id()) + "][Job_" + std::to_string(req->job_id()) + "][" + req->taskData()->name() + "][Req_" + std::to_string(req->id()) + "]_" + std::to_string(response.dma_ch), wait_tp);
+            profiler.AddTimePoint(Profiler::EventType::SERVICE_PROCESS_WAIT, req->task()->name(), id(), req->job_id(), wait_tp);
         }
 
-        profiler.Start("PCIe Read[Device_" + std::to_string(id()) + "][Job_" + std::to_string(req->job_id()) + "][" + req->taskData()->name() + "][Req_" + std::to_string(req->id()) + "](" + std::to_string(ch)+")");
+        profiler.Start(Profiler::EventType::D2H, req->task()->name(), id(), req->job_id());
 
 #endif
-        int read_ch = ch;
+    #ifndef USE_PROFILER
+        std::ignore = ch;
+    #endif
+
         int ret2 = 0;
-        bool ctrlCmd = true;
-#if DXRT_USB_NETWORK_DRIVER
-        ctrlCmd = false;
-#endif
+
+        // Get output memory info and config once for both normal and PPCPU cases
+        NpuMemoryCacheSlice outputSlice;
+        TaskStaticConfig cfg{};
+        {
+            std::unique_lock<std::mutex> npu_lock(npuInferenceLock());
+            auto it = _ongoingInputAllocations.find(reqId);
+            DXRT_ASSERT(it != _ongoingInputAllocations.end(),
+                "OutputHandler missing cache allocation for reqId=" + std::to_string(reqId));
+            outputSlice = it->second;
+
+            const int taskId = req->task()->id();
+            const auto cfgIt = taskStaticConfigs().find(taskId);
+            DXRT_ASSERT(cfgIt != taskStaticConfigs().end(),
+                "TaskStaticConfig missing for taskId=" + std::to_string(taskId));
+            cfg = cfgIt->second;
+        }
+        const uint64_t outputDelta = (cfg.output_all_offset != 0)
+            ? static_cast<uint64_t>(cfg.output_all_offset)
+            : data_align(req->taskData()->_encodedInputSize, 64);
+        const uint64_t outputOffsetInSlice = outputDelta + static_cast<uint64_t>(cfg.last_output_offset);
 
         // PPCPU (type=3) processes filtered output with dynamic shape
         if (req->modelType() != ModelType::MODEL_TYPE_PPCPU)
@@ -921,9 +647,17 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
             memset(SafeCast::BytePtrToPtr<void*>(output.data), 0, output.size);
 #endif
 
-            // Fault injection: corrupt output.base high 32 bits on Nth read.
+            // Fault injection: corrupt the output DMA source address on the Nth read.
             // Activate:  export DXRT_FAULT_INJECT_OUTPUT=1000
             // Deactivate: unset DXRT_FAULT_INJECT_OUTPUT  (or don't set it)
+            //
+            // The env var lives in the RT client process. The decision (which
+            // read to corrupt) is made here; the actual address corruption is
+            // applied in the active DMA path below:
+            //   - library mode:  corrupt output.base directly (in-process).
+            //   - service mode:  flag the DMARead so dxrtd corrupts the device
+            //                     address it resolves (client output.base is 0).
+            bool injectFault = false;
             {
                 static int s_faultAt = []() {
                     const char* env = getenv("DXRT_FAULT_INJECT_OUTPUT");
@@ -935,24 +669,47 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
                     int count = s_outputReadCount.fetch_add(1) + 1;
                     if (count == s_faultAt)
                     {
-                        LOG_DXRT_ERR("[FAULT_INJECT] Output Read #" << count
-                            << ": Corrupting output.base high 32 bits"
-                            << " (0x" << std::hex << output.base << " -> 0x"
-                            << (output.base & 0x00000000FFFFFFFFULL) << std::dec << ")");
-                        output.base &= 0x00000000FFFFFFFFULL;
+                        injectFault = true;
                     }
                 }
             }
 
-            ret2 = core()->Read(output, read_ch, ctrlCmd);
-
-#ifdef USE_VNPU
-            // Invalidate CPU cache after DMA Read (Device -> RAM, then CPU reads RAM)
-            if (ret2 == 0 && req->encoded_outputs_ptr() != nullptr)
+            SharedMemoryView outputView;
+            outputView.info   = outputSlice.view.info;
+            outputView.offset = outputSlice.view.offset + outputOffsetInSlice;
+            outputView.size   = output.size;
+            if (injectFault)
             {
-                RK_MPI_MMZ_FlushCacheVaddrStart(req->encoded_outputs_ptr(), output.size, RK_MMZ_SYNC_RW);
+                // In service mode the device address is resolved server-side
+                // (dxrtd) from block_id + offset; the client's phys_addr_* are
+                // never transmitted. Flag this read so the service corrupts the
+                // device address it hands to the driver. Log here so the
+                // [FAULT_INJECT] evidence appears in the run_model log.
+                LOG_DXRT_ERR(
+                    "[FAULT_INJECT] Output Read: flagging service-mode DMARead "
+                    "for device-address corruption (reqId="
+                    + std::to_string(reqId) + ", block_id="
+                    + std::to_string(outputView.info.block_id) + ")");
+                ret2 = serviceLayer()->DMAReadWithFaultInjection(outputView);
             }
-#endif // USE_VNPU
+            else
+            {
+                if (serviceLayer()->isRunOnService())
+                {
+                    ret2 = serviceLayer()->DMARead(outputView);
+                }
+                else
+                {
+                    ret2 = serviceLayer()->DMARead(
+                        id(), outputView.deviceAddress(), output.data, output.size);
+                }
+            }
+            if (serviceLayer()->isRunOnService() && ret2 == 0 && outputView.hostPtr() != nullptr)
+            {
+                std::memcpy(reinterpret_cast<void*>(output.data),
+                            outputView.hostPtr(),
+                            output.size);
+            }
         }
         else
         {
@@ -969,57 +726,45 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
                 uint32_t validated_filter_num = response.ppu_filter_num;
 
                 if (response.ppu_filter_num > expected_max_boxes) {
-                    LOG_DXRT_ERR("PPCPU: Invalid ppu_filter_num=" << response.ppu_filter_num
-                                 << " exceeds maximum boxes=" << expected_max_boxes
-                                 << " (dtype=" << static_cast<int>(dtype)
-                                 << ", unit_size=" << unit_size << ")");
+                    LOG_DXRT_ERR(
+                        "PPCPU: Invalid ppu_filter_num=" + std::to_string(response.ppu_filter_num)
+                        + " exceeds maximum boxes=" + std::to_string(expected_max_boxes)
+                        + " (dtype=" + std::to_string(static_cast<int>(dtype))
+                        + ", unit_size=" + std::to_string(unit_size) + ")");
                     // Clamp to maximum to prevent buffer overflow
                     validated_filter_num = static_cast<uint32_t>(expected_max_boxes);
                 }
 
                 // Configure memory info for PPCPU filtered output
-#ifndef USE_VNPU
                 dxrt_meminfo_t ppcpu_output = SetMemInfo_PPCPU(
-                    output,
-                    validated_filter_num,
-                    dtype,
-                    req_data->encoded_output_ptrs[0]  // Use output_buffer_base instead of encoded_output_ptrs
-                );
-
-                LOG_DXRT_DBG << "PPCPU Read - offset: 0x" << std::hex << ppcpu_output.offset
-                             << ", size: " << std::dec << ppcpu_output.size
-                             << " (ppu_filter_num: " << validated_filter_num << ")" << std::endl;
-#else
-                // Use output.data (already set to CMA physical address in InferenceRequestACC)
-                dxrt_meminfo_t ppcpu_output = SetMemInfo_PPCPU(
-                    output,
-                    validated_filter_num,
-                    dtype,
-                    reinterpret_cast<void*>(output.data)  // Use physical address from output.data
-                );
-
+                    output, validated_filter_num, dtype,
+                    getPpcpuOutputPtr(req_data, output.data));
                 LOG_DXRT_DBG << "PPCPU Read - base=0x" << std::hex << ppcpu_output.base
-                         << ", offset=0x" << ppcpu_output.offset
-                         << ", data(paddr)=0x" << ppcpu_output.data
-                         << ", size=" << std::dec << ppcpu_output.size
-                         << " (ppu_filter_num: " << validated_filter_num << ")" << std::endl;
-#endif // USE_VNPU
-                // Read PPCPU filtered output from device memory
-                ret2 = core()->Read(ppcpu_output, read_ch, ctrlCmd);
-
-#ifdef USE_VNPU
-                DXRT_ASSERT(ret2 == 0, "Failed to read PPCPU output, errno=" + std::to_string(ret2) + ", reqId=" + std::to_string(reqId));
-
-                // Invalidate CPU cache after DMA Read (Device -> RAM, then CPU reads RAM)
-                if (ret2 == 0 && req->encoded_outputs_ptr() != nullptr)
+                             << ", offset=0x" << ppcpu_output.offset
+                             << ", data=0x" << ppcpu_output.data
+                             << ", size=" << std::dec << ppcpu_output.size
+                             << " (ppu_filter_num: " << validated_filter_num << ")" << std::endl;
+                // Read PPCPU filtered output from device memory using SharedMemoryView
+                SharedMemoryView ppcpuOutputView;
+                ppcpuOutputView.info = outputSlice.view.info;
+                ppcpuOutputView.offset = outputSlice.view.offset + outputOffsetInSlice + output.size;
+                ppcpuOutputView.size = ppcpu_output.size;
+                if (serviceLayer()->isRunOnService())
                 {
-                    // Direct cache invalidation for external CMA buffer (not managed by FixedSizeBuffer)
-                    RK_MPI_MMZ_FlushCacheVaddrStart(req->encoded_outputs_ptr(), ppcpu_output.size, RK_MMZ_SYNC_RW);
-                    LOG_DXRT_DBG << "Device " << id() << " Invalidated PPCPU output cache (direct RK MPI) for request "
-                                 << reqId << ", ptr=" << req->encoded_outputs_ptr()
-                                 << ", size=" << ppcpu_output.size << std::endl;
+                    ret2 = serviceLayer()->DMARead(ppcpuOutputView);
                 }
-#endif // USE_VNPU
+                else
+                {
+                    ret2 = serviceLayer()->DMARead(
+                        id(), ppcpuOutputView.deviceAddress(), ppcpu_output.data, ppcpu_output.size);
+                }
+                if (serviceLayer()->isRunOnService() && ret2 == 0 && ppcpuOutputView.hostPtr() != nullptr)
+                {
+                    std::memcpy(reinterpret_cast<void*>(ppcpu_output.data),
+                                ppcpuOutputView.hostPtr(),
+                                ppcpu_output.size);
+                }
+                assertAndInvalidatePpcpuOutput(req, reqId, ppcpu_output.size, ret2, id());
             }
         }
 
@@ -1032,7 +777,7 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
 
 
 #ifdef USE_PROFILER
-        profiler.End("PCIe Read[Device_" + std::to_string(id()) + "][Job_" + std::to_string(req->job_id()) + "][" + req->taskData()->name() + "][Req_" + std::to_string(req->id()) + "](" + std::to_string(ch)+")");
+        profiler.End(Profiler::EventType::D2H, req->task()->name(), id(), req->job_id());
 #endif
         if ( ret2 != 0 )
         {
@@ -1057,8 +802,10 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
 
             if (serviceLayer()->isRunOnService())
             {
-                LOG_DXRT_ERR("DMA Read failed (errno=" << ret2 << ") in service mode on device "
-                    << id() << ". Terminating for service-side recovery.");
+                LOG_DXRT_ERR(
+                    "DMA Read failed (errno=" + std::to_string(ret2)
+                    + ") in service mode on device " + std::to_string(id())
+                    + ". Terminating for service-side recovery.");
                 std::_Exit(EXIT_FAILURE);
             }
 
@@ -1074,17 +821,28 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
             req->encoded_outputs_ptr(), req->taskData()->encoded_output_size());
     }
 
-    TASK_FLOW("["+std::to_string(req->job_id())+"]"+req->taskData()->name()+" output is ready, load :"+std::to_string(_device->load()));
+    TASK_FLOW(
+        "[" + std::to_string(req->job_id()) + "]"
+        + req->taskData()->name() + " output is ready, load :"
+        + std::to_string(_device->load()));
 
-    Deallocate_npuBuf(request_acc.input.offset, req->taskData()->id());
+    {
+        std::unique_lock<std::mutex> lock(npuInferenceLock());
+        auto allocationIt = _ongoingInputAllocations.find(reqId);
+        if (allocationIt != _ongoingInputAllocations.end())
+        {
+            Deallocate_npuBuf(allocationIt->second, req->taskData()->id());
+            _ongoingInputAllocations.erase(allocationIt);
+        }
+    }
 
     dxrt_response_t resp2 = response;
-    processResponseHandler()(id(),req->id(), &resp2);
+    processResponseHandler()(id(), reqId, &resp2);
 
 
     {
         std::unique_lock<std::mutex> lock(npuInferenceLock());
-        _ongoingRequests.erase(req->id());
+        _ongoingRequests.erase(reqId);
     }
     return 0;
 }
@@ -1101,7 +859,7 @@ void AccDeviceTaskLayer::OutputReceiverThread(int id)
 #endif
     std::shared_ptr<TimePoint> tp = nullptr;
     std::ignore = tp;
-    LOG_DXRT_DBG << core()->name() << " OutputReceiverThread "<<id<<": Entry" << std::endl;
+    LOG_DXRT_DBG << core()->name() << " OutputReceiverThread " << id << ": Entry" << std::endl;
 
     int termination_count = 0;
     static constexpr int DXRT_DEVICE_TERMINATE_CONFIRM_COUNT = 5;
@@ -1116,19 +874,33 @@ void AccDeviceTaskLayer::OutputReceiverThread(int id)
             shouldExit = true;
             continue;
         }
-        LOG_DXRT_DBG << core()->name() << " OutputReceiverThread "<<id<<": Waiting for response..." << std::endl;
+        LOG_DXRT_DBG << core()->name() << " OutputReceiverThread " << id << ": Waiting for response..." << std::endl;
+
+        LOG_DXRT_DBG << "Device " << core()->name() << " OutputReceiverThread "
+                 << id << ": Calling Process for response..." << std::endl;
+#ifdef USE_PROFILER
+        auto processStart = std::chrono::high_resolution_clock::now();
+#endif
 #if DXRT_USB_NETWORK_DRIVER
         ret = core()->Process(cmd, &response, sizeof(response));
 #else
-        LOG_DXRT_DBG << "Device " << core()->name() << " OutputReceiverThread "<<id<<": Calling Process for response..." << std::endl;
         ret = core()->Process(cmd, &response);
-        LOG_DXRT_DBG << "Device " << core()->name() << " OutputReceiverThread "<<id<<": Process returned " << ret << std::endl;
 #endif
-        LOG_DXRT_DBG << core()->name() << " OutputReceiverThread "<<id<<": Response : " << response
+#ifdef USE_PROFILER
+        auto processEnd = std::chrono::high_resolution_clock::now();
+        auto processDuration = std::chrono::duration_cast<std::chrono::milliseconds>(processEnd - processStart);
+        LOG_DXRT_DBG << "Device " << core()->name() << " OutputReceiverThread " << id
+             << ": Process returned " << ret << " elapsed_ms=" << processDuration.count() << std::endl;
+#else
+        LOG_DXRT_DBG << "Device " << core()->name() << " OutputReceiverThread " << id
+             << ": Process returned " << ret << std::endl;
+#endif
+
+        LOG_DXRT_DBG << core()->name() << " OutputReceiverThread " << id << ": Response : " << response
                      << ", Device Load: " << load() << std::endl;
         if (ret == -1)
         {
-            LOG_DXRT_DBG << core()->name() << " OutputReceiverThread "<<id<<": Terminate detected." << std::endl;
+            LOG_DXRT_DBG << core()->name() << " OutputReceiverThread " << id << ": Terminate detected." << std::endl;
             termination_count++;
             if (termination_count >= DXRT_DEVICE_TERMINATE_CONFIRM_COUNT)
             {
@@ -1173,9 +945,11 @@ void AccDeviceTaskLayer::OutputReceiverThread(int id)
 
             if (isRecoverable)
             {
-                LOG_DXRT_ERR("[OutputReceiverThread " << id << "] Recoverable error (code="
-                    << errCode << ") on device " << deviceId
-                    << ". Deferring to EventThread for DXRT_CMD_RECOVERY.");
+                LOG_DXRT_ERR(
+                    "[OutputReceiverThread " + std::to_string(id)
+                    + "] Recoverable error (code=" + std::to_string(errCode)
+                    + ") on device " + std::to_string(deviceId)
+                    + ". Deferring to EventThread for DXRT_CMD_RECOVERY.");
                 block();
                 // Do NOT setStopFlag or DXRT_ASSERT here.
                 // EventThread receives the driver event, performs recovery,
@@ -1310,13 +1084,13 @@ bool AccDeviceTaskLayer::HandleCaughtEvent(const dxrt::dx_pcie_dev_event_t& even
                 case dxrt::dxrt_error_t::ERR_DEVICE_ERR: err_code_str = "DEVICE_ERR"; break;
                 default: err_code_str = "UNKNOWN(" + std::to_string(err_code) + ")"; break;
             }
-            
+
 #ifdef USE_VNPU
             // Capture error details as string for LogMessage
             std::ostringstream error_details;
             error_details << eventInfo.dx_rt_err << "\n";
             core()->ShowPCIEDetails(error_details);
-            
+
             LOG_DXRT_ERR(error_details.str());
             RuntimeEventDispatcher::GetInstance().DispatchEvent(
                 RuntimeEventDispatcher::LEVEL::ERROR,
@@ -1356,18 +1130,18 @@ bool AccDeviceTaskLayer::HandleCaughtEvent(const dxrt::dx_pcie_dev_event_t& even
             if (err_code >= 400 && err_code < 500)
             {
                 // DMA HW Abort (Abort MSI) — recoverable via DXRT_CMD_RECOVERY
-                HandleDmaAbortError(&eventInfo.dx_rt_err);
+                TriggerRecovery(err_code);
             }
             else if (err_code >= 100 && err_code < 200)
             {
                 // DMA timeout + soft reset failure — driver's engine_en cycle
                 // could not clear CS=2. Full recovery (possibly PCIe SBR) needed.
-                HandleDmaFailError(&eventInfo.dx_rt_err);
+                TriggerRecovery(err_code);
             }
             else if (err_code == 300)
             {
                 // FW Timeout — recoverable
-                HandleFwTimeoutError(&eventInfo.dx_rt_err);
+                TriggerRecovery(err_code);
             }
             else
             {
@@ -1388,7 +1162,9 @@ bool AccDeviceTaskLayer::HandleCaughtEvent(const dxrt::dx_pcie_dev_event_t& even
         if (eventInfo.dx_rt_recv.action==dxrt::dxrt_recov_t::DXRT_RECOV_RMAP)
         {
             auto model = npuModelMap().begin()->second;
-            DXRT_ASSERT(core()->Write(model.rmap, 3) == 0, "Recovery rmap failed to write model parameters(cmd)");
+            DXRT_ASSERT(
+                serviceLayer()->DMAWrite(id(), model.rmap.data, model.rmap.base + model.rmap.offset, model.rmap.size) == 0,
+                "Recovery rmap failed to write model parameters(cmd)");
             LOG_DXRT_ERR("RMAP data has been recovered. This error can cause issues with NPU operation.");
             StartDev(RMAP_RECOVERY_DONE);
             type = "RMAP";
@@ -1396,7 +1172,9 @@ bool AccDeviceTaskLayer::HandleCaughtEvent(const dxrt::dx_pcie_dev_event_t& even
         else if (eventInfo.dx_rt_recv.action==dxrt::dxrt_recov_t::DXRT_RECOV_WEIGHT)
         {
             auto model = npuModelMap().begin()->second;
-            DXRT_ASSERT(core()->Write(model.weight, 3) == 0, "Recovery weight failed to write model parameters(weight)");
+            DXRT_ASSERT(
+                serviceLayer()->DMAWrite(id(), model.weight.data, model.weight.base + model.weight.offset, model.weight.size) == 0,
+                "Recovery weight failed to write model parameters(weight)");
             LOG_DXRT_ERR("Weight data has been recovered. This error can cause wrong result value.");
             StartDev(WEIGHT_RECOVERY_DONE);
             type = "WEIGHT";
@@ -1413,7 +1191,9 @@ bool AccDeviceTaskLayer::HandleCaughtEvent(const dxrt::dx_pcie_dev_event_t& even
         }
         else
         {
-            LOG_DXRT_ERR("Unknown data is received from device " << std::hex << eventInfo.dx_rt_recv.action << "\n");
+            LOG_DXRT_ERR(
+                "Unknown data is received from device 0x"
+                + ToHexString(eventInfo.dx_rt_recv.action) + "\n");
             core()->ShowPCIEDetails();
         }
 
@@ -1521,7 +1301,8 @@ void AccDeviceTaskLayer::HandleThrottlingEvent(const dxrt::dx_pcie_dev_ntfy_thro
 void AccDeviceTaskLayer::LogAbortDiagnostics(int channel, const dx_pcie_dev_err_t *err)   // NOSONAR
 {
     std::cout << "[DMA ABORT] Channel " << channel << std::endl;
-    std::cout << "  err_status=0x" << std::hex << std::setfill('0') << std::setw(8) << err->dma_err << std::dec << std::endl;
+    std::cout << "  err_status=0x" << std::hex << std::setfill('0')
+              << std::setw(8) << err->dma_err << std::dec << std::endl;
     std::cout << "  WR ch status: ["
         << err->dma_wr_ch_sts[0] << ", "
         << err->dma_wr_ch_sts[1] << ", "
@@ -1545,7 +1326,8 @@ void AccDeviceTaskLayer::LogAbortDiagnostics(int channel, const dx_pcie_dev_err_
 void AccDeviceTaskLayer::LogDmaFailDiagnostics(int channel, const dx_pcie_dev_err_t *err)   // NOSONAR
 {
     std::cout << "[DMA FAIL] Channel " << channel << std::endl;
-    std::cout << "  err_status=0x" << std::hex << std::setfill('0') << std::setw(8) << err->dma_err << std::dec << std::endl;
+    std::cout << "  err_status=0x" << std::hex << std::setfill('0')
+              << std::setw(8) << err->dma_err << std::dec << std::endl;
     std::cout << "  WR ch status: ["
         << err->dma_wr_ch_sts[0] << ", "
         << err->dma_wr_ch_sts[1] << ", "
@@ -1577,6 +1359,41 @@ void AccDeviceTaskLayer::LogFwTimeoutDiagnostics(const dx_pcie_dev_err_t *err)  
         << std::setw(2) << static_cast<int>(err->dev) << "."
         << static_cast<int>(err->func)
         << std::dec << std::endl;
+}
+
+void AccDeviceTaskLayer::TriggerRecovery(uint32_t errCode)
+{
+    LOG_DXRT_INFO("TriggerRecovery initiated for device " << id() << " with err_code=" << errCode);
+
+    // Log diagnostic information based on error type
+    if (errCode >= 400 && errCode < 500)
+    {
+        int abort_ch = static_cast<int>(errCode) - 400;
+        // This diagnostic logging will be done in DmaAbortRecoveryThread
+        LOG_DXRT_ERR("DMA HW Abort on channel " << abort_ch);
+    }
+    else if (errCode >= 100 && errCode < 200)
+    {
+        int fail_ch = static_cast<int>(errCode) - 100;
+        LOG_DXRT_ERR("DMA timeout + soft reset failure on channel " << fail_ch);
+    }
+    else if (errCode == 300)
+    {
+        LOG_DXRT_ERR("FW Timeout on device " << id());
+    }
+
+    // Dispatch recovery on a separate thread to avoid blocking the event listener
+    // (matching the pattern of HandleDmaAbortError)
+    if (!_recoveryPending.exchange(true, std::memory_order_acq_rel))
+    {
+        if (_recoveryThread.joinable())
+            _recoveryThread.join();
+        _recoveryThread = std::thread(&AccDeviceTaskLayer::DmaAbortRecoveryThread, this);
+    }
+    else
+    {
+        LOG_DXRT_INFO("Recovery already pending for device " << id() << ", skipping duplicate dispatch");
+    }
 }
 
 void AccDeviceTaskLayer::HandleDmaAbortError(const dx_pcie_dev_err_t *err)
@@ -1642,6 +1459,16 @@ void AccDeviceTaskLayer::HandleFwTimeoutError(const dx_pcie_dev_err_t *err)
     }
 }
 
+void AccDeviceTaskLayer::PauseDmaRequests()
+{
+    core()->PauseDMA();
+}
+
+void AccDeviceTaskLayer::ResumeDmaRequests()
+{
+    core()->ResumeDMA();
+}
+
 void AccDeviceTaskLayer::DmaAbortRecoveryThread()
 {
     LOG_DXRT_INFO("DmaAbortRecoveryThread: Starting recovery for device " << id());
@@ -1662,28 +1489,18 @@ void AccDeviceTaskLayer::DmaAbortRecoveryThread()
             RuntimeEventDispatcher::CODE::RECOVERY_OCCURRED,
             LogMessages::RuntimeDispatch_RecoveryCompleted(id()));
 
-        // In library mode (non-service), DDR content is lost after SBR.
-        // Models must be re-loaded, which requires process restart.
-        LOG_DXRT_INFO("DMA Recovery completed for device " << id()
-            << ". Terminating process for clean restart.");
-        std::_Exit(EXIT_FAILURE);
+        // Recovery succeeded: DMA requests have been unblocked by
+        // ResumeAfterRecovery (called inside triggerRecovery).
+        LOG_DXRT_INFO("DMA Recovery completed for device " << id() << ". Resuming normal operation.");
     }
     else
     {
-        LOG_DXRT_ERR("DmaAbortRecoveryThread: Recovery failed for device " << id()
-            << ", ret=" << ret);
-
-        RuntimeEventDispatcher::GetInstance().DispatchEvent(
-            RuntimeEventDispatcher::LEVEL::CRITICAL,
-            RuntimeEventDispatcher::TYPE::DEVICE_CORE,
-            RuntimeEventDispatcher::CODE::RECOVERY_OCCURRED,
-            LogMessages::RuntimeDispatch_RecoveryFailed(id(),
-                "DXRT_CMD_RECOVERY ioctl returned " + std::to_string(ret)));
-
-        // Fatal: if recovery fails, the device cannot be used
-        LOG_DXRT_ERR("Fatal: DMA abort recovery failed. Device " << id()
-            << " is unusable. Consider restarting the process.");
-        block();
+        // triggerRecovery() already called OnRecoveryFailed (which aborts),
+        // so this branch should never be reached.
+        LOG_DXRT_ERR(
+            "DmaAbortRecoveryThread: Recovery failed for device " + std::to_string(id())
+            + ", ret=" + std::to_string(ret));
+        std::abort();
     }
 
     _recoveryPending.store(false, std::memory_order_release);
@@ -1702,6 +1519,26 @@ void AccDeviceTaskLayer::StartThread()
     // the service (ERROR_REPORT → ProcessErrorFromService → _Exit).
     if (serviceLayer()->isRunOnService() == false)
     {
+        // Wire PauseForRecovery / ResumeAfterRecovery to this task layer's
+        // _dmaStopGate so that DeviceTaskLayer::triggerRecovery() can stop
+        // new DMA requests and drain in-flight ones before the ioctl.
+        auto no_service = std::dynamic_pointer_cast<NoServiceLayer>(serviceLayer());
+        if (no_service)
+        {
+            static constexpr uint32_t RECOVERY_DMA_DRAIN_TIMEOUT_MS = 5000;
+            no_service->RegisterRecoveryCallbacks(
+                id(),
+                [this]() {
+                    // Step 1+2: block new requests and drain in-flight DMA.
+                    _dmaStopGate.SetStop(true);
+                    waitForInflightDmaCompletion(RECOVERY_DMA_DRAIN_TIMEOUT_MS);
+                },
+                [this]() {
+                    // Step 4: unblock new requests after successful recovery.
+                    _dmaStopGate.SetStop(false);
+                });
+        }
+
         _eventThread = std::thread(&AccDeviceTaskLayer::EventThread, this);
     }
 
@@ -1714,55 +1551,8 @@ void AccDeviceTaskLayer::StartThread()
         }
         //Load PPCPU firmware if not running on service layer
         size_t fw_size = PPCPUDataLoader::GetDataSize();
-        uint64_t mem_offset = serviceLayer()->Allocate(id(), fw_size);
-
-#ifndef USE_VNPU
-        dxrt_meminfo_t fw_meminfo;
-        fw_meminfo.base = core()->info().mem_addr;
-        fw_meminfo.offset = static_cast<uint32_t>(mem_offset);
-        fw_meminfo.size = static_cast<uint32_t>(fw_size);
-        fw_meminfo.data = SafeCast::PointerToInteger<void*>(PPCPUDataLoader::GetData());
-
-#else
-        // Allocate CMA buffer for PPCPU firmware DMA transmission
-        std::unique_ptr<FixedSizeBuffer> firmware_dma_buffer = std::make_unique<FixedSizeBuffer>(
-            fw_size, 1, BufferAllocType::CMA_DMA);
-
-        void* fw_vaddr = firmware_dma_buffer->getBuffer();
-        uint64_t fw_paddr = firmware_dma_buffer->getPhysicalAddress(fw_vaddr);
-
-        DXRT_ASSERT(fw_vaddr != nullptr && fw_paddr != 0, "Failed to allocate CMA buffer for PPCPU firmware");
-
-        // Copy PPCPU firmware to CMA buffer (CPU uses virtual address)
-        memcpy(fw_vaddr, PPCPUDataLoader::GetData(), fw_size);
-
-        // Flush CPU cache to RAM before DMA Write (CPU -> RAM -> Device)
-        firmware_dma_buffer->flushCache(fw_vaddr, fw_size, false);
-
-        // Use physical address for DMA
-        dxrt_meminfo_t fw_meminfo;
-        fw_meminfo.base = core()->info().mem_addr;
-        fw_meminfo.offset = mem_offset;
-        fw_meminfo.size = static_cast<uint32_t>(fw_size);
-        fw_meminfo.data = fw_paddr;
-
-        LOG_DXRT << "Device " << id() << " Writing PPCPU firmware: vaddr=0x" << std::hex << fw_vaddr
-                 << ", paddr=0x" << fw_paddr
-                 << ", base=0x" << fw_meminfo.base << ", offset=0x" << fw_meminfo.offset
-                 << ", size=" << std::dec << fw_meminfo.size << std::endl;
-#endif // USE_VNPU
-        int ret1 = core()->Write(fw_meminfo);
-        DXRT_ASSERT(ret1 == 0, "Failed to load PPCPU firmware to device: ret=" + std::to_string(ret1));
-
-        dxrt_req_meminfo_t meminfo_req;
-        meminfo_req.base = fw_meminfo.base;
-        meminfo_req.offset = fw_meminfo.offset;
-        meminfo_req.size = fw_meminfo.size;
-        meminfo_req.data = fw_meminfo.data;
-        meminfo_req.ch = 0;
-
-        core()->DoCustomCommand(&meminfo_req, dxrt::dxrt_custom_sub_cmt_t::DX_INIT_PPCPU,sizeof(dxrt_req_meminfo_t));
-        // CMA buffer automatically released via RAII when unique_ptr goes out of scope
+        uint64_t mem_offset = serviceLayer()->Allocate(id(), NO_TASK_ID, MemoryType::Normal, fw_size);
+        core()->InitPPCPU(mem_offset);
 
     }
     else
@@ -1797,6 +1587,11 @@ AccDeviceTaskLayer::~AccDeviceTaskLayer()
     }
     _outputDispatcher.clear();
     //GCOVR_EXCL_STOP
+}
+
+void AccDeviceTaskLayer::ProcessThrottleFromService(const dxrt::dx_pcie_dev_ntfy_throt_t &throtInfo)
+{
+    HandleThrottlingEvent(throtInfo);
 }
 
 void AccDeviceTaskLayer::ProcessResponseFromService(const dxrt::_dxrt_response_t& response)
@@ -1834,7 +1629,7 @@ void AccDeviceTaskLayer::ReadValidationOutput(std::shared_ptr<Request> req)
     memInfo.offset -= model.last_output_offset;
     memInfo.size = model.output_all_size;
 
-    DXRT_ASSERT(core()->Read(memInfo) == 0, "Fail to read device");
+    DXRT_ASSERT(serviceLayer()->DMARead(id(), memInfo.base + memInfo.offset, memInfo.data, memInfo.size) == 0, "Fail to read device");
     LOG_DXRT_DBG << "  Output Memory Info:" << std::endl;
     LOG_DXRT_DBG << "    data: 0x" << std::hex << memInfo.data << std::endl;
     LOG_DXRT_DBG << "    base: 0x" << std::hex << memInfo.base << std::endl;
@@ -1846,7 +1641,7 @@ void AccDeviceTaskLayer::ReadValidationOutput(std::shared_ptr<Request> req)
 
     if (memInfo.size == 0) memInfo = inferenceAcc.output;  // temporary solution for zero size argmax model
 
-    if (core()->Read(memInfo) != 0) {
+    if (serviceLayer()->DMARead(id(), memInfo.base + memInfo.offset, memInfo.data, memInfo.size) != 0) {
         LOG_DXRT_DBG << "Validate output is empty." << std::endl;
     }
 

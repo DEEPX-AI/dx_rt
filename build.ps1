@@ -389,6 +389,99 @@ function Build-CSharpPackage {
     Write-Host "    - Examples:      csharp_package\examples\"
 }
 
+function Get-InstalledPythonVersions {
+    $pyLauncher = Get-Command py -ErrorAction SilentlyContinue
+    if (-not $pyLauncher) {
+        return @()
+    }
+
+    $supportedVersions = @('3.10', '3.11', '3.12', '3.13', '3.14')
+    $installed = @()
+
+    foreach ($version in $supportedVersions) {
+        $pythonPath = & py "-$version" -c "import sys; print(sys.executable)" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $pythonPath) {
+            $versionText = & py "-$version" --version 2>$null
+            $installed += [pscustomobject]@{
+                Version = $version
+                VersionText = ($versionText | Select-Object -First 1)
+                Executable = ($pythonPath | Select-Object -First 1)
+            }
+        }
+    }
+
+    return $installed
+}
+
+function Get-ActivePythonInfo {
+    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $pythonCmd) {
+        return $null
+    }
+
+    $versionText = & python --version 2>&1 | Select-Object -First 1
+    if ($LASTEXITCODE -ne 0) {
+        $versionText = "python (version unavailable)"
+    }
+
+    return [pscustomobject]@{
+        VersionText = $versionText
+        Executable = $pythonCmd.Source
+    }
+}
+
+function Build-PythonPackage {
+    Write-Host ""
+    Write-Status INFO "Checking installed Python versions for python_package..."
+    Write-Host ""
+
+    $packageDir = Join-Path $ScriptDir "python_package"
+    $pyproject = Join-Path $packageDir "pyproject.toml"
+    if (-not (Test-Path $pyproject)) {
+        Write-Status INFO "python_package not found, skipping Python package install."
+        return
+    }
+
+    $installedPythons = Get-InstalledPythonVersions
+    if (-not $installedPythons -or $installedPythons.Count -eq 0) {
+        Write-Status WARNING "No supported Python versions found via the py launcher."
+        Write-Status WARNING "Supported versions: 3.10, 3.11, 3.12, 3.13, 3.14"
+        return
+    }
+
+    $activePython = Get-ActivePythonInfo
+    if ($activePython) {
+        Write-Host "Active Python: $($activePython.VersionText) [$($activePython.Executable)]"
+    } else {
+        Write-Host "Active Python: N/A [python not found in PATH]"
+    }
+
+    Write-Host "Detected Python versions:"
+    foreach ($pythonInfo in $installedPythons) {
+        Write-Host "  - $($pythonInfo.VersionText) [$($pythonInfo.Executable)]"
+    }
+
+    Push-Location $packageDir
+    try {
+        foreach ($pythonInfo in $installedPythons) {
+            Write-Host ""
+            Write-Status INFO "Reinstalling dx-engine for Python $($pythonInfo.Version)..."
+
+            & py "-$($pythonInfo.Version)" -m pip install --upgrade pip wheel scikit-build-core pybind11 *> $null
+            & py "-$($pythonInfo.Version)" -m pip install --no-deps --force-reinstall .
+
+            if ($LASTEXITCODE -ne 0) {
+                Write-Status WARNING "dx-engine install failed for Python $($pythonInfo.Version)."
+                continue
+            }
+
+            Write-Status OK "dx-engine installed for Python $($pythonInfo.Version)."
+        }
+    } finally {
+        Pop-Location
+    }
+}
+
 function Install-BuildTools {
     Write-Banner "  Visual Studio Build Tools 2022 Installer"
 
@@ -1057,6 +1150,7 @@ if ($DoInstall) {
 # ============================================================================
 if ($DoBuild) {
     Build-CSharpPackage
+    Build-PythonPackage
 }
 
 # Restart dxrtd service if it was stopped before build
@@ -1079,12 +1173,15 @@ $actionStr = $reportActions -join ' + '
 if (-not $actionStr) { $actionStr = "Build" }
 
 $reportDetails = @()
-$reportDetails += "Build Dir  : out\build\x64-$BuildType"
+$reportDetails += "Build Dir      : out\build\x64-$BuildType"
 if ($DoInstall) {
-    $reportDetails += "Install Dir: out\install\x64-$BuildType"
+    $reportDetails += "Install Dir    : out\install\x64-$BuildType"
 }
 if ($DoBuild -and (Test-Path (Join-Path $ScriptDir "csharp_package\src\DxEngine\DxEngine.csproj"))) {
-    $reportDetails += "C# Package : csharp_package\packages\"
+    $reportDetails += "C# Package     : csharp_package\packages\"
+}
+if ($DoBuild -and (Test-Path (Join-Path $ScriptDir "python_package\pyproject.toml"))) {
+    $reportDetails += "Python Package : python_package\"
 }
 
 # dxrtd service status after build

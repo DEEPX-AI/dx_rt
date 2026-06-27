@@ -19,10 +19,9 @@
 #include "dxrt/driver_adapter/driver_adapter.h"
 #include "dxrt/driver_adapter/driver_adapter_factory.h"
 #include "dxrt/filesys_support.h"
-#include "dxrt/service_layer_factory.h"
+#include "service_layer_factory.hpp"
 #include "../resource/log_messages.h"
 #include "dxrt/configuration.h"
-
 namespace dxrt {
 
 
@@ -119,6 +118,34 @@ void DevicePool::InitTaskLayers_once()
         }
 
         layer->RegisterCallback(std::bind(&DevicePool::AwakeDevice, this, core->id()));
+        std::weak_ptr<DeviceTaskLayer> weakLayer = layer;
+        _serviceLayer->RegisterInferenceResponseHandler(
+            core->id(),
+            [weakLayer](const dxrt_response_t &response) {
+                std::shared_ptr<DeviceTaskLayer> lockedLayer = weakLayer.lock();
+                if (lockedLayer)
+                {
+                    lockedLayer->ProcessResponseFromService(response);
+                }
+            });
+        _serviceLayer->RegisterErrorHandler(
+            core->id(),
+            [weakLayer](dxrt_server_err_t err, int value, const dx_pcie_dev_err_t &errorInfo) {
+                std::shared_ptr<DeviceTaskLayer> lockedLayer = weakLayer.lock();
+                if (lockedLayer)
+                {
+                    lockedLayer->ProcessErrorFromService(err, value, &errorInfo);
+                }
+            });
+        _serviceLayer->RegisterThrottleHandler(
+            core->id(),
+            [weakLayer](const dx_pcie_dev_ntfy_throt_t &throtInfo) {
+                std::shared_ptr<DeviceTaskLayer> lockedLayer = weakLayer.lock();
+                if (lockedLayer)
+                {
+                    lockedLayer->ProcessThrottleFromService(throtInfo);
+                }
+            });
         _taskLayers.push_back(layer);
     }
     for (const auto& it : _taskLayers)
@@ -142,7 +169,7 @@ void DevicePool::InitTaskLayers()
 int DevicePool::pickDeviceIndex(const std::vector<int> &device_ids)
 {
     int device_index = -1;
-    int load = std::numeric_limits<int>::max();
+    int load = (std::numeric_limits<int>::max)();
     int curDeviceLoad;
     auto device_id_size = static_cast<int>(device_ids.size());
     int block_count = 0;
@@ -227,7 +254,8 @@ std::shared_ptr<DeviceTaskLayer> DevicePool::WaitDevice(const std::vector<int> &
     bool success = _deviceCV.wait_for(lock, std::chrono::seconds(3000), [this, &device_ids]{
         // Try to pick a device without side effects in predicate
         int picked = pickDeviceIndex(device_ids);
-        if (picked >= 0) {
+        if (picked >= 0) 
+        {
             _currentPickDevice = picked;
             return true;
         }
@@ -236,17 +264,21 @@ std::shared_ptr<DeviceTaskLayer> DevicePool::WaitDevice(const std::vector<int> &
         return false;
     });
 
-    if (!success) {
+    if (!success) 
+    {
         std::string error_msg = "DevicePool: Timeout waiting for available device. Device IDs: ";
-        for (int id : device_ids) {
+        for (int id : device_ids) 
+        {
             error_msg += std::to_string(id) + ",";
         }
         error_msg.pop_back();
 
         // Log current state of all devices
         error_msg += "\\n  Current device states: ";
-        for (int id : device_ids) {
-            if (id < static_cast<int>(_taskLayers.size())) {
+        for (int id : device_ids) 
+        {
+            if (id < static_cast<int>(_taskLayers.size())) 
+            {
                 error_msg += "\\n    Device " + std::to_string(id) +
                              ": load=" + std::to_string(_taskLayers[id]->load()) +
                              ", fullLoad=" + std::to_string(_taskLayers[id]->getFullLoad()) +
@@ -263,10 +295,7 @@ std::shared_ptr<DeviceTaskLayer> DevicePool::WaitDevice(const std::vector<int> &
 
     // Update round-robin index after successful pick
     // Prevent overflow by resetting after a large threshold
-    _curDevIdx++;
-    if (_curDevIdx > 1000000) {
-        _curDevIdx = 0;
-    }
+    _curDevIdx = (_curDevIdx + 1) % 1000000;  // Increment and wrap around to prevent overflow
 
     LOG_DXRT_DBG << "Successfully picked device " << _currentPickDevice
                  << " with new load=" << pick->load() << std::endl;

@@ -23,7 +23,7 @@
 #include <atomic>
 
 #include "ipc_mq_client_linux.h"
-#include "../../../include/dxrt/common.h"
+#include "dxrt/common.h"
 
 namespace dxrt {
 

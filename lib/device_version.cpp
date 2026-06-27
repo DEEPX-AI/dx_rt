@@ -137,13 +137,14 @@ DxDeviceVersion::DxDeviceVersion(DeviceCore* device, uint16_t fw_ver, int type, 
 
 dxrt_dev_info_t DxDeviceVersion::GetVersion(void)
 {
-    int ret;
+    int ret = 0;
 
-    memset(&devInfo.rt_drv_ver.driver_version_suffix, 0, sizeof(devInfo.rt_drv_ver.driver_version_suffix));
+    // Initialize the entire structure to avoid uninitialized values
+    memset(&devInfo, 0, sizeof(dxrt_dev_info_t));
 
     if (_interface == DEVICE_INTERFACE_FPGA)
     {
-        uint32_t rt_drv_ver_STD;
+        uint32_t rt_drv_ver_STD = 0;
         ret = _dev->Process(dxrt::dxrt_cmd_t::DXRT_CMD_DRV_INFO,
             static_cast<void*>(&rt_drv_ver_STD),
             0,
@@ -154,7 +155,7 @@ dxrt_dev_info_t DxDeviceVersion::GetVersion(void)
     if ((_interface == DEVICE_INTERFACE_ASIC) && (_type == DEVICE_TYPE_ACCELERATOR))
     {
         {   // for backward compativility
-            uint32_t rt_drv_vers;
+            uint32_t rt_drv_vers = 0;
             ret = _dev->Process(dxrt::dxrt_cmd_t::DXRT_CMD_DRV_INFO,
             static_cast<void*>(&rt_drv_vers),
             0,

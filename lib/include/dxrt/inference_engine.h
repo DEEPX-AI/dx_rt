@@ -74,6 +74,8 @@ class DXRT_API InferenceEngine // NOSONAR: Too many fields - stable as-is, refac
     // static
  public:
         static constexpr int INFERENCE_JOB_MAX_COUNT = 1024;  // max job count
+    static int calculateMaxBufferCount(uint64_t npuMemSize, uint64_t totalFixedCost,
+        uint64_t totalPerBufferCost, int initialCount);
 
     /** @brief Loads a model from the specified path and configures the NPU to run it.
      * @param[in] modelPath The file path to the compiled model (e.g., model.dxnn).
@@ -642,6 +644,9 @@ class DXRT_API InferenceEngine // NOSONAR: Too many fields - stable as-is, refac
             const std::vector<void*>& outputPtrs,
             const std::vector<void*>& userArgs);
 
+    // Internal implementation of ValidateDeviceMultiInput without lock (caller must hold sValidationMutex)
+    TensorPtrs validateDeviceMultiInputImpl(const std::map<std::string, void*>& inputTensors, int deviceId);
+
     // Helper method to check if single input buffer should be auto-split for multi-input models
     bool shouldAutoSplitInput() const;
 
@@ -703,6 +708,9 @@ class DXRT_API InferenceEngine // NOSONAR: Too many fields - stable as-is, refac
     void initializeEnvironmentVariables();
     void initializeModel(const uint8_t* modelBuffer, size_t modelSize, int bufferCount);
     void buildTasksAndSubgraphMap(int bufferCount);
+    int adjustBufferCountForNpuMemory(int bufferCount, const std::vector<int>& deviceIds,
+        const std::vector<std::string>& taskOrder,
+        const std::unordered_map<std::string, size_t>& rmapIndexMap) const;
     void buildInputTensorMapping();
     void buildTaskGraph();
     void buildTensorRegistry();

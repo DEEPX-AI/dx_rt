@@ -12,7 +12,6 @@
 #include "dxrt/device_util.h"
 #include "dxrt/exception/exception.h"
 #include "dxrt/map_lookup_template.h"
-#include "dxrt/device_pool.h"
 #include "dxrt/device_core.h"
 #include "dxrt/device_task_layer.h"
 
@@ -20,11 +19,16 @@
 #include "dxrt/fw.h"
 #include "dxrt/device.h"
 
+#include "monitor_shared_memory.h"
+#include "shared_memory_reader.h"
+
 #include<map>
 #include<iostream>
 #include<iomanip>
 #include<sstream>
 #include<array>
+#include<algorithm>
+#include<climits>
 
 using std::string;
 using std::endl;
@@ -100,6 +104,27 @@ DeviceStatus::DeviceStatus(int id, const dxrt_device_info_t& info, const dxrt_de
 :_id(id), _info(info), _status(status), _devInfo(devInfo)
 {
 }
+
+static void fillMonitoringData(int deviceId, std::array<double, 3>& utilization, uint64_t& memoryUsed, uint64_t& memoryFree)
+{
+    SharedMemoryReader reader;
+    if (!reader.Open() || !reader.IsWriterAlive())
+    {
+        return;
+    }
+
+    MonitorDeviceData monitor_data;
+    if (reader.ReadDeviceData(deviceId, monitor_data))
+    {
+        for (int i = 0; i < 3; ++i)
+        {
+            utilization[i] = ((std::min)(100.0, monitor_data.utilization[i] * 100.0));
+        }
+        memoryUsed = monitor_data.memory_used;
+        memoryFree = monitor_data.memory_free;
+    }
+}
+
 DeviceStatus DeviceStatus::GetCurrentStatus(std::shared_ptr<DeviceTaskLayer> device)
 {
     return GetCurrentStatus(device->core());
@@ -110,25 +135,60 @@ DeviceStatus DeviceStatus::GetCurrentStatus(std::shared_ptr<DeviceCore> device)
     auto info = device->info();
     auto status = device->Status();
     auto devInfo = device->devInfo();
-    return DeviceStatus(deviceId, info, status, devInfo);
+    DeviceStatus ds(deviceId, info, status, devInfo);
+
+    fillMonitoringData(deviceId, ds._utilization, ds._memoryUsed, ds._memoryFree);
+
+    return ds;
 }
 DeviceStatus DeviceStatus::GetCurrentStatus(std::shared_ptr<Device> device)
 {
     return device->GetCurrentStatus();
 }
+
 DeviceStatus DeviceStatus::GetCurrentStatus(int id)
 {
-
-    if (GetDeviceCount() <= id)
+    SharedMemoryReader reader;
+    if (!reader.Open())
     {
-        throw dxrt::InvalidArgumentException("Not exist device id:"+ std::to_string(id));
+        LOG_DXRT_DBG << "Device " << id << ": failed to open shared memory" << std::endl;
+        DeviceStatus ds(id, {}, {}, {});
+        ds._isValid = false;
+        return ds;
     }
-    return GetCurrentStatus(DevicePool::GetInstance().GetDeviceCores(id));
+
+    MonitorDeviceData monitor_data;
+    if (!reader.ReadDeviceData(id, monitor_data))
+    {
+        LOG_DXRT_DBG << "Device " << id << ": device not found in shared memory" << std::endl;
+        DeviceStatus ds(id, {}, {}, {});
+        ds._isValid = false;
+        return ds;
+    }
+
+    DeviceStatus ds(id, monitor_data.spec, monitor_data.status, monitor_data.dev_info);
+    ds._isValid = reader.IsWriterAlive();
+    if (!ds._isValid)
+    {
+        LOG_DXRT_DBG << "Device " << id << ": monitoring service writer is not alive, data may be stale" << std::endl;
+    }
+    for (int i = 0; i < 3; ++i)
+    {
+        ds._utilization[i] = ((std::min)(100.0, monitor_data.utilization[i] * 100.0));
+    }
+    ds._memoryUsed = monitor_data.memory_used;
+    ds._memoryFree = monitor_data.memory_free;
+    return ds;
 }
 
 int DeviceStatus::GetDeviceCount()
 {
-    return static_cast<int>(DevicePool::GetInstance().GetDeviceCount());
+    SharedMemoryReader reader;
+    if (!reader.Open())
+    {
+        return 0;
+    }
+    return static_cast<int>(reader.GetDeviceCount());
 }
 
 string DeviceStatus::DdrStatusStr(int ch) const
@@ -327,11 +387,36 @@ int DeviceStatus::Temperature(int ch) const
 {
     if ((ch < 0) || (ch >= static_cast<int>(_info.num_dma_ch)))
     {
-        return 0;
+        return INT16_MIN;
     }
     return _status.temperature[ch];
 }
 
+
+
+double DeviceStatus::GetCoreUtilization(int coreId) const
+{
+    if (coreId < 0 || coreId >= static_cast<int>(_utilization.size()))
+    {
+        return -1.0;
+    }
+    return _utilization[coreId];
+}
+
+uint64_t DeviceStatus::GetMemoryUsed() const
+{
+    return _memoryUsed;
+}
+
+uint64_t DeviceStatus::GetMemoryFree() const
+{
+    return _memoryFree;
+}
+
+std::string DeviceStatus::DriverVersionStr() const
+{
+    return GetDrvVersionFromRT(_devInfo.rt_drv_ver);
+}
 
 
 }  // namespace dxrt

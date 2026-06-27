@@ -163,16 +163,10 @@ void StdDeviceTaskLayer::ThreadImpl()
         dxrt_response_t response;
         response.req_id = 0;
         LOG_DXRT_DBG << "Device " << id() << " wait. " << std::endl;
-#ifdef USE_PROFILER
-        auto& profiler = dxrt::Profiler::GetInstance();
-        std::string profile_name_wait = "ThreadImpl Wait[device "+std::to_string(id())+"]";
-        profiler.Start(profile_name_wait);
-#endif
+        // TODO: ThreadImpl Wait — no job_id available here, cannot migrate to new profiler API
+        // profiler.Start(id(), -1, EventType::BUFFER_POOL_WAIT);
         std::ignore = core()->Wait();
-
-#ifdef USE_PROFILER
-        profiler.End(profile_name_wait);
-#endif
+        // profiler.End(id(), -1, EventType::BUFFER_POOL_WAIT);
         if (isStopFlag())
         {
             shouldExit = true;
@@ -279,16 +273,10 @@ int StdDeviceTaskLayer::InferenceRequest(RequestData* req, npu_bound_op boundOp)
             else
             {
                 LOG_DXRT_DBG << std::hex << "memcpy " << reqInputPtr << "-> " << dest << std::dec << "(pick " << pick << ")" << std::endl;
-#ifdef USE_PROFILER
-                auto& profiler = dxrt::Profiler::GetInstance();
-                std::string profile_name = "STD Memcpy[device "+std::to_string(id())+" pick" + std::to_string(pick) + "]";
-                profiler.Start(profile_name);
-#endif
+                // TODO: STD Memcpy — no job_id available here, cannot migrate to new profiler API
+                // profiler.Start(id(), -1, EventType::NPU_INPUT_FORMAT);
                 memcpy(dest, reqInputPtr, task->_encodedInputSize);
-
-#ifdef USE_PROFILER
-                profiler.End(profile_name);
-#endif
+                // profiler.End(id(), -1, EventType::NPU_INPUT_FORMAT);
                 core()->Process(dxrt::dxrt_cmd_t::DXRT_CMD_CPU_CACHE_FLUSH, static_cast<void*>(&inferences[pick].input));
             }
             req->outputs = _outputTensors[taskId][pick];
@@ -302,24 +290,16 @@ int StdDeviceTaskLayer::InferenceRequest(RequestData* req, npu_bound_op boundOp)
             _ongoingRequestsStd[req->requestId] = npu_inference;
         }
         LOG_DXRT_DBG << "Device " << id() << " Request : " << inferences[pick] << std::endl;
-#ifdef USE_PROFILER
-
-        // Start profiling for overall NPU task (input preprocess + PCIe + NPU execution + output postprocess)
-        auto& profiler = dxrt::Profiler::GetInstance();
-        std::string profile_name_write = "STD Write[device "+std::to_string(id())+" pick" + std::to_string(pick) + "]";
-        profiler.Start(profile_name_write);
-#endif
-
+        // TODO: STD Write — no job_id available here, cannot migrate to new profiler API
+        // profiler.Start(id(), -1, EventType::H2D);
 #ifdef __linux__
         ret = core()->WriteData(&npu_inference, sizeof(dxrt_request_t));
 #elif _WIN32
         ret = core()->WriteData(&npu_inference, sizeof(dxrt_request_t));
 #endif
+        // profiler.End(id(), -1, EventType::H2D);
         std::ignore = ret;
         LOG_DXRT_DBG << "written " << ret << std::endl;
-#ifdef USE_PROFILER
-        profiler.End(profile_name_write);
-#endif
     }
     return 0;
 }

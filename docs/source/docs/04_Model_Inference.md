@@ -12,7 +12,7 @@ Model dir.
 ```
 
 - `graph.dxnn`  
-  : A unified DEEPX artifact that contains  NPU command data, model metadata, model parameters.  
+  : A unified DEEPX artifact that contains NPU command data, model metadata, model parameters.  
 
 This file is used directly for inference on DEEPX hardware.  
 
@@ -20,7 +20,7 @@ This file is used directly for inference on DEEPX hardware.
 
 ## Inference Workflow
 
-Here the inference workflow using the DXNN Runtime as follows.  
+Here is the inference workflow of the DXNN Runtime.  
 
 <div class="center-text">
 <p align="center">
@@ -254,12 +254,12 @@ As a result, applications no longer need to manually attach input dummy bytes or
 
 ## Profile Application
 
-### Extract Profiling Data Using `run_model`
+### Extract Profiling Data Using `dxrun`
 
-When you run a model with the `--profiler` option using `run_model`, a `profiler.json` file is automatically generated in the working directory.
+When you run a model with the `--profiler` option using `dxrun`, a `profiler.json` file is automatically generated in the working directory.
 
 ```
-run_model -m model.dxnn --profiler
+dxrun -m model.dxnn --profiler
 # Check the generated profiler.json file
 ```
 
@@ -405,7 +405,7 @@ Specific event codes identify the exact nature of events using `RuntimeEventDisp
 **Basic Event Handler Registration**
 
 ```cpp
-#include "dxrt/dxrt_api.h"
+#include <dxrt/dxrt_cxx_api.h>
 #include <iostream>
 
 int main()
@@ -529,7 +529,7 @@ touch CMakeLists.txt
 Create a simple source file (`main.cpp`) that uses a **DX-RT** API.  
 
 ```
-#include "dxrt/dxrt_api.h"
+#include <dxrt/dxrt_cxx_api.h>
 using namespace std;
 
 int main(int argc, char *argv[])
@@ -633,7 +633,7 @@ You can use the profiler (see *Profile Application* section) to identify whether
 | OS | Ubuntu 22.04 |
 | DX-RT Version | v3.3.0 |
 | Model | Q-PRO variants from DEEPX ModelZoo |
-| Measurement Tool | `run_model` (no pre/post-processing) |
+| Measurement Tool | `dxrun` (no pre/post-processing) |
 | Iterations | 2000 |
 | Build Option | `USE_ORT=ON` |
 
@@ -684,7 +684,7 @@ Even after building with acceleration support, the feature is **disabled at runt
 *C++ Example*
 
 ```cpp
-#include "dxrt/dxrt_api.h"
+#include <dxrt/dxrt_cxx_api.h>
 
 auto& config = dxrt::Configuration::GetInstance();
 config.SetEnable(dxrt::Configuration::ITEM::NFH_ACCELERATION, true);
@@ -702,9 +702,9 @@ config.set_enable(Configuration.ITEM.CPU_OP_ACCELERATION, True)
 ```
 
 !!! note "TIP"  
-     To quickly test the effect of acceleration without modifying application code, you can use the `run_model` CLI tool with the `--accel-nfh` and `--accel-cpu` options:  
+     To quickly test the effect of acceleration without modifying application code, you can use the `dxrun` CLI tool with the `--accel-nfh` and `--accel-cpu` options:  
      ```
-     run_model -m model.dxnn --accel-nfh --accel-cpu
+     dxrun -m model.dxnn --accel-nfh --accel-cpu
      ```
 
 !!! warning "Build Dependency"  
@@ -717,7 +717,7 @@ config.set_enable(Configuration.ITEM.CPU_OP_ACCELERATION, True)
 ---
 
 ### Improving CPU Capacity with Dynamic Threading 
-When executing CPU task via ONNX Runtime, performance bottlenecks may arise depending on the Host CPU performance and symbol load. To address this, **DX-RT** provides an optional dynamic multi-threading feature that can improve throughput  in high-load scenarios.  
+When executing CPU task via ONNX Runtime, performance bottlenecks may arise depending on the Host CPU performance and symbol load. To address this, **DX-RT** provides an optional dynamic multi-threading feature that can improve throughput in high-load scenarios.  
 
 **Feature Overview**  
 

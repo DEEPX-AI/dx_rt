@@ -18,20 +18,31 @@
 #include <iostream>
 #include <condition_variable>
 #include <memory>
-
+#include "../../dynamic_ipc/shm/shm.h"
 
 
 
 namespace dxrt {
 class DeviceTaskLayer;
 
+struct NpuMemoryCacheSlice
+{
+    SharedMemoryView view;
+    int sliceId;  // Unique identifier for this slice, used for tracking and debugging.
+
+    void* hostPtr() const {return view.hostPtr(); }
+
+    uint64_t deviceAddress() const { return view.deviceAddress(); }
+    bool isValid() const { return view.isValid(); }
+};
+
 class TaskNpuMemoryCacheManager
 {
 public:
-    TaskNpuMemoryCacheManager(int64_t size, int count, int64_t offset);
-    int64_t getNpuMemoryCache();
-    void returnNpuMemoryCache(int64_t addr);
-    int64_t getOffset() const;
+    TaskNpuMemoryCacheManager(int64_t size, int count, SharedMemoryInfo info);
+    NpuMemoryCacheSlice getNpuMemoryCache();
+    void returnNpuMemoryCache(const NpuMemoryCacheSlice &slice);
+    SharedMemoryInfo getMemoryInfo() const;
     ~TaskNpuMemoryCacheManager();
 
     TaskNpuMemoryCacheManager(const TaskNpuMemoryCacheManager&) = delete;
@@ -40,8 +51,8 @@ public:
     TaskNpuMemoryCacheManager& operator=(TaskNpuMemoryCacheManager&&) = delete;
 
 private:
-    std::vector<int64_t> _npuMemoryCaches;
-    int64_t _npuMemoryCacheOffset;
+    std::vector<NpuMemoryCacheSlice> _npuMemoryCaches;
+    SharedMemoryInfo _npuMemoryInfo;
     std::mutex _lock;
     std::condition_variable _cv;
 };
@@ -53,8 +64,9 @@ public:
     bool registerMemoryCache(int taskId, int64_t size, int count);
     void unRegisterMemoryCache(int taskId);
     bool canGetCache(int taskId);
-    int64_t getNpuMemoryCache(int taskId);
-    void returnNpuMemoryCache(int taskId, int64_t addr);
+    NpuMemoryCacheSlice getNpuMemoryCache(int taskId);
+    void returnNpuMemoryCache(int taskId, const NpuMemoryCacheSlice &slice);
+    SharedMemoryInfo getBackingInfo(int taskId);
 private:
     std::unordered_map<int, std::shared_ptr<TaskNpuMemoryCacheManager> > _taskNpuMemoryCaches;
     SharedMutex _npuMemoryCacheLock;

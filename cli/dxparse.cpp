@@ -7,10 +7,7 @@
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
-#include "dxrt/dxrt_api.h"
-#include "dxrt/exception/exception.h"
-#include "dxrt/device_info_status.h"
-#include "dxrt/device_util.h"
+#include "dxrt/dxrt_cxx_api.h"
 #include <iostream>
 #include <string>
 
@@ -32,27 +29,30 @@ using std::cout;
 using std::endl;
 using std::string;
 
-const char* usage = "parse model\n"
-                    "Usage: parse_model [options]\n\n"
-                    "Options:\n"
-                    "  -m, --model FILE    model path (required)\n"
-                    "  -v, --verbose       show detailed task dependencies and memory usage\n"
-                    "  -o, --output FILE   save the raw console output to a file (without color codes)\n"
-                    "  -j, --json          extract JSON binary data (graph_info, rmap_info) to files\n"
-                    "  -h, --help          show this help message\n\n"
-                    "Examples:\n"
-                    "  parse_model -m model.dxnn\n"
-                    "  parse_model -m model.dxnn -v\n"
-                    "  parse_model -m model.dxnn -o output.txt\n"
-                    "  parse_model -m model.dxnn -j    # Extracts model_graph_info.json, model_rmap_info_*.json\n";
-
-void help()
+void help(const std::string& prog)
 {
-    cout << usage << endl;
+    cout << "parse model\n"
+         << "Usage: " << prog << " [options]\n\n"
+         << "Options:\n"
+         << "  -m, --model FILE    model path (required)\n"
+         << "  -v, --verbose       show detailed task dependencies and memory usage\n"
+         << "  -o, --output FILE   save the raw console output to a file (without color codes)\n"
+         << "  -j, --json          extract JSON binary data (graph_info, rmap_info) to files\n"
+         << "  -h, --help          show this help message\n\n"
+         << "Examples:\n"
+         << "  " << prog << " -m model.dxnn\n"
+         << "  " << prog << " -m model.dxnn -v\n"
+         << "  " << prog << " -m model.dxnn -o output.txt\n"
+         << "  " << prog << " -m model.dxnn -j    # Extracts model_graph_info.json, model_rmap_info_*.json\n"
+         << endl;
 }
 
 int main(int argc, char *argv[])
 {
+    string prog_name(argv[0]);
+    { auto s = prog_name.rfind('/');  if (s != string::npos) prog_name = prog_name.substr(s + 1); }
+    { auto s = prog_name.rfind('\\'); if (s != string::npos) prog_name = prog_name.substr(s + 1); }
+
     int ret;
     string modelPath = "";
     bool verbose = false;
@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
     if (argc == 1)
     {
         cout << "Error: no arguments." << endl;
-        help();
+        help(prog_name);
         return -1;
     }
 
@@ -88,7 +88,7 @@ int main(int argc, char *argv[])
                 break;
             case 'h':
             default:
-                help();
+                help(prog_name);
                 exit(0);
                 break;
         }
@@ -128,7 +128,7 @@ int main(int argc, char *argv[])
         }
         else if (arg == "-h" || arg == "--help")
         {
-            help();
+            help(prog_name);
             return 0;
         }
     }
@@ -136,7 +136,7 @@ int main(int argc, char *argv[])
 
     if (modelPath.empty()) {
         cout << "Error: model path is required." << endl;
-        help();
+        help(prog_name);
         return -1;
     }
 

@@ -7,41 +7,136 @@
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
-#include "dxrt/dxrt_api.h"
+/**
+ * @file run_async_model_profiler.cpp
+ * @brief Async inference with per-job profiling using the Wait pattern.
+ *
+ * Follows the run_async_model_wait flow:
+ *   Main thread  : RunAsync() × N  →  push jobId to queue
+ *   Worker thread: pop jobId → ie.Wait(jobId) → profiler.GetJobMetrics(jobId) → print
+ *
+ * This gives accurate per-job H2D / NPU / D2H / Task timings for each job.
+ *
+ * Usage:
+ *   run_async_model_profiler -m <model.dxnn> [-l <loops>] [--use-ort]
+ */
+
+#include "dxrt/dxrt_cxx_api.h"
 #include "dxrt/extern/cxxopts.hpp"
 #include "../include/logger.h"
+#include "../include/concurrent_queue.h"
 
-#include <string>
+#include <iomanip>
 #include <iostream>
-#include <condition_variable>
+#include <string>
+#include <vector>
+#include <thread>
 
+static ConcurrentQueue<int> gJobIdQueue(32);
+
+static void printJobMetrics(dxrt::Logger& log, int jobIdx, int jobId,
+                            const dxrt::JobMetrics& jm)
+{
+    if (!jm.valid)
+    {
+        log.Info("[Job #" + std::to_string(jobIdx) + " id=" + std::to_string(jobId) +
+                 "] No profiler data");
+        return;
+    }
+
+    for (const auto& task : jm.tasks)
+    {
+        std::ostringstream oss;
+        oss << std::fixed << std::setprecision(3);
+        oss << "[Job #" << jobIdx << " id=" << jobId << "] task=" << task.task_name;
+
+        for (const auto& devPair : task.devices)
+        {
+            const int devId  = devPair.first;
+            const auto& d    = devPair.second;
+            oss << "  |  Dev" << devId
+                << ": InputNFH=" << d.input_format_us << "us"
+                << " H2D=" << d.h2d_us  << "us"
+                << " Inference=" << d.inference_core_all_us << "us"
+                << " (Core0=" << d.inference_core_0_us
+                << " Core1=" << d.inference_core_1_us
+                << " Core2=" << d.inference_core_2_us << ")"
+                << " D2H=" << d.d2h_us  << "us"
+                << " OutputNFH=" << d.output_format_us << "us"
+                << " NPU Task=" << d.total_us << "us";
+        }
+
+        if (task.cpu_task_us > 0.0)
+        {
+            oss << "  |  CPU Task=" << task.cpu_task_us << "us";
+        }
+
+        log.Info(oss.str());
+    }
+}
+
+// Worker thread: Wait for each job and print profiling metrics
+static int waitThreadFunc(const dxrt::InferenceEngine& ie,
+                          dxrt::Profiler& profiler,
+                          int loopCount)
+{
+    static const auto& log = dxrt::Logger::GetInstance();
+
+    for (int idx = 0; idx < loopCount; ++idx)
+    {
+        int jobId = gJobIdQueue.pop();
+
+        try
+        {
+            auto outputs = ie.Wait(jobId);
+            (void)outputs;
+        }
+        catch (const dxrt::Exception& e)
+        {
+            log.Error(std::string(e.what()) +
+                      " error-code=" + std::to_string(static_cast<int>(e.code())));
+            return -1;
+        }
+
+        auto metrics = profiler.GetJobMetrics(jobId);
+        printJobMetrics(const_cast<dxrt::Logger&>(log), idx, jobId, metrics);
+    }
+
+    return 0;
+}
 
 int main(int argc, char* argv[])
 {
     std::string model_path;
-    int loop_count;
-    bool verbose;
+    int         loop_count;
+    bool        use_ort;
+    bool        verbose;
 
     auto& log = dxrt::Logger::GetInstance();
 
-    cxxopts::Options options("run_async_model_profiler", "Run asynchronous model inference with profiler");
+    cxxopts::Options options("run_async_model_profiler",
+                             "Async inference with per-job profiling (Wait + GetJobMetrics)");
     options.add_options()
-        ("m,model", "Path to model file (.dxnn)", cxxopts::value<std::string>(model_path))
-        ("l,loops", "Number of inference loops", cxxopts::value<int>(loop_count)->default_value("1"))
-        ("v,verbose", "Enable verbose/debug logging", cxxopts::value<bool>(verbose)->default_value("false"))
-        ("h,help", "Print usage");
+        ("m,model",   "Path to model file (.dxnn)",
+         cxxopts::value<std::string>(model_path))
+        ("l,loops",   "Number of inference loops",
+         cxxopts::value<int>(loop_count)->default_value("10"))
+        ("use-ort",   "Enable ORT (CPU post-processing) for the model",
+         cxxopts::value<bool>(use_ort)->default_value("false"))
+        ("v,verbose", "Enable verbose/debug logging",
+         cxxopts::value<bool>(verbose)->default_value("false"))
+        ("h,help",    "Print usage");
 
     try
     {
         auto result = options.parse(argc, argv);
-
         if (result.count("help") || !result.count("model"))
         {
             std::cout << options.help() << std::endl;
             return result.count("help") ? 0 : -1;
         }
-
-        if (verbose) {
+        if (verbose)
+        {
             log.SetLevel(dxrt::Logger::Level::LOGLEVEL_DEBUG);
         }
     }
@@ -52,84 +147,58 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    log.Info("Start async_model_profiler test for model: " + model_path);
-
-    int callback_count = 0;
+    log.Info("Model  : " + model_path);
+    log.Info("Loops  : " + std::to_string(loop_count));
+    log.Info("UseORT : " + std::string(use_ort ? "true" : "false"));
 
     try
     {
+        // ── Enable profiler ───────────────────────────────────────────────
+        auto& config = dxrt::Configuration::GetInstance();
+        config.SetEnable(dxrt::Configuration::ITEM::PROFILER, true);
+        config.SetAttribute(dxrt::Configuration::ITEM::PROFILER,
+                            dxrt::Configuration::ATTRIBUTE::PROFILER_SHOW_DATA, "ON");
+        config.SetAttribute(dxrt::Configuration::ITEM::PROFILER,
+                            dxrt::Configuration::ATTRIBUTE::PROFILER_SAVE_DATA, "OFF");
 
-        // enable profiler
-        dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::PROFILER, true);
+        auto& profiler = dxrt::Profiler::GetInstance();
 
-        // print profiling infomation
-        dxrt::Configuration::GetInstance().SetAttribute(dxrt::Configuration::ITEM::PROFILER,
-                                            dxrt::Configuration::ATTRIBUTE::PROFILER_SHOW_DATA, "ON");
+        // ── Create InferenceEngine ────────────────────────────────────────
+        dxrt::InferenceOption option;
+        option.useORT = use_ort;
+        dxrt::InferenceEngine ie(model_path, option);
 
-        // save profiling infomation to file
-        dxrt::Configuration::GetInstance().SetAttribute(dxrt::Configuration::ITEM::PROFILER,
-                                            dxrt::Configuration::ATTRIBUTE::PROFILER_SAVE_DATA, "ON");
+        // ── Start worker thread ───────────────────────────────────────────
+        auto worker = std::thread(waitThreadFunc, std::ref(ie), std::ref(profiler), loop_count);
 
-
-        std::mutex cv_mutex;
-        std::condition_variable cv;
-
-        // create inference engine instance with model
-        dxrt::InferenceEngine ie(model_path);
-
-        // register call back function
-        ie.RegisterCallback([&callback_count, &loop_count, &cv_mutex, &cv]
-            (const dxrt::TensorPtrs &outputs, const void *userArg) {
-
-            std::ignore = outputs;
-            std::ignore = userArg;
-
-            std::unique_lock<std::mutex> lock(cv_mutex);
-            callback_count++;
-            if ( callback_count == loop_count ) cv.notify_one();
-
-            return 0;
-        });
-
-        // create temporary input buffer for example
-        std::vector<uint8_t> inputPtr(ie.GetInputSize(), 0);
+        // ── Submit all jobs ───────────────────────────────────────────────
+        std::vector<uint8_t> input(ie.GetInputSize(), 0);
 
         auto start = std::chrono::high_resolution_clock::now();
 
-        // inference loop
-        for(int i = 0; i < loop_count; ++i)
+        for (int i = 0; i < loop_count; ++i)
         {
-            // user argument
-            auto* userData = new std::pair<int, int>(i, loop_count);
-
-            // inference asynchronously, use all npu cores
-            ie.RunAsync(inputPtr.data(), userData);
-
-            log.Debug("Inference request submitted with user_arg(" + std::to_string(i) + ")");
-
+            int jobId = ie.RunAsync(input.data());
+            gJobIdQueue.push(jobId);
+            log.Debug("Submitted jobId=" + std::to_string(jobId));
         }
 
-        // wait until all callbacks have been processed
-        std::unique_lock<std::mutex> lock(cv_mutex);
-        cv.wait(lock, [&callback_count, &loop_count] {
-            return callback_count == loop_count;
-        });
+        worker.join();
 
         auto end = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double, std::milli> duration = end - start;
+        std::chrono::duration<double, std::milli> elapsed = end - start;
 
-        double total_time = duration.count();
-        double avg_latency = total_time / static_cast<double>(loop_count);
-        double fps = 1000.0 / avg_latency;
+        double total_ms = elapsed.count();
+        double avg_ms   = total_ms / static_cast<double>(loop_count);
+        double fps      = 1000.0 / avg_ms;
 
         log.Info("-----------------------------------");
-        log.Info("Total Time: " + std::to_string(total_time) + " ms");
-        log.Info("Average Latency: " + std::to_string(avg_latency) + " ms");
-        log.Info("FPS: " + std::to_string(fps) + " frame/sec");
-        log.Info("Total callback-count / loop-count: " +
-            std::to_string(callback_count) + " / " + std::to_string(loop_count) +
-            (callback_count == loop_count ? " (Success)" : " (Failure)"));
+        log.Info("Total   : " + std::to_string(total_ms) + " ms");
+        log.Info("Average : " + std::to_string(avg_ms)   + " ms/job");
+        log.Info("FPS     : " + std::to_string(fps));
         log.Info("-----------------------------------");
+
+
     }
     catch (const dxrt::Exception& e)
     {
@@ -141,11 +210,11 @@ int main(int argc, char* argv[])
         log.Error(std::string("std::exception: ") + e.what());
         return -1;
     }
-    catch(...)
+    catch (...)
     {
-        log.Error("Exception");
+        log.Error("Unknown exception");
         return -1;
     }
 
-    return (callback_count == loop_count ? 0 : -1);
+    return 0;
 }

@@ -22,6 +22,7 @@
 #include "dxrt/request_response_class.h"
 #include "dxrt/device_pool.h"
 #include "dxrt/inference_job.h"
+#include "dxrt/profiler.h"
 
 namespace dxrt
 {
@@ -90,7 +91,14 @@ static int processInputNfh(const NfhInputRequest& work, int threadId)
     }
 
     // common encoding utility
+#ifdef USE_PROFILER
+    const std::string& taskName = reqData->taskData->name();
+    dxrt::Profiler::GetInstance().Start(dxrt::Profiler::EventType::NPU_INPUT_FORMAT, taskName, work.deviceId, work.req->job_id());
+#endif
     int enc = npu_format_handler::NpuFormatHandler::EncodeInputs(reqData, threadId);
+#ifdef USE_PROFILER
+    dxrt::Profiler::GetInstance().End(dxrt::Profiler::EventType::NPU_INPUT_FORMAT, taskName, work.deviceId, work.req->job_id());
+#endif
     if (enc != 0) return enc;
 
     return 0;
@@ -177,8 +185,22 @@ int processOutputNfh(const NfhOutputRequest& work, int threadId)
         return -1;
     }
 
+    auto reqData = work.req->getData();
+    if (!reqData || !reqData->taskData)
+    {
+        LOG_DXRT_ERR("Invalid request data in processOutputNfh");
+        return -1;
+    }
+
     // common decoding utility
+#ifdef USE_PROFILER
+    const std::string& taskName = reqData->taskData->name();
+    dxrt::Profiler::GetInstance().Start(dxrt::Profiler::EventType::NPU_OUTPUT_FORMAT, taskName, work.deviceId, work.req->job_id());
+#endif
     int dec = npu_format_handler::NpuFormatHandler::DecodeOutputs(&work.req, &work.response, threadId);
+#ifdef USE_PROFILER
+    dxrt::Profiler::GetInstance().End(dxrt::Profiler::EventType::NPU_OUTPUT_FORMAT, taskName, work.deviceId, work.req->job_id());
+#endif
     if (dec != 0) return dec;
 
     return 0;

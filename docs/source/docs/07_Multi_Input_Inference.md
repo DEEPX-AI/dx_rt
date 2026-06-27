@@ -267,7 +267,7 @@ This method provides all input tensors as a single flattened list, with inputs f
 flattened_inputs = [
     sample1_input1, sample1_input2,  # First sample
     sample2_input1, sample2_input2,  # Second sample
-    sample_input1, sample3_input2   # Third sample
+    sample3_input1, sample3_input2   # Third sample
 ]
 
 # Automatically recognized as a batch (input count is a multiple of the model's input count)
@@ -278,7 +278,7 @@ results = ie.run(flattened_inputs, output_buffers=batch_outputs)
 
 ## Multi-Input Asynchronous Inference
 
- This section describes how to perform asynchronous inference on multi-input models using the **DX-RT** API. Two methods are supported: callback-based execution for event-driven workflows and simplified execution using job IDs and polling via `wait()`.
+This section describes how to perform asynchronous inference on multi-input models using the **DX-RT** API. Two methods are supported: callback-based execution for event-driven workflows and simplified execution using job IDs and polling via `wait()`.
 
 ### Callback-Based Asynchronous Execution
 
@@ -294,7 +294,7 @@ ie.RegisterCallback([](dxrt::TensorPtrs& outputs, void* userArg) -> int {
 
 // Dictionary format asynchronous inference
 int jobId = ie.RunAsyncMultiInput(inputTensors, userArg);
-
+// or
 // Vector format asynchronous inference
 int jobId = ie.RunAsyncMultiInput(inputPtrs, userArg);
 ```
@@ -318,7 +318,7 @@ job_id = ie.run_async(input_list, user_arg=user_arg)
 
 ---
 
-### Simplified  Asynchronous Execution
+### Simplified Asynchronous Execution
 
 This method performs asynchronous inference using job IDs and retrieves results manually via `wait()`, providing a simple and non-callback-based alternative.
 

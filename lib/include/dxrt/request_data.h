@@ -23,7 +23,7 @@ class RequestData
 public:
     int requestId;
     int jobId;
-    TaskData* taskData;
+    TaskData* taskData = nullptr;
 
     Tensors inputs;
     Tensors outputs;

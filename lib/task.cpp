@@ -95,21 +95,96 @@ Task::Task(const std::string& name_, const rmapinfo& rmapInfo_, int bufferCount_
 
         _taskData.set_from_npu(_data, hasPpuBinary);
         LOG_DXRT_DBG << "NPU Task: imported npu parameters" << endl;
+
         SetEncodedInputBuffer(device_id_count * _taskData.get_buffer_count());
         SetOutputBuffer(device_id_count * _taskData.get_buffer_count());
         LOG_DXRT_DBG << "NPU Task: checked devices" << endl;
+        std::vector<int> initializedDevices;
         for (auto deviceId : _device_ids)
         {
             auto devicePtr = DevicePool::GetInstance().GetDeviceTaskLayer(deviceId);
             if (devicePtr->isBlocked())
+            {
                 continue;
-            if ( devicePtr->RegisterTask(getData()) != 0 )
-                throw InvalidModelException(EXCEPTION_MESSAGE("failed to register task"));
+            }
+            bool currentDeviceRegistered = false;
+            try
+            {
+                if (devicePtr->RegisterTask(getData()) != 0)
+                {
+                    throw InvalidModelException(EXCEPTION_MESSAGE("failed to register task"));
+                }
+                currentDeviceRegistered = true;
 
+                InitializeTaskWithService(deviceId);
+                initializedDevices.push_back(deviceId);
+            }
+            catch (...)
+            {
+                for (auto it = initializedDevices.rbegin(); it != initializedDevices.rend(); ++it)
+                {
+                    const int cleanupDeviceId = *it;
+                    auto cleanupDevicePtr = DevicePool::GetInstance().GetDeviceTaskLayer(cleanupDeviceId);
+                    try
+                    {
+                        CleanupTaskFromService(cleanupDeviceId);
+                    }
+                    catch (const dxrt::Exception& e)
+                    {
+                        LOG_DXRT_ERR("Task cleanup with service failed on device " + std::to_string(cleanupDeviceId)
+                            + " [dxrt::Exception]: " + e.what());
+                    }
+                    catch (const std::exception& e)
+                    {
+                        LOG_DXRT_ERR("Task cleanup with service failed on device " + std::to_string(cleanupDeviceId)
+                            + ": " + e.what());
+                    }
+                    catch (...)
+                    {
+                        LOG_DXRT_ERR("Task cleanup with service failed on device " + std::to_string(cleanupDeviceId)
+                            + ": unknown exception");
+                    }
 
+                    try
+                    {
+                        cleanupDevicePtr->Release(getData());
+                    }
+                    catch (const dxrt::Exception& e)
+                    {
+                        LOG_DXRT_ERR("Task device resource release failed on device " + std::to_string(cleanupDeviceId)
+                            + " [dxrt::Exception]: " + e.what());
+                    }
+                    catch (const std::exception& e)
+                    {
+                        LOG_DXRT_ERR("Task device resource release failed on device " + std::to_string(cleanupDeviceId)
+                            + ": " + e.what());
+                    }
+                    catch (...)
+                    {
+                        LOG_DXRT_ERR("Task device resource release failed on device " + std::to_string(cleanupDeviceId)
+                            + ": unknown exception");
+                    }
+                }
 
-            InitializeTaskWithService(deviceId);
-
+                if (currentDeviceRegistered)
+                {
+                    // RegisterTask succeeded (rmap/weight/memory allocated on server) but
+                    // the TaskInit IPC call failed.  The Task destructor will NOT run
+                    // (C++ skips dtors for objects whose ctor threw), so we must free the
+                    // server-side allocations here to prevent dxrtd memory leaks.
+                    try
+                    {
+                        devicePtr->Release(getData());
+                    }
+                    catch (...)  // general catch to avoid exception escape in construction
+                    {
+                        // If this also fails, there's not much we can do - just log the error and move on
+                        LOG_DXRT_ERR("Failed to release task resources on device " + std::to_string(deviceId)
+                            + " after initialization failure: unknown exception");
+                    }
+                }
+                throw;
+            }
         }
         LOG_DXRT_DBG << "NPU Task created" << endl;
     }
@@ -347,11 +422,24 @@ void Task::InitializeTaskWithService(int device_id) const
 {
     LOG_DXRT_DBG << "Task " << id() << " initialization with service on device " << device_id << endl;
 
-    uint64_t modelMemSize = _taskData._npuModel.rmap.size + _taskData._npuModel.weight.size;
+    uint64_t model_mem_size = _taskData._npuModel.rmap.size + _taskData._npuModel.weight.size;
+
+    // Retrieve the TaskStaticConfig registered during RegisterTask (ACC path only).
+    // StdDeviceTaskLayer does not populate _taskStaticConfigs, so fall back to a
+    // zero-initialised default in that case — the service stores it but does not
+    // use it for inference on std devices.
+    TaskStaticConfig config{};
+    const auto dtl = DevicePool::GetInstance().GetDeviceTaskLayer(device_id);
+    if (dtl != nullptr) {
+        const TaskStaticConfig *cfgPtr = dtl->getStaticConfig(_taskData._id);
+        if (cfgPtr != nullptr) {
+            config = *cfgPtr;
+        }
+    }
 
     // 1. Signal Task Init (Register Task metadata)
     DevicePool::GetInstance().GetServiceLayer()->SignalTaskInit(device_id,
-        _taskData._id, static_cast<npu_bound_op>(_boundOp), modelMemSize);
+        _taskData._id, static_cast<npu_bound_op>(_boundOp), model_mem_size, config);
 
     LOG_DXRT_DBG << "Task " << id() << " service initialization completed for device " << device_id << endl;
 

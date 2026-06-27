@@ -13,18 +13,19 @@
 
 #include "dxrt/common.h"
 #include "dxrt/exception/server_err.h"
-#include "../include/dxrt/ipc_wrapper/ipc_server_wrapper.h"
 
 namespace dxrt {
 
 class DxrtServiceErr
 {
-private:
-    dxrt::IPCServerWrapper *_ipcServerWrapper;
+ private:
+    // Legacy IPC wrapper removed - use Dynamic IPC v2 instead
 
-public:
-    explicit DxrtServiceErr(dxrt::IPCServerWrapper *ipcServerWrapper);
+ public:
+    // Constructor accepts null wrapper for compatibility only
+    explicit DxrtServiceErr(void *ipcServerWrapperUnused = nullptr) { (void)ipcServerWrapperUnused; }
 
+    // Legacy IPC send disabled - use Dynamic IPC v2 instead
     void ErrorReportToClient(dxrt_server_err_t err, long procId, uint32_t errCode, int deviceId);
 };
 

@@ -100,6 +100,20 @@ typedef enum {
     DXRT_RECOV_DONE     = 4,
 } dxrt_recov_t;
 
+typedef enum {
+    DX_RECOVERY_STARTED        = 1,
+    DX_RECOVERY_DONE           = 2,
+    DX_RECOVERY_FW_HANG        = 3,
+    DX_RECOVERY_PERM_FAIL      = 4,
+} dx_recovery_subcode_t;
+
+typedef enum {
+    DX_RECOVERY_REASON_NONE         = 0,
+    DX_RECOVERY_REASON_LINK_FLAP    = 1,
+    DX_RECOVERY_REASON_FW_TIMEOUT   = 2,
+    DX_RECOVERY_REASON_CPU_RESET    = 3,
+} dx_recovery_reason_t;
+
 typedef struct _dx_pcie_dev_err { // NOSONAR : Driver interface struct, usage sites unknown
     uint32_t err_code;
 
@@ -164,7 +178,12 @@ typedef struct _dx_pcie_dev_ntfy_throt {
 } dx_pcie_dev_ntfy_throt_t;
 
 typedef struct {
-    uint32_t action;
+    uint32_t action;              /* legacy name; equals dx_recovery_subcode_t */
+    uint32_t reason;              /* dx_recovery_reason_t */
+    uint32_t recovery_count;
+    uint32_t recovery_fail_count;
+    uint32_t dev_state;
+    uint32_t reserved[3];
 } dx_pcie_dev_recovery_t;
 
 /* CMD : DXRT_CMD_CUSTOM, SUBCMD : WEIGHT_INFO */
@@ -176,11 +195,11 @@ typedef struct {
 
 #pragma pack(push, 1)
 typedef struct otp_info {
-    uint32_t    JEP_ID : 8;
-    uint32_t    CONTINUATION_CODE : 8;
+    uint8_t     JEP_ID;
+    uint8_t     CONTINUATION_CODE;
     char        CHIP_NAME[2];
     char        DEVICE_REV[2];
-    uint32_t    RESERVED0 : 16;
+    uint16_t    RESERVED0;
     uint32_t    ECID;
     char        FOUNDRY_FAB[4];
     char        PROCESS[4];
@@ -193,6 +212,7 @@ typedef struct otp_info {
     uint32_t    BARCODE_IDX;
 } otp_info_t;
 #pragma pack(pop)
+static_assert(sizeof(otp_info_t) == 68, "otp_info_t binary layout mismatch");
 
 typedef struct fct_result
 {
@@ -212,6 +232,7 @@ typedef struct _dx_pcie_dev_event {
         dx_pcie_dev_err_t           dx_rt_err;
         dx_pcie_dev_ntfy_throt_t    dx_rt_ntfy_throt;
         dx_pcie_dev_recovery_t      dx_rt_recv;
+        dx_pcie_dev_recovery_t      dx_rt_recovery;
     };
 } dx_pcie_dev_event_t;
 
@@ -457,7 +478,7 @@ typedef struct _dxrt_model
     uint32_t  op_mode = 0;   /* operation mode - 1:large model */
 } dxrt_model_t;
 
-extern DXRT_API std::vector<std::pair<int, std::string>> ioctlTable; // NOSONAR
+extern DXRT_API std::vector<std::pair<int, const char*>> ioctlTable; // NOSONAR
 extern DXRT_API std::string ErrTable(dxrt_error_t error);
 DXRT_API std::ostream& operator<<(std::ostream& os, const dx_pcie_dev_err_t& error);
 DXRT_API std::ostream& operator<<(std::ostream&, const dxrt_error_t&);

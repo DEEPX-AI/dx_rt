@@ -7,7 +7,8 @@
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
-#include "dxrt/dxrt_api.h"
+#include "dxrt/dxrt_cxx_api.h"
+#include <thread>
 #include "dxrt/extern/cxxopts.hpp"
 #include "../include/logger.h"
 #include "../include/concurrent_queue.h"
@@ -16,6 +17,8 @@
 
 #include <string>
 #include <iostream>
+#include <vector>
+#include <thread>
 
 
 // concurrent queue is a thread-safe queue data structure
@@ -41,8 +44,8 @@ static int inferenceThreadFunc(const dxrt::InferenceEngine& ie, int loopCount)
         try
         {
             // waiting for the inference to complete by jobId
-            // ownership of the outputs is transferred to the user
-            auto outputs = ie.Wait(jobInfo.first);
+            // output is written to the user-provided buffer
+            auto outputs = ie.Wait(jobInfo.first, jobInfo.second);
 
             // now there is no post processing
             (void)outputs;

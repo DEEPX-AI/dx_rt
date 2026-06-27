@@ -21,12 +21,12 @@ addopts = ["-vv", "-s"]
 
 
 [build-system]
-requires = ["scikit-build-core[pyproject]>=0.9.0","setuptools>=42", "wheel", "pybind11"]
+requires = ["scikit-build-core[pyproject]>=0.9.0","setuptools>=42", "wheel", "pybind11>=2.11,<3"]
 build-backend = "scikit_build_core.build"
 
 [project]
 name="dx-engine"
-version = "3.3.2"
+version = "3.4.0"
 description="Python wrapper class for dx_rt"
 readme = "README.md"
 license = {text="MIT"}
@@ -54,7 +54,7 @@ Homepage = "https://deepx.ai"
 
 
 [tool.scikit-build]
-cmake.source-dir = "src/dx_engine/capi" 
+cmake.source-dir = "src/dx_engine/capi"
 wheel.packages = ["src/dx_engine"]
 
 

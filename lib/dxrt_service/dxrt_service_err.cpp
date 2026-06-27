@@ -9,21 +9,11 @@
 
 #include "service_error.h"
 
-dxrt::DxrtServiceErr::DxrtServiceErr(dxrt::IPCServerWrapper *ipcServerWrapper)
-: _ipcServerWrapper(ipcServerWrapper)
-{
-
-}
-
 void dxrt::DxrtServiceErr::ErrorReportToClient(dxrt_server_err_t err, long procId, uint32_t errCode, int deviceId) // NOSONAR:S5817 false positive
 {
-    dxrt::IPCServerMessage serverMessage;
-
-    serverMessage.code = dxrt::RESPONSE_CODE::ERROR_REPORT;
-    serverMessage.data = static_cast<uint64_t>(err);
-    serverMessage.result = errCode;
-    serverMessage.msgType = procId;
-    serverMessage.deviceId = deviceId;
-
-    _ipcServerWrapper->SendToClient(serverMessage);
+    // Legacy IPC error broadcast disabled - use Dynamic IPC v2 instead
+    (void)err;
+    (void)procId;
+    (void)errCode;
+    (void)deviceId;
 }

@@ -10,6 +10,7 @@
 
 #include "service_device.h"
 
+#include "dxrt/exception/exception.h"
 
 #include <signal.h>
 #include <stdio.h>
@@ -30,13 +31,13 @@
 #include <iostream>
 #include <sstream>
 #include <iomanip>
-#include <fstream>
 #include <vector>
 #include <unordered_map>
 #include <string>
 #include <mutex>
 #include <atomic>
 #include <thread>
+#include <chrono>
 #include <condition_variable>
 #include <utility>
 
@@ -63,10 +64,16 @@ using std::to_string;
 
 namespace dxrt {
 
+namespace {
+
+}  // namespace
+
 
 
 ServiceDevice::ServiceDevice(const string &file_)
-: _file(file_), _profiler(Profiler::GetInstance())  // NOSONAR:S3230
+: _file(file_), _profiler(Profiler::GetInstance()), // NOSONAR:S3230
+  _readHandlerQueue("ServiceDevice_ReadHandlerQueue", 4,[this](const DMAItem& item, int ch){ this->HandleDMARead(item, ch); return 0; }),
+  _writeHandlerQueue("ServiceDevice_WriteHandlerQueue", 2,[this](const DMAItem& item, int ch){ this->HandleDMAWrite(item, ch); return 0; })
 {
     _name = string(_file);  // temp.
     LOG_DXRT_S_DBG << "Device created from " << _name << endl;
@@ -74,7 +81,6 @@ ServiceDevice::ServiceDevice(const string &file_)
 #elif _WIN32
     // _driverAdapter = make_shared<WindowsDriverAdapter>(_file);
 #endif
-    std::fill(_bound_count.begin(), _bound_count.end(), 0);
     _callBack = nullptr;
 }
 
@@ -85,11 +91,10 @@ ServiceDevice::~ServiceDevice(void)
     _stop.store(true);
 
     Terminate();
-    if (_thread[0].joinable())
+    if (_dispatcher)
     {
-        _thread[0].join();
-        _thread[1].join();
-        _thread[2].join();
+        _dispatcher->RequestStop();
+        _dispatcher->Join();
     }
 }
 
@@ -114,37 +119,22 @@ static std::chrono::steady_clock::time_point durationPrint1(std::chrono::steady_
 
 int ServiceDevice::Process(dxrt_cmd_t cmd, void *data, uint32_t size, uint32_t sub_cmd) const
 {
-    int ret = 0;
-
     if (cmd == dxrt::dxrt_cmd_t::DXRT_CMD_RECOVERY)
         LOG_DXRT_S << _id << ": Send recovery command" << endl;
-#ifdef __linux__
-    ret = _driverAdapter->IOControl(cmd, data, size, sub_cmd);
-    if (ret < 0)
-        ret = errno*(-1);
-#elif _WIN32
-    ret = _driverAdapter->IOControl(cmd, data, size, sub_cmd);
-#if 0
-    DWORD bytesReturned;
-    BOOL success = DeviceIoControl(
-        (HANDLE)_devFd,
-        static_cast<DWORD>(dxrt::dxrt_ioctl_t::DXRT_IOCTL_MESSAGE),
-        data,
-        size,
-        NULL,
-        0,
-        &bytesReturned,
-        NULL);
-    if (!success) {
-        ret = GetLastError() * (-1);
-    }
-    else
+    return _core->Process(cmd, data, size, sub_cmd);
+}
+
+dxrt_device_status_t ServiceDevice::status()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    if (_core == nullptr)
     {
-        ret = bytesReturned;
+        _status = dxrt_device_status_t{};
+        return _status;
     }
-#endif
-#endif
-    return ret;
+
+    _status = _core->Status();
+    return _status;
 }
 
 
@@ -153,417 +143,146 @@ void ServiceDevice::Identify(int id_, uint32_t subCmd )
 {
     LOG_DXRT_S_DBG << "Device " << _id << " Identify" << endl;
     std::lock_guard<std::mutex> lock(_lock);
-    int ret;
     _id = id_;
 #ifdef __linux__
-    _driverAdapter = std::make_shared<LinuxDriverAdapter>(_file.c_str());
-
+    _core = std::make_shared<DeviceCore>(_id, std::make_unique<LinuxDriverAdapter>(_file.c_str()));
 #elif _WIN32
-    _driverAdapter = std::make_shared<WindowsDriverAdapter>(_file.c_str());
-    _devHandle = (HANDLE)_driverAdapter->GetFd();
+    auto adapter = std::make_unique<WindowsDriverAdapter>(_file.c_str());
+    _devHandle = (HANDLE)adapter->GetFd();
     if (_devHandle == INVALID_HANDLE_VALUE) {
         cout << "Error: Can't open " << _file << endl;
         return;
     }
+    _core = std::make_shared<DeviceCore>(_id, std::move(adapter));
 #endif
-    _info = dxrt_device_info_t();
-    _info.type = 0;
-    ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_IDENTIFY_DEVICE, static_cast<void*>(&_info), 0, subCmd);
-    if (ret != 0)
+
+    _core->Identify(_id, subCmd);
+    _info = _core->info();
+    if (_info.mem_size == 0)
     {
         LOG_DXRT << "failed to identify device " << id_ << endl;
         _isBlocked = true;
         return;
     }
-
+    // Successful identify: clear any blocked flag latched by a prior
+    // (transient) attempt so callers/retries observe the healthy state.
+    _isBlocked = false;
     LOG_DXRT_S_DBG << _name << ": device info : type " << _info.type
         << std::hex << ", variant " << _info.variant
         << ", mem_addr " << _info.mem_addr
         << ", mem_size " << _info.mem_size
         << std::dec << ", num_dma_ch " << _info.num_dma_ch << endl;
-    DXRT_ASSERT(_info.mem_size > 0, "invalid device memory size");
     _type = static_cast<DeviceType>(_info.type);
     _variant = _info.variant;
-#ifdef __linux__
-    void *_mem = _driverAdapter->MemoryMap(nullptr, _info.mem_size, 0);
-    int64_t mem_ptr_int;
-    memcpy(&mem_ptr_int, &_mem, sizeof(void*));
+    _devInfo = dxrt_dev_info_t{};
 
-    if (mem_ptr_int == -1)
-    {
-        _mem = nullptr;
-    }
+#ifdef __linux__
+    auto interface_value = _info.interface;
 #elif _WIN32
-    void* _mem = nullptr;   // unused in windows
+    auto interface_value = _info.interface_value;
 #endif
 
-    for (uint32_t num = 0; num < _info.num_dma_ch; num++)
+    if ((interface_value == DEVICE_INTERFACE_ASIC) && (_info.type == DEVICE_TYPE_ACCELERATOR))
     {
-        _thread[num] = std::thread(&ServiceDevice::WaitThread, this, num);
+        int ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_DRV_INFO,
+                      static_cast<void*>(&_devInfo.rt_drv_ver.driver_version),
+                      0,
+                      dxrt::dxrt_drvinfo_sub_cmd_t::DRVINFO_CMD_GET_RT_INFO);
+        if (ret != 0)
+        {
+            LOG_DXRT_S_ERR("Failed to get RT driver info for shared memory publishing");
+        }
+        else if (_devInfo.rt_drv_ver.driver_version > 1701)
+        {
+            int ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_DRV_INFO,
+                          static_cast<void*>(&_devInfo.rt_drv_ver),
+                          0,
+                          dxrt::dxrt_drvinfo_sub_cmd_t::DRVINFO_CMD_GET_RT_INFO_V2);
+            if (ret != 0)
+            {
+                LOG_DXRT_S_ERR("Failed to get RT driver info suffix for shared memory publishing");
+            }
+        }
+
+        ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_DRV_INFO,
+                      static_cast<void*>(&_devInfo.pcie),
+                      0,
+                      dxrt::dxrt_drvinfo_sub_cmd_t::DRVINFO_CMD_GET_PCIE_INFO);
+        if (ret != 0)
+        {
+            LOG_DXRT_S_ERR("Failed to get PCIe driver info for shared memory publishing");
+            _devInfo.pcie = deepx_pcie_info{};
+        }
     }
-    _eventThread = std::thread(&ServiceDevice::EventThread, this);
+#ifdef __linux__
+    _core->CreateMemoryMap();
+#endif
+
+    _dispatcher = std::make_unique<DeviceDispatcher>(_core, _timer, _profiler);
+    _dispatcher->SetResponseCallback(_callBack);
+    _dispatcher->SetErrorCallback(_errCallBack);
+    _dispatcher->SetRecoveryCallback(_recoveryCallBack);
+    _dispatcher->SetThrottleCallback(_throttleCallBack);
+    _dispatcher->StartThreads();
+    _readHandlerQueue.Start();
+    _writeHandlerQueue.Start();
+    _boundManager = std::make_unique<BoundManager>(_core);
 }
 
 void ServiceDevice::LoadPPCPUFirmware(uint64_t offset)
 {
-    size_t size = 0;
-    auto data = static_cast<void*>(PPCPUDataLoader::GetData(size));
-
-    dxrt_req_meminfo_t memInfo;
-    memInfo.base = _info.mem_addr;
-    memInfo.offset = static_cast<uint32_t>(offset);
-    memInfo.size = static_cast<uint32_t>(size);
-    memInfo.data = SafeCast::PointerToInteger<void*>(data);
-    memInfo.ch = 0;
-
-    // Write PPCPU firmware to device memory
-    int ret1 = Process(dxrt::dxrt_cmd_t::DXRT_CMD_WRITE_MEM, static_cast<void*>(&memInfo));
-    if (ret1 != 0)
-    {
-        LOG_DXRT << "failed to load PPCPU firmware to device " << _id <<", ret:" << ret1 << std::endl;
-        _isBlocked = true;
-        return;
-    }
-
-    // send PPCPU firmware information
-    dxrt_custom_sub_cmt_t customCmd = dxrt_custom_sub_cmt_t::DX_INIT_PPCPU;
-
-    int ret2 = Process(dxrt::dxrt_cmd_t::DXRT_CMD_CUSTOM, static_cast<void*>(&memInfo), sizeof(dxrt_req_meminfo_t), static_cast<uint32_t>(customCmd));
-    if (ret2 != 0)
-    {
-        LOG_DXRT << "failed to initialize PPCPU firmware on device " << _id <<", ret:" << ret2 << std::endl;
-        _isBlocked = true;
-        return;
-    }
-
-
-    //check ppcpu data integrity
-
-    std::vector<uint8_t> readData(size, 0);
-    dxrt_req_meminfo_t checkMemInfo;
-    checkMemInfo.base = _info.mem_addr;
-    checkMemInfo.offset = static_cast<uint32_t>(offset);
-    checkMemInfo.size = static_cast<uint32_t>(size);
-    checkMemInfo.data = SafeCast::PointerToInteger<void*>(readData.data());
-    checkMemInfo.ch = 0;
-    int retCheck = Process(dxrt::dxrt_cmd_t::DXRT_CMD_READ_MEM, static_cast<void*>(&checkMemInfo));
-    if (retCheck != 0)
-    {
-        LOG_DXRT << "failed to read back PPCPU firmware from device " << _id <<", ret:" << retCheck << std::endl;
-        _isBlocked = true;
-        return;
-    }
-    if (memcmp(data, readData.data(), size) != 0)
-    {
-        LOG_DXRT << "PPCPU firmware data mismatch on device " << _id << std::endl;
-        _isBlocked = true;
-        return;
-    }
-    LOG_DXRT_S << "PPCPU firmware loaded to device " << _id << " successfully." << std::endl;
+    _core->InitPPCPU(offset);
 }
 
 void ServiceDevice::Terminate() const
 {
     LOG_DXRT_S_DBG << "Device " << _id << " terminate" << endl;
-    if (_driverAdapter == nullptr)
+    if (_core == nullptr)
     {
-        LOG_DXRT_S_DBG << "Device " << _id << " driver adapter is null, skipping Terminate." << endl;
+        LOG_DXRT_S_DBG << "Device " << _id << " core is null, skipping Terminate." << endl;
         return;
     }
-    _driverAdapter->Close();
+    _core->Close();
 }
 
 int ServiceDevice::InferenceRequest(dxrt_request_acc_t* req)
 {
     std::lock_guard<std::mutex> lock(_lock);
     // _timer.start();
-    return Process(dxrt::dxrt_cmd_t::DXRT_CMD_NPU_RUN_REQ, req);
-}
-
-int ServiceDevice::WaitThread(int ids)
-{
-    LOG_DXRT_S_DBG << "@@@ Thread Start : WaitThread(DXRT_CMD_NPU_RUN_RESP)" << std::endl;
-    string threadName = "ServiceDevice::WaitThread()";
-#ifdef __linux__
-    dxrt_cmd_t cmd = dxrt::dxrt_cmd_t::DXRT_CMD_NPU_RUN_RESP_V2;
-#elif _WIN32
-    dxrt_cmd_t cmd = dxrt::dxrt_cmd_t::DXRT_CMD_NPU_RUN_RESP;
-#endif
-
-    int loopCnt = 0;
-    int ret = 0;
-    while (true)   // NOSONAR
+    if (req != nullptr)
     {
-        if (_stop.load())
+        if (_info.num_dma_ch > 0 && (req->dma_ch < 0 || req->dma_ch >= static_cast<int32_t>(_info.num_dma_ch)))
         {
-            LOG_DXRT_DBG << threadName << " : requested to stop thread." << endl;
-            break;
-        }
-        dxrt_response_t response;
-        memset(static_cast<void*>(&response), 0, sizeof(dxrt_response_t));
-        response.req_id = ids;
-
-#ifdef USE_PROFILER
-        // Record wait start time using ProfilerClock
-        auto wait_start = ProfilerClock::now();
-        response.wait_start_time = std::chrono::duration_cast<std::chrono::nanoseconds>(wait_start.time_since_epoch()).count();
-#endif
-
-        ret = Process(cmd, &response);
-
-        //Scheduling debug log
-        LOG_DXRT_S_DBG << "process " << response.proc_id
-            << " request " << response.req_id
-            << " response.dma_ch " << response.dma_ch << endl;
-
-#ifdef USE_PROFILER
-        // Record wait end time and calculate duration
-        auto wait_end = ProfilerClock::now();
-        response.wait_end_time = std::chrono::duration_cast<std::chrono::nanoseconds>(wait_end.time_since_epoch()).count();
-
-        // Calculate wait duration in microseconds
-        auto wait_duration = std::chrono::duration_cast<std::chrono::microseconds>(wait_end - wait_start);
-        response.wait_timestamp = static_cast<uint64_t>(wait_duration.count());
-
-        // Record in profiler using TimePoint
-        auto wait_tp = std::make_shared<TimePoint>();
-
-        wait_tp->start = wait_start;
-        wait_tp->end = wait_end;
-        std::string profile_name = "Service Process Wait[Thread_" + std::to_string(ids) + "][Device_" + std::to_string(_id) + "]";
-        _profiler.AddTimePoint(profile_name, wait_tp);
-#endif
-
-
-        if (ret == 0 && !_stop.load())
-        {
-            if (response.status != 0)
-            {
-                uint32_t errCode = static_cast<uint32_t>(response.status);   // NOSONAR
-                LOG_VALUE(response.status);
-
-                // Check if this is a recoverable error that EventThread will handle
-                // via DXRT_CMD_EVENT → DXRT_CMD_RECOVERY.
-                //   100-103: DMA timeout + soft reset failure
-                //   300:     FW timeout
-                //   400-403: DMA HW abort (Abort MSI)
-                bool isRecoverable = (errCode >= 100 && errCode < 200)
-                                  || (errCode == 300)
-                                  || (errCode >= 400 && errCode < 500);
-
-                if (isRecoverable)
-                {
-                    LOG_DXRT_S_ERR("[WaitThread " + std::to_string(ids) + "] Recoverable error (code="
-                        + std::to_string(errCode) + ") on device " + std::to_string(id())
-                        + "). Deferring recovery to EventThread.");
-                    // EventThread handles DXRT_CMD_RECOVERY via the driver event
-                    // queue.  WaitThread may reach here only if a pending
-                    // NPU_RUN_RESP returns with an error status.  Just stop
-                    // this thread — EventThread will perform recovery and
-                    // call std::_Exit.
-                    _isBlocked = true;
-                    break;
-                }
-
-                // Non-recoverable error — fatal path (existing behavior)
-                string _dumpFile = "dxrt.dump.bin." + std::to_string(id());
-                cout << "Error Detected: " + ErrTable(static_cast<dxrt_error_t>(response.status)) << endl;
-                cout << "    Device " << id() << " dump to file " << _dumpFile << endl;
-                vector<uint32_t> dump(1000, 0);
-                Process(dxrt::dxrt_cmd_t::DXRT_CMD_DUMP, dump.data());
-                for (size_t i = 0; i < dump.size(); i += 2)
-                {
-                    if (dump[i] == 0xFFFFFFFF)
-                        break;
-                }
-                DataDumpBin(_dumpFile, dump.data(), static_cast<unsigned int>(dump.size()));
-                DataDumpTxt(_dumpFile+".txt", dump.data(), 1, static_cast<unsigned int>(dump.size())/2, 2, true);
-                _stop.store(true);
-                _isBlocked = true;
-                _errCallBack(dxrt_server_err_t::S_ERR_DEVICE_RESPONSE_FAULT, response.status, id() );
-                DXRT_ASSERT(false, "Device error detected, terminating device thread.");
-            }
-            else
-            {
-                pid_t pid = response.proc_id;
-
-
-                _timer[response.dma_ch].add(static_cast<double>(response.inf_time));
-
-#ifdef __linux__
-               LOG_DXRT_S_DBG << "process "<< pid << " request " << response.req_id << " response.dma_ch " << response.dma_ch << endl;
-                if (pid <= 0)
-                {
-                    LOG_DXRT_S_ERR("Invalid process ID received: " + std::to_string(pid));
-                    continue;
-                }
-                _callBack(response);  // send it to service scheduler
-#elif _WIN32
-                if (pid > 0) {  // in windows, valid process id
-
-                    LOG_DXRT_S_DBG << pid << " process " << response.req_id << " request " << endl;
-
-                    _callBack(response);  // send it to service scheduler
-                }
-#endif  // _WIN32
-            }
+            const auto numChannels = static_cast<int32_t>(_info.num_dma_ch);
+            const int32_t normalizedChannel = ((req->dma_ch % numChannels) + numChannels) % numChannels;
+            LOG_DXRT_S_ERR("ServiceDevice::InferenceRequest normalized invalid dma_ch: pid="
+                + std::to_string(req->proc_id) + ", req_id=" + std::to_string(req->req_id)
+                + ", dma_ch=" + std::to_string(req->dma_ch)
+                + ", num_dma_ch=" + std::to_string(_info.num_dma_ch)
+                + ", normalized=" + std::to_string(normalizedChannel));
+            req->dma_ch = normalizedChannel;
         }
 
-        loopCnt++;
     }
-    LOG_DXRT_S_DBG << "@@@ Thread End : WaitThread(DXRT_CMD_NPU_RUN_RESP), loopCount:" << loopCnt << std::endl;
-    return 0;
+
+    LOG_DXRT_S_DBG << "ServiceDevice::InferenceRequest submit NPU_RUN_REQ"
+                   << (req != nullptr ? ": pid=" + std::to_string(req->proc_id)
+                       + ", req_id=" + std::to_string(req->req_id)
+                       + ", dma_ch=" + std::to_string(req->dma_ch)
+                       + ", queue=" + std::to_string(req->queue) : ": req=null")
+                   << std::endl;
+
+    const int ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_NPU_RUN_REQ, req);
+    LOG_DXRT_S_DBG << "ServiceDevice::InferenceRequest NPU_RUN_REQ returned ret=" << ret
+                   << (req != nullptr ? ": pid=" + std::to_string(req->proc_id)
+                       + ", req_id=" + std::to_string(req->req_id)
+                       + ", dma_ch=" + std::to_string(req->dma_ch)
+                       + ", queue=" + std::to_string(req->queue) : ": req=null")
+                   << std::endl;
+    return ret;
 }
 
-int ServiceDevice::EventThread()   // NOSONAR
-{
-    LOG_DXRT_S_DBG << "@@@ Thread Start : EventThread" << std::endl;
-    string threadName = "ServiceDevice::EventThread()";
-#ifdef __linux__
-    dxrt_cmd_t cmd = dxrt::dxrt_cmd_t::DXRT_CMD_EVENT_V2;
-#elif _WIN32
-    dxrt_cmd_t cmd = dxrt::dxrt_cmd_t::DXRT_CMD_EVENT;
-#endif
-    int loopCnt = 0;
-    int ret = 0;
-    while (true)
-    {
-        if (_stop.load())
-        {
-            LOG_DXRT_S_DBG << threadName << " : requested to stop thread." << endl;
-            break;
-        }
-        dxrt::dx_pcie_dev_event_t eventInfo;
-        memset(&eventInfo, 0, sizeof(dxrt::dx_pcie_dev_event_t));
 
-        ret = Process(cmd, &eventInfo);
-
-        if (ret != 0)
-        {
-            LOG_DXRT_S_ERR("DXRT_CMD_EVENT_V2 ret:" + std::to_string(ret));  // for debug
-            std::this_thread::sleep_for(std::chrono::seconds(100));   // sleep and retry to avoid busy loop if event processing fails
-        }
-
-        bool is_error_event = (static_cast<dxrt::dxrt_event_t>(eventInfo.event_type) == dxrt::dxrt_event_t::DXRT_EVENT_ERROR);
-        bool is_not_none_error = (static_cast<dxrt::dxrt_error_t>(eventInfo.dx_rt_err.err_code) != dxrt::dxrt_error_t::ERR_NONE);
-        if (is_error_event && is_not_none_error)
-        {
-            uint32_t err_code = eventInfo.dx_rt_err.err_code;
-            LOG_DXRT_S_ERR(eventInfo.dx_rt_err);
-            // log error to temp file for debug
-            {
-                const auto& e = eventInfo.dx_rt_err;
-                const std::string dumpPath = dxrt::getDxrtErrorDumpWritePath(id());
-                std::ofstream ofs(dumpPath, std::ios::trunc);
-                if (ofs) {
-                    ofs << e << std::endl;
-                    ofs.close();
-                }
-            }
-
-            cout << "************************************************************************" << endl;
-            cout << " * Error occurred! Please follow the steps below to recover the device." << endl;
-            cout << " * Refer to the user guide if additional help is needed." << endl;
-            cout << endl;
-            cout << " Step 1: Reset the device using dxrt-cli" << endl;
-            cout << "         > dxrt-cli -r 0" << endl;
-            cout << " Step 2: Retry the inference using run_model" << endl;
-            cout << "         > run_model -m [model.dxnn]" << endl;
-            cout << " ** If the error persists, please contact DeepX support for assistance." << endl;
-            cout << "************************************************************************" << endl;
-
-
-            // Classify error by code range
-            //   100-103: DMA timeout + soft reset failure
-            //   200-201: LPDDR ECC error
-            //   300:     FW timeout
-            //   400-403: DMA HW abort (Abort MSI)
-            // Recoverable errors (100-199, 300, 400-499):
-            // EventThread is the authoritative handler — the driver event
-            // queue delivers err_code here.  WaitThread may have no pending
-            // NPU_RUN_RESP (client _Exit'd before submitting), so it cannot
-            // be relied upon to trigger recovery.
-            bool isRecoverable = (err_code >= 100 && err_code < 200)
-                              || (err_code == 300)
-                              || (err_code >= 400 && err_code < 500);
-
-            if (isRecoverable)
-            {
-                LOG_DXRT_S_ERR("[EventThread] Recoverable error (code="
-                    + std::to_string(err_code) + ") on device " + std::to_string(id())
-                    + "). Performing recovery.");
-                LogDmaChannelStatus(&eventInfo.dx_rt_err);
-
-                // 1. Broadcast to all clients and wait for them to terminate.
-                //    _recoveryCallBack sets DxrtService::_recoveryInProgress,
-                //    broadcasts ERROR_REPORT, and polls until every client PID
-                //    is dead (with SIGKILL fallback after timeout).
-                _recoveryCallBack(dxrt_server_err_t::S_ERR_DEVICE_EVENT_FAULT, err_code, id());
-
-                // 2. Single DXRT_CMD_RECOVERY ioctl
-                int recovery_ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_RECOVERY, nullptr);
-                if (recovery_ret < 0)
-                {
-                    LOG_DXRT_S_ERR("DXRT_CMD_RECOVERY failed for device " + std::to_string(id())
-                        + " ret=" + std::to_string(recovery_ret) + ". Aborting.");
-                    std::abort();
-                }
-
-                LOG_DXRT_S << "Recovery completed (EventThread) for device " << id() << endl;
-
-                // 3. Terminate dxrtd for systemd restart
-                LOG_DXRT_S << "Terminating dxrtd for systemd restart." << endl;
-                std::_Exit(EXIT_FAILURE);
-            }
-            else
-            {
-                // Non-recoverable errors — fatal abort as before
-                _errCallBack(dxrt_server_err_t::S_ERR_DEVICE_EVENT_FAULT, err_code, id());
-
-                Process(dxrt::dxrt_cmd_t::DXRT_CMD_RECOVERY, nullptr);
-
-                std::abort();
-            }
-        }
-        else if (static_cast<dxrt::dxrt_event_t>(eventInfo.event_type) == dxrt::dxrt_event_t::DXRT_EVENT_NOTIFY_THROT)
-        {
-            // Notify throttling events to service scheduler for logging and potential client notification
-            dx_pcie_dev_ntfy_throt_t throtInfo = eventInfo.dx_rt_ntfy_throt;
-            LOG_DXRT_S_DBG << "Received throttling event: code=" << throtInfo.ntfy_code
-                << ", freq_before=" << throtInfo.throt_freq[0]
-                << ", freq_after=" << throtInfo.throt_freq[1]
-                << ", volt_before=" << throtInfo.throt_voltage[0]
-                << ", volt_after=" << throtInfo.throt_voltage[1]
-                << ", temperature=" << throtInfo.throt_temper
-                << std::endl;
-            _throttleCallBack(throtInfo, id());
-        }
-
-        loopCnt++;
-    }
-    LOG_DXRT_S_DBG << "@@@ Thread End : EventThread, loopCount:" << loopCnt << std::endl;
-    return 0;
-}
-
-void ServiceDevice::LogDmaChannelStatus(const dx_pcie_dev_err_t *err) const
-{
-    std::cout << "  WR ch status: ["
-        << err->dma_wr_ch_sts[0] << ", "
-        << err->dma_wr_ch_sts[1] << ", "
-        << err->dma_wr_ch_sts[2] << ", "
-        << err->dma_wr_ch_sts[3] << "]" << std::endl;
-    std::cout << "  RD ch status: ["
-        << err->dma_rd_ch_sts[0] << ", "
-        << err->dma_rd_ch_sts[1] << ", "
-        << err->dma_rd_ch_sts[2] << ", "
-        << err->dma_rd_ch_sts[3] << "]" << std::endl;
-    std::cout << "  PCIe BDF: "
-        << std::hex << std::setfill('0')
-        << std::setw(2) << static_cast<int>(err->bus) << ":"
-        << std::setw(2) << static_cast<int>(err->dev) << "."
-        << static_cast<int>(err->func)
-        << std::dec << std::endl;
-}
 
 std::ostream& operator<< (dxrt_sche_sub_cmd_t subCmd, std::ostream& os)
 {
@@ -582,115 +301,52 @@ std::ostream& operator<< (dxrt_sche_sub_cmd_t subCmd, std::ostream& os)
     return os;
 }
 
-
-int ServiceDevice::BoundOption(dxrt_sche_sub_cmd_t subCmd, npu_bound_op boundOp) const
-{
-    LOG_DXRT_S_DBG << "Device " << id() << " " << subCmd << " bound " << boundOp << endl;
-
-    return Process(dxrt::dxrt_cmd_t::DXRT_CMD_SCHEDULE, static_cast<void*>(&boundOp),
-        sizeof(dxrt_sche_sub_cmd_t), subCmd);
-}
-
-int ServiceDevice::AddBound(npu_bound_op boundOp)
-{
-    UniqueLock lk(_boundLock);
-
-    LOG_DXRT_S_DBG << "Device " << id() << " ADD bound " << boundOp << endl;
-    if (_bound_count[static_cast<int>(boundOp)] > 0)
-    {
-        _bound_count[static_cast<int>(boundOp)]++;
-        return 0;
-    }
-    int ret = BoundOption(dxrt_sche_sub_cmd_t::DX_SCHED_ADD, boundOp);
-    if (ret == 0)
-    {
-        _bound_count[static_cast<int>(boundOp)]++;
-    }
-
-    else
-    {
-        LOG_DXRT_S_ERR("Failed to add bound option: " << ret);
-    }
-    return ret;
-}
-int ServiceDevice::DeleteBound(npu_bound_op boundOp)
-{
-    UniqueLock lk(_boundLock);
-    LOG_DXRT_S_DBG << "Device " << id() << " DELETE bound " << boundOp << endl;
-
-    if (_bound_count[static_cast<int>(boundOp)] > 1)
-    {
-        _bound_count[static_cast<int>(boundOp)]--;
-        return 0;
-    }
-    int ret = BoundOption(dxrt_sche_sub_cmd_t::DX_SCHED_DELETE, boundOp);
-    if (ret == 0)
-    {
-        _bound_count[static_cast<int>(boundOp)]--;
-    }
-
-    else
-    {
-        LOG_DXRT_S_ERR("Failed to delete bound option: " << ret);
-    }
-    return ret;
-}
-
-int ServiceDevice::GetBoundCount(npu_bound_op boundOp)
-{
-    SharedLock lk(_boundLock);
-    return _bound_count[static_cast<int>(boundOp)];
-}
-
-int ServiceDevice::GetBoundTypeCountInternal() const
-{
-    return static_cast<int>(std::count_if(_bound_count.begin(), _bound_count.end(),
-                         [](int count) { return count > 0; }));
-}
-int ServiceDevice::GetBoundTypeCount()
-{
-    SharedLock lk(_boundLock);
-    return GetBoundTypeCountInternal();
-}
-bool ServiceDevice::CanAcceptBound(npu_bound_op boundOp)
-{
-    SharedLock lk(_boundLock);
-    if (_bound_count[static_cast<int>(boundOp)] > 0)
-    {
-        return true;
-    }
-    if (GetBoundTypeCountInternal() >= 3)
-    {
-        std::string msg = "Current Bound: ";
-        for (size_t i = 0; i < _bound_count.size(); i++)
-        {
-            if (_bound_count[i] > 0)
-            {
-                msg += std::to_string(i) + "," + std::to_string(_bound_count[i]) + " ";
-            }
-        }
-        msg += "cannot accept new bound " + std::to_string(static_cast<int>(boundOp));
-        LOG_DXRT_DBG << msg << endl;
-    }
-    return GetBoundTypeCountInternal() < 3;
-}
+int ServiceDevice::AddBound(npu_bound_op boundOp)     { return _boundManager->AddBound(boundOp); }
+int ServiceDevice::DeleteBound(npu_bound_op boundOp)  { return _boundManager->DeleteBound(boundOp); }
+int ServiceDevice::GetBoundCount(npu_bound_op boundOp){ return _boundManager->GetBoundCount(boundOp); }
+int ServiceDevice::GetBoundTypeCount()                { return _boundManager->GetBoundTypeCount(); }
+bool ServiceDevice::CanAcceptBound(npu_bound_op boundOp) { return _boundManager->CanAcceptBound(boundOp); }
 
 
 void ServiceDevice::SetCallback(const std::function<void(const dxrt_response_t&)>& f)
 {
     _callBack = f;
+    if (_dispatcher)
+    {
+        _dispatcher->SetResponseCallback(f);
+    }
 }
-void ServiceDevice::SetErrorCallback(const std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)>& f)
+void ServiceDevice::SetErrorCallback(const std::function<void(dxrt::dxrt_server_err_t, uint32_t, int, const dx_pcie_dev_err_t *)>& f)
 {
     _errCallBack = f;
+    if (_dispatcher)
+    {
+        _dispatcher->SetErrorCallback(f);
+    }
 }
 void ServiceDevice::SetRecoveryCallback(const std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)>& f)
 {
     _recoveryCallBack = f;
+    if (_dispatcher)
+    {
+        _dispatcher->SetRecoveryCallback(f);
+    }
 }
 void ServiceDevice::SetThrottleCallback(const std::function<void(dx_pcie_dev_ntfy_throt_t, int)>& f)
 {
     _throttleCallBack = f;
+    if (_dispatcher)
+    {
+        _dispatcher->SetThrottleCallback(f);
+    }
+}
+
+void ServiceDevice::SetRecoveryAdapter(const std::shared_ptr<RecoveryAdapter>& adapter)
+{
+    if (_dispatcher)
+    {
+        _dispatcher->SetRecoveryAdapter(adapter);
+    }
 }
 
 
@@ -733,7 +389,59 @@ vector<shared_ptr<ServiceDevice>> ServiceDevice::CheckServiceDevices(uint32_t su
 
                 LOG_DBG("Found " + devFile);
                 auto device = std::make_shared<ServiceDevice>(devFile);
-                device->Identify(cnt, subCmd);
+
+                // Bounded IDENTIFY retry. After a transient link event
+                // (AER recovery, link_flap, cpu_reset) the driver tears the
+                // link down, re-establishes it, then schedules an async
+                // IDENTIFY probe; the FW republishes its mailbox only a short
+                // time later (typically a few hundred ms). If dxrtd starts or
+                // is restarted by systemd inside that window, a single-shot
+                // IDENTIFY ioctl races the FW mailbox and fails, which would
+                // otherwise throw out of the constructor and make systemd
+                // bounce the service. Retry briefly so we ride through the
+                // re-init window. A genuinely hung FW (mailbox never
+                // republishes) still fails fast once the bounded window
+                // elapses, preserving the original error semantics.
+                constexpr int kIdentifyMaxAttempts = 15;
+                constexpr auto kIdentifyRetryDelay = std::chrono::milliseconds(100);
+                int identifyAttempt = 0;
+                while (true)
+                {
+                    try
+                    {
+                        device->Identify(cnt, subCmd);
+                    }
+                    catch (const dxrt::DeviceIOException&)
+                    {
+                        if (++identifyAttempt >= kIdentifyMaxAttempts)
+                        {
+                            throw;
+                        }
+                        LOG_DXRT << "IDENTIFY not ready for " << devFile
+                            << " (attempt " << identifyAttempt << "/"
+                            << kIdentifyMaxAttempts
+                            << "); waiting for FW mailbox to settle." << endl;
+                        std::this_thread::sleep_for(kIdentifyRetryDelay);
+                        continue;
+                    }
+                    // Soft failure: ioctl succeeded but returned empty info
+                    // (mem_size==0) -> FW mailbox not fully up yet. Retry
+                    // within the same bounded window before accepting the
+                    // blocked device.
+                    if (device->isBlocked())
+                    {
+                        ++identifyAttempt;
+                        if (identifyAttempt < kIdentifyMaxAttempts)
+                        {
+                            LOG_DXRT << "IDENTIFY soft-failed (mem_size==0) for " << devFile
+                                << " (attempt " << identifyAttempt << "/"
+                                << kIdentifyMaxAttempts << "); retrying." << endl;
+                            std::this_thread::sleep_for(kIdentifyRetryDelay);
+                            continue;
+                        }
+                    }
+                    break;
+                }
                 serviceDevices.emplace_back(device);
             }
             else
@@ -765,45 +473,58 @@ void ServiceDevice::usageTimerTick()
 
 void ServiceDevice::DoCustomCommand(void *data, uint32_t subCmd, uint32_t size) const
 {
-    std::ignore = size;
+    return _core->DoCustomCommand(data, subCmd, size);
+}
 
-    auto sCmd = static_cast<dxrt_custom_sub_cmt_t>(subCmd);
-    if (data == nullptr)
+void ServiceDevice::DMAReadAsync(const dxrt_meminfo_t& memInfo, pid_t pid, int seqId)
+{
+    ServiceDevice::DMAItem item;
+    item.memInfo = memInfo;
+    item.pid = pid;
+    item.seqId = seqId;
+    _readHandlerQueue.PushWork(item);
+}
+void ServiceDevice::DMAWriteAsync(const dxrt_meminfo_t& memInfo, pid_t pid, int seqId)
+{
+    ServiceDevice::DMAItem item;
+    item.memInfo = memInfo;
+    item.pid = pid;
+    item.seqId = seqId;
+    _writeHandlerQueue.PushWork(item);
+}
+
+void ServiceDevice::SetDMACompletionCallback(const std::function<void(bool, pid_t, int, int, int)> &callback)
+{
+    _dmaCompletionCallback = callback;
+}
+
+void ServiceDevice::HandleDMARead(const DMAItem& item, int ch)
+{
+    pid_t pid = item.pid;
+    int seqId = item.seqId;
+    dxrt_meminfo_t memInfo = item.memInfo;
+
+    LOG_DXRT_S_DBG << "HandleDMARead: pid=" << pid << ", seqId=" << seqId <<
+        ", memInfo={addr=" << std::hex << memInfo.data << std::dec << ", size=" << memInfo.size << "}" << std::endl;
+    const int ret = _core->Read(memInfo, ch);
+    if (_dmaCompletionCallback)
     {
-        LOG_DXRT_ERR("Null data pointer received");
-        return;
+        _dmaCompletionCallback(true, pid, _core->id(), seqId, ret);
     }
+}
 
-    switch (sCmd)
+void ServiceDevice::HandleDMAWrite(const DMAItem& item, int ch)
+{
+    pid_t pid = item.pid;
+    int seqId = item.seqId;
+    dxrt_meminfo_t memInfo = item.memInfo;
+
+    LOG_DXRT_S_DBG << "HandleDMAWrite: pid=" << pid << ", seqId=" << seqId <<
+        ", memInfo={addr=" << std::hex << memInfo.data << std::dec << ", size=" << memInfo.size << "}" << std::endl;
+    const int ret = _core->Write(memInfo, ch);
+    if (_dmaCompletionCallback)
     {
-        case DX_ADD_WEIGHT_INFO:
-        {
-            Process(dxrt::dxrt_cmd_t::DXRT_CMD_CUSTOM,
-                    data,
-                    sizeof(dxrt_custom_weight_info_t),
-                    sCmd);
-            break;
-        }
-        case DX_DEL_WEIGHT_INFO:
-        {
-            Process(dxrt::dxrt_cmd_t::DXRT_CMD_CUSTOM,
-                    data,
-                    sizeof(dxrt_custom_weight_info_t),
-                    sCmd);
-            break;
-        }
-        case DX_INIT_PPCPU:
-        {
-            Process(dxrt::dxrt_cmd_t::DXRT_CMD_CUSTOM,
-                    data,
-                    size,
-                    sCmd);
-            break;
-        }
-
-        default:
-            LOG_DXRT_ERR("Unknown sub command in service: " << sCmd);
-            break;
+        _dmaCompletionCallback(false, pid, _core->id(), seqId, ret);
     }
 }
 

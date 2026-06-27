@@ -29,6 +29,7 @@ class Runner
         ~Runner();
         void Run(int time, int loops, int warmup);
         const Result GetResult() const;
+        const std::vector<int>& GetJobIds() const;
 
     private:
         dxrt::InferenceEngine _ie;
@@ -38,4 +39,5 @@ class Runner
         std::atomic<int> _doneCount{0};
         int _runCount = 0;
         bool _completed = false;
+        std::vector<int> _jobIds;
 };

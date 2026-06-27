@@ -7,13 +7,16 @@
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
-#include "dxrt/dxrt_api.h"
+#include "dxrt/dxrt_cxx_api.h"
+#include <thread>
 #include "dxrt/extern/cxxopts.hpp"
 #include "../include/logger.h"
 #include "../include/concurrent_queue.h"
 
 #include <string>
 #include <iostream>
+#include <vector>
+#include <thread>
 
 // 1 InferenceEngine and 3 threads (asynchronous)
 

@@ -31,11 +31,13 @@ namespace dxrt
 
 Request::Request(void)
 {
+    _task = nullptr;
     _data.requestId = 0;
     LOG_DXRT_DBG << getData()->requestId << endl;
 }
 Request::Request(int id)
 {
+    _task = nullptr;
     _data.requestId = id;
     _data.inputs = {};
     _data.outputs = {};
@@ -45,7 +47,7 @@ Request::Request(int id)
 Request::Request(Task *task_, const Tensors &inputs_, const Tensors &outputs_)
 : _task(task_)
 {
-
+    _data.taskData = (task_ != nullptr) ? task_->getData() : nullptr;
     _data.inputs = inputs_;
     _data.outputs = outputs_;
     _timePoint = std::make_shared<TimePoint>();

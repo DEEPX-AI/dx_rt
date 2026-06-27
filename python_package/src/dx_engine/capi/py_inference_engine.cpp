@@ -6,7 +6,6 @@
  * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  *
- * This file uses cxxopts (MIT License) - Copyright (c) 2014 Jarryd Beck.
  * This file uses pybind11 (BSD 3-Clause License) - Copyright (c) 2016 Wenzel Jakob.
  */
 
@@ -24,11 +23,9 @@
 #include <map>
 #include <unordered_map>
 #include <mutex>
+#include <atomic>
 
-#include "dxrt/dxrt_api.h"
-#include "dxrt/exception/exception.h"
-#include "dxrt/device_info_status.h"
-#include "dxrt/extern/cxxopts.hpp"
+#include "dxrt/dxrt_cxx_api.h"
 
 #if defined(_MSC_VER) && !defined(SSIZE_T_DEFINED)
 #include <BaseTsd.h>
@@ -40,30 +37,34 @@ namespace dxrt
 {
 namespace py = pybind11;
 
-// Exception translation function to convert C++ exceptions to Python exceptions
+// Forward declarations for per-module init functions
+void init_profiler(py::module_& m);
+
+// Exception translation: map dxrt_status_t to Python exception types
 void translateException(const std::exception_ptr& p) {
     try {
         if (p) std::rethrow_exception(p);
-    } catch (const dxrt::FileNotFoundException& e) {
-        PyErr_SetString(PyExc_FileNotFoundError, e.what());
-    } catch (const dxrt::NullPointerException& e) {
-        PyErr_SetString(PyExc_ValueError, e.what());
-    } catch (const dxrt::FileIOException& e) {
-        PyErr_SetString(PyExc_IOError, e.what());
-    } catch (const dxrt::InvalidArgumentException& e) {
-        PyErr_SetString(PyExc_ValueError, e.what());
-    } catch (const dxrt::InvalidOperationException& e) {
-        PyErr_SetString(PyExc_RuntimeError, e.what());
-    } catch (const dxrt::InvalidModelException& e) {
-        PyErr_SetString(PyExc_ValueError, e.what());
-    } catch (const dxrt::ModelParsingException& e) {
-        PyErr_SetString(PyExc_ValueError, e.what());
-    } catch (const dxrt::ServiceIOException& e) {
-        PyErr_SetString(PyExc_IOError, e.what());
-    } catch (const dxrt::DeviceIOException& e) {
-        PyErr_SetString(PyExc_IOError, e.what());
     } catch (const dxrt::Exception& e) {
-        PyErr_SetString(PyExc_RuntimeError, e.what());
+        switch (e.status()) {
+            case DXRT_ERR_NOT_FOUND:
+                PyErr_SetString(PyExc_FileNotFoundError, e.what()); break;
+            case DXRT_ERR_INVALID_ARG:
+                PyErr_SetString(PyExc_ValueError, e.what()); break;
+            case DXRT_ERR_INVALID_MODEL:
+                PyErr_SetString(PyExc_ValueError, e.what()); break;
+            case DXRT_ERR_IO:
+                PyErr_SetString(PyExc_IOError, e.what()); break;
+            case DXRT_ERR_DEVICE:
+                PyErr_SetString(PyExc_IOError, e.what()); break;
+            case DXRT_ERR_OUT_OF_MEMORY:
+                PyErr_SetString(PyExc_MemoryError, e.what()); break;
+            case DXRT_ERR_TIMEOUT:
+                PyErr_SetString(PyExc_TimeoutError, e.what()); break;
+            case DXRT_ERR_NOT_SUPPORTED:
+                PyErr_SetString(PyExc_NotImplementedError, e.what()); break;
+            default:
+                PyErr_SetString(PyExc_RuntimeError, e.what()); break;
+        }
     } catch (const std::runtime_error& e) {
         PyErr_SetString(PyExc_RuntimeError, e.what());
     } catch (const std::invalid_argument& e) {
@@ -80,7 +81,8 @@ struct UserArgWrapper {
     py::object user_pyObj;
     py::object output_arg_pyObj;
     py::object input_arrays_pyObj;  // Keep input arrays alive to prevent GC
-    int jobId;  // Track jobId for cleanup in both callback and wait() paths
+    std::atomic<int> jobId;  // Track jobId for cleanup in both callback and wait() paths
+    std::atomic<bool> callbackCompleted{false};
 
     explicit UserArgWrapper(py::object user_obj, py::object output_obj = py::none(), py::object input_obj = py::none(), int job_id = -1)
         : user_pyObj(std::move(user_obj)), output_arg_pyObj(std::move(output_obj)), input_arrays_pyObj(std::move(input_obj)), jobId(job_id) {}
@@ -145,7 +147,7 @@ void convertToPyArray(const TensorPtr& cpp_tensor,
         return;
     }
 
-    DataType dtype = cpp_tensor->type();
+    DataType dtype = static_cast<DataType>(cpp_tensor->type());
     void* data_ptr = cpp_tensor->data();
     const auto& shape_cpp = cpp_tensor->shape();
     size_t elem_size_bytes = cpp_tensor->elem_size();
@@ -258,7 +260,9 @@ py::object pyRun(InferenceEngine &ie,
 
     // Declare variables at function scope
     bool is_batch = false;
+    bool is_multi_input = false;
     std::vector<void*> cpp_batch_input_ptrs;
+    std::vector<void*> cpp_multi_input_ptrs;
     void* cpp_single_input_ptr = nullptr;
     std::vector<void*> cpp_batch_output_ptrs;
     void* cpp_single_output_ptr = nullptr;
@@ -324,10 +328,30 @@ py::object pyRun(InferenceEngine &ie,
         } else {
             // Single processing: List[np.ndarray]
             py::list inputs_list_py = inputs_list.cast<py::list>();
+
             if (inputs_list_py.empty()) {
                 throw py::value_error("Input tensor list cannot be empty for single inference.");
             }
-            cpp_single_input_ptr = inputs_list_py[0].cast<py::array>().request().ptr;
+
+            // Detect multi-input: List with more than one np.ndarray
+            is_multi_input = (py::len(inputs_list_py) > 1);
+
+            if (is_multi_input) {
+                // Extract all input pointers for multi-input model
+                cpp_multi_input_ptrs.reserve(py::len(inputs_list_py));
+                for (const auto& arr_handle : inputs_list_py) {
+                    if (!py::isinstance<py::array>(arr_handle)) {
+                        throw py::type_error("All elements in the input list must be numpy arrays.");
+                    }
+                    cpp_multi_input_ptrs.push_back(arr_handle.cast<py::array>().request().ptr);
+                }
+            } else {
+                auto first_input = inputs_list_py[0];
+                if (!py::isinstance<py::array>(first_input)) {
+                    throw py::type_error("The input must be a numpy array.");
+                }
+                cpp_single_input_ptr = first_input.cast<py::array>().request().ptr;
+            }
 
             // Process output buffer for single
             if (!py_output_buffers.is_none() && py::isinstance<py::list>(py_output_buffers)) {
@@ -355,6 +379,8 @@ py::object pyRun(InferenceEngine &ie,
     try {
         if (is_batch) {
             cpp_batch_results = ie.Run(cpp_batch_input_ptrs, cpp_batch_output_ptrs, user_args_raw_ptrs_for_batch_call);
+        } else if (is_multi_input) {
+            cpp_single_results = ie.RunMultiInput(cpp_multi_input_ptrs, reinterpret_cast<void*>(single_user_arg_wrapper), cpp_single_output_ptr);
         } else {
             cpp_single_results = ie.Run(cpp_single_input_ptr, reinterpret_cast<void*>(single_user_arg_wrapper), cpp_single_output_ptr);
         }
@@ -468,7 +494,12 @@ int pyRunAsync(InferenceEngine &ie,
         input_list_for_retention.append(arr);
     }
 
-    UserArgWrapper* wrapper = new UserArgWrapper(userArg_py, output_base_obj_for_callback, input_list_for_retention);
+    // unique_ptr guards against leaks if RunAsync throws. The callback may run
+    // before RunAsync returns for very fast jobs, so ownership transfer to the
+    // global map is coordinated after the call using callbackCompleted.
+    std::unique_ptr<UserArgWrapper> wrapper_guard(
+        new UserArgWrapper(userArg_py, output_base_obj_for_callback, input_list_for_retention));
+    UserArgWrapper* wrapper = wrapper_guard.get();
 
     // Determine if we have multiple input tensors (multi-input case)
     bool multi_input = inputs_py.size() > 1;
@@ -486,19 +517,31 @@ int pyRunAsync(InferenceEngine &ie,
     py::gil_scoped_release release_gil_for_c_call;
 
     int jobId = -1;
+    // K6 revised: Do NOT hold g_jobWrapperMapMutex across RunAsync.
+    // Holding it blocks the worker-thread callback (which acquires the same
+    // mutex to erase the wrapper), and the callback must complete before the
+    // InferenceJob releases _use_flag back to the pool. Under high-throughput
+    // loops this causes pool exhaustion and timeout.
+    //
+    // Instead: call RunAsync without the mutex, then immediately lock to
+    // register jobId. The theoretical race (callback fires before map insert)
+    // is handled by the callback checking wrapper->jobId atomically.
     if (multi_input) {
-        // For multi-input we still only pass one output pointer (first element / scalar) if provided.
         jobId = ie.RunAsync(input_ptr_vec, reinterpret_cast<void*>(wrapper), output_c_ptr_for_engine);
     } else {
-        // ----- single-input path remains unchanged -----
         jobId = ie.RunAsync(first_input_c_ptr, reinterpret_cast<void*>(wrapper), output_c_ptr_for_engine);
     }
-
-    // Store jobId in wrapper and register in map for cleanup
-    wrapper->jobId = jobId;
+    // RunAsync returned successfully. If the callback already completed, the
+    // wrapper is still owned by wrapper_guard and must not be put into the map.
+    // Otherwise, transfer ownership to g_jobWrapperMap so callback/wait can
+    // clean it up exactly once.
     {
         std::lock_guard<std::mutex> lock(g_jobWrapperMapMutex);
-        g_jobWrapperMap[jobId] = wrapper;
+        wrapper->jobId.store(jobId, std::memory_order_release);
+        if (!wrapper->callbackCompleted.load(std::memory_order_acquire)) {
+            g_jobWrapperMap[jobId] = wrapper;
+            wrapper_guard.release();  // ownership transferred to map / callback
+        }
     }
 
     return jobId;
@@ -533,6 +576,28 @@ void pyRegisterCallback(InferenceEngine &ie, const py::object &pyCallback_obj) {
             base_outputs_obj_from_async = wrapper->output_arg_pyObj;
         }
 
+        auto finish_wrapper = [](UserArgWrapper* wrapper_to_finish) {
+            if (wrapper_to_finish == nullptr) {
+                return;
+            }
+
+            bool should_delete = false;
+            {
+                std::lock_guard<std::mutex> lock(g_jobWrapperMapMutex);
+                const int job_id = wrapper_to_finish->jobId.load(std::memory_order_acquire);
+                if (job_id >= 0) {
+                    g_jobWrapperMap.erase(job_id);
+                    should_delete = true;
+                } else {
+                    wrapper_to_finish->callbackCompleted.store(true, std::memory_order_release);
+                }
+            }
+
+            if (should_delete) {
+                delete wrapper_to_finish;
+            }
+        };
+
         std::vector<py::array> py_outputs_for_callback;
         try {
             py::list base_list_for_tensors;
@@ -559,7 +624,7 @@ void pyRegisterCallback(InferenceEngine &ie, const py::object &pyCallback_obj) {
             }
         } catch (const std::exception& e) {
              std::cerr << "C++ exception during tensor conversion in callback: " << e.what() << std::endl;
-            if (wrapper) { delete wrapper; }
+            finish_wrapper(wrapper);
             return -1;
         }
 
@@ -570,23 +635,15 @@ void pyRegisterCallback(InferenceEngine &ie, const py::object &pyCallback_obj) {
         } catch (py::error_already_set &e) {
             std::cerr << "Python exception occurred in callback: ";
             e.restore(); PyErr_Print(); std::cerr << std::endl;
-            if (wrapper) { delete wrapper; }
+            finish_wrapper(wrapper);
             return -1;
         } catch (const std::exception &e) {
             std::cerr << "C++ exception occurred during Python callback execution: " << e.what() << std::endl;
-            if (wrapper) { delete wrapper; }
+            finish_wrapper(wrapper);
             return -1;
         }
 
-        if (wrapper) {
-            // Remove from map to prevent double-free if wait() is called
-            int job_id = wrapper->jobId;
-            if (job_id >= 0) {
-                std::lock_guard<std::mutex> lock(g_jobWrapperMapMutex);
-                g_jobWrapperMap.erase(job_id);
-            }
-            delete wrapper;
-        }
+        finish_wrapper(wrapper);
         return 0;
     });
 }
@@ -626,12 +683,15 @@ std::vector<py::array> pyWait(InferenceEngine &ie, int jobId) {
 // Runs benchmark.
 float pyRunBenchmark(InferenceEngine &ie, int num_loops, const py::object &inputs_py_obj) {
     void* input_c_ptr = nullptr;
+    py::array input_array_holder; // Keep reference to prevent premature destruction
     py::gil_scoped_acquire gil_for_args;
     if (!inputs_py_obj.is_none()) {
         if (py::isinstance<py::list>(inputs_py_obj)) {
             py::list input_list_py = inputs_py_obj.cast<py::list>();
             if (!input_list_py.empty() && py::isinstance<py::array>(input_list_py[0])) {
-                input_c_ptr = input_list_py[0].cast<py::array>().request().ptr;
+                // Store the array to keep it alive
+                input_array_holder = input_list_py[0].cast<py::array>();
+                input_c_ptr = input_array_holder.request().ptr;
             } else if (!input_list_py.empty()) {
                 throw py::type_error("Benchmark input_data list must contain numpy arrays.");
             }
@@ -902,6 +962,11 @@ int pyDeviceStatus_GetTemperature(DeviceStatus &deviceStatus, int ch);
 int pyDeviceStatus_GetId(DeviceStatus &deviceStatus);
 int pyDeviceStatus_GetNpuVoltage(DeviceStatus &deviceStatus, int ch);
 int pyDeviceStatus_GetNpuClock(DeviceStatus &deviceStatus, int ch);
+double pyDeviceStatus_GetCoreUtilization(DeviceStatus &deviceStatus, int coreId);
+uint64_t pyDeviceStatus_GetMemoryUsed(DeviceStatus &deviceStatus);
+uint64_t pyDeviceStatus_GetMemoryFree(DeviceStatus &deviceStatus);
+bool pyDeviceStatus_IsValid(DeviceStatus &deviceStatus);
+std::string pyDeviceStatus_GetDriverVersion(DeviceStatus &deviceStatus);
 
 // RuntimeEventDispatcher
 void pyRuntimeEventDispatcher_DispatchEvent(dxrt::RuntimeEventDispatcher &dispatcher, int level, int type, int code, const std::string &eventMessage);
@@ -919,24 +984,24 @@ PYBIND11_MODULE(_pydxrt, m) {
     });
 
     // RuntimeEventDispatcher class binding
-    
+
     py::class_<dxrt::RuntimeEventDispatcher>(m, "RuntimeEventDispatcher")
         // Binds the static GetInstance() method to a Python static method `get_instance()`.
         .def_static("get_instance", &dxrt::RuntimeEventDispatcher::GetInstance, py::return_value_policy::reference)
         ; // End of class binding
 
-        
+
     m.def("runtime_event_dispatcher_dispatch_event", &pyRuntimeEventDispatcher_DispatchEvent,
         py::arg("runtime_event_dispatcher"), py::arg("level"), py::arg("type"), py::arg("code"), py::arg("event_message"),
         "Dispatches a runtime event with specified parameters.");
-    
-    m.def("runtime_event_dispatcher_register_event_handler", 
+
+    m.def("runtime_event_dispatcher_register_event_handler",
         [](dxrt::RuntimeEventDispatcher &dispatcher, py::function eventHandler) {
             if (eventHandler.is_none()) {
                 dispatcher.RegisterEventHandler(nullptr);
                 return;
             }
-            
+
             py::object captured_handler = eventHandler;
             dispatcher.RegisterEventHandler(
                 [captured_handler](dxrt::RuntimeEventDispatcher::LEVEL level,
@@ -979,16 +1044,9 @@ PYBIND11_MODULE(_pydxrt, m) {
         ; // End of class binding
 
     // Expose acceleration feature availability flags to Python
-#ifdef DXRT_NFH_ACCELERATION_AVAILABLE
+    // These features are always available in current builds
     m.attr("_NFH_ACCEL_AVAILABLE") = true;
-#else
-    m.attr("_NFH_ACCEL_AVAILABLE") = false;
-#endif
-#ifdef DXRT_CPU_OP_ACCELERATION_AVAILABLE
     m.attr("_CPU_ACCEL_AVAILABLE") = true;
-#else
-    m.attr("_CPU_ACCEL_AVAILABLE") = false;
-#endif
 
     m.def("configuration_set_enable", &pyConfiguration_SetEnable,
         py::arg("configuration"), py::arg("item"), py::arg("enabled"),
@@ -1029,7 +1087,7 @@ PYBIND11_MODULE(_pydxrt, m) {
     // DeviceStatus class binding
     py::class_<DeviceStatus>(m, "DeviceStatus")
         // Binds the static GetCurrentStatus() method to a Python static method `get_current_status()`.
-        .def_static("get_current_status", py::overload_cast<int>(&DeviceStatus::GetCurrentStatus))
+        .def_static("get_current_status", static_cast<DeviceStatus(*)(int)>(&DeviceStatus::GetCurrentStatus))
         .def_static("get_device_count", &DeviceStatus::GetDeviceCount)
         ; // End of class binding
 
@@ -1049,26 +1107,50 @@ PYBIND11_MODULE(_pydxrt, m) {
         py::arg("device_status"), py::arg("ch"),
         "Retrieves the clock frequency of the specified NPU channel.");
 
+    m.def("device_status_get_core_utilization", &pyDeviceStatus_GetCoreUtilization,
+        py::arg("device_status"), py::arg("core_id"),
+        "Retrieves the utilization of the specified NPU core (0.0~100.0%).");
+
+    m.def("device_status_get_memory_used", &pyDeviceStatus_GetMemoryUsed,
+        py::arg("device_status"),
+        "Retrieves the amount of NPU DRAM currently in use (bytes).");
+
+    m.def("device_status_get_memory_free", &pyDeviceStatus_GetMemoryFree,
+        py::arg("device_status"),
+        "Retrieves the amount of free NPU DRAM (bytes).");
+
+    m.def("device_status_is_valid", &pyDeviceStatus_IsValid,
+        py::arg("device_status"),
+        "Returns true if the device status data is valid (up-to-date).");
+
+    m.def("device_status_get_driver_version", &pyDeviceStatus_GetDriverVersion,
+        py::arg("device_status"),
+        "Retrieves the runtime driver version string (e.g., '1.2.3').");
+
 
     // InferenceOption class binding
     py::class_<InferenceOption>(m, "InferenceOption")
         .def(py::init<>())
         .def_readwrite("useORT", &InferenceOption::useORT)
         .def_readwrite("bufferCount", &InferenceOption::bufferCount)
-        .def_readwrite("boundOption", &InferenceOption::boundOption)
+        .def_property("boundOption",
+            [](const InferenceOption &opt) { return static_cast<int>(opt.boundOption); },
+            [](InferenceOption &opt, int val) {
+                if (val < 0 || val > 6)
+                    throw std::invalid_argument("boundOption must be 0-6 (NPU_ALL..NPU_02)");
+                opt.boundOption = static_cast<InferenceOption::BOUND_OPTION>(val);
+            }
+        )
         .def_property("devices",
             [](const InferenceOption &opt) { return py::cast(opt.devices); }, // Getter
             [](InferenceOption &opt, const std::vector<int> &new_devices) { opt.devices = new_devices; } // Setter
         );
 
-    // Runtime support query for ORT (reflects compile-time flag USE_ORT)
+    // Runtime support query for ORT (checks if ORT was linked into libdxrt)
     m.def("is_ort_supported", []() -> bool {
-#ifdef USE_ORT
-        return true;
-#else
-        return false;
-#endif
-    }, "Returns True if this build supports ONNX Runtime (USE_ORT), otherwise False.");
+        char buf[64];
+        return dxrt_config_get_ort_version(buf, sizeof(buf)) == DXRT_OK;
+    }, "Returns True if this build supports ONNX Runtime, otherwise False.");
 
     // InferenceEngine class binding (member functions are bound directly)
     py::class_<InferenceEngine>(m, "InferenceEngine")
@@ -1187,6 +1269,9 @@ PYBIND11_MODULE(_pydxrt, m) {
     m.def("validate_device_multi_input_dict", &pyValidateDeviceMultiInputDict, py::arg("engine"), py::arg("input_tensors_dict"),
           py::arg("device_id") = 0,
           "Validates NPU device with multi-input dictionary format. GIL released during C++ call.");
+
+    // Profiler bindings
+    init_profiler(m);
 
 }
 

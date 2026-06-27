@@ -15,14 +15,25 @@ if(NOT MSVC)
     set(DX_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../")
 
     # --- pybind11 Configuration ---
-    # Use the bundled pybind11 source located in the extern directory
-    set(PYBIND11_DIR "${DX_ROOT_DIR}/extern/pybind11")
-
-    # Verify if pybind11 exists and add its include directory
-    if(EXISTS "${PYBIND11_DIR}/include/pybind11/pybind11.h")
-        set(PYBIND11_INCLUDE_DIR "${PYBIND11_DIR}/include")
+    # 1st: pip build dependency (PEP 517 isolated build, pybind11 in build-system.requires)
+    find_package(pybind11 CONFIG QUIET)
+    if(pybind11_FOUND)
+        if(NOT pybind11_INCLUDE_DIR)
+            message(FATAL_ERROR "find_package found pybind11 but pybind11_INCLUDE_DIR is empty. "
+                                "Reinstall pybind11: pip install --force-reinstall pybind11")
+        endif()
+        set(PYBIND11_INCLUDE_DIR "${pybind11_INCLUDE_DIR}")
+        message(STATUS "Found pybind11 via cmake package (v${pybind11_VERSION}): ${PYBIND11_INCLUDE_DIR}")
     else()
-        message(FATAL_ERROR "pybind11 headers not found at: ${PYBIND11_DIR}/include")
+        # 2nd: bundled pybind11 at dx_rt/extern/pybind11 (full repo build)
+        set(PYBIND11_DIR "${DX_ROOT_DIR}/extern/pybind11")
+        if(EXISTS "${PYBIND11_DIR}/include/pybind11/pybind11.h")
+            set(PYBIND11_INCLUDE_DIR "${PYBIND11_DIR}/include")
+            message(STATUS "Found bundled pybind11: ${PYBIND11_INCLUDE_DIR}")
+        else()
+            message(FATAL_ERROR "pybind11 headers not found. Neither find_package(pybind11) nor bundled "
+                                "path '${PYBIND11_DIR}/include' resolved. Install with: pip install pybind11")
+        endif()
     endif()
 
     # --- Source files ---
@@ -30,6 +41,7 @@ if(NOT MSVC)
     set(SOURCES
         ${BINDING_CPP_DIR}/py_inference_engine.cpp
         ${BINDING_CPP_DIR}/py_configuration.cpp
+        ${BINDING_CPP_DIR}/py_profiler.cpp
         ${BINDING_CPP_DIR}/py_device_status.cpp
         ${BINDING_CPP_DIR}/py_runtime_event_dispatcher.cpp
     )
@@ -126,10 +138,10 @@ else()
     )
 
     find_package(pybind11 REQUIRED)
-
     pybind11_add_module( ${target}
     ${BINDING_CPP_DIR}/py_inference_engine.cpp
     ${BINDING_CPP_DIR}/py_configuration.cpp
+    ${BINDING_CPP_DIR}/py_profiler.cpp
     ${BINDING_CPP_DIR}/py_device_status.cpp
     ${BINDING_CPP_DIR}/py_runtime_event_dispatcher.cpp)
 

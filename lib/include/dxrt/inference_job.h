@@ -138,6 +138,8 @@ class InferenceJob // NOSONAR: Too many fields - stable as-is, refactoring defer
     TensorPtrs _returnOutputs = {};
     void setReturnOutputs();
     void ReleaseAllOutputBuffer();
+    bool isUserOutputBuffer(const RequestPtr& req) const;
+    void releaseIndividualBuffers(const RequestPtr& req);
     void* _outputPtr;
     std::atomic<bool> _use_flag = {false};
 

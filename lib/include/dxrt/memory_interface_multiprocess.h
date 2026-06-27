@@ -11,7 +11,6 @@
 
 // project headers
 #include "dxrt/driver.h"
-#include "dxrt/ipc_wrapper/ipc_client_wrapper.h"
 #include "dxrt/memory_interface.h"
 
 namespace dxrt {
@@ -39,8 +38,6 @@ class MultiprocessMemoryInterface : public MemoryInterface {
   void mpConnect();
   void mpConnect_once_wrapper();
   std::once_flag _connectFlag;
-  IPCClientWrapper ipcClientWrapper;
-  IPCClientWrapper ipcClientWrapperSync;
 };
 
 } // namespace dxrt

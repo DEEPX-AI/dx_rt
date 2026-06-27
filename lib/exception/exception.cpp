@@ -8,7 +8,7 @@
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
-#include "../include/dxrt/exception/exception.h"
+#include "dxrt/exception/exception.h"
 
 #include <iostream>
 #ifdef __linux__
@@ -130,6 +130,12 @@ DeviceIOException::DeviceIOException(const std::string& msg)
 {
     setMessage("Device input & output exception {" + msg + "}");
     setCode(ERROR_CODE::DEVICE_IO);
+}
+
+InsufficientMemoryException::InsufficientMemoryException(const std::string& msg)
+{
+    setMessage("Insufficient memory exception {" + msg + "}");
+    setCode(ERROR_CODE::INSUFFICIENT_MEMORY);
 }
 
 

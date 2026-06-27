@@ -17,7 +17,7 @@
 #include "dxrt/common.h"
 #include "dxrt/driver.h"
 #include "dxrt/device_struct.h"
-#include "../../../include/dxrt/ipc_wrapper/ipc_server.h"
+#include "dxrt/ipc_wrapper/ipc_server.h"
 #include "ipc_mq_linux.h"
 
 namespace dxrt

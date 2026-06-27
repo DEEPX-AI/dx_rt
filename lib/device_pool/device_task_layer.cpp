@@ -12,7 +12,6 @@
 #include "dxrt/device_task_layer.h"
 
 #include <chrono>
-#include <fstream>
 #include <signal.h>
 #include <string>
 #include <thread>
@@ -60,7 +59,17 @@ int DeviceTaskLayer::infCnt() const
 
 int64_t DeviceTaskLayer::Allocate(uint64_t size) const
 {
-    return _serviceLayer->Allocate(id(), size);
+    return static_cast<int64_t>(_serviceLayer->Allocate(id(), size));
+}
+
+int64_t DeviceTaskLayer::AllocateWithTaskId(int taskId, uint64_t size) const
+{
+    return static_cast<int64_t>(_serviceLayer->Allocate(id(), taskId, MemoryType::Normal, size));
+}
+
+SharedMemoryInfo DeviceTaskLayer::AllocateInfo(int taskId, MemoryType type, uint64_t size) const
+{
+    return _serviceLayer->AllocateInfo(id(), taskId, type, size);
 }
 
 void DeviceTaskLayer::Deallocate(uint64_t addr) const
@@ -106,7 +115,7 @@ void DeviceTaskLayer::Terminate()
 #endif
 }
 
-int64_t DeviceTaskLayer::AllocateFromCache(int64_t size, int taskId)
+NpuMemoryCacheSlice DeviceTaskLayer::AllocateFromCache(int64_t size, int taskId)
 {
     LOG_DXRT_DBG << "Device " << id() << " allocate from cache: " << size << " bytes" << std::endl;
 
@@ -116,58 +125,88 @@ int64_t DeviceTaskLayer::AllocateFromCache(int64_t size, int taskId)
     }
     else
     {
-        return Allocate(size);
+        SharedMemoryInfo info = AllocateInfo(taskId, MemoryType::Input_output, static_cast<uint64_t>(size));
+        NpuMemoryCacheSlice slice;
+        slice.view.info   = info;
+        slice.view.offset = 0;
+        slice.view.size   = static_cast<uint64_t>(size);
+        return slice;
     }
 }
 
 
-void DeviceTaskLayer::Deallocate_npuBuf(int64_t addr, int taskId)
+void DeviceTaskLayer::DeallocateInfo(const SharedMemoryInfo &info) const
 {
-    LOG_DXRT_DBG << "Device " << id() << " deallocate: " << std::showbase << std::hex << addr << std::dec << std::endl;
+    _serviceLayer->DeAllocateInfo(id(), info);
+}
+
+
+void DeviceTaskLayer::Deallocate_npuBuf(const NpuMemoryCacheSlice &slice, int taskId)
+{
+    LOG_DXRT_DBG << "Device " << id() << " deallocate: start="
+                 << std::showbase << std::hex << slice.view.offset << std::dec
+                 << ", size=" << slice.view.size << std::endl;
 
     if (_npuMemoryCacheManager.canGetCache(taskId))
     {
-        _npuMemoryCacheManager.returnNpuMemoryCache(taskId, addr);
+        _npuMemoryCacheManager.returnNpuMemoryCache(taskId, slice);
     }
     else
     {
-        Deallocate(addr);
+        DeallocateInfo(slice.view.info);
     }
 }
 
-[[noreturn]] void DeviceTaskLayer::ProcessErrorFromService(dxrt_server_err_t err, int value)
+[[noreturn]] void DeviceTaskLayer::ProcessErrorFromService(
+    dxrt_server_err_t err,
+    int value,
+    const dx_pcie_dev_err_t *errorInfo)
 {
     std::cout << "============================================================" << std::endl;
     std::cout << "[DXRT] Fatal error from service on device " << id() << std::endl;
     std::cout << " ** Reason : " <<  err <<
         " (err_code=" << value << ")" << std::endl;
+    if (errorInfo != nullptr)
+    {
+        std::cout << " ** Detailed error payload from service:" << std::endl;
+        std::cout << "    - npu_id=" << errorInfo->npu_id
+                  << ", err_code=" << errorInfo->err_code
+                  << ", cmd_num=" << errorInfo->cmd_num
+                  << ", last_cmd=" << errorInfo->last_cmd
+                  << ", busy=" << errorInfo->busy << std::endl;
+        std::cout << "    - PCIe BDF="
+                  << static_cast<int>(errorInfo->bus) << ":"
+                  << static_cast<int>(errorInfo->dev) << "."
+                  << static_cast<int>(errorInfo->func)
+                  << ", ltssm=" << errorInfo->ltssm
+                  << ", speed=" << errorInfo->speed
+                  << ", width=" << errorInfo->width << std::endl;
+        std::cout << "    - DMA WR status=["
+                  << errorInfo->dma_wr_ch_sts[0] << ", "
+                  << errorInfo->dma_wr_ch_sts[1] << ", "
+                  << errorInfo->dma_wr_ch_sts[2] << ", "
+                  << errorInfo->dma_wr_ch_sts[3] << "]" << std::endl;
+        std::cout << "    - DMA RD status=["
+                  << errorInfo->dma_rd_ch_sts[0] << ", "
+                  << errorInfo->dma_rd_ch_sts[1] << ", "
+                  << errorInfo->dma_rd_ch_sts[2] << ", "
+                  << errorInfo->dma_rd_ch_sts[3] << "]" << std::endl;
+    }
     std::cout << " ** Device recovery was performed by the service." << std::endl;
     std::cout << " ** This application must exit and restart to reload models." << std::endl;
     std::cout << "============================================================" << std::endl;
 
     core()->ShowPCIEDetails();
 
-    // GCOV_EXCL_START
-    // Attempt to read detailed error info from temp file (written by service) for debug purposes
-    const std::string dumpPath = dxrt::getDxrtErrorDumpReadPath(id());
-    std::ifstream ifs(dumpPath);
-    if (ifs) {
-        std::string line;
-        while (std::getline(ifs, line)) {
-            std::cout << line << std::endl;
-        }
-        ifs.close();
-    }
-    else
-    {
-        LOG_DXRT_ERR("No additional error details available. refer " + dumpPath + " for more info.");
-    }
-    // GCOV_EXCL_STOP
-
     // Application must terminate — DDR content may have been lost due to
     // PCIe SBR during recovery. Models need to be reloaded from scratch.
     // Use _exit() to avoid hanging on atexit handlers or thread joins.
     std::_Exit(EXIT_FAILURE);
+}
+
+void DeviceTaskLayer::ProcessThrottleFromService(const dx_pcie_dev_ntfy_throt_t &throtInfo)
+{
+    std::ignore = throtInfo;
 }
 
 void DeviceTaskLayer::waitForInflightDmaCompletion(uint32_t timeoutMs)   // NOSONAR
@@ -192,6 +231,8 @@ void DeviceTaskLayer::waitForInflightDmaCompletion(uint32_t timeoutMs)   // NOSO
 
 int DeviceTaskLayer::triggerRecovery()
 {
+    LOG_DXRT_DBG << "DeviceTaskLayer::triggerRecovery start for device " << id() << std::endl;
+
     // Prevent duplicate recovery via epoch check
     uint32_t currentEpoch = _recoveryEpoch.load(std::memory_order_acquire);
 
@@ -200,53 +241,70 @@ int DeviceTaskLayer::triggerRecovery()
         // Double-check epoch under lock to prevent race
         if (_recoveryEpoch.load(std::memory_order_acquire) != currentEpoch)
         {
-            LOG_DXRT_INFO("Recovery already performed by another thread (epoch advanced)");
+            LOG_DXRT_DBG << "Recovery already performed by another thread (epoch advanced)" << std::endl;
             return 0;
         }
 
         if (_recoveryInProgress.load(std::memory_order_acquire))
         {
-            LOG_DXRT_INFO("Recovery already in progress, skipping duplicate");
+            LOG_DXRT_DBG << "Recovery already in progress, skipping duplicate" << std::endl;
             return 0;
         }
         _recoveryInProgress.store(true, std::memory_order_release);
     }
 
-    LOG_DXRT_INFO("DMA Abort Recovery: Blocking device " << id() << " and waiting for in-flight DMA");
+    LOG_DXRT_DBG << "DMA Abort Recovery: Blocking device " << id()
+                 << " and waiting for in-flight DMA" << std::endl;
 
-    // 1. Block the device to prevent new inference requests
-    DXRT_ASSERT(false, "You Need to Restart Daemon and Applications due to device error. Please check error message above for details.");
+    // Step 1+2: Stop new DMA requests via service layer and drain in-flight ones.
+    LOG_DXRT_DBG << "Calling serviceLayer()->PauseForRecovery(" << id() << ")" << std::endl;
+    serviceLayer()->PauseForRecovery(id());
 
-    // 2. Wait for in-flight DMA transfers to drain (with timeout)
-    static constexpr uint32_t RECOVERY_WAIT_TIMEOUT_MS = 5000;
-    waitForInflightDmaCompletion(RECOVERY_WAIT_TIMEOUT_MS);
-
-    // 3. Call DXRT_CMD_RECOVERY ioctl
-    LOG_DXRT_INFO("DMA Abort Recovery: Issuing DXRT_CMD_RECOVERY for device " << id());
+    // Step 3: Call DXRT_CMD_RECOVERY ioctl
+    LOG_DXRT_DBG << "DMA Abort Recovery: Issuing DXRT_CMD_RECOVERY for device "
+                 << id() << std::endl;
     int ret = core()->Process(dxrt::dxrt_cmd_t::DXRT_CMD_RECOVERY, nullptr);
     if (ret < 0)
     {
         LOG_DXRT_ERR("DXRT_CMD_RECOVERY ioctl failed for device " << id()
             << ", ret=" << ret << ", errno=" << errno);
         _recoveryInProgress.store(false, std::memory_order_release);
-        return ret;
+        serviceLayer()->OnRecoveryFailed(id());  // [[noreturn]]
     }
+    LOG_DXRT_DBG << "DXRT_CMD_RECOVERY returned successfully, ret=" << ret << std::endl;
 
-    // 4. Increment recovery epoch and clear state
+    // Step 4: Increment recovery epoch and clear state
     _recoveryEpoch.fetch_add(1, std::memory_order_release);
 
-    // 5. Unblock device and signal recovery complete
+    // Step 5: Unblock device and signal recovery complete
     unblock();
     _recoveryInProgress.store(false, std::memory_order_release);
     _recoveryCondVar.notify_all();
 
-    LOG_DXRT_INFO("DMA Abort Recovery: Completed for device " << id()
-        << ", epoch=" << _recoveryEpoch.load());
+    LOG_DXRT_DBG << "DMA Abort Recovery: Completed for device " << id()
+                 << ", epoch=" << _recoveryEpoch.load() << std::endl;
 
-    // 6. Reload models if needed (PCIe SBR may have cleared DDR)
+    // Step 6: Notify service layer to resume and reload models if needed
+    LOG_DXRT_DBG << "Calling serviceLayer()->ResumeAfterRecovery(" << id() << ")" << std::endl;
+    serviceLayer()->ResumeAfterRecovery(id());
+    LOG_DXRT_DBG << "Reloading models if needed" << std::endl;
     reloadModelsIfNeeded();
 
+    LOG_DXRT_DBG << "DeviceTaskLayer::triggerRecovery complete for device " << id() << std::endl;
+
     return 0;
+}
+
+void DeviceTaskLayer::SignalStoppedDmaToWaitRecovery()
+{
+    _serviceLayer->SignalStoppedDmaToWaitRecovery(id());
+}
+
+[[noreturn]]
+void DeviceTaskLayer::OnRecoveryFailed(int deviceId)
+{
+    LOG_DXRT_ERR("Recovery failed for device " << deviceId << ". Terminating.");
+    DXRT_ASSERT(false, "Recovery failed for device " + std::to_string(deviceId));
 }
 
 void DeviceTaskLayer::reloadModelsIfNeeded()

@@ -7,7 +7,8 @@
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
-#include "dxrt/dxrt_api.h"
+#include "dxrt/dxrt_cxx_api.h"
+#include <thread>
 #include <string>
 #include <iostream>
 #include "dxrt/extern/cxxopts.hpp"

@@ -9,8 +9,8 @@ The `Configuration` class serves as the centralized interface for managing globa
 **Key Features:**
 
   * **Singleton Design**: Guarantees a single, globally accessible configuration instance.
-  * **Runtime Configurability**:  Supports dynamic enabling/disabling of features and real-time attribute updates.
-  * **Version Access**:  Provides functions to retrieve library, driver, and device version information.
+  * **Runtime Configurability**: Supports dynamic enabling/disabling of features and real-time attribute updates.
+  * **Version Access**: Provides functions to retrieve library, driver, and device version information.
   * **Cross-Language Support**: Fully accessible from both C++ and Python with identical behavior.
 
 ---
@@ -20,16 +20,13 @@ The `Configuration` class serves as the centralized interface for managing globa
 The method of accessing the global Configuration object differs slightly between C++ and Python, but both ensure interaction with the same underlying singleton.  
 
 **C++**
-In C++, the configuration instance **must** be retrieved using the static method `GetInstance()`. The constructor is private to enforce the singleton pattern.  
+In C++, the global configuration instance is accessed via the static method `GetInstance()`. Always use `GetInstance()` to obtain the shared singleton — constructing a local `Configuration` object would create a separate instance that does not reflect the global runtime state.  
 
 ```cpp
 #include "dxrt/common.h"
 
-// Correct: Get the single, global instance
+// Recommended: Get the shared, global instance
 dxrt::Configuration& config = dxrt::Configuration::GetInstance();
-
-// Incorrect: The following line will cause a compile error
-// dxrt::Configuration myConfig; // Error: constructor is private
 ```
 
 **Python**
@@ -80,7 +77,7 @@ An `ATTRIBUTE` defines a property associated with a specific ITEM. It is typical
 
 ---
 
-### Core Operations and  Examples
+### Core Operations and Examples
 
 This section outlines the primary operations supported by the Configuration class, with usage examples for both C++ and Python.
 
@@ -263,7 +260,7 @@ config.load_config_file("path/to/common.cfg")
 
 ## Device Status Monitoring
 
-The `DeviceStatus` class provides a real-time snapshot of the NPU device's state, including static properties (e.g., model name, memory) and dynamic metrics (e.g., temperature, clock speed). Each instance represents the status of a specific device at the time it was queried.  
+The `DeviceStatus` class provides a real-time snapshot of the NPU device's state, including static properties (e.g., memory) and dynamic metrics (e.g., temperature, clock speed). Each instance represents the status of a specific device at the time it was queried.  
 
 **Workflow Overview:**  
 
@@ -273,7 +270,7 @@ The `DeviceStatus` class provides a real-time snapshot of the NPU device's state
 
 ### Getting Started: Accessing Devices
 
-The first step is always to find out how many devices are available and then create a status object for the one you want to inspect. To monitor a device's status, begin by checking how many NPU devices are available, then retrieve the status object for the desired device.  
+The first step is to find out how many devices are available, then create a status object for the one you want to inspect.  
 
 #### Step 1: Get the Device Count
 
@@ -281,7 +278,7 @@ Use the static method to determine how many devices are currently recognized by 
 
 **C++**
 ```cpp
-#include "dxrt/dxrt_api.h" // Main C++ header
+#include <dxrt/dxrt_cxx_api.h>
 
 int deviceCount = dxrt::DeviceStatus::GetDeviceCount();
 std::cout << "Found " << deviceCount << " devices." << std::endl;
@@ -289,7 +286,7 @@ std::cout << "Found " << deviceCount << " devices." << std::endl;
 
 **Python**
 ```python
-from dx_engine.dev_status import DeviceStatus # Main Python class
+from dx_engine.device_status import DeviceStatus # Main Python class
 
 device_count = DeviceStatus.get_device_count()
 print(f"Found {device_count} devices.")
@@ -300,15 +297,18 @@ print(f"Found {device_count} devices.")
 Once the count is known, access the status object using a valid device ID (`0` to `device_count - 1`).  
 
 **C++**  
-Use a `try...catch` block to handle invalid IDs safely:
+Use `IsValid()` to verify that the device data was successfully retrieved:
 
 ```cpp
-try {
-    // Get a status snapshot for device with ID 0
-    dxrt::DeviceStatus status = dxrt::DeviceStatus::GetCurrentStatus(0);
+// Get a status snapshot for device with ID 0
+dxrt::DeviceStatus status = dxrt::DeviceStatus::GetCurrentStatus(0);
+if (status.IsValid())
+{
     std::cout << "Successfully created status object for device " << status.GetId() << std::endl;
-} catch (const dxrt::Exception& e) {
-    std::cerr << "Error: " << e.what() << std::endl;
+}
+else
+{
+    std::cerr << "Warning: Device 0 data is not available." << std::endl;
 }
 ```
 
@@ -316,9 +316,12 @@ try {
 Use the factory method `get_current_status()` to get a `DeviceStatus` object:  
 
 ```python
-    # Get the status object for the first device (ID 0)
-    status_obj = DeviceStatus.get_current_status(0)
+# Get the status object for the first device (ID 0)
+status_obj = DeviceStatus.get_current_status(0)
+if status_obj.is_valid():
     print(f"Successfully created status object for device ID: {status_obj.get_id()}")
+else:
+    print("Warning: Device 0 data is not available.")
 ```
 
 ---
@@ -327,24 +330,11 @@ Use the factory method `get_current_status()` to get a `DeviceStatus` object:
 
 Once you obtain a `DeviceStatus` object, you can retrieve both static hardware properties and real-time operational metrics of the NPU device.  
 
-#### Formatted Summary Strings (C++ Only)
-
-For quick diagnostic logging or CLI-style output, the C++ API provides helper methods that return structured, human-readable summaries:  
-
-  * **`GetInfoString()`**: Returns static hardware info (model, memory, board, firmware).  
-  * **`GetStatusString()`**: Returns dynamic real-time status (NPU voltage, clock, temp, DVFS state).  
-
-```cpp
-// Print static hardware information
-std::cout << "--- Device Info ---\n" << status.GetInfoString() << std::endl;
-
-// Print dynamic, real-time status
-std::cout << "--- Real-time Status ---\n" << status.GetStatusString() << std::endl;
-```
-
 #### Accessing Specific Attributes (C++ and Python)
 
 For programmatic use, both C++ and Python interfaces offer methods to retrieve specific values from the status object:  
+
+**Hardware Status (C++ and Python)**
 
 | Metric | C++ Method | Python Method | Return Value |
 | :--- | :--- | :--- | :--- |
@@ -352,106 +342,234 @@ For programmatic use, both C++ and Python interfaces offer methods to retrieve s
 | **Temperature** | `GetTemperature(ch)` | `get_temperature(ch)` | `int` (Celsius) |
 | **NPU Voltage** | `GetNpuVoltage(ch)` | `get_npu_voltage(ch)` | `uint32_t` / `int` (mV) |
 | **NPU Clock** | `GetNpuClock(ch)` | `get_npu_clock(ch)` | `uint32_t` / `int` (MHz) |
+| **Core Utilization** | `GetCoreUtilization(coreId)` | `get_core_utilization(core_id)` | `double` / `float` (0.0~100.0 %) |
+| **Memory Used** | `GetMemoryUsed()` | `get_memory_used()` | `uint64_t` / `int` (bytes) |
+| **Memory Free** | `GetMemoryFree()` | `get_memory_free()` | `uint64_t` / `int` (bytes) |
+| **Data Validity** | `IsValid()` | `is_valid()` | `bool` |
 
 !!! note "NOTE"
-     The C++ API provides a richer set of methods for querying static hardware details like memory, board type, and device variants.
+      The monitoring thread updates shared memory approximately every 1 second. Polling `GetCurrentStatus()` more frequently than this interval will return the same data.
+
+**Formatted Summary Strings (C++ Only)**
+
+| Method | Description | Return Value |
+| :--- | :--- | :--- |
+| `GetInfoString()` | Returns static hardware info (model, memory, board, firmware) | `std::string` |
+| `GetStatusString()` | Returns dynamic real-time status (voltage, clock, temp, DVFS state) | `std::string` |
+
+For a complete list of C++ methods (memory info, board type, device variants, etc.), see the [C++ API Reference](10_01_C++_API_Reference.md#class-dxrtdevicestatus).
 
 ---
 
-### Complete Usage Examples 
+### Complete Usage Example
 
-This section demonstrates how to iterate through all available NPU devices and retrieve their status information using both C++ and Python.  
+This section demonstrates how to iterate through all available NPU devices and retrieve their full status information — including hardware status, core utilization, and memory usage — using both C++ and Python. These examples are based on the `device_monitoring` sample provided with the SDK.
 
-**C++**  
-The following example uses `GetDeviceCount()` and `GetStatusString()` to print a summary for each device:  
+For method details, see the [C++ API Reference](10_01_C++_API_Reference.md#class-dxrtdevicestatus) and [Python API Reference](10_02_Python_API_Reference.md#class-devicestatus).
+
+**C++**
 
 ```cpp
 #include <iostream>
-#include "dxrt/dxrt_api.h" // DXRT API header file
+#include <dxrt/dxrt_cxx_api.h>
 
-/**
- * @brief Prints the detailed status for each NPU core of a specific device.
- * @param device_id The ID of the device to query.
- */
-void print_detailed_device_status(int device_id) {
-    try {
-        // Get a snapshot of the current status for the specified device.
-        dxrt::DeviceStatus status = dxrt::DeviceStatus::GetCurrentStatus(device_id);
-
-        std::cout << "--- Device ID: " << device_id << " ---" << std::endl;
-
-        // Assuming 2 NPU cores per device, like in the Python example.
-        // In a real application, it's better to get the core count dynamically from the API.
-        for (int core_ch = 0; core_ch < 2; ++core_ch) {
-            // Individually query the temperature, voltage, and clock speed for each core.
-            int temp = status.GetTemperature(core_ch);
-            uint32_t voltage = status.GetNpuVoltage(core_ch);
-            uint32_t clock = status.GetNpuClock(core_ch);
-
-            // Print in the same format as the Python example.
-            std::cout << "  Core " << core_ch
-                      << ": Temp=" << temp << "'C"
-                      << ", Voltage=" << voltage << "mV"
-                      << ", Clock=" << clock << "MHz" << std::endl;
-        }
-        std::cout << std::endl; // Add a newline for readability
-
-    } catch (const dxrt::Exception& e) {
-        std::cerr << "Error getting report for device " << device_id << ": " << e.what() << std::endl;
-    }
+void printDeviceInfo(const dxrt::DeviceStatus &ds)
+{
+    std::cout << "=== Device Info (id=" << ds.GetId() << ") ===" << std::endl;
+    std::cout << ds.GetInfoString() << std::endl;
 }
 
-int main() {
-    int deviceCount = dxrt::DeviceStatus::GetDeviceCount();
-    if (deviceCount == 0) {
+void printDeviceDynamicStatus(const dxrt::DeviceStatus &ds)
+{
+    std::cout << "[Device " << ds.GetId() << "]"
+              << " temp=["
+              << ds.GetTemperature(0) << ", "
+              << ds.GetTemperature(1) << ", "
+              << ds.GetTemperature(2) << "]C"
+              << ", voltage=["
+              << ds.GetNpuVoltage(0) << ", "
+              << ds.GetNpuVoltage(1) << ", "
+              << ds.GetNpuVoltage(2) << "]mV"
+              << ", clock=["
+              << ds.GetNpuClock(0) << ", "
+              << ds.GetNpuClock(1) << ", "
+              << ds.GetNpuClock(2) << "]MHz"
+              << " | util=["
+              << ds.GetCoreUtilization(0) << "%, "
+              << ds.GetCoreUtilization(1) << "%, "
+              << ds.GetCoreUtilization(2) << "%]"
+              << ", mem_used=" << ds.GetMemoryUsed()
+              << ", mem_free=" << ds.GetMemoryFree()
+              << std::endl;
+}
+
+int main()
+{
+    int device_count = dxrt::DeviceStatus::GetDeviceCount();
+    if (device_count == 0)
+    {
         std::cout << "No DEEPX devices found." << std::endl;
         return 1;
     }
 
-    std::cout << "Querying status for " << deviceCount << " device(s)...\n" << std::endl;
+    std::cout << "Querying status for " << device_count << " device(s)...\n" << std::endl;
 
-    // Iterate through all devices and print their detailed status.
-    for (int i = 0; i < deviceCount; ++i) {
-        print_detailed_device_status(i);
+    for (int id = 0; id < device_count; id++)
+    {
+        auto ds = dxrt::DeviceStatus::GetCurrentStatus(id);
+        if (!ds.IsValid())
+        {
+            std::cerr << "Warning: Device " << id << " data is not available." << std::endl;
+            continue;
+        }
+        printDeviceInfo(ds);
+        printDeviceDynamicStatus(ds);
+        std::cout << std::endl;
     }
 
     return 0;
 }
 ```
 
-**Python**  
-In Python, use `DeviceStatus.get_device_count()` and `DeviceStatus.get_current_status()` to inspect device metrics:  
+**Python**
 
 ```python
-from dx_engine.dev_status import DeviceStatus
+from dx_engine.device_status import DeviceStatus
+
+def print_device_status(ds):
+    """Print all fields from a DeviceStatus object."""
+    print(f"=== Device Status (id={ds.get_id()}) ===")
+
+    print(f"[STATUS] temp=["
+          f"{ds.get_temperature(0)}, "
+          f"{ds.get_temperature(1)}, "
+          f"{ds.get_temperature(2)}]C, "
+          f"voltage=["
+          f"{ds.get_npu_voltage(0)}, "
+          f"{ds.get_npu_voltage(1)}, "
+          f"{ds.get_npu_voltage(2)}]mV, "
+          f"clock=["
+          f"{ds.get_npu_clock(0)}, "
+          f"{ds.get_npu_clock(1)}, "
+          f"{ds.get_npu_clock(2)}]MHz")
+
+    print(f"[USAGE] util=["
+          f"{ds.get_core_utilization(0):.1f}%, "
+          f"{ds.get_core_utilization(1):.1f}%, "
+          f"{ds.get_core_utilization(2):.1f}%], "
+          f"mem_used={ds.get_memory_used()}, "
+          f"mem_free={ds.get_memory_free()}")
 
 def main():
-    """Checks for all available devices and prints their real-time status."""
-    try:
-        device_count = DeviceStatus.get_device_count()
-        if device_count == 0:
-            print("No devices found.")
-            return
+    device_count = DeviceStatus.get_device_count()
+    if device_count == 0:
+        print("No devices found.")
+        return
 
-        print(f"Querying status for {device_count} device(s)...\n")
-        # Iterate through each device by its ID
-        for i in range(device_count):
-            print(f"--- Device ID: {i} ---")
-            status = DeviceStatus.get_current_status(i)
+    print(f"Querying status for {device_count} device(s)...\n")
 
-            # Assuming 2 NPU cores per device for this example
-            for core_ch in range(2):
-                temp = status.get_temperature(core_ch)
-                voltage = status.get_npu_voltage(core_ch)
-                clock = status.get_npu_clock(core_ch)
-                print(f"  Core {core_ch}: Temp={temp}°C, Voltage={voltage}mV, Clock={clock}MHz")
-            print("")
-
-    except Exception as e:
-        print(f"An error occurred: {e}")
+    for device_id in range(device_count):
+        ds = DeviceStatus.get_current_status(device_id)
+        if not ds.is_valid():
+            print(f"Warning: Device {device_id} data is not available.")
+            continue
+        print_device_status(ds)
+        print()
 
 if __name__ == "__main__":
     main()
+```
+
+---
+
+### Periodic Monitoring Example
+
+The following examples demonstrate how to continuously monitor a device in a background thread with a configurable refresh interval. This is useful for frontend or business applications that need periodic device status updates while performing other tasks.
+
+!!! note "NOTE"
+     The runtime's monitoring thread updates shared memory approximately every **1 second**. Setting the refresh interval below 1 second will not yield more frequent data updates. A minimum interval of **1 second** is recommended.
+
+**C++**
+
+```cpp
+#include <iostream>
+#include <thread>
+#include <atomic>
+#include <chrono>
+#include <dxrt/dxrt_cxx_api.h>
+
+std::atomic<bool> g_running{true};
+
+void monitorDevice(int deviceId, int intervalSec)
+{
+    while (g_running.load())
+    {
+        auto ds = dxrt::DeviceStatus::GetCurrentStatus(deviceId);
+        if (ds.IsValid())
+        {
+            std::cout << "[Device " << ds.GetId() << "]"
+                      << " temp=" << ds.GetTemperature(0) << "C"
+                      << ", util=" << ds.GetCoreUtilization(0) << "%"
+                      << ", mem_used=" << ds.GetMemoryUsed()
+                      << std::endl;
+        }
+        std::this_thread::sleep_for(std::chrono::seconds(intervalSec));
+    }
+}
+
+int main()
+{
+    int device_id = 0;
+    int interval_sec = 2;  // Refresh interval (minimum: 1 second)
+
+    std::thread monitor_thread(monitorDevice, device_id, interval_sec);
+
+    // Let the monitoring run for 30 seconds
+    std::this_thread::sleep_for(std::chrono::seconds(30));
+
+    g_running.store(false);
+    monitor_thread.join();
+
+    return 0;
+}
+```
+
+**Python**
+
+```python
+import threading
+import time
+from dx_engine.device_status import DeviceStatus
+
+def monitor_device(device_id: int, interval_sec: int, stop_event: threading.Event):
+    while not stop_event.is_set():
+        try:
+            ds = DeviceStatus.get_current_status(device_id)
+            if ds.is_valid():
+                print(f"[Device {ds.get_id()}]"
+                      f" temp={ds.get_temperature(0)}C"
+                      f", util={ds.get_core_utilization(0):.1f}%"
+                      f", mem_used={ds.get_memory_used()}")
+        except Exception as e:
+            print(f"Warning: {e}")
+        stop_event.wait(interval_sec)
+
+if __name__ == "__main__":
+    device_id = 0
+    interval_sec = 2  # Refresh interval (minimum: 1 second)
+
+    stop_event = threading.Event()
+    monitor_thread = threading.Thread(
+        target=monitor_device,
+        args=(device_id, interval_sec, stop_event)
+    )
+    monitor_thread.start()
+
+    # Let the monitoring run for 30 seconds
+    time.sleep(30)
+
+    stop_event.set()
+    monitor_thread.join()
 ```
 
 ---

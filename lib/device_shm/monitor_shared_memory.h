@@ -14,27 +14,29 @@
 #include <atomic>
 #include <array>
 
+#include "dxrt/driver.h"
+#include "dxrt/device_struct.h"
+
 namespace dxrt {
 
 constexpr uint32_t MONITOR_SHM_MAGIC = 0x44585254;  // "DXRT"
-constexpr uint32_t MONITOR_SHM_VERSION = 1;
+constexpr uint32_t MONITOR_SHM_VERSION = 2;
 constexpr int MAX_MONITOR_DEVICES = 32;
 #ifdef _WIN32
-constexpr const char* MONITOR_SHM_NAME = "Local\\dxrt_monitor";
+constexpr const char* MONITOR_SHM_NAME = "Local\\dxrt_monitor_v2";
 #else
-constexpr const char* MONITOR_SHM_NAME = "/dxrt_monitor";
+constexpr const char* MONITOR_SHM_NAME = "/dxrt_monitor_v2";
 #endif
 
 struct MonitorDeviceData {
     uint32_t device_id = 0;
+
+    dxrt_device_info_t spec = {};
+    dxrt_dev_info_t dev_info = {};
+    dxrt_device_status_t status = {};
     
     // NPU utilization per core (0.0 ~ 1.0)
     std::array<double, 3> utilization = {};
-    
-    // Core status per core
-    std::array<uint32_t, 3> voltage = {};      // mV
-    std::array<uint32_t, 3> clock = {};        // MHz
-    std::array<uint32_t, 3> temperature = {};  // Celsius
     
     // Memory information (bytes)
     uint64_t memory_total = 0;
@@ -47,6 +49,10 @@ struct MonitorDeviceData {
     
     MonitorDeviceData() = default;
 };
+
+// Layout verification for cross-process SHM compatibility.
+// If any included C struct changes size, this will catch it at compile time.
+static_assert(sizeof(MonitorDeviceData) == 400, "MonitorDeviceData layout changed — SHM ABI break");
 
 /*
  * Sequence Lock for Reader-Writer Synchronization
@@ -89,5 +95,7 @@ struct MonitorSharedMemory {
     
     MonitorSharedMemory() = default;
 };
+
+static_assert(sizeof(MonitorSharedMemory) == 12848, "MonitorSharedMemory layout changed — SHM ABI break");
 
 } // namespace dxrt

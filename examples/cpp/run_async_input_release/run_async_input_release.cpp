@@ -26,7 +26,7 @@
 #include <thread>
 #include <queue>
 
-#include "dxrt/dxrt_api.h"
+#include "dxrt/dxrt_cxx_api.h"
 
 // Resource handle to track input/output buffers per job
 struct ResourceHandle {

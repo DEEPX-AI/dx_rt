@@ -11,7 +11,7 @@
 #include <cstdint>
 #include <mutex>
 #include "dxrt/driver.h"
-#include "../include/dxrt/ipc_wrapper/ipc_client_wrapper.h"
+#include "dxrt/ipc_wrapper/ipc_client_wrapper.h"
 
 namespace dxrt {
 
@@ -63,6 +63,7 @@ public:
     void SignalDeviceReset(int deviceId);
     void SignalTaskInit(int deviceId, int taskId, npu_bound_op bound, uint64_t modelMemorySize);
     void SignalTaskDeInit(int deviceId, int taskId, npu_bound_op bound);
+    void SignalStoppedDmaToWaitRecovery(int deviceId);
     void DeallocateTaskMemory(int deviceId, int taskId);
     void Connect();
 
@@ -71,11 +72,6 @@ private:
 
 
     std::once_flag _connectFlag;
-
-    // IPC
-    dxrt::IPCClientWrapper ipcClientWrapper;
-    dxrt::IPCClientWrapper ipcClientWrapperSync;
-
 
 };
 

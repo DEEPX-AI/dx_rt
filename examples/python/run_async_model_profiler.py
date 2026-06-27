@@ -7,54 +7,100 @@
 # Unauthorized sharing or usage is strictly prohibited by law.
 #
 
-import numpy as np
+"""Async inference with per-job profiling using the Wait pattern.
+
+Follows the run_async_model_wait flow:
+  Main thread  : run_async() × N  →  push job_id to queue
+  Worker thread: pop job_id → ie.wait(job_id) → profiler.get_job_metrics(job_id) → print
+
+This gives accurate per-job H2D / NPU / D2H / Task timings for each job.
+
+Usage:
+    python run_async_model_profiler.py -m <model.dxnn> [-l <loops>] [--use-ort]
+"""
+
 import argparse
 import os
-from dx_engine import InferenceEngine, Configuration, DeviceStatus
-
-import threading
 import queue
-from threading import Thread
+import threading
+import time
 
-q = queue.Queue()
-gLoopCount = 0
+import numpy as np
+from dx_engine import Configuration, InferenceEngine, InferenceOption, Profiler
 
-lock = threading.Lock()
-
-def on_inference_callback_func(outputs, user_arg):
-    # the outputs are guaranteed to be valid only within this callback function
-    # processing this callback functions as quickly as possible is beneficial
-    # for improving inference performance
-
-    global gLoopCount
-
-    # Mutex locks should be properly adjusted
-    # to ensure that callback functions are thread-safe.
-    with lock:
-
-        # user data type casting
-        index, loop_count = user_arg
+# ---------------------------------------------------------------------------
+# Job-ID queue shared between main thread and worker thread
+# ---------------------------------------------------------------------------
+g_job_id_queue: queue.Queue = queue.Queue(maxsize=32)
 
 
-        # post processing
-        #postProcessing(outputs);
+# ---------------------------------------------------------------------------
+# Per-job metric printing
+# ---------------------------------------------------------------------------
 
-        # something to do
+def print_job_metrics(job_idx: int, job_id: int, jm) -> None:
+    if not jm.valid:
+        print(f"[Job #{job_idx} id={job_id}] No profiler data")
+        return
 
-        print("Inference output (callback) index=", index)
+    for task in jm.tasks:
+        parts = [f"[Job #{job_idx} id={job_id}] task={task.task_name}"]
 
-        gLoopCount += 1
-        if ( gLoopCount == loop_count ) :
-            print("Complete Callback")
-            q.put(0)
+        for dev_id, d in task.devices.items():
+            parts.append(
+                f"  |  Dev{dev_id}:"
+                f" InputNFH={d.input_format_us:.3f}us"
+                f" H2D={d.h2d_us:.3f}us"
+                f" Inference={d.inference_core_all_us:.3f}us"
+                f" (Core0={d.inference_core_0_us:.3f}"
+                f" Core1={d.inference_core_1_us:.3f}"
+                f" Core2={d.inference_core_2_us:.3f})"
+                f" D2H={d.d2h_us:.3f}us"
+                f" OutputNFH={d.output_format_us:.3f}us"
+                f" NPU Task={d.total_us:.3f}us"
+            )
 
-    return 0
+        if task.cpu_task_us > 0.0:
+            parts.append(f"  |  CPU Task={task.cpu_task_us:.3f}us")
+
+        print("".join(parts))
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(description="Run asynchronous model inference with profiler")
-    parser.add_argument("--model", "-m", type=str, required=True, help="Path to model file (.dxnn)")
-    parser.add_argument("--loops", "-l", type=int, default=1, help="Number of inference loops (default: 1)")
+# ---------------------------------------------------------------------------
+# Worker thread: Wait for each job and print profiling metrics
+# ---------------------------------------------------------------------------
+
+def wait_thread_func(ie: InferenceEngine, profiler: Profiler, loop_count: int) -> None:
+    for idx in range(loop_count):
+        job_id = g_job_id_queue.get()
+
+        try:
+            outputs = ie.wait(job_id)
+            _ = outputs
+        except Exception as e:
+            print(f"[Worker] Exception: {e}")
+            return
+
+        jm = profiler.get_job_metrics(job_id)
+        print_job_metrics(idx, job_id, jm)
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Async inference with per-job profiling (Wait + get_job_metrics)"
+    )
+    parser.add_argument("--model", "-m", type=str, required=True,
+                        help="Path to model file (.dxnn)")
+    parser.add_argument("--loops", "-l", type=int, default=10,
+                        help="Number of inference loops (default: 10)")
+    parser.add_argument("--use-ort", action="store_true",
+                        help="Enable ORT (CPU post-processing) for the model")
+    parser.add_argument("--verbose", "-v", action="store_true",
+                        help="Enable verbose output")
     args = parser.parse_args()
 
     if not os.path.exists(args.model):
@@ -66,52 +112,62 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
 
+    print(f"Model  : {args.model}")
+    print(f"Loops  : {args.loops}")
+    print(f"UseORT : {args.use_ort}")
+
+    # ── Enable profiler ───────────────────────────────────────────────────
     config = Configuration()
     config.set_enable(Configuration.ITEM.PROFILER, True)
-
-    # print profiling infomation
     config.set_attribute(Configuration.ITEM.PROFILER,
-                            Configuration.ATTRIBUTE.PROFILER_SHOW_DATA, "ON")
-
-    # save profiling infomation to file
+                         Configuration.ATTRIBUTE.PROFILER_SHOW_DATA, "ON")
     config.set_attribute(Configuration.ITEM.PROFILER,
-                            Configuration.ATTRIBUTE.PROFILER_SAVE_DATA, "ON")
+                         Configuration.ATTRIBUTE.PROFILER_SAVE_DATA, "OFF")
 
-    print('Runtime framework version:', config.get_version())
-    print('Device driver version:', config.get_driver_version())
-    print('PCIe driver version:', config.get_pcie_driver_version())
+    profiler = Profiler.get_instance()
 
-    if config.get_enable(Configuration.ITEM.PROFILER):
-        print('PROFLIER configuration is enabled')
-    else:
-        print('PROFILER configuration is disabled')
+    # ── Create InferenceEngine ────────────────────────────────────────────
+    opt = InferenceOption()
+    opt.use_ort = args.use_ort
+    with InferenceEngine(args.model, opt) as ie:
 
-    result = -1
+        # ── Start worker thread ───────────────────────────────────────────
+        worker = threading.Thread(
+            target=wait_thread_func,
+            args=(ie, profiler, args.loops),
+            daemon=True,
+        )
+        worker.start()
 
-    # create inference engine instance with model
-    with InferenceEngine(args.model) as ie:
-
-        # register call back function
-        ie.register_callback(on_inference_callback_func)
-
+        # ── Submit all jobs ───────────────────────────────────────────────
         # NOTE: np.zeros() uses COW zero pages — all virtual pages share one
         # physical page. PCIe DMA driver's get_user_pages() then sees duplicate
         # physical pages in the SG list and fails with EFAULT.
         # np.empty() + explicit fill forces unique physical page allocation.
-        _buf = np.empty(ie.get_input_size(), dtype=np.uint8)
-        _buf.fill(0)
-        input = [_buf]
+        buf = np.empty(ie.get_input_size(), dtype=np.uint8)
+        buf.fill(0)
 
-        # inference loop
+        start = time.perf_counter()
+
         for i in range(args.loops):
+            job_id = ie.run_async([buf])
+            g_job_id_queue.put(job_id)
+            if args.verbose:
+                print(f"Submitted job_id={job_id}")
 
-            # inference asynchronously, use all npu cores
-            # if device-load >= max-load-value, this function will block
-            ie.run_async(input, user_arg=[i, args.loops])
+        worker.join()
 
-            print("Inference start (async)", i)
+        end = time.perf_counter()
 
-        # wait until all callback data processing is completed
-        result = q.get()
+    total_ms = (end - start) * 1000.0
+    avg_ms   = total_ms / args.loops
+    fps      = 1000.0 / avg_ms
 
-    exit(result)
+    print("-----------------------------------")
+    print(f"Total   : {total_ms:.2f} ms")
+    print(f"Average : {avg_ms:.2f} ms/job")
+    print(f"FPS     : {fps:.2f}")
+    print("-----------------------------------")
+
+
+

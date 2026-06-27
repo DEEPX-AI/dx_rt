@@ -18,7 +18,9 @@
 
 // C++ standard headers
 #include <atomic>
+#include <condition_variable>
 #include <memory>
+#include <mutex>
 #include <string>
 
 // Project headers
@@ -43,6 +45,8 @@ class DXRT_API DeviceCore {
     int WriteData(const void *data, size_t len) { return _adapter->Write(data, static_cast<uint32_t>(len)); }
     int Read(const dxrt_meminfo_t &);
     int Read(const dxrt_meminfo_t &, int ch, bool ctrlCmd = true);
+    void PauseDMA();
+    void ResumeDMA();
     int ReadDriverData(void *ptr, uint32_t size);
     int Wait();
     void Identify(int id_, uint32_t subCmd = 0);
@@ -51,6 +55,8 @@ class DXRT_API DeviceCore {
 
     int UpdateFwConfig(const std::string& jsonFile);
     void DoCustomCommand(void *data, uint32_t subCmd, uint32_t size = 0);
+
+    void InitPPCPU(uint64_t mem_offset);
 
     void StartDev(uint32_t option);
     DeviceType GetDeviceType() const;
@@ -61,9 +67,7 @@ class DXRT_API DeviceCore {
     std::string name() const { return _name;  }
 
     bool isBlocked() const { return _isBlocked;  }
-    void block() {
-      _isBlocked = true;
-   }
+    void block() { _isBlocked = true; }
     void unblock() { _isBlocked = false; }
 
     void BoundOption(dxrt_sche_sub_cmd_t subCmd, npu_bound_op boundOp);
@@ -84,6 +88,14 @@ class DXRT_API DeviceCore {
     std::atomic<int> _readChannel{0};
     std::atomic<int> _writeChannel{0};
     std::atomic<bool> _isBlocked{false};
+
+    void BeginDmaIoctl();
+    void EndDmaIoctl();
+
+    std::mutex _dmaPauseMutex;
+    std::condition_variable _dmaPauseCv;
+    bool _dmaPaused{false};
+    uint32_t _inflightDmaIoctl{0};
 };
 
 } // namespace dxrt

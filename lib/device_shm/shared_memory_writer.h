@@ -34,6 +34,12 @@ public:
     
     // Update device memory data
     void UpdateDeviceMemory(int deviceId, uint64_t total, uint64_t used, uint64_t free);
+
+    // Update device spec (one-time, at device registration)
+    void UpdateDeviceSpec(int deviceId, const dxrt_device_info_t& spec, const dxrt_dev_info_t& devInfo);
+
+    // Update full device status
+    void UpdateDeviceFullStatus(int deviceId, const dxrt_device_status_t& status);
     
     // Update device core stats (voltage, clock, temperature)
     void UpdateDeviceCoreStats(int deviceId, const std::array<uint32_t, 3>& voltage, const std::array<uint32_t, 3>& clock, const std::array<uint32_t, 3>& temperature);

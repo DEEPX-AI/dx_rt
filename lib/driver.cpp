@@ -35,7 +35,7 @@ using std::pair;
 
 namespace dxrt {
 
-DXRT_API vector<pair<int,string>> ioctlTable = {  // NOSONAR due to external usage
+DXRT_API vector<pair<int,const char*>> ioctlTable = {  // NOSONAR due to external usage
     { dxrt::dxrt_ioctl_t::DXRT_IOCTL_MESSAGE, "IOCTL_MESSAGE" },
     { dxrt::dxrt_ioctl_t::DXRT_IOCTL_DUMMY, "IOCTL_DUMMY" },
 };

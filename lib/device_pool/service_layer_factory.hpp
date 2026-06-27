@@ -3,14 +3,14 @@
 #include <memory>
 #include <string>
 #include "dxrt/service_abstract_layer.h"
-#include "dxrt/multiprocess_memory.h"
 
 namespace dxrt {
 
+class MultiprocessMemory;
+
 // Factory functions:
 // 1) CreateServiceLayer(useService, mem)
-//    - If useService == true and mem == nullptr: creates and owns MultiprocessMemory internally
-//    - If useService == true and mem != nullptr: uses external mem (no ownership)
+//    - If useService == true: uses ServiceLayer Dynamic IPC
 //    - If useService == false: creates NoServiceLayer
 //
 // 2) CreateServiceLayerFromEnv()
@@ -25,7 +25,7 @@ namespace dxrt {
 class ServiceLayerFactory {
 public:
     static std::shared_ptr<ServiceLayerInterface>
-    CreateServiceLayer(bool useService, std::shared_ptr<MultiprocessMemory> mem);
+    CreateServiceLayer(bool useService);
 
     static std::shared_ptr<ServiceLayerInterface>
     CreateServiceLayerFromEnv();

@@ -2,19 +2,20 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
 
-#include "dxrt/common.h"
-#include "dxrt/service_util.h"
+#include "dxrt/dxrt_c_api.h"
+#include "dxrt/gen.h"  // USE_SERVICE and other build configuration
 #include <iostream>
 #include <fstream>
 #include <string>
 #include <sstream>
 #include <algorithm>
+#include <tuple>
 
 #ifdef _WIN32
 #include <thread>
@@ -22,14 +23,13 @@
 #include <shellapi.h>
 #endif
 
-int dxrt_service_main(int argc, char* argv[]);
 
 #ifdef _WIN32
 // Windows service related global variables
 static SERVICE_STATUS g_ServiceStatus = {0};
 static SERVICE_STATUS_HANDLE g_StatusHandle = nullptr;
 static HANDLE g_ServiceStopEvent = INVALID_HANDLE_VALUE;
-static HANDLE g_ServiceMutex = nullptr;  // Mutex to indicate service is running
+static void* g_ServiceMutex = nullptr;  // Mutex to indicate service is running
 static const wchar_t* SERVICE_NAME = L"dxrtd";
 static std::thread g_ServiceThread;
 
@@ -170,7 +170,7 @@ void WINAPI ServiceMain(DWORD argc, LPWSTR* argv)
     }
 
     // Create service mutex to indicate service is running
-    g_ServiceMutex = dxrt::createServiceMutex();
+    g_ServiceMutex = dxrt_create_service_mutex();
     if (g_ServiceMutex == nullptr)
     {
         CloseHandle(g_ServiceStopEvent);
@@ -195,11 +195,11 @@ void WINAPI ServiceMain(DWORD argc, LPWSTR* argv)
     {
         g_ServiceThread.detach();  // Detach since dxrt_service_main runs indefinitely
     }
-    
+
     // Release service mutex
-    dxrt::releaseServiceMutex(g_ServiceMutex);
+    dxrt_release_service_mutex(g_ServiceMutex);
     g_ServiceMutex = nullptr;
-    
+
     CloseHandle(g_ServiceStopEvent);
     ReportServiceStatus(SERVICE_STOPPED, NO_ERROR, 0);
 }
@@ -457,7 +457,7 @@ bool StopServiceCmd()
 int RunConsoleMode(int argc, char* argv[])
 {
     // Create service mutex to indicate service is running
-    g_ServiceMutex = dxrt::createServiceMutex();
+    g_ServiceMutex = dxrt_create_service_mutex();
     if (g_ServiceMutex == nullptr)
     {
         std::cout << "Other instance of dxrtd is running" << std::endl;
@@ -466,18 +466,18 @@ int RunConsoleMode(int argc, char* argv[])
 
 #ifdef USE_SERVICE
     int result = dxrt_service_main(argc, argv);
-    
+
     // Release mutex on exit
-    dxrt::releaseServiceMutex(g_ServiceMutex);
+    dxrt_release_service_mutex(g_ServiceMutex);
     g_ServiceMutex = nullptr;
-    
+
     return result;
 #else
     std::ignore = argc;
     std::ignore = argv;
-    dxrt::releaseServiceMutex(g_ServiceMutex);
+    dxrt_release_service_mutex(g_ServiceMutex);
     g_ServiceMutex = nullptr;
-    std::cout << "USE_SERVICE is not set, so dxrt_service will not work" << std::endl;
+    std::cout << "dxrtd was built without service support (USE_SERVICE=OFF). Rebuild with USE_SERVICE=ON to enable." << std::endl;
     return -1;
 #endif
 }
@@ -586,7 +586,7 @@ int main(int argc, char* argv[])
 #else
     std::ignore = argc;
     std::ignore = argv;
-    if (dxrt::isDxrtServiceRunning())
+    if (dxrt_is_service_running() != 0)
     {
         std::cout << "Other instance of dxrtd is running" << std::endl;
         return -1;
@@ -594,7 +594,7 @@ int main(int argc, char* argv[])
 #ifdef USE_SERVICE
     return dxrt_service_main(argc, argv);
 #else
-    std::cout << "USE_SERVICE is not set, so dxrt_service will not work" << std::endl;
+    std::cout << "dxrtd was built without service support (USE_SERVICE=OFF). Rebuild with USE_SERVICE=ON to enable." << std::endl;
     return -1;
 #endif
 #endif

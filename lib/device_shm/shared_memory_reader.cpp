@@ -23,6 +23,9 @@
 
 namespace dxrt {
 
+constexpr int MAX_SEQLOCK_RETRIES = 1000;
+
+
 SharedMemoryReader::SharedMemoryReader() = default;
 
 SharedMemoryReader::~SharedMemoryReader()
@@ -32,71 +35,36 @@ SharedMemoryReader::~SharedMemoryReader()
 
 bool SharedMemoryReader::Open()
 {
-    if (_opened) 
+    if (_opened)
     {
         return true;
     }
 
 #ifdef __linux__
-    // Try to open existing shared memory (read-only)
-    _shm_fd = shm_open(MONITOR_SHM_NAME, O_RDONLY, 0);
-    
-    // If it doesn't exist, create it for dxtop-first scenarios
-    if (_shm_fd == -1) 
+    // Open-or-create shared memory (reader-first/writer-first both supported)
+    _shm_fd = shm_open(MONITOR_SHM_NAME, O_CREAT | O_RDWR, 0666);
+    if (_shm_fd == -1)
     {
-        LOG_DXRT_DBG << "Shared memory doesn't exist, creating placeholder for Writer..." << std::endl;
-        
-        // Create with read-write to initialize
-        _shm_fd = shm_open(MONITOR_SHM_NAME, O_CREAT | O_RDWR, 0666);
-        if (_shm_fd == -1) 
-        {
-            LOG_DXRT_ERR("Failed to create shared memory");
-            return false;
-        }
-        
-        // Set size
-        if (ftruncate(_shm_fd, sizeof(MonitorSharedMemory)) == -1) 
-        {
-            LOG_DXRT_ERR("Failed to set shared memory size");
-            close(_shm_fd);
-            _shm_fd = -1;
-            return false;
-        }
-        
-        // Map with read-write to initialize
-        auto* init_ptr = static_cast<MonitorSharedMemory*>(
-            mmap(nullptr, sizeof(MonitorSharedMemory), 
-                 PROT_READ | PROT_WRITE, MAP_SHARED, _shm_fd, 0));
-        
-        if (init_ptr == MAP_FAILED) 
-        {
-            LOG_DXRT_ERR("Failed to map shared memory for initialization");
-            close(_shm_fd);
-            _shm_fd = -1;
-            return false;
-        }
-        
-        // Initialize the structure (writer_pid = 0 means no Writer yet)
-        new (init_ptr) MonitorSharedMemory();
-        
-        // Unmap and reopen as read-only
-        munmap(init_ptr, sizeof(MonitorSharedMemory));
+        LOG_DXRT_ERR("Failed to open/create shared memory");
+        return false;
+    }
+
+    // Best effort: keep permissions world-readable/writable across users.
+    (void)fchmod(_shm_fd, 0666);
+
+    if (ftruncate(_shm_fd, sizeof(MonitorSharedMemory)) == -1)
+    {
+        LOG_DXRT_ERR("Failed to set shared memory size");
         close(_shm_fd);
-        
-        // Reopen as read-only
-        _shm_fd = shm_open(MONITOR_SHM_NAME, O_RDONLY, 0);
-        if (_shm_fd == -1) 
-        {
-            LOG_DXRT_ERR("Failed to reopen shared memory as read-only");
-            return false;
-        }
+        _shm_fd = -1;
+        return false;
     }
 
     // Map to memory (read-only)
-    _shm_ptr = mmap(nullptr, sizeof(MonitorSharedMemory), 
+    _shm_ptr = mmap(nullptr, sizeof(MonitorSharedMemory),
                     PROT_READ, MAP_SHARED, _shm_fd, 0);
-    
-    if (_shm_ptr == MAP_FAILED) 
+
+    if (_shm_ptr == MAP_FAILED)
     {
         LOG_DXRT_ERR("Failed to map shared memory");
         close(_shm_fd);
@@ -105,11 +73,53 @@ bool SharedMemoryReader::Open()
         return false;
     }
 
-    // Verify magic number
+    // Verify magic number and version
     auto* shm = static_cast<const MonitorSharedMemory*>(_shm_ptr);
-    if (shm->magic != MONITOR_SHM_MAGIC) 
+    if (shm->magic != MONITOR_SHM_MAGIC)
+    {
+        // Fresh/legacy segment: initialize once, then reopen read-only.
+        munmap(_shm_ptr, sizeof(MonitorSharedMemory));
+        _shm_ptr = mmap(nullptr, sizeof(MonitorSharedMemory),
+                        PROT_READ | PROT_WRITE, MAP_SHARED, _shm_fd, 0);
+        if (_shm_ptr == MAP_FAILED)
+        {
+            LOG_DXRT_ERR("Failed to remap shared memory for initialization");
+            close(_shm_fd);
+            _shm_fd = -1;
+            _shm_ptr = nullptr;
+            return false;
+        }
+
+        auto* rw_shm = static_cast<MonitorSharedMemory*>(_shm_ptr);
+        new (rw_shm) MonitorSharedMemory();
+
+        munmap(_shm_ptr, sizeof(MonitorSharedMemory));
+        _shm_ptr = mmap(nullptr, sizeof(MonitorSharedMemory),
+                        PROT_READ, MAP_SHARED, _shm_fd, 0);
+        if (_shm_ptr == MAP_FAILED)
+        {
+            LOG_DXRT_ERR("Failed to remap shared memory as read-only");
+            close(_shm_fd);
+            _shm_fd = -1;
+            _shm_ptr = nullptr;
+            return false;
+        }
+
+        shm = static_cast<const MonitorSharedMemory*>(_shm_ptr);
+    }
+
+    if (shm->magic != MONITOR_SHM_MAGIC)
     {
         LOG_DXRT_ERR("Invalid shared memory magic number");
+        munmap(_shm_ptr, sizeof(MonitorSharedMemory));
+        close(_shm_fd);
+        _shm_fd = -1;
+        _shm_ptr = nullptr;
+        return false;
+    }
+    if (shm->version != MONITOR_SHM_VERSION)
+    {
+        LOG_DXRT_ERR("Invalid shared memory version");
         munmap(_shm_ptr, sizeof(MonitorSharedMemory));
         close(_shm_fd);
         _shm_fd = -1;
@@ -186,11 +196,20 @@ bool SharedMemoryReader::Open()
         return false;
     }
 
-    // magic 검증
+    // magic/version 검증
     auto* shm = static_cast<const MonitorSharedMemory*>(_shm_ptr);
     if (shm->magic != MONITOR_SHM_MAGIC)
     {
         LOG_DXRT_ERR("Invalid shared memory magic number");
+        UnmapViewOfFile(_shm_ptr);
+        CloseHandle(static_cast<HANDLE>(_shm_handle));
+        _shm_handle = nullptr;
+        _shm_ptr = nullptr;
+        return false;
+    }
+    if (shm->version != MONITOR_SHM_VERSION)
+    {
+        LOG_DXRT_ERR("Invalid shared memory version");
         UnmapViewOfFile(_shm_ptr);
         CloseHandle(static_cast<HANDLE>(_shm_handle));
         _shm_handle = nullptr;
@@ -208,34 +227,22 @@ bool SharedMemoryReader::Open()
 
 void SharedMemoryReader::Close()
 {
-    if (!_opened) 
+    if (!_opened)
     {
         return;
     }
 
 #ifdef __linux__
-    // Check if we need to cleanup placeholder before unmapping
-    bool should_cleanup_placeholder = false;
-    if (_shm_ptr != nullptr && _shm_ptr != MAP_FAILED) 
+    if (_shm_ptr != nullptr && _shm_ptr != MAP_FAILED)
     {
-        // If writer never initialized (writer_pid == 0), we should cleanup
-        auto* shm = static_cast<const MonitorSharedMemory*>(_shm_ptr);
-        should_cleanup_placeholder = (shm->writer_pid == 0);
-        
         munmap(_shm_ptr, sizeof(MonitorSharedMemory));
         _shm_ptr = nullptr;
     }
 
-    if (_shm_fd != -1) 
+    if (_shm_fd != -1)
     {
         close(_shm_fd);
         _shm_fd = -1;
-    }
-    
-    // If we created a placeholder and Writer never initialized it, clean it up
-    if (should_cleanup_placeholder)
-    {
-        shm_unlink(MONITOR_SHM_NAME);
     }
 #elif _WIN32
     if (_shm_ptr != nullptr)
@@ -257,103 +264,152 @@ void SharedMemoryReader::Close()
 
 bool SharedMemoryReader::ReadDeviceData(int deviceId, MonitorDeviceData& outData) const
 {
-    if (!_opened || _shm_ptr == nullptr) 
+    if (!_opened || _shm_ptr == nullptr)
     {
         return false;
     }
 
     auto* shm = static_cast<const MonitorSharedMemory*>(_shm_ptr);
-    
+
     // Use sequence lock to ensure consistent read
     uint64_t seq1;
     uint64_t seq2;
+    int retries = 0;
     do {
         // Read sequence before data
         seq1 = shm->sequence.load(std::memory_order_acquire);
-        
+
         // If sequence is odd, writer is updating - retry
-        if (seq1 & 1) 
+        if (seq1 & 1)
         {
+            if (++retries > MAX_SEQLOCK_RETRIES)
+            {
+                LOG_DXRT_DBG << "ReadDeviceData: seqlock retry limit reached, writer may have crashed" << std::endl;
+                return false;
+            }
             continue;
         }
-        
+        retries = 0;
+
         // Find and copy device data
         bool found = false;
-        for (uint32_t i = 0; i < shm->device_count; ++i) 
+        for (uint32_t i = 0; i < shm->device_count; ++i)
         {
-            if (shm->devices[i].device_id == static_cast<uint32_t>(deviceId)) 
+            if (shm->devices[i].device_id == static_cast<uint32_t>(deviceId))
             {
                 outData = shm->devices[i];
                 found = true;
                 break;
             }
         }
-        
+
         // Read sequence after data
         seq2 = shm->sequence.load(std::memory_order_acquire);
-        
+
         // If sequences match and even, data is consistent
-        if (seq1 == seq2) 
+        if (seq1 == seq2)
         {
             return found;
         }
-        
+
         // Otherwise, writer updated during read - retry
     } while (true);
 }
 
 bool SharedMemoryReader::GetAllDevices(MonitorDeviceData* outDevices, uint32_t& outCount, uint32_t maxCount) const
 {
-    if (!_opened || _shm_ptr == nullptr || outDevices == nullptr) 
+    if (!_opened || _shm_ptr == nullptr || outDevices == nullptr)
     {
         return false;
     }
 
     auto* shm = static_cast<const MonitorSharedMemory*>(_shm_ptr);
-    
+
     // Use sequence lock to ensure consistent read
     uint64_t seq1;
     uint64_t seq2;
+    int retries = 0;
     do {
         // Read sequence before data
         seq1 = shm->sequence.load(std::memory_order_acquire);
-        
+
         // If sequence is odd, writer is updating - retry
-        if (seq1 & 1) 
+        if (seq1 & 1)
         {
+            if (++retries > MAX_SEQLOCK_RETRIES)
+            {
+                LOG_DXRT_DBG << "GetAllDevices: seqlock retry limit reached, writer may have crashed" << std::endl;
+                return false;
+            }
             continue;
         }
-        
+        retries = 0;
+
         // Copy device data
         auto count = shm->device_count;
-        if (count > maxCount) 
+        if (count > maxCount)
         {
             count = maxCount;
         }
 
-        for (uint32_t i = 0; i < count; ++i) 
+        for (uint32_t i = 0; i < count; ++i)
         {
             outDevices[i] = shm->devices[i];
         }
-        
+
         // Read sequence after data
         seq2 = shm->sequence.load(std::memory_order_acquire);
-        
+
         // If sequences match and even, data is consistent
-        if (seq1 == seq2) 
+        if (seq1 == seq2)
         {
             outCount = count;
             return true;
         }
-        
+
         // Otherwise, writer updated during read - retry
     } while (true);
 
 }
 
+uint32_t SharedMemoryReader::GetDeviceCount() const
+{
+    if (!_opened || _shm_ptr == nullptr)
+    {
+        return 0;
+    }
+
+    auto* shm = static_cast<const MonitorSharedMemory*>(_shm_ptr);
+
+    uint64_t seq1;
+    uint64_t seq2 = 0;
+    uint32_t count = 0;
+    int retries = 0;
+    do
+    {
+        seq1 = shm->sequence.load(std::memory_order_acquire);
+        if (seq1 & 1)
+        {
+            if (++retries > MAX_SEQLOCK_RETRIES)
+            {
+                LOG_DXRT_DBG << "GetDeviceCount: seqlock retry limit reached, writer may have crashed" << std::endl;
+                return 0;
+            }
+            continue;
+        }
+        retries = 0;
+
+        count = shm->device_count;
+
+        seq2 = shm->sequence.load(std::memory_order_acquire);
+    } while (seq1 != seq2);
+
+    return count;
+}
+
 bool SharedMemoryReader::IsWriterAlive() const
 {
-    if (!_opened || _shm_ptr == nullptr) 
+    if (!_opened || _shm_ptr == nullptr)
     {
         return false;
     }
@@ -362,13 +418,19 @@ bool SharedMemoryReader::IsWriterAlive() const
     auto* shm = static_cast<const MonitorSharedMemory*>(_shm_ptr);
     // Check if writer process is still running
     auto writer_pid = static_cast<pid_t>(shm->writer_pid);
-    if (writer_pid == 0) 
+    if (writer_pid == 0)
     {
         return false;
     }
 
     // Send signal 0 to check if process exists
     if (kill(writer_pid, 0) == 0)
+    {
+        return true;
+    }
+
+    // EPERM means process exists but we lack permission (e.g., root-owned service)
+    if (errno == EPERM)
     {
         return true;
     }
@@ -410,7 +472,7 @@ uint32_t SharedMemoryReader::GetWriterPid() const
 
 uint64_t SharedMemoryReader::GetUpdateCount() const
 {
-    if (!_opened || _shm_ptr == nullptr) 
+    if (!_opened || _shm_ptr == nullptr)
     {
         return 0;
     }

@@ -7,7 +7,7 @@
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
-#include "../include/dxrt/exception/server_err.h"
+#include "dxrt/exception/server_err.h"
 
 
 namespace dxrt{

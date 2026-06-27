@@ -18,13 +18,8 @@
 #include <algorithm>
 #include <cctype>
 #include <array>
-#if defined(_WIN32)
 #include <limits>
-    #ifdef max
-        #undef max
-        #undef min
-    #endif  // max
-#endif
+
 
 #include "dxrt/datatype.h"
 #include "dxrt/common.h"
@@ -327,8 +322,8 @@ enum DXRT_API DataType : int { // NOSONAR: Requires implicit int conversion for 
     INT64 = 7,
     UINT32 = 8,
     UINT64 = 9,
-    DataType_INT_MIN_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int>::min(),
-    DataType_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int>::max()
+    DataType_INT_MIN_SENTINEL_DO_NOT_USE_ = (std::numeric_limits<int>::min)(),
+    DataType_INT_MAX_SENTINEL_DO_NOT_USE_ = (std::numeric_limits<int>::max)()
 };
 
 enum DXRT_API MemoryType : int { // NOSONAR: Requires implicit int conversion for TensorInfo and protobuf ABI
@@ -336,8 +331,8 @@ enum DXRT_API MemoryType : int { // NOSONAR: Requires implicit int conversion fo
     DRAM = 1,
     ARGMAX = 2,
     PPU = 3,
-    MemoryType_INT_MIN_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int>::min(),
-    MemoryType_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int>::max()
+    MemoryType_INT_MIN_SENTINEL_DO_NOT_USE_ = (std::numeric_limits<int>::min)(),
+    MemoryType_INT_MAX_SENTINEL_DO_NOT_USE_ = (std::numeric_limits<int>::max)()
 };
 
 enum DXRT_API Layout : int { // NOSONAR: Requires implicit int conversion for TensorInfo and protobuf ABI
@@ -349,8 +344,8 @@ enum DXRT_API Layout : int { // NOSONAR: Requires implicit int conversion for Te
     PPU_YOLO = 5,
     PPU_FD = 6,
     PPU_POSE = 7,
-    Layout_INT_MIN_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int>::min(),
-    Layout_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int>::max()
+    Layout_INT_MIN_SENTINEL_DO_NOT_USE_ = (std::numeric_limits<int>::min)(),
+    Layout_INT_MAX_SENTINEL_DO_NOT_USE_ = (std::numeric_limits<int>::max)()
 };
 
 inline const char* LayoutToString(Layout layout) {
@@ -367,12 +362,12 @@ inline const char* LayoutToString(Layout layout) {
     }
 }
 
-enum DXRT_API Transpose : int { // NOSONAR: Requires implicit int conversion for TensorInfo and protobuf ABI
+enum DXRT_API Transpose : int {  // NOSONAR: Requires implicit int conversion for TensorInfo and protobuf ABI
     TRANSPOSE_NONE = 0,
     CHANNEL_FIRST_TO_LAST = 1,
     CHANNEL_LAST_TO_FIRST = 2,
-    Transpose_INT_MIN_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int>::min(),
-    Transpose_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int>::max()
+    Transpose_INT_MIN_SENTINEL_DO_NOT_USE_ = (std::numeric_limits<int>::min)(),
+    Transpose_INT_MAX_SENTINEL_DO_NOT_USE_ = (std::numeric_limits<int>::max)()
 };
 
 inline const char* TransposeToString(Transpose transpose) {

@@ -1,5 +1,8 @@
 This chapter introduces the inference APIs provided by **DX-RT**, including both C++ and Python interfaces. It covers synchronous and asynchronous execution, support for single and multi-input models, and guidance on input/output formatting. Key topics include model execution, input parsing, special handling cases, and performance tuning to help developers integrate inference efficiently.  
 
+> **Recommended Header:** Include `<dxrt/dxrt_cxx_api.h>` — a single, self-contained C++14 header that provides the full inference API. Existing code using `dxrt_api.h` continues to build without changes.  
+> Do not include `<dxrt/dxrt_api.h>` and `<dxrt/dxrt_cxx_api.h>` in the same translation unit.
+
 ---
 
 ## C++ Inference API
@@ -52,7 +55,7 @@ std::vector<TensorPtrs> Run(
 | `vector<void*>` (size=1) | Single-Input | Single Inference | `vector<TensorPtrs>` (size=1) | Special case |
 | `vector<void*>` (size=N) | Single-Input | Batch Inference | `vector<TensorPtrs>` (size=N) | N samples |
 | `vector<void*>` (size=M) | Multi-Input, M==input\_count | Single Inference | `vector<TensorPtrs>` (size=1) | Multi-input single |
-| `vector<void*>` (size=N*M) | Multi-Input, N*M==multiple | Batch Inference | `vector<TensorPtrs>` (size=N) | N samples, M inputs |
+| `vector<void*>` (size=N) | Multi-Input, each pointer = concatenated M inputs | Batch Inference | `vector<TensorPtrs>` (size=N) | N samples; per-sample buffers must concatenate all M inputs (total size = `GetInputSize()`) |
 
 Example
 ```cpp
@@ -64,9 +67,12 @@ auto batchOutputs = ie.Run(batchInputs, outputBuffers, userArgs);
 std::vector<void*> multiInputs = {input1, input2}; // M=2
 auto singleOutput = ie.Run(multiInputs, {outputBuffer}, {userArg});
 
-// Multi-input batch
-std::vector<void*> multiBatch = {s1_i1, s1_i2, s2_i1, s2_i2}; // N=2, M=2
+// Multi-input batch — each pointer holds one sample with all inputs concatenated
+// (concatenated buffer size per sample = ie.GetInputSize())
+std::vector<void*> multiBatch = {sample1_concat, sample2_concat}; // N=2
 auto batchOutputs = ie.Run(multiBatch, outputBuffers, userArgs);
+// Note: Flat N*M layout (e.g., {s1_i1, s1_i2, s2_i1, s2_i2}) is supported by the
+// Python binding only. Use RunMultiInput() or concatenated buffers in C++.
 ```
 
 ***RunMultiInput (Dictionary)***
@@ -248,7 +254,7 @@ Auto-split Special Cases
   : Output: `List[np.ndarray]`  
 - **Multi-input + all elements are total_size** (e.g., `[concat1, concat2, concat3]`)  
   : Interpretation: Auto-split batch  
-  :  Output: `List[List[np.ndarray]]`  
+  : Output: `List[List[np.ndarray]]`  
 
 Example  
 ```python
@@ -341,7 +347,7 @@ def wait(job_id: int) -> List[np.ndarray]
 
 ## Input Format Parsing
 
-This section explains how the SDK determines the appropriate inference mode based on the input data format. The engine automatically analyzes inputs such as np.ndarray, `List[np.ndarray]`, and nested lists to decide between single, batch, or auto-split inference
+This section explains how the SDK determines the appropriate inference mode based on the input data format. The engine automatically analyzes inputs such as np.ndarray, `List[np.ndarray]`, and nested lists to decide between single, batch, or auto-split inference.
 
 ### Python Input Parsing Flow
 

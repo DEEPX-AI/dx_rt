@@ -55,11 +55,16 @@ class DXRT_API DevicePool {
 
 
  private:
-    
-    std::vector<std::shared_ptr<DeviceTaskLayer>> _taskLayers;
+    // NOTE: Member declaration order determines destruction order (reverse).
+    // _deviceCores must be declared first so it is destroyed LAST, ensuring
+    // DeviceCore adapters remain valid while NoServiceLayer's monitor thread
+    // is still running. _taskLayers and _serviceLayer must be destroyed before
+    // _deviceCores so that ~NoServiceLayer() joins its thread while the
+    // DriverAdapter is still alive.
     std::vector<std::shared_ptr<DeviceCore>> _deviceCores;
-    std::shared_ptr<ServiceLayerInterface> _serviceLayer;
     std::vector<std::shared_ptr<NFHLayer>> _nfhLayers;
+    std::shared_ptr<ServiceLayerInterface> _serviceLayer;
+    std::vector<std::shared_ptr<DeviceTaskLayer>> _taskLayers;
 
     size_t _curDevIdx = 0;
     std::once_flag _coresFlag;

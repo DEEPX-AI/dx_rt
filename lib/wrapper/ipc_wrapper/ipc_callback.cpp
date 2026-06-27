@@ -85,6 +85,15 @@ std::ostream& operator<< (std::ostream& os, RESPONSE_CODE code)
         case RESPONSE_CODE::THROTTLE_EVENT:
             os << "THROTTLE_EVENT";
             break;
+        case RESPONSE_CODE::NOTIFY_RECOVERY_STOP_DMA:
+            os << "NOTIFY_RECOVERY_STOP_DMA";
+            break;
+        case RESPONSE_CODE::NOTIFY_RECOVERY_END_RESUME_DMA:
+            os << "NOTIFY_RECOVERY_END_RESUME_DMA";
+            break;
+        case RESPONSE_CODE::NOTIFY_RECOVERY_FAILED_DMA:
+            os << "NOTIFY_RECOVERY_FAILED_DMA";
+            break;
         case RESPONSE_CODE::CLOSE:
             os << "CLOSE";
             break;
@@ -167,6 +176,47 @@ int ipc_callBack(const IPCServerMessage& outResponseServerMessage, void* usrData
         {
             LOG_DXRT_I_ERR("the device id is out of the devices range. "
                 + std::to_string(outResponseServerMessage.deviceId));
+        }
+    }
+    break;
+    case RESPONSE_CODE::NOTIFY_RECOVERY_STOP_DMA:
+    {
+        auto taskLayer = getDeviceTaskLayerSafe(outResponseServerMessage.deviceId);
+        if (taskLayer)
+        {
+            auto accTaskLayer = std::dynamic_pointer_cast<AccDeviceTaskLayer>(taskLayer);
+            if (accTaskLayer)
+            {
+                accTaskLayer->PauseDmaRequests();
+                taskLayer->SignalStoppedDmaToWaitRecovery();
+            }
+        }
+
+    }
+    break;
+    case RESPONSE_CODE::NOTIFY_RECOVERY_END_RESUME_DMA:
+    {
+        auto taskLayer = getDeviceTaskLayerSafe(outResponseServerMessage.deviceId);
+        if (taskLayer)
+        {
+            auto accTaskLayer = std::dynamic_pointer_cast<AccDeviceTaskLayer>(taskLayer);
+            if (accTaskLayer)
+            {
+                accTaskLayer->ResumeDmaRequests();
+            }
+        }
+    }
+    break;
+    case RESPONSE_CODE::NOTIFY_RECOVERY_FAILED_DMA:
+    {
+        auto taskLayer = getDeviceTaskLayerSafe(outResponseServerMessage.deviceId);
+        if (taskLayer)
+        {
+            auto accTaskLayer = std::dynamic_pointer_cast<AccDeviceTaskLayer>(taskLayer);
+            if (accTaskLayer)
+            {
+                accTaskLayer->OnRecoveryFailed(static_cast<int>(outResponseServerMessage.deviceId));
+            }
         }
     }
     break;

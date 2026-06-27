@@ -1,5 +1,15 @@
 This section documents the core C++ classes provided by the DX-RT SDK. It includes detailed descriptions of the inference engine, configuration options, device status monitoring, and tensor structures. These APIs are designed for high-performance, real-time applications and offer fine-grained control over NPU execution.  
 
+### Header
+
+| Header | Description |
+|--------|-------------|
+| `<dxrt/dxrt_cxx_api.h>` | **Recommended.** Single self-contained C++14 header for all applications. |
+| `<dxrt/dxrt_api.h>` | Legacy header — still works, no source changes needed. Emits a compile-time maintenance note by default (`DXRT_LEGACY_HEADER_OK` to suppress). |
+
+> **Note:** Internal headers (e.g., `dxrt/internal/*.h`) are no longer publicly accessible. Code that directly included internal headers will get compile errors — switch to `dxrt_cxx_api.h`.  
+> Also, do not include `<dxrt/dxrt_api.h>` and `<dxrt/dxrt_cxx_api.h>` in the same translation unit.
+
 ---
 
 ### class dxrt::InferenceEngine  
@@ -471,7 +481,7 @@ A singleton class for managing global application configurations. Access is thre
   
 ---  
   
-### class dxrt::DeviceStatus  
+### class dxrt::DeviceStatus { #class-dxrtdevicestatus }
   
 Provides an abstraction for retrieving device information and real-time status.  
   
@@ -479,21 +489,35 @@ Provides an abstraction for retrieving device information and real-time status.
   
 ***`GetCurrentStatus(int id)`***  
 -   **Signature**: `static DeviceStatus GetCurrentStatus(int id)`  
--   **Description**: Retrieves the real-time status for the device with the specified ID.  
+-   **Description**: Retrieves the status for the device with the specified ID. The status includes key metrics such as core utilization and temperature. Monitoring data is refreshed every 1 second.  
 -   **Parameters**:  
     -   `id`: The unique identifier of the device.  
--   **Returns**: A `DeviceStatus` object containing the device's current status.  
+-   **Returns**: A `DeviceStatus` object containing the device's current status. If the specified device ID is invalid, the device does not exist, or shared memory cannot be opened, the returned object will have `IsValid() == false`.  
+-   **Example**:
+    ```cpp
+    DeviceStatus status = DeviceStatus::GetCurrentStatus(0);
+    if (status.IsValid()) {
+        std::cout << "Device 0 Status: " << status.GetStatusString() << std::endl;
+    } else {
+        LOG_DXRT_ERR("Device 0 status is not available.");
+    }
+    ```  
   
 ***`GetDeviceCount()`***  
 -   **Signature**: `static int GetDeviceCount()`  
--   **Description**: Retrieves the total number of hardware devices currently recognized by the system.  
+-   **Description**: Retrieves the total number of hardware devices currently recognized by the system. This includes devices that are initialized and ready for operation.  
 -   **Returns**: The total number of available devices.  
+-   **Example**:
+    ```cpp
+    int deviceCount = dxrt::DeviceStatus::GetDeviceCount();
+    std::cout << "Number of available devices: " << deviceCount << std::endl;
+    ```  
   
 #### Member Functions  
   
 ***`AllMemoryInfoStr()`***  
 -   **Signature**: `std::string AllMemoryInfoStr() const`  
--   **Description**: Retrieves a summary of the device's memory specifications (type, frequency, size) in a single line.  
+-   **Description**: Retrieves a summary of the device's memory specifications (type, frequency, size) in a single line. Example: `"Memory: LPDDR4 4200 MHz, 1.98 GiB"`.  
 -   **Returns**: A formatted string.  
   
 ***`BoardTypeStr()`***  
@@ -508,7 +532,7 @@ Provides an abstraction for retrieving device information and real-time status.
   
 ***`DdrStatusStr(int ch)`***  
 -   **Signature**: `std::string DdrStatusStr(int ch) const`  
--   **Description**: Retrieves the status of a specified LPDDR memory channel.  
+-   **Description**: Retrieves the status of a specified LPDDR memory channel, including configuration and real-time temperature information based on MR4 register values. Example: `"LPDDR Channel 0: MR4=0x1A, Temperature Normal"`.  
 -   **Parameters**:  
     -   `ch`: The LPDDR memory channel index (0 to 3).  
 -   **Returns**: A formatted string containing the channel status.  
@@ -530,17 +554,12 @@ Provides an abstraction for retrieving device information and real-time status.
   
 ***`DmaChannel()`***  
 -   **Signature**: `uint64_t DmaChannel() const`  
--   **Description**: Retrieves the number of DMA (Direct Memory Access) channels available for the NPU.  
+-   **Description**: Retrieves the number of DMA (Direct Memory Access) channels available for the NPU. A higher number of DMA channels allows better parallel data movement, improving performance.  
 -   **Returns**: The number of DMA channels.  
-  
-***`DvfsStateInfoStr()`***  
--   **Signature**: `std::string DvfsStateInfoStr() const`  
--   **Description**: Retrieves the current Dynamic Voltage and Frequency Scaling (DVFS) state of the device.  
--   **Returns**: A formatted string indicating the DVFS state.  
   
 ***`FirmwareVersionStr()`***  
 -   **Signature**: `std::string FirmwareVersionStr() const`  
--   -**Description**: Retrieves the firmware version of the NPU.  
+-   **Description**: Retrieves the firmware version of the NPU, following the Major.Minor.Patch versioning format.  
 -   **Returns**: The version string (e.g., "1.2.3").  
   
 ***`GetDeviceType()`***  
@@ -555,58 +574,58 @@ Provides an abstraction for retrieving device information and real-time status.
   
 ***`GetInfoString()`***  
 -   **Signature**: `std::string GetInfoString() const`  
--   **Description**: Retrieves detailed static information about the device, equivalent to `dxrt-cli -i`.  
+-   **Description**: Retrieves detailed static information about the device, equivalent to `dxcli -i`.  
 -   **Returns**: A formatted string with device specifications.  
   
 ***`GetNpuClock(int ch)`***  
 -   **Signature**: `uint32_t GetNpuClock(int ch) const`  
--   **Description**: Retrieves the current clock frequency of the specified NPU channel.  
+-   **Description**: Retrieves the current clock frequency of the specified NPU channel. The clock frequency may change dynamically depending on performance scaling settings.  
 -   **Parameters**:  
     -   `ch`: The NPU channel index.  
 -   **Returns**: The clock frequency in megahertz (MHz).  
   
 ***`GetNpuVoltage(int ch)`***  
 -   **Signature**: `uint32_t GetNpuVoltage(int ch) const`  
--   **Description**: Retrieves the voltage level of the specified NPU channel.  
+-   **Description**: Retrieves the voltage level of the specified NPU channel. The voltage level can vary depending on power management settings and workload.  
 -   **Parameters**:  
     -   `ch`: The NPU channel index.  
 -   **Returns**: The voltage level in millivolts (mV).  
   
 ***`GetStatusString()`***  
 -   **Signature**: `std::string GetStatusString() const`  
--   **Description**: Retrieves the real-time status of the device, equivalent to `dxrt-cli -s`.  
+-   **Description**: Retrieves the real-time status of the device, equivalent to `dxcli -s`.  
 -   **Returns**: A formatted string with real-time status.  
   
 ***`GetTemperature(int ch)`***  
 -   **Signature**: `int GetTemperature(int ch) const`  
--   **Description**: Retrieves the temperature of the specified NPU channel.  
+-   **Description**: Retrieves the temperature of the specified NPU channel. Monitoring the temperature is crucial for ensuring the NPU operates within safe thermal limits.  
 -   **Parameters**:  
     -   `ch`: The NPU channel index.  
--   **Returns**: The temperature in degrees Celsius.  
+-   **Returns**: The temperature in degrees Celsius. Returns `INT16_MIN` when the channel index is out of range.  
   
 ***`MemoryClock()`***  
 -   **Signature**: `uint64_t MemoryClock() const`  
--   **Description**: Retrieves the memory clock frequency of the NPU.  
+-   **Description**: Retrieves the memory clock frequency of the NPU. The memory clock speed affects data transfer rates and overall processing efficiency.  
 -   **Returns**: The frequency in megahertz (MHz).  
   
 ***`MemoryFrequency()`***  
 -   **Signature**: `int MemoryFrequency() const`  
--   **Description**: Retrieves the memory operating frequency of the device.  
+-   **Description**: Retrieves the memory operating frequency of the device. Higher frequencies typically result in better memory performance.  
 -   **Returns**: The frequency in megahertz (MHz).  
   
 ***`MemorySize()`***  
 -   **Signature**: `int64_t MemorySize() const`  
--   **Description**: Retrieves the total memory size available for the NPU.  
+-   **Description**: Retrieves the total memory size available for the NPU. The memory size determines the capacity for storing models, intermediate computations, and input data.  
 -   **Returns**: The total memory size in bytes.  
   
 ***`MemorySizeStrBinaryPrefix()`***  
 -   **Signature**: `std::string MemorySizeStrBinaryPrefix() const`  
--   **Description**: Retrieves the total memory size as a string using binary units (e.g., "1.98 GiB").  
+-   **Description**: Retrieves the total memory size as a string using binary units (IEC standard). Example: `"1.98 GiB"`.  
 -   **Returns**: A formatted string.  
   
 ***`MemorySizeStrWithComma()`***  
 -   **Signature**: `std::string MemorySizeStrWithComma() const`  
--   **Description**: Retrieves the total memory size as a string in bytes, formatted with commas.  
+-   **Description**: Retrieves the total memory size as a string in bytes, formatted with thousands separators for readability. Example: `"2,130,706,432 Byte"`.  
 -   **Returns**: A formatted string.  
   
 ***`MemoryTypeStr()`***  
@@ -616,7 +635,7 @@ Provides an abstraction for retrieving device information and real-time status.
   
 ***`NpuStatusStr(int ch)`***  
 -   **Signature**: `std::string NpuStatusStr(int ch) const`  
--   **Description**: Retrieves the status of a specific NPU as a formatted string (voltage, clock, temperature).  
+-   **Description**: Retrieves the status of a specific NPU as a formatted string (voltage, clock, temperature). Example: `"NPU 0: voltage 825 mV, clock 800 MHz, temperature 46'C"`.  
 -   **Parameters**:  
     -   `ch`: The NPU index.  
 -   **Returns**: A formatted string.  
@@ -628,6 +647,23 @@ Provides an abstraction for retrieving device information and real-time status.
     -   `spd`, `wd`, `bus`, `dev`, `func`: PCIe configuration parameters.  
 -   **Returns**: A formatted string with PCIe information.  
   
+***`GetCoreUtilization(int coreId)`***
+-   **Signature**: `double GetCoreUtilization(int coreId) const`
+-   **Description**: Retrieves the utilization of the specified NPU core.
+-   **Parameters**:
+    -   `coreId`: The NPU core index (0 to 2).
+-   **Returns**: Utilization percentage (0.0 ~ 100.0). Returns -1.0 if coreId is out of range. Returns 0.0 if monitoring data is unavailable.
+
+***`GetMemoryUsed()`***
+-   **Signature**: `uint64_t GetMemoryUsed() const`
+-   **Description**: Retrieves the amount of NPU DRAM currently in use.
+-   **Returns**: DRAM usage in bytes. Returns 0 if monitoring data is unavailable.
+
+***`GetMemoryFree()`***
+-   **Signature**: `uint64_t GetMemoryFree() const`
+-   **Description**: Retrieves the amount of free NPU DRAM.
+-   **Returns**: Free DRAM in bytes. Returns 0 if monitoring data is unavailable.
+
 ---  
   
 ### class dxrt::Tensor  
@@ -689,5 +725,97 @@ This class abstracts a DXRT tensor object, which defines a data array composed o
 -   **Signature**: `DataType &type()`  
 -   **Description**: Accessor for the tensor's data type.  
 -   **Returns**: A reference to the `DataType` enum.  
+  
+---  
+  
+### class dxrt::RuntimeEventDispatcher  
+  
+A singleton class that provides a centralized event dispatching mechanism for runtime events such as device errors, warnings, and notifications. It supports custom event handlers and automatic logging of events with different severity levels. Access is thread-safe and should be done via the `GetInstance()` method.  
+  
+#### Nested Enums  
+  
+***`enum class LEVEL`***  
+-   **Description**: Event severity levels for categorizing runtime events.  
+-   **Members**:  
+    -   `INFO` (1): Informational messages for normal operation events.  
+    -   `WARNING` (2): Warning messages for potential issues that don't stop execution.  
+    -   `ERROR` (3): Error messages for recoverable failures.  
+    -   `CRITICAL` (4): Critical errors that may cause system instability.  
+  
+***`enum class TYPE`***  
+-   **Description**: Event type categories for classifying the source of events.  
+-   **Members**:  
+    -   `DEVICE_CORE` (1000): Events related to NPU core operations.  
+    -   `DEVICE_STATUS` (1001): Device status change events.  
+    -   `DEVICE_IO` (1002): Input/Output operation events.  
+    -   `DEVICE_MEMORY` (1003): Memory management events.  
+    -   `UNKNOWN` (1004): Unknown or unclassified event types.  
+  
+***`enum class CODE`***  
+-   **Description**: Specific event codes for identifying the exact nature of events.  
+-   **Members**:  
+    -   `WRITE_INPUT` (2000): Input data write operation event.  
+    -   `READ_OUTPUT` (2001): Output data read operation event.  
+    -   `MEMORY_OVERFLOW` (2002): Memory overflow or capacity exceeded.  
+    -   `MEMORY_ALLOCATION` (2003): Memory allocation failure or issue.  
+    -   `DEVICE_EVENT` (2004): General device event notification.  
+    -   `RECOVERY_OCCURRED` (2005): Device recovery action taken.  
+    -   `TIMEOUT_OCCURRED` (2006): Operation timeout event.  
+    -   `THROTTLING_NOTICE` (2007): Device throttling notification.  
+    -   `THROTTLING_EMERGENCY` (2008): Device throttling emergency notification.  
+    -   `UNKNOWN` (2009): Unknown or unclassified event code.  
+  
+#### Static Member Functions  
+  
+***`GetInstance()`***  
+-   **Signature**: `static RuntimeEventDispatcher& GetInstance()`  
+-   **Description**: Returns the unique static instance of the `RuntimeEventDispatcher` class. This is the only way to access the dispatcher object.  
+-   **Returns**: A reference to the `RuntimeEventDispatcher` instance.  
+-   **Example**:
+    ```cpp
+    auto& dispatcher = dxrt::RuntimeEventDispatcher::GetInstance();
+    ```
+  
+#### Member Functions  
+  
+***`DispatchEvent(LEVEL level, TYPE type, CODE code, const std::string& eventMessage)`***  
+-   **Signature**: `void DispatchEvent(LEVEL level, TYPE type, CODE code, const std::string& eventMessage)`  
+-   **Description**: Dispatches a runtime event with the specified parameters. The event is logged and any registered custom event handler is invoked. Events are filtered based on the current level threshold set via `SetCurrentLevel`.  
+-   **Parameters**:  
+    -   `level`: Severity level of the event (`INFO`, `WARNING`, `ERROR`, `CRITICAL`).  
+    -   `type`: Category of the event (`DEVICE_CORE`, `DEVICE_IO`, etc.).  
+    -   `code`: Specific event code identifying the exact event.  
+    -   `eventMessage`: Descriptive message providing event details.  
+  
+***`RegisterEventHandler(const std::function<void(LEVEL, TYPE, CODE, const std::string& message, const std::string& timestamp)>& handler)`***  
+-   **Signature**: `void RegisterEventHandler(const std::function<void(LEVEL, TYPE, CODE, const std::string& message, const std::string& timestamp)>& handler)`  
+-   **Description**: Registers a user-defined callback function that will be invoked for each dispatched event. Only one handler can be registered at a time; subsequent calls will replace the previous handler. The handler is invoked synchronously but with minimal lock holding time to avoid blocking.  
+-   **Parameters**:  
+    -   `handler`: Callback function with the signature `void(LEVEL, TYPE, CODE, const std::string& message, const std::string& timestamp)`.  
+-   **Example**:
+    ```cpp
+    auto& dispatcher = dxrt::RuntimeEventDispatcher::GetInstance();
+    dispatcher.RegisterEventHandler(
+        [](dxrt::RuntimeEventDispatcher::LEVEL level,
+           dxrt::RuntimeEventDispatcher::TYPE type,
+           dxrt::RuntimeEventDispatcher::CODE code,
+           const std::string& message,
+           const std::string& timestamp)
+        {
+            std::cout << "[" << timestamp << "] " << message << std::endl;
+        }
+    );
+    ```
+  
+***`SetCurrentLevel(LEVEL level)`***  
+-   **Signature**: `void SetCurrentLevel(LEVEL level)`  
+-   **Description**: Sets the minimum event level threshold. Events below this level may be filtered out by custom handlers.  
+-   **Parameters**:  
+    -   `level`: Minimum severity level for events to be processed.  
+  
+***`GetCurrentLevel()`***  
+-   **Signature**: `LEVEL GetCurrentLevel() const`  
+-   **Description**: Gets the current minimum event level threshold.  
+-   **Returns**: The current minimum event severity level as a `LEVEL` enum value.  
   
 ---  

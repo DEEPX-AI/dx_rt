@@ -60,22 +60,13 @@ int RequestResponse::InferenceRequest(RequestPtr req)
             try {
 #ifdef USE_PROFILER
                 auto& profiler = dxrt::Profiler::GetInstance();
-                std::string buffer_wait_name =
-                    "Buffer Wait[Device_" + std::to_string(device->id()) + "][Job_" + std::to_string(req->job_id()) + "][" +
-                    req->task()->name() + "][Req_" +
-                    std::to_string(req->id()) + "]";
-                profiler.Start(buffer_wait_name);
+                profiler.Start(dxrt::Profiler::EventType::BUFFER_POOL_WAIT, req->task()->name(), device->id(), req->job_id());
 #endif
                 BufferSet buffers = req->task()->AcquireAllBuffers();
 #ifdef USE_PROFILER
-                profiler.End(buffer_wait_name);
+                profiler.End(dxrt::Profiler::EventType::BUFFER_POOL_WAIT, req->task()->name(), device->id(), req->job_id());
                 req->CheckTimePoint(0);
-                // Start profiling for overall NPU task (input preprocess + PCIe + NPU execution + output postprocess)
-                std::string profile_name =
-                    "NPU Task[Device_" + std::to_string(device->id()) + "][Job_" + std::to_string(req->job_id()) + "][" +
-                    req->task()->name() + "][Req_" +
-                    std::to_string(req->id()) + "]";
-                profiler.Start(profile_name);
+                profiler.Start(dxrt::Profiler::EventType::NPU_TASK_TOTAL, req->task()->name(), device->id(), req->job_id());
 #endif
                 req->getData()->output_buffer_base = buffers.output;
                 // CPU always uses virtual addresses for encoding/decoding
@@ -103,7 +94,7 @@ int RequestResponse::InferenceRequest(RequestPtr req)
         }
         else
         {
-            // If output buffers already exist, allocate only the remaining buffers
+            // This branch is only reachable when DXRT_USE_DEVICE_VALIDATION is enabled.
             req->getData()->encoded_inputs_ptr = req->task()->GetEncodedInputBuffer();
             req->getData()->encoded_outputs_ptr = req->task()->GetEncodedOutputBuffer();
         }
@@ -129,15 +120,11 @@ int RequestResponse::InferenceRequest(RequestPtr req)
             try {
 #ifdef USE_PROFILER
                 auto& profiler_cpu = dxrt::Profiler::GetInstance();
-                std::string cpu_buffer_wait_name =
-                    "Buffer Wait[Job_" + std::to_string(req->job_id()) + "][" +
-                    req->task()->name() + "][Req_" +
-                    std::to_string(req->id()) + "]";
-                profiler_cpu.Start(cpu_buffer_wait_name);
+                profiler_cpu.Start(dxrt::Profiler::EventType::BUFFER_POOL_WAIT, req->task()->name(), req->job_id());
 #endif
                 BufferSet buffers = req->task()->AcquireAllBuffers();
 #ifdef USE_PROFILER
-                profiler_cpu.End(cpu_buffer_wait_name);
+                profiler_cpu.End(dxrt::Profiler::EventType::BUFFER_POOL_WAIT, req->task()->name(), req->job_id());
                 req->CheckTimePoint(0);
 #endif
                 TASK_FLOW("[" + std::to_string(req->job_id()) + "]" +
@@ -388,13 +375,8 @@ int RequestResponse::ProcessResponse(RequestPtr req, const dxrt_response_t& resp
 {
 #ifdef USE_PROFILER
     req->CheckTimePoint(1);
-    // End profiling for overall NPU task
     auto& profiler = dxrt::Profiler::GetInstance();
-    std::string profile_name =
-        "NPU Task[Device_" + std::to_string(req->getData()->_processedDevId) + "][Job_" + std::to_string(req->job_id()) + "][" +
-        req->task()->name() + "][Req_" + std::to_string(req->id()) + "]";
-    profiler.End(profile_name);
-
+    profiler.End(dxrt::Profiler::EventType::NPU_TASK_TOTAL, req->task()->name(), req->getData()->_processedDevId, req->job_id());
 #endif
         LOG_DXRT_DBG
             << "[" << req->id() << "] Response : " << req->id() << ", "

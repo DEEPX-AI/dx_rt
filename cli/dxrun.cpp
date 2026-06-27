@@ -8,6 +8,7 @@
  *
  * This file uses cxxopts (MIT License) - Copyright (c) 2014 Jarryd Beck.
  */
+#include <cstring>
 #include <string>
 #include <vector>
 #include <sstream>
@@ -16,15 +17,51 @@
 #include <iostream>
 #include <fstream>
 #include <memory>
+#include <chrono>
+#include <condition_variable>
+#include <atomic>
+#include <thread>
+#include <stdexcept>
 
-#include "dxrt/dxrt_api.h"
+#include "dxrt/dxrt_cxx_api.h"
 #include "dxrt/extern/cxxopts.hpp"
-#include "dxrt/filesys_support.h"
-#include "dxrt/profiler.h"
-#include "dxrt/runtime_event_dispatcher.h"
+
+// Local constants replacing internal macros.
+// TODO: expose via public API (dxrt_get_bound_inf_max / dxrt_get_task_max_load_limit)
+// when these values change in driver.h. Current values verified against internal defs.
+static constexpr int kBoundInfMax = 7;       // == dxrt::N_BOUND_INF_MAX (driver.h)
+static constexpr int kTaskMaxLoadLimit = 100; // == DXRT_TASK_MAX_LOAD_LIMIT (common.h)
+static int getTaskMaxLoadValue() { return dxrt::get_task_max_load(); }
+#define LOG_VALUE(val) std::cout << #val << ": " << val << std::endl
+
+// Local file-I/O helpers (replace internal filesys_support)
+static int64_t localGetFileSize(const std::string& filename) {
+    std::ifstream f(filename, std::ios::binary | std::ios::ate);
+    if (!f) return -1;
+    return static_cast<int64_t>(f.tellg());
+}
+
+static bool localDataFromFile(const std::string& filename, void* dst, size_t size) {
+    std::ifstream f(filename, std::ios::binary);
+    if (!f) return false;
+    f.read(static_cast<char*>(dst), static_cast<std::streamsize>(size));
+    return static_cast<size_t>(f.gcount()) == size;
+}
+
+static void localDataDumpBin(const std::string& filename, const dxrt::TensorPtrs& outputs) {
+    std::ofstream f(filename, std::ios::binary);
+    if (!f) {
+        std::cerr << "[ERR] Cannot open output file: " << filename << std::endl;
+        return;
+    }
+    for (const auto& t : outputs) {
+        if (t && t->data() && t->size_in_bytes() > 0)
+            f.write(static_cast<const char*>(t->data()), static_cast<std::streamsize>(t->size_in_bytes()));
+    }
+}
 
 
-#define APP_NAME "DXRT " DXRT_VERSION " run_model"
+#define APP_NAME "DXRT " DXRT_VERSION
 // #define TARGET_FPS_DEBUG
 
 using std::cout;
@@ -177,7 +214,7 @@ void PrintInfResult(const std::string& inputFile, const std::string& outputFile,
     std::vector<std::string> lines;
     (void)modelFile;
 
-    if (dxrt::SHOW_PROFILE)
+    if (dxrt::Configuration::GetInstance().GetEnable(dxrt::Configuration::ITEM::SHOW_PROFILE))
         verbose = true;
 
     const std::string desc_npu_time = "Actual NPU core computation time for a single request";
@@ -244,7 +281,7 @@ void PrintInfResult(const std::string& inputFile, const std::string& outputFile,
 
     size_t maxLength = 0;
     for (const auto& line : lines) {
-        maxLength = std::max(maxLength, line.length());
+        maxLength = (std::max)(maxLength, line.length());
     }
 
     std::cout << std::string(maxLength, '=') << std::endl;
@@ -265,6 +302,40 @@ void SetRunModelMode(bool single, int targetFps)
         mode = BENCHMARK_MODE;
     }
     cout << "Run model target mode : " << mode << endl;
+}
+
+struct MultiInputBuffers
+{
+    bool is_multi_input = false;
+    std::vector<std::vector<uint8_t>> buffers;
+    std::vector<void*> ptrs;
+};
+
+static MultiInputBuffers prepareMultiInputBuffers(dxrt::InferenceEngine& ie, void* inputBuffer)
+{
+    MultiInputBuffers result;
+    result.is_multi_input = ie.IsMultiInputModel();
+    if (!result.is_multi_input)
+    {
+        return result;
+    }
+
+    auto tensor_sizes = ie.GetInputTensorSizes();
+    result.buffers.resize(tensor_sizes.size());
+    uint64_t offset = 0;
+    for (size_t idx = 0; idx < tensor_sizes.size(); ++idx)
+    {
+        result.buffers[idx].resize(tensor_sizes[idx], 0);
+        if (inputBuffer != nullptr)
+        {
+            std::memcpy(result.buffers[idx].data(),
+                        static_cast<uint8_t*>(inputBuffer) + offset,
+                        tensor_sizes[idx]);
+            offset += tensor_sizes[idx];
+        }
+        result.ptrs.push_back(result.buffers[idx].data());
+    }
+    return result;
 }
 
 static float runBenchmarkByTime(int64_t& outLoops, dxrt::InferenceEngine& ie, void* inputBuffer, int64_t targetDurationSec)
@@ -293,10 +364,20 @@ static float runBenchmarkByTime(int64_t& outLoops, dxrt::InferenceEngine& ie, vo
         return 0;
     });
 
+    // Pre-allocate multi-input buffers before the loop
+    auto mi = prepareMultiInputBuffers(ie, inputBuffer);
+
     auto start = std::chrono::steady_clock::now();
     for(;;) // no limit
     {
-        ie.RunAsync(inputBuffer);
+        if (mi.is_multi_input)
+        {
+            ie.RunAsyncMultiInput(mi.ptrs);
+        }
+        else
+        {
+            ie.RunAsync(inputBuffer);
+        }
 
         {
             std::unique_lock<std::mutex> lock(cb_mutex);
@@ -361,6 +442,8 @@ static float runAsyncTargetFPS(int64_t& outLoops, dxrt::InferenceEngine& ie, int
 
     ie.RegisterCallback(postProcCallBack);
 
+    // Pre-allocate multi-input buffers before the loop
+    auto mi = prepareMultiInputBuffers(ie, inputBuffer);
 
     auto start_clock = std::chrono::steady_clock::now();
     for(int64_t i = 0; ; ++i)
@@ -369,7 +452,14 @@ static float runAsyncTargetFPS(int64_t& outLoops, dxrt::InferenceEngine& ie, int
         auto loopStartTime = std::chrono::steady_clock::now();  // Start time for this loop
 #endif
 
-        (void)ie.RunAsync(inputBuffer, 0);
+        if (mi.is_multi_input)
+        {
+            (void)ie.RunAsyncMultiInput(mi.ptrs);
+        }
+        else
+        {
+            (void)ie.RunAsync(inputBuffer, 0);
+        }
         run_count ++;
 
 #ifdef TARGET_FPS_DEBUG
@@ -434,7 +524,9 @@ static float runAsyncTargetFPS(int64_t& outLoops, dxrt::InferenceEngine& ie, int
 
 int main(int argc, char *argv[])
 {
-    string modelFile = "", inputFile = "", outputFile = "";
+    string modelFile = "";
+    string inputFile = "";
+    string outputFile = "";
     bool benchmark = false;
     bool single = false;
     int64_t loops = 1;
@@ -446,8 +538,9 @@ int main(int argc, char *argv[])
     int64_t duration = 0;
     int num_devices = 0;
     int64_t warmup_runs = 0;  // Added warmup runs
-    int buffer_count = DXRT_TASK_MAX_LOAD_VALUE;
+    int buffer_count = getTaskMaxLoadValue();
     bool profiler_enable = false;
+    bool throttling_info = false;
 #ifdef DXRT_NFH_ACCELERATION_AVAILABLE
     bool accel_nfh = false;
 #endif
@@ -458,7 +551,11 @@ int main(int argc, char *argv[])
     mode = RunModelMode::BENCHMARK_MODE;  // default mode: benchmark
     bounding = 0;  // default bounding: NPU_ALL
 
-    cxxopts::Options options("run_model", APP_NAME);
+    std::string program_name(argv[0]);
+    { auto s = program_name.rfind('/');  if (s != std::string::npos) program_name = program_name.substr(s + 1); }
+    { auto s = program_name.rfind('\\'); if (s != std::string::npos) program_name = program_name.substr(s + 1); }
+    const std::string help_text = std::string(APP_NAME) + " " + program_name;
+    cxxopts::Options options(program_name, help_text);
     options.add_options()
         ("m, model", "Model file (.dxnn)" , cxxopts::value<string>(modelFile)->default_value(""))
         // Disable until dx_sim support is ready
@@ -493,13 +590,14 @@ int main(int argc, char *argv[])
 #ifdef DXRT_CPU_OP_ACCELERATION_AVAILABLE
         ("accel-cpu", "Enable CPU op acceleration (OpenVINO/XNNPACK)", cxxopts::value<bool>(accel_cpu)->default_value("false"))
 #endif
-        ("buffer-count", "Number of input/output buffers, count's range is 1~" + std::to_string(DXRT_TASK_MAX_LOAD_LIMIT), cxxopts::value<int>(buffer_count)->default_value(std::to_string(DXRT_TASK_MAX_LOAD_VALUE)))
+        ("buffer-count", "Number of input/output buffers, count's range is 1~" + std::to_string(kTaskMaxLoadLimit), cxxopts::value<int>(buffer_count)->default_value(std::to_string(getTaskMaxLoadValue())))
         ("h, help", "Print usage" );
 
     options.add_options("internal")
         ("i, input", "Input data file", cxxopts::value<string>(inputFile)->default_value(""))
         ("o, output", "Output data file", cxxopts::value<string>(outputFile)->default_value("output.bin"))
-        ("skip-io", "Attempt to skip Inference I/O (Benchmark mode only)", cxxopts::value<bool>(skip_inference_io)->default_value("false"));
+        ("skip-io", "Attempt to skip Inference I/O (Benchmark mode only)", cxxopts::value<bool>(skip_inference_io)->default_value("false"))
+        ("throttling-info", "Enable display throttling info", cxxopts::value<bool>(throttling_info)->default_value("false"));
 
     try
     {
@@ -517,9 +615,9 @@ int main(int argc, char *argv[])
 
         if ( cmd.count("buffer-count") )
         {
-            if ( buffer_count <= 0 || buffer_count > DXRT_TASK_MAX_LOAD_LIMIT )
+            if ( buffer_count <= 0 || buffer_count > kTaskMaxLoadLimit )
             {
-                std::cout << "Please check --buffer-count option value. Must be between 1 and " << DXRT_TASK_MAX_LOAD_LIMIT << endl;
+                std::cout << "Please check --buffer-count option value. Must be between 1 and " << kTaskMaxLoadLimit << endl;
                 exit(1);
             }
             else
@@ -565,6 +663,7 @@ int main(int argc, char *argv[])
 
     // always showing the model information
     dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::SHOW_MODEL_INFO, true);
+    
 
     try
     {
@@ -582,6 +681,12 @@ int main(int argc, char *argv[])
     catch (const dxrt::Exception &e)
     {
         std::cout << e.what() << std::endl;
+    }
+
+    if ( throttling_info )
+    {
+        dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::SHOW_THROTTLING, true);
+        std::cout << "<Throttling info enabled>" << std::endl;
     }
 
     if ( modelFile.length() == 0)
@@ -729,13 +834,13 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (bounding >= 0 && bounding < dxrt::N_BOUND_INF_MAX)
+    if (bounding >= 0 && bounding < kBoundInfMax)
     {
         op.boundOption = static_cast<dxrt::InferenceOption::BOUND_OPTION>(bounding);
     }
     else
     {
-        std::cout << "[ERR] Please check bounding option value. Must be between 0 and " << (dxrt::N_BOUND_INF_MAX -1) << endl;
+        std::cout << "[ERR] Please check bounding option value. Must be between 0 and " << (kBoundInfMax -1) << endl;
         return -1;
     }
     op.useORT = use_ort;
@@ -789,15 +894,28 @@ int main(int argc, char *argv[])
         vector<uint8_t> inputBuf(ie.GetInputSize(), 0);
         if (!inputFile.empty())
         {
-            DXRT_ASSERT(ie.GetInputSize() == static_cast<uint64_t>(dxrt::getFileSize(inputFile)), "input file size mismatch");
-            dxrt::DataFromFile(inputFile, inputBuf.data());
+            int64_t fileSize = localGetFileSize(inputFile);
+            if (fileSize < 0)
+                throw std::runtime_error("cannot open input file: " + inputFile);
+            if (ie.GetInputSize() != static_cast<uint64_t>(fileSize))
+                throw std::runtime_error("input file size mismatch");
+            if (!localDataFromFile(inputFile, inputBuf.data(), inputBuf.size()))
+                throw std::runtime_error("failed to read input file: " + inputFile);
         }
 
         // Perform warmup runs if specified
         if (warmup_runs > 0) {
             std::cout << "Performing " << warmup_runs << " warmup run(s)..." << std::endl;
+            auto warmup_mi = prepareMultiInputBuffers(ie, inputBuf.data());
             for (int64_t i = 0; i < warmup_runs; ++i) {
-                ie.Run(inputBuf.data());
+                if (warmup_mi.is_multi_input)
+                {
+                    ie.RunMultiInput(warmup_mi.ptrs);
+                }
+                else
+                {
+                    ie.Run(inputBuf.data());
+                }
             }
             std::cout << "Warmup completed." << std::endl;
         }
@@ -805,7 +923,7 @@ int main(int argc, char *argv[])
 
         if (skip_inference_io)
         {
-            dxrt::SKIP_INFERENCE_IO = 1;
+            dxrt::set_skip_inference_io(true);
         }
 
         switch (mode)
@@ -813,15 +931,24 @@ int main(int argc, char *argv[])
             case SINGLE_MODE: {
                 uint64_t infTime = 0;
                 float fps = 0.0;
+                auto single_mi = prepareMultiInputBuffers(ie, inputBuf.data());
                 for (int i = 0; i < loops; i++)
                 {
                     auto start_clock = std::chrono::steady_clock::now();
-                    auto outputs = ie.Run(inputBuf.data());
+                    dxrt::TensorPtrs outputs;
+                    if (single_mi.is_multi_input)
+                    {
+                        outputs = ie.RunMultiInput(single_mi.ptrs);
+                    }
+                    else
+                    {
+                        outputs = ie.Run(inputBuf.data());
+                    }
                     auto end_clock = std::chrono::steady_clock::now();
                     infTime = std::chrono::duration_cast<std::chrono::microseconds>(end_clock - start_clock).count();
                     fps = 1000000.0/infTime;
                     if (!inputFile.empty())
-                        dxrt::DataDumpBin(outputFile, outputs);
+                        localDataDumpBin(outputFile, outputs);
                     PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatency()/1000., ie.GetNpuInferenceTime()/1000., fps, 1, mode, verbose);
                 }
                 break;
@@ -843,8 +970,18 @@ int main(int argc, char *argv[])
                     fps = ie.RunBenchmark(loops, inputBuf.data());
                     if (!inputFile.empty())
                     {
-                        auto outputs = ie.Run(inputBuf.data());
-                        dxrt::DataDumpBin(outputFile, outputs);  /* TODO: sparse tensor */
+                        auto bench_mi = prepareMultiInputBuffers(ie, inputBuf.data());
+                        dxrt::TensorPtrs outputs;
+                        if (bench_mi.is_multi_input)
+                        {
+                            outputs = ie.RunMultiInput(bench_mi.ptrs);
+                        }
+                        else
+                        {
+                            outputs = ie.Run(inputBuf.data());
+                        }
+
+                        localDataDumpBin(outputFile, outputs);  /* TODO: sparse tensor */
                     }
                 }
                 PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatencyMean()/1000., ie.GetNpuInferenceTimeMean()/1000., fps, loops, mode, verbose);

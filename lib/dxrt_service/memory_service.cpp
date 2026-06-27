@@ -24,7 +24,11 @@ namespace dxrt {
 
 std::vector<MemoryService*> MemoryService::_instances;
 
+#ifdef DEBUG_DXRT
+static constexpr bool ENABLE_MEMORY_TRACE_LOGS = true;
+#else
 static constexpr bool ENABLE_MEMORY_TRACE_LOGS = false;
+#endif
 
 MemoryService* MemoryService::getInstance(int deviceId)
 {
@@ -126,28 +130,67 @@ uint64_t MemoryService::BackwardAllocate(uint64_t size, pid_t pid)
 
 bool MemoryService::Deallocate(uint64_t addr, pid_t pid)
 {
+    return DeallocateAddress(addr, pid);
+}
+
+bool MemoryService::DeallocateAddress(uint64_t addr, pid_t pid)
+{
     if (ENABLE_MEMORY_TRACE_LOGS) {
         LOG_DXRT_S << "Requesting deallocation of address " << hex << addr << dec << " for PID " << pid << endl;
     }
 
     std::lock_guard<std::mutex> lk(_lock);
-    auto it1 = _legacyAllocInfo.find(pid);
-    if (it1 == _legacyAllocInfo.end())
-    {
-        LOG_DXRT_S_DBG << "not regestered pid " << pid << " (legacy)" << endl;
-        return false;
-    }
-    auto it2 = it1->second.find(addr);
-    if (it2 == it1->second.end())
-    {
-        LOG_DXRT_S_DBG << "not allocated addr " << hex << addr << dec  << " for pid " << pid << " (legacy)" << endl;
-        return false;
-    }
-    it1->second.erase(it2);
-    _mem->Deallocate(addr);
-    LOG_DXRT_S_DBG << hex << addr << dec << " is Deallocated (legacy)"<< " for pid " << pid << endl;
 
-    return true;
+    // 1) Legacy PID-based allocation tracking
+    auto it1 = _legacyAllocInfo.find(pid);
+    if (it1 != _legacyAllocInfo.end())
+    {
+        auto it2 = it1->second.find(addr);
+        if (it2 != it1->second.end())
+        {
+            it1->second.erase(it2);
+            _mem->Deallocate(addr);
+            LOG_DXRT_S_DBG << hex << addr << dec << " is Deallocated (legacy)" << " for pid " << pid << endl;
+            return true;
+        }
+    }
+
+    // 2) Task-based allocation tracking
+    auto pidIt = _taskAllocInfo.find(pid);
+    if (pidIt != _taskAllocInfo.end())
+    {
+        for (auto taskIt = pidIt->second.begin(); taskIt != pidIt->second.end(); )
+        {
+            auto &addrSet = taskIt->second;
+            auto addrIt = addrSet.find(addr);
+            if (addrIt != addrSet.end())
+            {
+                addrSet.erase(addrIt);
+                _mem->Deallocate(addr);
+                LOG_DXRT_S_DBG << hex << addr << dec << " is deallocated for Task " << taskIt->first
+                               << ", PID:" << pid << endl;
+
+                if (addrSet.empty())
+                {
+                    taskIt = pidIt->second.erase(taskIt);
+                }
+                else
+                {
+                    ++taskIt;
+                }
+
+                if (pidIt->second.empty())
+                {
+                    _taskAllocInfo.erase(pidIt);
+                }
+                return true;
+            }
+            ++taskIt;
+        }
+    }
+
+    LOG_DXRT_S_DBG << "not allocated addr " << hex << addr << dec << " for pid " << pid << endl;
+    return false;
 }
 
 void MemoryService::DeallocateAll(pid_t pid)

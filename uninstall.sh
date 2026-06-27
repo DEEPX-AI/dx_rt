@@ -75,7 +75,7 @@ uninstall_project_specific_files()
 delete_legacy_file() 
 {
     local file_path="$1"
-    if [ -f "$file_path" ]; then
+    if [ -f "$file_path" ] || [ -L "$file_path" ]; then
         sudo rm -f "$file_path"
         if [ $? -eq 0 ]; then
             print_colored_v2 "INFO" "Legacy file $file_path removed successfully."
@@ -87,6 +87,15 @@ remove_legacy_files()
 {
     print_colored_v2 "INFO" "Removing legacy files..."
     delete_legacy_file "/usr/local/bin/dxrt-cli-internal"
+    # SR-439: new binary names
+    delete_legacy_file "/usr/local/bin/dxcli"
+    delete_legacy_file "/usr/local/bin/dxcli-internal"
+    delete_legacy_file "/usr/local/bin/dxparse"
+    delete_legacy_file "/usr/local/bin/dxrun"
+    # SR-439: backward-compat aliases (symlinks/hard links)
+    delete_legacy_file "/usr/local/bin/dxrt-cli"
+    delete_legacy_file "/usr/local/bin/parse_model"
+    delete_legacy_file "/usr/local/bin/run_model"
     delete_legacy_file "/usr/local/bin/dx_npu_runtime"
     delete_legacy_file "/usr/local/bin/dxrt_test"
     delete_legacy_file "/usr/local/bin/test/dxrt_test_ipc_wrapper_mq_client"

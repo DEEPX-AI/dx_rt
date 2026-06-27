@@ -10,7 +10,7 @@
 #pragma once
 
 #include "dxrt/common.h"
-#include "../include/dxrt/ipc_wrapper/ipc_client_wrapper.h"
+#include "dxrt/ipc_wrapper/ipc_client_wrapper.h"
 
 namespace dxrt {
 class DXRT_API ExceptionHandler

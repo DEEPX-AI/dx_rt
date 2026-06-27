@@ -13,51 +13,51 @@
 #include <mutex>
 #include <iostream>
 #include "dxrt/common.h"
-#include "dxrt/npu_memory_cache.h"
-#include "dxrt/device_task_layer.h"
+#include "include/dxrt/npu_memory_cache.h"
+#include "include/dxrt/device_task_layer.h"
 
 
 using std::endl;
 
 namespace dxrt {
 
-TaskNpuMemoryCacheManager::TaskNpuMemoryCacheManager(int64_t size, int count, int64_t offset)
+TaskNpuMemoryCacheManager::TaskNpuMemoryCacheManager(int64_t size, int count, SharedMemoryInfo info)
 {
-
-    LOG_DXRT_DBG << "init: " << offset << " is inited" << endl;
-    _npuMemoryCacheOffset = offset;
+    LOG_DXRT_DBG << "init: " << info.phys_addr_offset << " is inited" << endl;
+    _npuMemoryInfo = info;
     for (int i = 0; i < count; i++)
     {
-        _npuMemoryCaches.push_back(offset + size * i);
-        LOG_DXRT_DBG << " init: " << _npuMemoryCaches.back() << " is pushed" << endl;
+        NpuMemoryCacheSlice slice;
+        slice.view.info   = info;
+        slice.view.offset = static_cast<uint64_t>(size * i);
+        slice.view.size   = static_cast<uint64_t>(size);
+        _npuMemoryCaches.push_back(slice);
+        LOG_DXRT_DBG << " init: " << slice.view.offset << " is pushed" << endl;
     }
-
-
 }
 TaskNpuMemoryCacheManager::~TaskNpuMemoryCacheManager()
 {
     _cv.notify_all();
 }
 
-int64_t TaskNpuMemoryCacheManager::getOffset() const
+SharedMemoryInfo TaskNpuMemoryCacheManager::getMemoryInfo() const
 {
-    return _npuMemoryCacheOffset;
+    return _npuMemoryInfo;
 }
-void TaskNpuMemoryCacheManager::returnNpuMemoryCache(int64_t addr)
+void TaskNpuMemoryCacheManager::returnNpuMemoryCache(const NpuMemoryCacheSlice &slice)
 {
     std::unique_lock<std::mutex> lock(_lock);
-    _npuMemoryCaches.push_back(addr);
+    _npuMemoryCaches.push_back(slice);
     _cv.notify_one();
 }
-int64_t TaskNpuMemoryCacheManager::getNpuMemoryCache()
+NpuMemoryCacheSlice TaskNpuMemoryCacheManager::getNpuMemoryCache()
 {
     std::unique_lock<std::mutex> lock(_lock);
     _cv.wait(lock, [this] {
         return _npuMemoryCaches.empty() == false;
     });
 
-
-    int64_t retval = _npuMemoryCaches.back();
+    NpuMemoryCacheSlice retval = _npuMemoryCaches.back();
     _npuMemoryCaches.pop_back();
     return retval;
 }
@@ -72,14 +72,14 @@ bool NpuMemoryCacheManager::registerMemoryCache(int taskId, int64_t size, int co
 {
     UniqueLock lock(_npuMemoryCacheLock);
 
+    SharedMemoryInfo info = _device->AllocateInfo(taskId, MemoryType::Input_output, size * count);
 
-    int64_t offset = _device->Allocate(size * count);
-
-    if (offset != -1)
+    // Success: fd >= 0 (service mode shared memory) or block_id >= 0 (no-service mode pool allocation)
+    if (info.fd >= 0 || info.block_id >= 0)
     {
-        LOG_DXRT_DBG << "init: " << offset << " is inited" << endl;
+        LOG_DXRT_DBG << "init: " << info.phys_addr_offset << " is inited" << endl;
         _taskNpuMemoryCaches.emplace(taskId,
-            std::make_shared<TaskNpuMemoryCacheManager>(size, count, offset));
+            std::make_shared<TaskNpuMemoryCacheManager>(size, count, info));
         return true;
     }
     else
@@ -96,7 +96,7 @@ void NpuMemoryCacheManager::unRegisterMemoryCache(int taskId)
     {
         return;
     }
-    _device->Deallocate(it->second->getOffset());
+    _device->DeallocateInfo(it->second->getMemoryInfo());
     _taskNpuMemoryCaches.erase(it);
 }
 bool NpuMemoryCacheManager::canGetCache(int taskId)
@@ -105,7 +105,7 @@ bool NpuMemoryCacheManager::canGetCache(int taskId)
 
     return _taskNpuMemoryCaches.find(taskId) != _taskNpuMemoryCaches.end();
 }
-int64_t NpuMemoryCacheManager::getNpuMemoryCache(int taskId)
+NpuMemoryCacheSlice NpuMemoryCacheManager::getNpuMemoryCache(int taskId)
 {
     SharedLock lock(_npuMemoryCacheLock);
     auto it = _taskNpuMemoryCaches.find(taskId);
@@ -115,15 +115,26 @@ int64_t NpuMemoryCacheManager::getNpuMemoryCache(int taskId)
         lock.unlock();
         return manager->getNpuMemoryCache();
     }
-    return -1;
+    return NpuMemoryCacheSlice{};
 }
-void NpuMemoryCacheManager::returnNpuMemoryCache(int taskId, int64_t addr)
+SharedMemoryInfo NpuMemoryCacheManager::getBackingInfo(int taskId)
 {
     SharedLock lock(_npuMemoryCacheLock);
     auto it = _taskNpuMemoryCaches.find(taskId);
     if (it != _taskNpuMemoryCaches.end())
     {
-        it->second->returnNpuMemoryCache(addr);
+        return it->second->getMemoryInfo();
+    }
+    return SharedMemoryInfo{};
+}
+
+void NpuMemoryCacheManager::returnNpuMemoryCache(int taskId, const NpuMemoryCacheSlice &slice)
+{
+    SharedLock lock(_npuMemoryCacheLock);
+    auto it = _taskNpuMemoryCaches.find(taskId);
+    if (it != _taskNpuMemoryCaches.end())
+    {
+        it->second->returnNpuMemoryCache(slice);
     }
 }
 

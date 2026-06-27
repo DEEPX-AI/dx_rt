@@ -161,7 +161,13 @@ void InferenceJob::onAllRequestComplete()
     // Dynamic output processing is now handled immediately in onRequestComplete()
     // No special processing needed here as _tensors already contains correct dynamic tensors
 
-    if (_storeResult)
+    // Build _returnOutputs whenever we need to store results OR when the user
+    // provided an output buffer. setReturnOutputs() performs the copy into the
+    // user-provided _outputPtr, so skipping it when a callback is registered
+    // would silently ignore the user's output pointer.
+    const bool buildReturnOutputs = _storeResult || (_outputPtr != nullptr);
+
+    if (buildReturnOutputs)
     {
         // Build _returnOutputs which contains only final model outputs (ordered)
         setReturnOutputs();
@@ -172,7 +178,7 @@ void InferenceJob::onAllRequestComplete()
     {
         LOG_DXRT_DBG << "task callback" << endl;
         TensorPtrs callbackOutputs;
-        if (_storeResult)
+        if (buildReturnOutputs)
         {
             callbackOutputs = _returnOutputs;
         }
@@ -216,6 +222,7 @@ void InferenceJob::onAllRequestComplete()
     // Release buffers and update job status regardless of callback presence or failures.
     ReleaseAllOutputBuffer();
     setStatus(Request::Status::REQ_DONE);
+    SetOccupiedJob(false);
 
     TASK_FLOW("["+to_string(_jobId)+"] ALL COMPLETE");
 
@@ -673,11 +680,77 @@ InferenceJob::~InferenceJob()
     Clear();
 }
 
+// Returns true if req's output_buffer_base points into the user-provided output buffer.
+// Uses the explicit flag first; falls back to address-range check for legacy paths.
+bool InferenceJob::isUserOutputBuffer(const RequestPtr& req) const
+{
+    if (req->getData()->outputs_is_user_buffer)
+    {
+        return true;
+    }
+
+    // Legacy fallback: detect via address range comparison.
+    // Skipped for dynamic-shape models (GetOutputSize() returns -1).
+    if (_outputPtr == nullptr || req->output_buffer_base() == nullptr)
+    {
+        return false;
+    }
+
+    const uint64_t output_size = _inferenceEnginePtr->GetOutputSize();
+    if (output_size == static_cast<uint64_t>(-1))
+    {
+        LOG_DBG("[Job_" + std::to_string(_jobId) + "] Skipping range check for dynamic shape model");
+        return false;
+    }
+
+    const auto* user_buffer_start = static_cast<const uint8_t*>(_outputPtr);
+    const auto* user_buffer_end   = user_buffer_start + output_size;
+    const auto* output_buf_ptr    = static_cast<const uint8_t*>(req->output_buffer_base());
+
+    if (output_buf_ptr >= user_buffer_start && output_buf_ptr < user_buffer_end)
+    {
+        LOG_DBG("[Job_" + std::to_string(_jobId) + "] Task '" + req->task()->name() +
+                "' uses user output buffer - detected by range check");
+        return true;
+    }
+
+    return false;
+}
+
+void InferenceJob::releaseIndividualBuffers(const RequestPtr& req)
+{
+    const bool uses_user_outputBuffer = isUserOutputBuffer(req);
+    const bool is_intermediate_task   = !req->task()->is_tail();
+    const bool should_release_output  = !uses_user_outputBuffer && (_outputPtr == nullptr || is_intermediate_task);
+
+    if (should_release_output)
+    {
+        LOG_DXRT_DBG << "Request " << req->id() << " releasing internal output buffer" << std::endl;
+        req->task()->ReleaseOutputBuffer(req->output_buffer_base());
+    }
+    else
+    {
+        LOG_DXRT_DBG << "Request " << req->id()
+                     << " skipping output buffer release"
+                     << (uses_user_outputBuffer ? " (user-provided buffer)" : " (tail task with user outputPtr)")
+                     << std::endl;
+    }
+
+    if (req->task()->processor() == Processor::NPU)
+    {
+        LOG_DXRT_DBG << "Request " << req->id() << " releasing NPU encoded input/output buffers" << std::endl;
+        req->task()->ReleaseEncodedInputBuffer(req->encoded_inputs_ptr());
+        req->task()->ReleaseEncodedOutputBuffer(req->encoded_outputs_ptr());
+    }
+
+    // CPU buffers are managed by CPUHandle and do not require explicit release here
+    req->markBufferReleased();
+}
+
 void InferenceJob::ReleaseAllOutputBuffer()
 {
     std::unique_lock<std::mutex> lk(_lock);
-    int head_req_id = -1;
-    int head_req_processed_dev_id = -1;
+
     for (const auto& req_weak_ptr :  _requests)
     {
         RequestPtr req = req_weak_ptr.lock();
@@ -690,84 +763,66 @@ void InferenceJob::ReleaseAllOutputBuffer()
                 DataDumpBin(req->task()->name() + "_output_done.bin", &id, 1);
             }
 
-            // requests that use BufferSet are already released in Request::releaseBuffers()
-            // conditional release to avoid duplicate releases
+            // Skip individual buffer release in two cases:
+            //   1. isBufferReleased(): already freed earlier (e.g. by early release path)
+            //   2. hasBufferSet():     NOT yet freed here, but ownership is held by BufferSet.
+            //                         The second loop below calls req->Reset() -> releaseBuffers(),
+            //                         which invokes task->ReleaseAllBuffers(*_bufferSet) and cleans up.
+            //                         Individual release must be skipped to avoid double-free.
             if (req->isBufferReleased())
             {
-                LOG_DXRT_DBG << "Request " << req->id() << " already released - skipping" << std::endl;
+                LOG_DXRT_DBG << "Request " << req->id() << " buffers already released - skipping" << std::endl;
             }
             else if (req->hasBufferSet())
             {
-                LOG_DXRT_DBG << "Request " << req->id() << " has BufferSet - skipping individual buffer release" << std::endl;
+                LOG_DXRT_DBG << "Request " << req->id() << " has BufferSet - deferring to Reset()->releaseBuffers()" << std::endl;
             }
+
             else
             {
+                // This branch is only reachable when DXRT_USE_DEVICE_VALIDATION is enabled.
+                // In normal inference, output_buffer_base is always nullptr at InferenceRequest()
+                // entry, so AcquireAllBuffers() and setBufferSet() are always called, making
+                // hasBufferSet() always true. The only path that sets output_buffer_base to a
+                // non-null value before InferenceRequest() is CreateValidateRequest(), which
+                // bypasses AcquireAllBuffers() and therefore never calls setBufferSet().
                 LOG_DXRT_DBG << "Request " << req->id() << " no BufferSet - using individual buffer release" << std::endl;
-
-                // Check if this task uses user output buffer
-                bool uses_user_output_buffer = req->getData()->outputs_is_user_buffer;
-                if (!uses_user_output_buffer && _outputPtr != nullptr && req->output_buffer_base() != nullptr)
-                {
-                    // Fallback range check (legacy) - skip for dynamic shape models
-                    uint64_t outputSize = _inferenceEnginePtr->GetOutputSize();
-                    if (outputSize != static_cast<uint64_t>(-1))
-                    {
-                        auto userBufferStart = static_cast<uint8_t*>(_outputPtr);
-                        const uint8_t* userBufferEnd = userBufferStart + outputSize;
-                        auto outputPtr = static_cast<uint8_t*>(req->output_buffer_base());
-                        if (outputPtr >= userBufferStart && outputPtr < userBufferEnd)
-                        {
-                            uses_user_output_buffer = true;
-                            LOG_DBG("[Job_" + std::to_string(_jobId) + "] Task '" + req->task()->name() +
-                                    "' uses user output buffer - skipping ReleaseOutputBuffer (range-detected)");
-                        }
-                    }
-                    else
-                    {
-                        LOG_DBG("[Job_" + std::to_string(_jobId) + "] Skipping range check for dynamic shape model");
-                    }
-                }
-
-                // Only call ReleaseOutputBuffer if not using user output buffer
-                if (!uses_user_output_buffer && ((_outputPtr == nullptr) || (req->task()->is_tail() == false)))
-                {
-                    req->task()->ReleaseOutputBuffer(req->output_buffer_base());
-                }
-
-                if (req->task()->processor() == Processor::NPU)
-                {
-                    req->task()->ReleaseEncodedInputBuffer(req->encoded_inputs_ptr());
-                    req->task()->ReleaseEncodedOutputBuffer(req->encoded_outputs_ptr());
-                }
-                req->markBufferReleased();
+                releaseIndividualBuffers(req);
             }
         }
         else
         {
-            DXRT_ASSERT(false, "ReleaseAllOutputBuffer lock failed");
+            // weak_ptr::lock() failed in the buffer-release loop.
+            // The Request object was already destroyed before we could release its buffers.
+            // This indicates a lifecycle bug: something released the Request shared_ptr
+            // while _requests still held a weak_ptr to it.
+            DXRT_ASSERT(false, "Job ReleaseAllOutputBuffer: "
+                "Request expired during buffer-release loop (loop 1). "
+                "Request shared_ptr was destroyed before buffers were released.");
         }
     }
     for (const auto& it : _requests)
     {
         RequestPtr req = it.lock();
-        if (head_req_id == -1)
-        {
-            head_req_id = req->id();
-            head_req_processed_dev_id = req->getData()->_processedDevId;
-        }
+
         if (req)
         {
             req->Reset();
         }
         else
         {
-            DXRT_ASSERT(false, "ReleaseAllOutputBuffer lock failed");
+            // weak_ptr::lock() failed in the Reset loop (loop 2),
+            // even though the same weak_ptr succeeded in the buffer-release loop above.
+            // This means the Request was destroyed between loop 1 and loop 2,
+            // despite this function holding _lock throughout. Severe lifecycle violation.
+            DXRT_ASSERT(false, "Job ReleaseAllOutputBuffer: "
+                "Request expired during Reset loop (loop 2). "
+                "Request was alive in loop 1 but destroyed before Reset() could be called.");
         }
     }
     _requests.clear();
     _use_flag.store(false);
 
-    (void)head_req_processed_dev_id;  // avoid 'not used' warning
     TASK_FLOW("[" + to_string(_jobId)+"] ReleaseAllOutputBuffer");
 }
 
