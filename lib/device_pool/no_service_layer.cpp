@@ -37,7 +37,8 @@ NoServiceLayer::NoServiceLayer()
     // Initialize shared memory writer
     _shmWriter = std::make_unique<SharedMemoryWriter>();
     if (!_shmWriter->Initialize()) {
-        LOG_DXRT_DBG << "Failed to initialize shared memory writer for monitoring" << std::endl;
+        LOG_DXRT_ERR("Failed to initialize shared memory writer for monitoring"
+                     << " (reason=" << _shmWriter->GetLastErrorMessage() << ")");
     }
 
     // Start monitoring thread

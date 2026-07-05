@@ -199,36 +199,29 @@ static dxrt::InferenceOption make_option(const dxrt_options_t* opts)
 /* ── Catch-all macro ─────────────────────────────────────────── */
 
 #define DXRT_C_TRY      clear_error(); try {
-#define DXRT_C_CATCH     } catch (const dxrt::FileNotFoundException& e) {     \
+#define DXRT_C_CATCH     } catch (const dxrt::Exception& e) {                \
                              set_error(e.what());                            \
-                             return DXRT_ERR_NOT_FOUND;                      \
-                         } catch (const dxrt::NullPointerException& e) {     \
-                             set_error(e.what());                            \
-                             return DXRT_ERR_INVALID_ARG;                    \
-                         } catch (const dxrt::InvalidArgumentException& e) { \
-                             set_error(e.what());                            \
-                             return DXRT_ERR_INVALID_ARG;                    \
-                         } catch (const dxrt::InvalidModelException& e) {    \
-                             set_error(e.what());                            \
-                             return DXRT_ERR_INVALID_MODEL;                  \
-                         } catch (const dxrt::ModelParsingException& e) {    \
-                             set_error(e.what());                            \
-                             return DXRT_ERR_INVALID_MODEL;                  \
-                         } catch (const dxrt::FileIOException& e) {          \
-                             set_error(e.what());                            \
-                             return DXRT_ERR_IO;                             \
-                         } catch (const dxrt::ServiceIOException& e) {       \
-                             set_error(e.what());                            \
-                             return DXRT_ERR_IO;                             \
-                         } catch (const dxrt::DeviceIOException& e) {        \
-                             set_error(e.what());                            \
-                             return DXRT_ERR_DEVICE;                         \
-                         } catch (const dxrt::InvalidOperationException& e) {\
-                             set_error(e.what());                            \
-                             return DXRT_ERR_INTERNAL;                       \
-                         } catch (const dxrt::Exception& e) {                \
-                             set_error(e.what());                            \
-                             return DXRT_ERR_INTERNAL;                       \
+                             switch (e.code()) {                             \
+                                 case dxrt::ERROR_CODE::FILE_NOT_FOUND:      \
+                                     return DXRT_ERR_NOT_FOUND;              \
+                                 case dxrt::ERROR_CODE::NULL_POINTER:        \
+                                 case dxrt::ERROR_CODE::INVALID_ARGUMENT:    \
+                                     return DXRT_ERR_INVALID_ARG;            \
+                                 case dxrt::ERROR_CODE::INVALID_MODEL:       \
+                                 case dxrt::ERROR_CODE::MODEL_PARSING:       \
+                                     return DXRT_ERR_INVALID_MODEL;          \
+                                 case dxrt::ERROR_CODE::FILE_IO:             \
+                                 case dxrt::ERROR_CODE::SERVICE_IO:          \
+                                     return DXRT_ERR_IO;                     \
+                                 case dxrt::ERROR_CODE::DEVICE_IO:           \
+                                     return DXRT_ERR_DEVICE;                 \
+                                 case dxrt::ERROR_CODE::INSUFFICIENT_MEMORY: \
+                                     return DXRT_ERR_OUT_OF_MEMORY;          \
+                                 case dxrt::ERROR_CODE::INVALID_OPERATION:   \
+                                 case dxrt::ERROR_CODE::DEFAULT:             \
+                                 default:                                    \
+                                     return DXRT_ERR_INTERNAL;               \
+                             }                                               \
                          } catch (const std::bad_alloc&) {                   \
                              set_error("out of memory");                     \
                              return DXRT_ERR_OUT_OF_MEMORY;                  \

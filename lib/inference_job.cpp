@@ -22,6 +22,7 @@
 
 #include <future>
 #include <memory>
+#include <algorithm>
 #include <unordered_map>
 #include <cstring>
 #include <iostream>
@@ -107,7 +108,7 @@ void InferenceJob::onRequestComplete(RequestPtr req)
         LOG_DBG("[Job_" + std::to_string(_jobId) + "] Task '" + thisTask->name() +
                 "' done. Progress: " + std::to_string(_doneCount.load()) + "/" + std::to_string(_outputCount.load()));
 
-        _latency += req->latency();
+        _latency += (std::max)(static_cast<int64_t>(0), static_cast<int64_t>(req->latency()) - req->queueWaitTime());
         if (req->task()->processor() == Processor::NPU)
         {
             _infTime += req->inference_time();

@@ -222,7 +222,7 @@ typedef struct fct_result
     uint8_t ddr_mf;
     uint8_t i2c_fail;
     uint8_t test_done;
-    uint32_t reserved;
+    uint8_t memtest[4];
     uint32_t reserved32[15];
 } dxrt_fct_result_t;
 

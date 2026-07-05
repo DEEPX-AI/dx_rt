@@ -318,7 +318,18 @@ int AccDeviceTaskLayer::InferenceRequestACC(RequestData* req, npu_bound_op bound
             alignedInputBytes + static_cast<uint64_t>(task->_outputMemSize),
             requiredSliceBytes);
 
-        const NpuMemoryCacheSlice cacheSlice = AllocateFromCache(cacheSliceBytes, taskId);
+        NpuMemoryCacheSlice cacheSlice;
+        if (req->_ioSliceValid)
+        {
+            // Slice was pre-acquired in PrepareZeroCopyIo and already wired as the encoded I/O
+            // host storage (zero-copy). Reuse it here; release still flows through OutputHandler.
+            cacheSlice = req->_ioSlice;
+            req->_ioSliceValid = false;
+        }
+        else
+        {
+            cacheSlice = AllocateFromCache(cacheSliceBytes, taskId);
+        }
         DXRT_ASSERT(cacheSlice.isValid(), "Failed to allocate NPU memory cache slice");
         slim.input_device_offset = cacheSlice.deviceAddress();
 
@@ -372,7 +383,7 @@ int AccDeviceTaskLayer::InferenceRequestACC(RequestData* req, npu_bound_op bound
         {
             std::unique_lock<std::mutex> npu_inference_lock(npuInferenceLock());
             _ongoingRequests[reqId] = npu_inference_acc;
-            _ongoingInputAllocations[reqId] = cacheSlice;
+            _ongoingInputAllocations[reqId] = OngoingCacheAllocation{cacheSlice, taskId};
             if (Configuration::_sNpuValidateOpt.load())
             {
                 Request::GetById(reqId)->setNpuInferenceAcc(npu_inference_acc);
@@ -391,6 +402,67 @@ int AccDeviceTaskLayer::InferenceRequestACC(RequestData* req, npu_bound_op bound
         LOG_DXRT_DBG << "request to input worker returned " << ret << std::endl;
     }
     return 0;
+}
+
+void AccDeviceTaskLayer::PrepareZeroCopyIo(RequestData* req)
+{
+#ifndef USE_VNPU
+    // The staging memcpy only exists on the service (PCIe) path, where encoded I/O currently
+    // lives in heap buffers separate from the DMA'able SHM slice. Elsewhere: keep existing path.
+    if (req == nullptr || !serviceLayer()->isRunOnService())
+    {
+        return;
+    }
+
+    // Only normal models have a static, contiguous output region that maps 1:1 onto the slice.
+    // ARGMAX/PPU/PPCPU relocate or dynamically size their output and keep the existing path.
+    if (static_cast<ModelType>(req->taskData->_npuModel.type) != ModelType::MODEL_TYPE_NORMAL)
+    {
+        return;
+    }
+
+    const int taskId = req->taskData->id();
+    if (!memoryCacheManager().canGetCache(taskId))
+    {
+        return;  // no pooled SHM slice for this task -> keep heap fallback
+    }
+
+    TaskStaticConfig cfg;
+    {
+        std::unique_lock<std::mutex> lock(npuInferenceLock());
+        auto it = taskStaticConfigs().find(taskId);
+        if (it == taskStaticConfigs().end())
+        {
+            return;
+        }
+        cfg = it->second;
+    }
+
+    // Host offset of the output region within the slice; must match InferenceRequestACC /
+    // OutputHandler so that encoded_outputs_ptr coincides with the DMA'd output location.
+    const uint64_t outputDelta = (cfg.output_all_offset != 0)
+        ? static_cast<uint64_t>(cfg.output_all_offset)
+        : data_align(cfg.input_size, 64);
+    const uint64_t outputOffsetInSlice = outputDelta + static_cast<uint64_t>(cfg.last_output_offset);
+
+    NpuMemoryCacheSlice slice = memoryCacheManager().getNpuMemoryCache(taskId);
+    if (!slice.isValid() || slice.hostPtr() == nullptr)
+    {
+        if (slice.isValid())
+        {
+            memoryCacheManager().returnNpuMemoryCache(taskId, slice);
+        }
+        return;  // could not obtain a host-mapped SHM slice -> keep heap fallback
+    }
+
+    auto* host = static_cast<uint8_t*>(slice.hostPtr());
+    req->encoded_inputs_ptr  = host;
+    req->encoded_outputs_ptr = host + outputOffsetInSlice;
+    req->_ioSlice      = slice;
+    req->_ioSliceValid = true;
+#else
+    (void)req;
+#endif  // USE_VNPU
 }
 
 dxrt_request_acc_t AccDeviceTaskLayer::peekInference(int id)
@@ -454,9 +526,12 @@ int AccDeviceTaskLayer::InputHandler(const int& reqId, int ch)
                 auto it = _ongoingInputAllocations.find(reqId);
                 DXRT_ASSERT(it != _ongoingInputAllocations.end(),
                     "InputHandler missing cache allocation for reqId=" + std::to_string(reqId));
-                inputSlice = it->second;
+                inputSlice = it->second.slice;
             }
-            if (inputSlice.view.hostPtr() != nullptr && inferenceAcc.input.size > 0)
+            // Zero-copy: when the encoded input already lives in this SHM slice
+            // (PrepareZeroCopyIo), src == dst and the staging copy is skipped.
+            if (inputSlice.view.hostPtr() != nullptr && inferenceAcc.input.size > 0
+                && inputSlice.view.hostPtr() != reinterpret_cast<void*>(inferenceAcc.input.data))
             {
                 std::memcpy(inputSlice.view.hostPtr(),
                             reinterpret_cast<void*>(inferenceAcc.input.data),
@@ -505,6 +580,8 @@ int AccDeviceTaskLayer::InputHandler(const int& reqId, int ch)
         }
 #ifdef USE_PROFILER
         profiler.End(Profiler::EventType::H2D, req->task()->name(), id(), req->job_id());
+        req->setDispatchTimestampNs(std::chrono::duration_cast<std::chrono::nanoseconds>(
+            ProfilerClock::now().time_since_epoch()).count());
 #endif
     }
 
@@ -607,6 +684,15 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
             profiler.AddTimePoint(Profiler::EventType::SERVICE_PROCESS_WAIT, req->task()->name(), id(), req->job_id(), wait_tp);
         }
 
+        // ponytail: compute NPU queue wait = (H2D end → response receive) - inf_time
+        // This is the idle time spent in NPU's internal queue before core starts processing.
+        if (response_recv_ns > 0 && req->dispatchTimestampNs() > 0 && response_recv_ns > req->dispatchTimestampNs())
+        {
+            int64_t h2d_to_response_us = static_cast<int64_t>(response_recv_ns - req->dispatchTimestampNs()) / 1000;
+            int64_t queue_wait_us = h2d_to_response_us - static_cast<int64_t>(response.inf_time);
+            req->setQueueWaitTime(queue_wait_us > 0 ? queue_wait_us : 0);
+        }
+
         profiler.Start(Profiler::EventType::D2H, req->task()->name(), id(), req->job_id());
 
 #endif
@@ -624,7 +710,7 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
             auto it = _ongoingInputAllocations.find(reqId);
             DXRT_ASSERT(it != _ongoingInputAllocations.end(),
                 "OutputHandler missing cache allocation for reqId=" + std::to_string(reqId));
-            outputSlice = it->second;
+            outputSlice = it->second.slice;
 
             const int taskId = req->task()->id();
             const auto cfgIt = taskStaticConfigs().find(taskId);
@@ -704,7 +790,10 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
                         id(), outputView.deviceAddress(), output.data, output.size);
                 }
             }
-            if (serviceLayer()->isRunOnService() && ret2 == 0 && outputView.hostPtr() != nullptr)
+            // Zero-copy: when the encoded output already lives in this SHM slice
+            // (PrepareZeroCopyIo), dst == src and the staging copy is skipped.
+            if (serviceLayer()->isRunOnService() && ret2 == 0 && outputView.hostPtr() != nullptr
+                && reinterpret_cast<void*>(output.data) != outputView.hostPtr())
             {
                 std::memcpy(reinterpret_cast<void*>(output.data),
                             outputView.hostPtr(),
@@ -826,16 +915,14 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
         + req->taskData()->name() + " output is ready, load :"
         + std::to_string(_device->load()));
 
-    {
-        std::unique_lock<std::mutex> lock(npuInferenceLock());
-        auto allocationIt = _ongoingInputAllocations.find(reqId);
-        if (allocationIt != _ongoingInputAllocations.end())
-        {
-            Deallocate_npuBuf(allocationIt->second, req->taskData()->id());
-            _ongoingInputAllocations.erase(allocationIt);
-        }
-    }
-
+    // NOTE: The NPU memory-cache slice for this request is intentionally NOT released
+    // here. The encoded output produced by the DMA read above still lives in that slice,
+    // and NFH output decoding (processResponseHandler -> NFHLayer::handleOutput ->
+    // DecodeOutputs) consumes it on a separate worker thread. Returning the slice to the
+    // (LIFO, blocking) pool now would let a waiting request immediately reuse and overwrite
+    // it before decode reads it -> torn output / bitmatch failure (repro: async + single
+    // bound device once in-flight count exceeds buffer_count). The slice is released in
+    // NFHLayer::handleOutput via ReleaseInferenceCache() after decode has consumed it.
     dxrt_response_t resp2 = response;
     processResponseHandler()(id(), reqId, &resp2);
 
@@ -845,6 +932,34 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
         _ongoingRequests.erase(reqId);
     }
     return 0;
+}
+
+void AccDeviceTaskLayer::ReleaseInferenceCache(int reqId)
+{
+    // Called by NFHLayer::handleOutput AFTER the encoded output has been decoded, so the
+    // slice can now be safely returned to the pool for reuse. Counterpart to the release
+    // that previously lived (too early) in OutputHandler. The taskId is stored alongside the
+    // slice at allocation time, so release does NOT depend on the Request/Task still being
+    // alive (this runs on an NFH worker thread, potentially after request teardown).
+    OngoingCacheAllocation alloc;
+    bool found = false;
+    {
+        std::unique_lock<std::mutex> lock(npuInferenceLock());
+        auto it = _ongoingInputAllocations.find(reqId);
+        if (it != _ongoingInputAllocations.end())
+        {
+            alloc = it->second;
+            _ongoingInputAllocations.erase(it);
+            found = true;
+        }
+    }
+
+    if (!found)
+    {
+        return;  // already released, or request never acquired a cache slice
+    }
+
+    Deallocate_npuBuf(alloc.slice, alloc.taskId);
 }
 
 void AccDeviceTaskLayer::OutputReceiverThread(int id)

@@ -27,16 +27,16 @@ foreach(_hdr dxrt_c_api.h dxrt_cxx_api.h gen.h)
          ${DXRT_PUBLIC_INCLUDE_STAGING}/dxrt/${_hdr} SYMBOLIC)
 endforeach()
 
-# Wrapper headers (installed flat as dxrt/*.h for legacy compat) — symlink each
-file(GLOB _WRAPPER_HEADERS ${_DXRT_SRC_INCLUDE}/dxrt/wrapper/*.h)
-foreach(_hdr ${_WRAPPER_HEADERS})
+# Legacy headers (installed flat as dxrt/*.h for backward compat) — symlink each
+file(GLOB _LEGACY_HEADERS ${_DXRT_SRC_INCLUDE}/dxrt/legacy/*.h)
+foreach(_hdr ${_LEGACY_HEADERS})
     get_filename_component(_fname ${_hdr} NAME)
     file(CREATE_LINK ${_hdr}
          ${DXRT_PUBLIC_INCLUDE_STAGING}/dxrt/${_fname} SYMBOLIC)
 endforeach()
 
 # Exception subdir — symlink
-file(CREATE_LINK ${_DXRT_SRC_INCLUDE}/dxrt/wrapper/exception/exception.h
+file(CREATE_LINK ${_DXRT_SRC_INCLUDE}/dxrt/legacy/exception/exception.h
      ${DXRT_PUBLIC_INCLUDE_STAGING}/dxrt/exception/exception.h SYMBOLIC)
 
 # Extern vendored headers (cxxopts, rapidjson) — symlink the directory

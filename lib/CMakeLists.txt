@@ -594,31 +594,31 @@ set(DXRT_PUBLIC_HEADERS
 
 install(FILES ${DXRT_PUBLIC_HEADERS} DESTINATION include/dxrt)
 
-# C++ API wrappers + backward-compat shims — all in wrapper/, installed flat
+# C++ API legacy backward-compat shims — all in legacy/, installed flat
 install(FILES
-    ${DXRT_INCLUDE}/dxrt/wrapper/common.h
-    ${DXRT_INCLUDE}/dxrt/wrapper/configuration.h
-    ${DXRT_INCLUDE}/dxrt/wrapper/device.h
-    ${DXRT_INCLUDE}/dxrt/wrapper/device_info_status.h
-    ${DXRT_INCLUDE}/dxrt/wrapper/driver.h
-    ${DXRT_INCLUDE}/dxrt/wrapper/dxrt_api.h
-    ${DXRT_INCLUDE}/dxrt/wrapper/inference_engine.h
-    ${DXRT_INCLUDE}/dxrt/wrapper/model.h
-    ${DXRT_INCLUDE}/dxrt/wrapper/profiler.h
-    ${DXRT_INCLUDE}/dxrt/wrapper/runtime_event_dispatcher.h
-    ${DXRT_INCLUDE}/dxrt/wrapper/cli.h
-    ${DXRT_INCLUDE}/dxrt/wrapper/datatype.h
-    ${DXRT_INCLUDE}/dxrt/wrapper/device_compatibility_layer.h
-    ${DXRT_INCLUDE}/dxrt/wrapper/exception_handler.h
-    ${DXRT_INCLUDE}/dxrt/wrapper/inference_option.h
-    ${DXRT_INCLUDE}/dxrt/wrapper/tensor.h
-    ${DXRT_INCLUDE}/dxrt/wrapper/util.h
+    ${DXRT_INCLUDE}/dxrt/legacy/common.h
+    ${DXRT_INCLUDE}/dxrt/legacy/configuration.h
+    ${DXRT_INCLUDE}/dxrt/legacy/device.h
+    ${DXRT_INCLUDE}/dxrt/legacy/device_info_status.h
+    ${DXRT_INCLUDE}/dxrt/legacy/driver.h
+    ${DXRT_INCLUDE}/dxrt/legacy/dxrt_api.h
+    ${DXRT_INCLUDE}/dxrt/legacy/inference_engine.h
+    ${DXRT_INCLUDE}/dxrt/legacy/model.h
+    ${DXRT_INCLUDE}/dxrt/legacy/profiler.h
+    ${DXRT_INCLUDE}/dxrt/legacy/runtime_event_dispatcher.h
+    ${DXRT_INCLUDE}/dxrt/legacy/cli.h
+    ${DXRT_INCLUDE}/dxrt/legacy/datatype.h
+    ${DXRT_INCLUDE}/dxrt/legacy/device_compatibility_layer.h
+    ${DXRT_INCLUDE}/dxrt/legacy/exception_handler.h
+    ${DXRT_INCLUDE}/dxrt/legacy/inference_option.h
+    ${DXRT_INCLUDE}/dxrt/legacy/tensor.h
+    ${DXRT_INCLUDE}/dxrt/legacy/util.h
     DESTINATION include/dxrt
 )
 
 # Exception subdir
 install(FILES
-    ${DXRT_INCLUDE}/dxrt/wrapper/exception/exception.h
+    ${DXRT_INCLUDE}/dxrt/legacy/exception/exception.h
     DESTINATION include/dxrt/exception
 )
 

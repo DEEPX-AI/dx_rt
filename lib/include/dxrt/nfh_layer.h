@@ -48,6 +48,11 @@ class DXRT_API NFHLayer {
     int handleInput(const NfhInputRequest&, int) const;
     int handleOutput(const NfhOutputRequest &, int) const;
 
+    // Return the NPU memory-cache slice for a completed output request to its owning
+    // device, once output decoding has consumed it. Resolves the owning device from the
+    // request's deviceId (common NFH layer) or the bound device (per-device layer).
+    void releaseInferenceCacheForOutput(const NfhOutputRequest &outputReq) const;
+
     std::function<void(int reqId, const dxrt_response_t& response, int deviceId)> _responseCallback{RequestResponse::ProcessByData};
 };
 

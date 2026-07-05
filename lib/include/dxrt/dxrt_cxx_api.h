@@ -29,8 +29,8 @@
  * build loudly instead.
  */
 #define DXRT_CXX_API_H_INCLUDED
-#ifdef DXRT_WRAPPER_HEADERS_INCLUDED
-# error "dxrt_cxx_api.h and dxrt/wrapper/*.h cannot be included in the same translation unit (two dxrt::Exception classes — ODR violation risk). Use one or the other."
+#ifdef DXRT_LEGACY_HEADERS_INCLUDED
+# error "dxrt_cxx_api.h and dxrt/legacy/*.h cannot be included in the same translation unit (two dxrt::Exception classes — ODR violation risk). Use one or the other."
 #endif
 
 #include "dxrt/dxrt_c_api.h"
@@ -38,6 +38,11 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
+#include <cstdlib>
+#ifdef __linux__
+#include <dirent.h>
+#endif
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -45,18 +50,129 @@
 #include <functional>
 #include <iomanip>
 #include <iostream>
+#include <locale>
 #include <map>
 #include <memory>
 #include <mutex>
+#include <numeric>
 #include <ostream>
+#include <random>
 #include <regex>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <thread>
+#include <chrono>
+#include <ctime>
+#include <cerrno>
+#include <cstdio>
+#ifdef _WIN32
+#include <malloc.h>
+#endif
+#ifdef __linux__
+#include <unistd.h>
+#include <sys/time.h>
+#endif
 #include <utility>
 #include <vector>
 
+/* ── Utility macros (migrated from dxrt/common.h) ─────────────── */
+
+#ifndef __DXRT_STR
+#define __DXRT_STR(a) #a
+#endif
+#ifndef DXRT_STR
+#define DXRT_STR(a) __DXRT_STR(a)
+#endif
+#ifndef QUOTE_VALUE
+#define QUOTE_VALUE(val) DXRT_STR(val) << ": " << val
+#endif
+#ifndef LOG_VALUE
+#define LOG_VALUE(val) std::cout << DXRT_STR(val) << ": " << val << std::endl
+#endif
+#ifndef LOG_VALUE_HEX
+#define LOG_VALUE_HEX(val) std::cout << DXRT_STR(val) << ": " << std::showbase << std::hex << val << std::dec << std::endl
+#endif
+
+#ifndef LOG_DXRT_ERR
+#define LOG_DXRT_ERR(x) std::cout << "[DXRT][Error] " << x << std::endl
+#endif
+
+#ifndef DXRT_ASSERT
+#ifdef NDEBUG
+#define DXRT_ASSERT(cond, msg) do { \
+        if (!(cond)) { \
+            LOG_DXRT_ERR(msg); \
+            std::abort(); \
+        } \
+    } while (0)
+#else
+#define DXRT_ASSERT(cond, msg) do { \
+        if (!(cond)) { \
+            LOG_DXRT_ERR(msg); \
+            assert((cond)); \
+        } \
+    } while (0)
+#endif
+#endif
+
+// ---------------------------------------------------------------------------
+// Legacy backward-compat macros migrated from <dxrt/util.h>
+// Kept for source compatibility — may be removed in a future major version
+// if no external consumer depends on them.
+// ---------------------------------------------------------------------------
+#ifndef data_align
+#define data_align(x, a) ( a*( x/a) + (int)(((x%a)>0) ? a : 0) )
+#endif
+
 namespace dxrt {
+
+namespace deepx_rmapinfo {
+enum DataType : int;
+}
+
+enum class ERROR_CODE {
+    DEFAULT = 0x0100,
+    FILE_NOT_FOUND,
+    NULL_POINTER,
+    FILE_IO,
+    INVALID_ARGUMENT,
+    INVALID_OPERATION,
+    INVALID_MODEL,
+    MODEL_PARSING,
+    SERVICE_IO,
+    DEVICE_IO,
+    INSUFFICIENT_MEMORY
+};
+
+inline const char* to_string(ERROR_CODE code) noexcept
+{
+    switch (code)
+    {
+    case ERROR_CODE::DEFAULT:              return "DEFAULT";
+    case ERROR_CODE::FILE_NOT_FOUND:       return "FILE_NOT_FOUND";
+    case ERROR_CODE::NULL_POINTER:         return "NULL_POINTER";
+    case ERROR_CODE::FILE_IO:              return "FILE_IO";
+    case ERROR_CODE::INVALID_ARGUMENT:     return "INVALID_ARGUMENT";
+    case ERROR_CODE::INVALID_OPERATION:    return "INVALID_OPERATION";
+    case ERROR_CODE::INVALID_MODEL:        return "INVALID_MODEL";
+    case ERROR_CODE::MODEL_PARSING:        return "MODEL_PARSING";
+    case ERROR_CODE::SERVICE_IO:           return "SERVICE_IO";
+    case ERROR_CODE::DEVICE_IO:            return "DEVICE_IO";
+    case ERROR_CODE::INSUFFICIENT_MEMORY:  return "INSUFFICIENT_MEMORY";
+    default:                               return "UNKNOWN";
+    }
+}
+
+inline std::ostream& operator<<(std::ostream& os, ERROR_CODE code)
+{
+    return os << to_string(code);
+}
+
+constexpr bool operator==(ERROR_CODE lhs, int rhs) noexcept { return static_cast<int>(lhs) == rhs; }
+constexpr bool operator==(int lhs, ERROR_CODE rhs) noexcept { return lhs == static_cast<int>(rhs); }
+constexpr bool operator!=(ERROR_CODE lhs, int rhs) noexcept { return static_cast<int>(lhs) != rhs; }
+constexpr bool operator!=(int lhs, ERROR_CODE rhs) noexcept { return lhs != static_cast<int>(rhs); }
 
 /* ================================================================
  *  Exception
@@ -66,13 +182,48 @@ class Exception : public std::runtime_error
 {
 public:
     explicit Exception(const char* msg, dxrt_status_t st = DXRT_ERR_INTERNAL)
-        : std::runtime_error(msg), status_(st) {}
+        : std::runtime_error(msg), _status(st), _errorCode(to_error_code(st, msg)) {}
     explicit Exception(const std::string& msg, dxrt_status_t st = DXRT_ERR_INTERNAL)
-        : std::runtime_error(msg), status_(st) {}
-    dxrt_status_t status() const noexcept { return status_; }
-    dxrt_status_t code() const noexcept { return status_; }
+        : std::runtime_error(msg), _status(st), _errorCode(to_error_code(st, msg.c_str())) {}
+    dxrt_status_t status() const noexcept { return _status; }
+    ERROR_CODE code() const noexcept { return _errorCode; }
 private:
-    dxrt_status_t status_;
+    static constexpr const char* kServiceIoMsg = "Service input & output exception";
+    static constexpr const char* kNullPointerMsg = "Null pointer exception";
+    static constexpr const char* kModelParsingMsg = "Model parsing exception";
+    static constexpr const char* kInvalidOperationMsg = "Invalid operation exception";
+
+    static ERROR_CODE to_error_code(dxrt_status_t st, const char* msg) noexcept
+    {
+        switch (st)
+        {
+        case DXRT_ERR_NOT_FOUND:     return ERROR_CODE::FILE_NOT_FOUND;
+        case DXRT_ERR_INVALID_ARG:
+            if (msg != nullptr && std::strstr(msg, kNullPointerMsg) != nullptr)
+                return ERROR_CODE::NULL_POINTER;
+            return ERROR_CODE::INVALID_ARGUMENT;
+        case DXRT_ERR_INVALID_MODEL:
+            if (msg != nullptr && std::strstr(msg, kModelParsingMsg) != nullptr)
+                return ERROR_CODE::MODEL_PARSING;
+            return ERROR_CODE::INVALID_MODEL;
+        case DXRT_ERR_DEVICE:        return ERROR_CODE::DEVICE_IO;
+        case DXRT_ERR_IO:
+            if (msg != nullptr && std::strstr(msg, kServiceIoMsg) != nullptr)
+                return ERROR_CODE::SERVICE_IO;
+            return ERROR_CODE::FILE_IO;
+        case DXRT_ERR_OUT_OF_MEMORY:
+            return ERROR_CODE::INSUFFICIENT_MEMORY;
+        case DXRT_ERR_INTERNAL:
+            if (msg != nullptr && std::strstr(msg, kInvalidOperationMsg) != nullptr)
+                return ERROR_CODE::INVALID_OPERATION;
+            return ERROR_CODE::DEFAULT;
+        default:
+            return ERROR_CODE::DEFAULT;
+        }
+    }
+
+    dxrt_status_t _status;
+    ERROR_CODE _errorCode;
 };
 
 namespace detail {
@@ -366,11 +517,25 @@ public:
     {
         int job_id = -1;
         detail::check(dxrt_engine_run_async(h_, input, userArg, output, &job_id));
+        trackAsyncOutput(job_id, output);
         return job_id;
     }
 
     TensorPtrs Wait(int jobId) const
     {
+        void* output = nullptr;
+        {
+            std::lock_guard<std::mutex> lk(async_out_mtx_);
+            auto it = async_outputs_.find(jobId);
+            if (it != async_outputs_.end()) { 
+                output = it->second; 
+                async_outputs_.erase(it); 
+            }
+        }
+        if (output) 
+        {
+            return Wait(jobId, output);
+        }
         uint64_t out_sz = 0;
         detail::check(dxrt_engine_get_output_size(h_, &out_sz));
         std::vector<uint8_t> buf(static_cast<size_t>(out_sz));
@@ -587,6 +752,7 @@ public:
         std::vector<const void*> in_ptrs(inputPtrs.begin(), inputPtrs.end());
         int job_id = -1;
         detail::check(dxrt_engine_run_async_multi_input_vector(h_, in_ptrs.data(), num, userArg, outputPtr, &job_id));
+        trackAsyncOutput(job_id, outputPtr);
         return job_id;
     }
 
@@ -602,6 +768,7 @@ public:
         }
         int job_id = -1;
         detail::check(dxrt_engine_run_async_multi_input(h_, names.data(), buffers.data(), num, userArg, outputPtr, &job_id));
+        trackAsyncOutput(job_id, outputPtr);
         return job_id;
     }
 
@@ -990,6 +1157,36 @@ private:
     dxrt_engine_t h_ = nullptr;
     std::function<int(TensorPtrs&, void*)> cb_;
     std::function<void(void*, int)> release_cb_;
+    mutable std::mutex async_out_mtx_;
+    mutable std::map<int, void*> async_outputs_;
+
+    /**
+     * Record (or clear) the jobId->output association used by Wait(jobId)
+     * to honor the buffer the caller passed to RunAsync / RunAsyncMultiInput.
+     *
+     * Called UNCONDITIONALLY (even when output is null) from every
+     * RunAsync/RunAsyncMultiInput overload that produces a job_id, mirroring
+     * InferenceJob::_outputPtr always being overwritten on every start in
+     * the internal engine. This closes two gaps found in review:
+     *   - jobId reuse: job_id keys come from a bounded pool
+     *     (INFERENCE_JOB_MAX_COUNT); after a jobId is recycled for a new job
+     *     with output null, any stale entry from an earlier (possibly
+     *     never Waited on) job must be erased, not left in the map.
+     *   - map size is naturally bounded by the jobId keyspace itself.
+     */
+    void trackAsyncOutput(int job_id, void* output) const
+    {
+        if (job_id < 0) return;
+        std::lock_guard<std::mutex> lk(async_out_mtx_);
+        if (output)
+        {
+            async_outputs_[job_id] = output;
+        }
+        else
+        {
+            async_outputs_.erase(job_id);
+        }
+    }
 
     static int callback_trampoline(const dxrt_tensor_slice_t* tensors,
                                    int tensor_count, void* user_arg, void* user_data)
@@ -1632,7 +1829,6 @@ class DevicePool {
     std::once_flag initFlag_;
 };
 
-[[deprecated("Use DevicePool instead")]]
 inline std::vector<std::shared_ptr<Device>>& CheckDevices() {
     static std::vector<std::shared_ptr<Device>> devices;
     static std::once_flag flag;
@@ -1953,6 +2149,140 @@ struct ParseOptions {
     std::string output_file;     // not yet supported via C ABI
 };
 
+// ---------------------------------------------------------------------------
+// Legacy backward-compat utilities migrated from <dxrt/util.h>
+// Kept for source compatibility so that existing app code (e.g. demos)
+// continues to build without modification.
+// May be removed in a future major version if no consumer depends on them.
+// ---------------------------------------------------------------------------
+inline unsigned int RandomValue()
+{
+    std::random_device rd;
+    std::mt19937_64 eng(rd());
+    std::uniform_int_distribution<unsigned int> distr;
+    return distr(eng);
+}
+
+inline std::vector<int> RandomSequence(int n)
+{
+    std::vector<int> values(static_cast<size_t>(std::max(0, n)));
+    for (int i = 0; i < n; ++i)
+    {
+        values[static_cast<size_t>(i)] = i;
+    }
+    std::random_device rd;
+    std::mt19937 engine(rd());
+    std::shuffle(values.begin(), values.end(), engine);
+    return values;
+}
+
+inline std::vector<std::string> StringSplit(const std::string& s, const std::string& divid)
+{
+    std::vector<std::string> tokens;
+    if (divid.empty())
+    {
+        tokens.emplace_back(s);
+        return tokens;
+    }
+    if (s.empty())
+    {
+        tokens.emplace_back("");
+        return tokens;
+    }
+    size_t start = 0;
+    size_t end = s.find(divid);
+    while (end != std::string::npos)
+    {
+        tokens.emplace_back(s.substr(start, end - start));
+        start = end + divid.length();
+        end = s.find(divid, start);
+    }
+    tokens.emplace_back(s.substr(start));
+    return tokens;
+}
+
+inline std::string format_number_with_commas(int64_t num)
+{
+    std::ostringstream oss;
+    try
+    {
+        oss.imbue(std::locale(""));
+    }
+    catch (const std::exception&)
+    {
+    }
+    oss << num;
+    return oss.str();
+}
+
+inline int DataFromFile(const std::string& f, void* d)
+{
+    if (d == nullptr)
+    {
+        return 0;
+    }
+    std::ifstream in(f, std::ifstream::binary);
+    if (!in)
+    {
+        return 0;
+    }
+    in.seekg(0, std::ifstream::end);
+    const std::streamoff end = in.tellg();
+    if (end <= 0)
+    {
+        return 0;
+    }
+    in.seekg(0, std::ifstream::beg);
+    in.read(static_cast<char*>(d), end);
+    return static_cast<int>(end);
+}
+
+inline void DataFromFile(const std::string& f, void* d, unsigned int size)
+{
+    if (d == nullptr || size == 0)
+    {
+        return;
+    }
+    FILE* fp = std::fopen(f.c_str(), "rb");
+    if (fp == nullptr)
+    {
+        return;
+    }
+    std::ignore = std::fread(d, size, 1, fp);
+    std::fclose(fp);
+}
+
+inline uint32_t SizeFromFile(const std::string& f)
+{
+    std::ifstream in(f, std::ifstream::binary);
+    if (!in)
+    {
+        return 0;
+    }
+    in.seekg(0, std::ifstream::end);
+    const std::streamoff end = in.tellg();
+    if (end < 0)
+    {
+        return 0;
+    }
+    return static_cast<uint32_t>(end);
+}
+
+inline void DataDumpBin(const std::string& filename, void* data, unsigned int size)
+{
+    if (data == nullptr || size == 0)
+    {
+        return;
+    }
+    FILE* fp = std::fopen(filename.c_str(), "wb");
+    if (fp == nullptr)
+    {
+        return;
+    }
+    std::fwrite(data, size, 1, fp);
+    std::fclose(fp);
+}
+
 inline int ParseModel(const std::string& file)
 {
     detail::check(dxrt_parse_model(file.c_str()));
@@ -1964,6 +2294,282 @@ inline int ParseModel(const std::string& file, const ParseOptions& options)
     detail::check(dxrt_parse_model_with_options(
         file.c_str(), options.verbose ? 1 : 0, options.json_extract ? 1 : 0));
     return 0;
+}
+
+inline std::vector<std::string> GetFileList(const std::string& dir)
+{
+    std::vector<std::string> files;
+#ifdef __linux__
+    DIR* handle = opendir(dir.c_str());
+    if (handle == nullptr)
+    {
+        return files;
+    }
+
+    struct dirent* entry = nullptr;
+    while ((entry = readdir(handle)) != nullptr)
+    {
+        if (std::strcmp(entry->d_name, ".") != 0 && std::strcmp(entry->d_name, "..") != 0)
+        {
+            files.emplace_back(entry->d_name);
+        }
+    }
+    closedir(handle);
+#elif defined(_WIN32)
+#if !defined(INVALID_HANDLE_VALUE)
+    return files;
+#else
+    WIN32_FIND_DATA find_data;
+    HANDLE find_handle = FindFirstFile((dir + "\\*").c_str(), &find_data);
+    if (find_handle != INVALID_HANDLE_VALUE)
+    {
+        do
+        {
+            if (std::strcmp(find_data.cFileName, ".") != 0 && std::strcmp(find_data.cFileName, "..") != 0)
+            {
+                files.emplace_back(find_data.cFileName);
+            }
+        } while (FindNextFile(find_handle, &find_data) != 0);
+        FindClose(find_handle);
+    }
+#endif
+#endif
+    return files;
+}
+
+inline uint64_t GetAlign(uint64_t size)
+{
+    if (size < 64)
+    {
+        const uint64_t remainder = size % 16;
+        return remainder == 0 ? size : size + (16 - remainder);
+    }
+    const uint64_t remainder = size % 64;
+    return remainder == 0 ? size : size + (64 - remainder);
+}
+
+inline uint64_t GetAlign(uint64_t size, int align)
+{
+    if (align <= 0)
+    {
+        return GetAlign(size);
+    }
+    const uint64_t a = static_cast<uint64_t>(align);
+    const uint64_t remainder = size % a;
+    return remainder == 0 ? size : size + (a - remainder);
+}
+
+inline void* MemAlloc(size_t size, size_t align = 8, int value = 0)
+{
+    void* mem = nullptr;
+#ifdef __linux__
+    if (align == 0)
+    {
+        align = 8;
+    }
+    if (align < sizeof(void*))
+    {
+        align = sizeof(void*);
+    }
+    const int rc = posix_memalign(&mem, align, size);
+    if (rc == EINVAL || rc == ENOMEM)
+    {
+        return nullptr;
+    }
+#elif defined(_WIN32)
+#if defined(INVALID_HANDLE_VALUE)
+    mem = _aligned_malloc(size, align);
+    if (mem == nullptr)
+    {
+        return nullptr;
+    }
+#else
+    (void)align;
+    mem = std::malloc(size);
+    if (mem == nullptr)
+    {
+        return nullptr;
+    }
+#endif
+#else
+    mem = std::malloc(size);
+    if (mem == nullptr)
+    {
+        return nullptr;
+    }
+#endif
+    std::memset(mem, value, size);
+    return mem;
+}
+
+inline void MemFree(void** p)
+{
+    if (p == nullptr || *p == nullptr)
+    {
+        return;
+    }
+#ifdef __linux__
+    std::free(*p);
+#elif defined(_WIN32)
+#if defined(INVALID_HANDLE_VALUE)
+    _aligned_free(*p);
+#else
+    std::free(*p);
+#endif
+#else
+    std::free(*p);
+#endif
+    *p = nullptr;
+}
+
+inline void DisplayCountdown(int seconds, const std::string& str)
+{
+    while (seconds > 0)
+    {
+        std::cout << "\r" << str << "(" << seconds << " seconds remaining) " << std::flush;
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        --seconds;
+    }
+    std::cout << std::endl;
+}
+
+template <typename T>
+inline std::string int_to_hex(T i)
+{
+    std::stringstream stream;
+    stream << "0x" << std::setfill('0') << std::setw(sizeof(T) * 2) << std::hex << i;
+    return stream.str();
+}
+
+template <typename T>
+inline void DataDumpTxt(const std::string& filename, T* data, size_t ch, size_t row, size_t col, bool showHex = false)
+{
+    std::ofstream f_out(filename, std::ios::out);
+    if (!f_out)
+    {
+        return;
+    }
+    if (showHex)
+    {
+        f_out << std::hex << std::showbase;
+    }
+    for (size_t c = 0; c < ch; ++c)
+    {
+        for (size_t h = 0; h < row; ++h)
+        {
+            for (size_t w = 0; w < col; ++w)
+            {
+                f_out << static_cast<T>(*data) << " ";
+                ++data;
+            }
+            f_out << std::endl;
+        }
+        f_out << std::endl;
+    }
+}
+
+template <typename T>
+inline std::vector<T> SelectElements(const std::vector<T>& org, const std::vector<int>& indices)
+{
+    if (indices.empty())
+    {
+        return org;
+    }
+    std::vector<T> ret;
+    ret.reserve(indices.size());
+    for (const int index : indices)
+    {
+        ret.emplace_back(org[static_cast<size_t>(index)]);
+    }
+    return ret;
+}
+
+#ifdef __linux__
+static inline void get_start_time(struct timeval* s)
+{
+    gettimeofday(s, nullptr);
+}
+
+static inline uint64_t get_elapsed_time(struct timeval s)
+{
+    struct timeval e;
+    uint64_t elapsed;
+
+    get_start_time(&e);
+    e.tv_sec = e.tv_sec - s.tv_sec;
+    if (e.tv_usec < s.tv_usec)
+    {
+        e.tv_sec--;
+        e.tv_usec = (1000000 - s.tv_usec) + e.tv_usec;
+    }
+    else
+    {
+        e.tv_usec = e.tv_usec - s.tv_usec;
+    }
+
+    elapsed = static_cast<uint64_t>(e.tv_sec) * 1000000ULL + static_cast<uint64_t>(e.tv_usec);
+    return elapsed;
+}
+#endif
+
+template <typename T>
+inline std::string ToHexString(T value)
+{
+    std::ostringstream oss;
+    oss << std::hex << value;
+    return oss.str();
+}
+
+inline int GetDataSize_Datatype(DataType dType)
+{
+    switch (dType)
+    {
+    case DataType::UINT8:
+    case DataType::INT8:
+    case DataType::NONE_TYPE:
+        return 1;
+    case DataType::INT16:
+    case DataType::UINT16:
+        return 2;
+    case DataType::UINT32:
+    case DataType::INT32:
+    case DataType::FLOAT:
+        return 4;
+    case DataType::UINT64:
+    case DataType::INT64:
+        return 8;
+    case DataType::BBOX:
+        return 32;
+    case DataType::FACE:
+        return 64;
+    case DataType::POSE:
+        return 256;
+    default:
+        return 1;
+    }
+}
+
+inline int GetDataSize_rmapinfo_datatype(deepx_rmapinfo::DataType dType)
+{
+    switch (static_cast<int>(dType))
+    {
+    case 0:
+    case 2:
+    case 3:
+        return 1;
+    case 4:
+    case 5:
+        return 2;
+    case 1:
+    case 6:
+    case 8:
+        return 4;
+    case 7:
+    case 9:
+        return 8;
+    default:
+        return 1;
+    }
 }
 
 /* ================================================================

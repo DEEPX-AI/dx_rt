@@ -10,6 +10,7 @@
 #include "shared_memory_reader.h"
 #include "dxrt/common.h"
 #include <cstdint>
+#include <cerrno>
 
 #ifdef __linux__
 #include <sys/mman.h>
@@ -41,22 +42,65 @@ bool SharedMemoryReader::Open()
     }
 
 #ifdef __linux__
-    // Open-or-create shared memory (reader-first/writer-first both supported)
-    _shm_fd = shm_open(MONITOR_SHM_NAME, O_CREAT | O_RDWR, 0666);
-    if (_shm_fd == -1)
+    const char* shm_name = GetMonitorShmName();
+
+    // Preferred path: attach to existing SHM as read-only.
+    _shm_fd = shm_open(shm_name, O_RDONLY, 0);
+
+    // reader-first fallback: create and initialize SHM once if it doesn't exist.
+    if (_shm_fd == -1 && errno == ENOENT)
     {
-        LOG_DXRT_ERR("Failed to open/create shared memory");
-        return false;
+        int bootstrap_fd = shm_open(shm_name, O_CREAT | O_EXCL | O_RDWR, MONITOR_SHM_PERMS);
+        if (bootstrap_fd != -1)
+        {
+            // shm_open honors umask, so force the intended permissions.
+            // Failure is non-fatal here (bootstrap still proceeds), but log it
+            // so we can diagnose subsequent EACCES from other readers/writers.
+            if (fchmod(bootstrap_fd, MONITOR_SHM_PERMS) == -1)
+            {
+                LOG_DXRT_DBG << "fchmod on bootstrap shared memory failed: "
+                             << shm_name << " (" << strerror(errno) << ")";
+            }
+            if (ftruncate(bootstrap_fd, sizeof(MonitorSharedMemory)) == -1)
+            {
+                LOG_DXRT_ERR("Failed to set shared memory size during bootstrap: "
+                             << shm_name << " (" << strerror(errno) << ")");
+                close(bootstrap_fd);
+                return false;
+            }
+
+            void* bootstrap_ptr = mmap(nullptr, sizeof(MonitorSharedMemory),
+                                       PROT_READ | PROT_WRITE, MAP_SHARED, bootstrap_fd, 0);
+            if (bootstrap_ptr == MAP_FAILED)
+            {
+                LOG_DXRT_ERR("Failed to map shared memory during bootstrap: "
+                             << shm_name << " (" << strerror(errno) << ")");
+                close(bootstrap_fd);
+                return false;
+            }
+
+            auto* bootstrap_shm = static_cast<MonitorSharedMemory*>(bootstrap_ptr);
+            new (bootstrap_shm) MonitorSharedMemory();
+
+            munmap(bootstrap_ptr, sizeof(MonitorSharedMemory));
+            close(bootstrap_fd);
+
+            _shm_fd = shm_open(shm_name, O_RDONLY, 0);
+        }
+        else if (errno == EEXIST)
+        {
+            // Another process created it first; attach read-only.
+            _shm_fd = shm_open(shm_name, O_RDONLY, 0);
+        }
     }
 
-    // Best effort: keep permissions world-readable/writable across users.
-    (void)fchmod(_shm_fd, 0666);
-
-    if (ftruncate(_shm_fd, sizeof(MonitorSharedMemory)) == -1)
+    if (_shm_fd == -1)
     {
-        LOG_DXRT_ERR("Failed to set shared memory size");
-        close(_shm_fd);
-        _shm_fd = -1;
+        if (errno != ENOENT)
+        {
+            LOG_DXRT_ERR("Failed to open shared memory: " << shm_name
+                         << " (" << strerror(errno) << ")");
+        }
         return false;
     }
 
@@ -75,39 +119,6 @@ bool SharedMemoryReader::Open()
 
     // Verify magic number and version
     auto* shm = static_cast<const MonitorSharedMemory*>(_shm_ptr);
-    if (shm->magic != MONITOR_SHM_MAGIC)
-    {
-        // Fresh/legacy segment: initialize once, then reopen read-only.
-        munmap(_shm_ptr, sizeof(MonitorSharedMemory));
-        _shm_ptr = mmap(nullptr, sizeof(MonitorSharedMemory),
-                        PROT_READ | PROT_WRITE, MAP_SHARED, _shm_fd, 0);
-        if (_shm_ptr == MAP_FAILED)
-        {
-            LOG_DXRT_ERR("Failed to remap shared memory for initialization");
-            close(_shm_fd);
-            _shm_fd = -1;
-            _shm_ptr = nullptr;
-            return false;
-        }
-
-        auto* rw_shm = static_cast<MonitorSharedMemory*>(_shm_ptr);
-        new (rw_shm) MonitorSharedMemory();
-
-        munmap(_shm_ptr, sizeof(MonitorSharedMemory));
-        _shm_ptr = mmap(nullptr, sizeof(MonitorSharedMemory),
-                        PROT_READ, MAP_SHARED, _shm_fd, 0);
-        if (_shm_ptr == MAP_FAILED)
-        {
-            LOG_DXRT_ERR("Failed to remap shared memory as read-only");
-            close(_shm_fd);
-            _shm_fd = -1;
-            _shm_ptr = nullptr;
-            return false;
-        }
-
-        shm = static_cast<const MonitorSharedMemory*>(_shm_ptr);
-    }
-
     if (shm->magic != MONITOR_SHM_MAGIC)
     {
         LOG_DXRT_ERR("Invalid shared memory magic number");
@@ -131,8 +142,10 @@ bool SharedMemoryReader::Open()
     return true;
 
 #elif _WIN32
+    const char* shm_name = GetMonitorShmName();
+
     // 기존 read-only 매핑 열기 시도
-    HANDLE ro_handle = OpenFileMappingA(FILE_MAP_READ, FALSE, MONITOR_SHM_NAME);
+    HANDLE ro_handle = OpenFileMappingA(FILE_MAP_READ, FALSE, shm_name);
 
     if (ro_handle == nullptr)
     {
@@ -145,7 +158,7 @@ bool SharedMemoryReader::Open()
             PAGE_READWRITE,
             0,
             static_cast<DWORD>(sizeof(MonitorSharedMemory)),
-            MONITOR_SHM_NAME
+            shm_name
         );
 
         if (init_handle == nullptr)
@@ -169,7 +182,7 @@ bool SharedMemoryReader::Open()
         UnmapViewOfFile(init_ptr);
 
         // init_handle이 열린 상태에서 read-only 핸들 획득 후 init_handle 해제
-        ro_handle = OpenFileMappingA(FILE_MAP_READ, FALSE, MONITOR_SHM_NAME);
+        ro_handle = OpenFileMappingA(FILE_MAP_READ, FALSE, shm_name);
         CloseHandle(init_handle);
 
         if (ro_handle == nullptr)

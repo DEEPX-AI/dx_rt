@@ -275,6 +275,14 @@ void CpuHandleWorker::ThreadWorkImpl(int id)
                 _queue.pop();
 #ifdef USE_PROFILER
                 dxrt::Profiler::GetInstance().End(dxrt::Profiler::EventType::CPU_DISPATCH_WAIT, req->task()->name(), req->job_id());
+                // ponytail: compute CPU dispatch queue wait time
+                if (req->dispatchTimestampNs() > 0)
+                {
+                    uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        dxrt::ProfilerClock::now().time_since_epoch()).count();
+                    int64_t wait_us = static_cast<int64_t>(now_ns - req->dispatchTimestampNs()) / 1000;
+                    req->setQueueWaitTime(wait_us > 0 ? wait_us : 0);
+                }
 #endif
                 if (DEBUG_DATA > 0)
                 {

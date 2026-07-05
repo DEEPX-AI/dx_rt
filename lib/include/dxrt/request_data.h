@@ -2,8 +2,8 @@
  * Copyright (C) 2018- DEEPX Ltd.
  * All rights reserved.
  *
- * This software is the property of DEEPX and is provided exclusively to customers 
- * who are supplied with DEEPX NPU (Neural Processing Unit). 
+ * This software is the property of DEEPX and is provided exclusively to customers
+ * who are supplied with DEEPX NPU (Neural Processing Unit).
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
@@ -12,6 +12,7 @@
 #include "dxrt/common.h"
 #include "dxrt/tensor.h"
 #include "dxrt/task_data.h"
+#include "dxrt/npu_memory_cache.h"
 #include <memory>
 #include <vector>
 #include <string>
@@ -46,11 +47,17 @@ public:
     uint64_t encoded_outputs_phy = 0;
 #endif // USE_VNPU
 
+    // Zero-copy staging (service-mode PCIe): when _ioSliceValid is true, encoded_inputs_ptr /
+    // encoded_outputs_ptr point into _ioSlice's host region, so the device DMA path needs no
+    // staging memcpy. Set by DeviceTaskLayer::PrepareZeroCopyIo, consumed in InferenceRequestACC.
+    NpuMemoryCacheSlice _ioSlice{};
+    bool _ioSliceValid = false;
+
     std::vector<void*> encoded_input_ptrs;
     std::vector<void*> encoded_output_ptrs;
 
     std::string _processedPU;
-    int _processedDevId;
+    int _processedDevId = -1;
     int _processedId;
 
     void BuildEncodedInputPtrs(const std::vector<uint64_t>& offsets) {

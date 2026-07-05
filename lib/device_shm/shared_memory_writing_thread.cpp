@@ -87,7 +87,13 @@ bool SharedMemoryWritingThread::Start()
         return false;  // already running
     }
     _running.store(true);
-    _shmWriter.Initialize();
+    if (!_shmWriter.Initialize())
+    {
+        LOG_DXRT_ERR("Failed to initialize shared memory writer in monitor thread"
+                     << " (reason=" << _shmWriter.GetLastErrorMessage() << ")");
+        _running.store(false);
+        return false;
+    }
 
     if (_shmWriter.IsInitialized())
     {

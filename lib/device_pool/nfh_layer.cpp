@@ -210,6 +210,8 @@ int NFHLayer::handleOutput(const NfhOutputRequest &outputReq, int threadId) cons
 #ifdef DXRT_USE_DEVICE_VALIDATION
     if (outputReq.req->is_validate_request())
     {
+        // Return the cache slice before completing the request (see note below).
+        releaseInferenceCacheForOutput(outputReq);
         outputReq.req->onRequestComplete(outputReq.req);
         return 0;
     }
@@ -218,6 +220,14 @@ int NFHLayer::handleOutput(const NfhOutputRequest &outputReq, int threadId) cons
     {
         int result = 0;
         result = processOutputNfh(outputReq, threadId);
+
+        // NOTE: The NPU memory-cache slice is intentionally NOT released here. Its encoded output
+        // may be aliased by the output tensor or consumed by a downstream CPU task until the job
+        // completes, so the slice is released together with the request's host buffers in
+        // Request::releaseBuffers() (at job completion). Releasing it here (right after decode)
+        // let a waiting request reuse/overwrite the slice mid-consumption -> torn output /
+        // bitmatch failure on multi-task (NPU->CPU) models under async + a single bound device.
+
         if (result != 0)
         {
             LOG_DXRT_ERR("Failed to process output NFH for request " << outputReq.requestId);
@@ -256,7 +266,27 @@ int NFHLayer::handleOutput(const NfhOutputRequest &outputReq, int threadId) cons
     {
         LOG_DXRT_ERR("Exception in NFH output processing: " << e.what());
     }
+
     return 0;
+}
+
+void NFHLayer::releaseInferenceCacheForOutput(const NfhOutputRequest &outputReq) const
+{
+    if (!outputReq.req)
+    {
+        return;
+    }
+
+    // Common NFH layer (deviceId == -1) is shared across devices, so the slice's owning
+    // device is the one that produced this response (outputReq.deviceId). A per-device
+    // layer owns its bound device directly.
+    auto releaseDev = (_deviceId == COMMON_NFH_LAYER_DEVICE_ID)
+        ? DevicePool::GetInstance().GetDeviceTaskLayer(outputReq.deviceId)
+        : _device;
+    if (releaseDev)
+    {
+        releaseDev->ReleaseInferenceCache(outputReq.req->id());
+    }
 }
 
 int NFHLayer::ProcessResponse(int deviceId, int reqId, const dxrt_response_t *response)

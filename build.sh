@@ -346,6 +346,11 @@ build_dxrt() {
         CMAKE_BIN=$(command -v cmake)
     fi
 
+    if [ -z "${CMAKE_BIN}" ]; then
+        print_colored_v2 "ERROR" "CMake binary not found. Please install cmake (e.g., sudo apt install cmake) and retry."
+        exit 1
+    fi
+
     echo "[BUILD] Using CMake: ${CMAKE_BIN}"
     ${CMAKE_BIN} .. ${cmd[@]} || {
         CMAKE_STATUS=$?

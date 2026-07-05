@@ -95,6 +95,17 @@ class DXRT_API DeviceTaskLayer { // NOSONAR: Too many fields - stable as-is, ref
     void signalToWorker(int channel);
     void Deallocate_npuBuf(const NpuMemoryCacheSlice &slice, int taskId);
     NpuMemoryCacheSlice AllocateFromCache(int64_t size, int taskId);
+
+    // Release the NPU memory-cache slice associated with a completed request.
+    // This MUST run only AFTER NFH output decoding has consumed the slice's encoded
+    // output (see AccDeviceTaskLayer::OutputHandler / NFHLayer::handleOutput). Releasing
+    // it earlier lets a waiting request immediately reuse the (LIFO, blocking) slice and
+    // overwrite it before decode reads it -> torn output / bitmatch failure. Default no-op.
+    virtual void ReleaseInferenceCache(int reqId) { (void)reqId; }
+
+    // Zero-copy I/O: back a request's encoded input/output with a device SHM slice so the
+    // service-mode DMA path needs no staging memcpy. Default no-op; accelerators override.
+    virtual void PrepareZeroCopyIo(RequestData* req) { (void)req; }
     void StartDev(uint32_t option) { core()->StartDev(option); }
     bool isBlocked() const { return core()->isBlocked();  }
     void block() { core()->block(); }
@@ -254,6 +265,7 @@ class DXRT_API AccDeviceTaskLayer : public DeviceTaskLayer {
 
     int InputHandler(const int &reqId, int ch);
     int OutputHandler(const dxrt_response_t &resp, int ch);
+    void ReleaseInferenceCache(int reqId) override;
 
     // DMA Abort Recovery
     void PauseDmaRequests();
@@ -297,6 +309,7 @@ class DXRT_API AccDeviceTaskLayer : public DeviceTaskLayer {
 private:
     dxrt_request_acc_t peekInference(int id);
     int InferenceRequestACC(RequestData *req, npu_bound_op boundOp);
+    void PrepareZeroCopyIo(RequestData* req) override;
     bool CatchEvent(dxrt_cmd_t cmd, dxrt::dx_pcie_dev_event_t* eventInfo);
     bool HandleCaughtEvent(const dxrt::dx_pcie_dev_event_t& eventInfo);
 
@@ -307,7 +320,15 @@ private:
                                       void* output_ptr) const;
 
      std::unordered_map<int, dxrt_request_acc_t> _ongoingRequests;
-    std::unordered_map<int, NpuMemoryCacheSlice> _ongoingInputAllocations;
+    // Cache slice held for an in-flight request, paired with its owning taskId so the slice
+    // can be returned to the pool even after the Request/Task has been torn down (the deferred
+    // release in NFHLayer::handleOutput runs on a worker thread, potentially after teardown).
+    struct OngoingCacheAllocation
+    {
+        NpuMemoryCacheSlice slice;
+        int taskId = -1;
+    };
+    std::unordered_map<int, OngoingCacheAllocation> _ongoingInputAllocations;
 
 #ifdef USE_PROFILER
      // Track response receive timestamps for queueing delay measurement

@@ -38,24 +38,62 @@ bool SharedMemoryWriter::Initialize()
         return true;
     }
 
+    _lastError.clear();
+
 #ifdef __linux__
+    const char* shm_name = GetMonitorShmName();
+
     // Open-or-create shared memory (reader-first/writer-first both supported).
-    _shm_fd = shm_open(MONITOR_SHM_NAME, O_CREAT | O_RDWR, 0666);
+    _shm_fd = shm_open(shm_name, O_CREAT | O_RDWR, MONITOR_SHM_PERMS);
     if (_shm_fd != -1)
     {
-        // Best effort: keep permissions world-readable/writable across users.
-        (void)fchmod(_shm_fd, 0666);
+        // Best effort: enforce permissions regardless of process umask.
+        // Failure is non-fatal (e.g. we don't own the SHM), but log for diagnosis
+        // since it can lead to reader EACCES later.
+        if (fchmod(_shm_fd, MONITOR_SHM_PERMS) == -1)
+        {
+            LOG_DXRT_DBG << "fchmod on shared memory failed: " << shm_name
+                         << " (" << strerror(errno) << ")";
+        }
     }
     if (_shm_fd == -1)
     {
-        LOG_DXRT_ERR("Failed to open/create shared memory: " << MONITOR_SHM_NAME
+        _lastError = "shm_open failed";
+        LOG_DXRT_ERR("Failed to open/create shared memory: " << shm_name
                      << " (" << strerror(errno) << ")");
+        return false;
+    }
+
+    // Enforce single-writer policy across processes.
+    // Keep this fd open for the writer lifetime so the lock remains held.
+    struct flock writer_lock{};
+    writer_lock.l_type = F_WRLCK;
+    writer_lock.l_whence = SEEK_SET;
+    writer_lock.l_start = 0;
+    writer_lock.l_len = 0;  // lock entire object
+    if (fcntl(_shm_fd, F_SETLK, &writer_lock) == -1)
+    {
+        if (errno == EACCES || errno == EAGAIN)
+        {
+            _lastError = "single-writer lock is already held";
+            LOG_DXRT_ERR("Another monitor writer is already active for shared memory: "
+                         << shm_name);
+        }
+        else
+        {
+            _lastError = "fcntl writer lock failed";
+            LOG_DXRT_ERR("Failed to acquire writer lock for shared memory: "
+                         << shm_name << " (" << strerror(errno) << ")");
+        }
+        close(_shm_fd);
+        _shm_fd = -1;
         return false;
     }
 
     // Set size (always set to ensure correct size)
     if (ftruncate(_shm_fd, sizeof(MonitorSharedMemory)) == -1)
     {
+        _lastError = "ftruncate failed";
         LOG_DXRT_ERR("Failed to set shared memory size");
         close(_shm_fd);
         _shm_fd = -1;
@@ -69,6 +107,7 @@ bool SharedMemoryWriter::Initialize()
 
     if (_shm_ptr == MAP_FAILED)
     {
+        _lastError = "mmap failed";
         LOG_DXRT_ERR("Failed to map shared memory");
         close(_shm_fd);
         _shm_fd = -1;
@@ -98,28 +137,30 @@ bool SharedMemoryWriter::Initialize()
     _shm_ptr->writer_pid = getpid();
 
     _initialized = true;
-    LOG_DXRT_DBG << "Shared memory writer initialized: " << MONITOR_SHM_NAME;
+    LOG_DXRT_DBG << "Shared memory writer initialized: " << shm_name;
     return true;
 
 #elif _WIN32
+    const char* shm_name = GetMonitorShmName();
+
     _shm_handle = CreateFileMappingA(
         INVALID_HANDLE_VALUE,
         nullptr,
         PAGE_READWRITE,
         0,
         static_cast<DWORD>(sizeof(MonitorSharedMemory)),
-        MONITOR_SHM_NAME
+        shm_name
     );
 
     if (_shm_handle == nullptr)
     {
-        LOG_DXRT_ERR("Failed to create shared memory: " << MONITOR_SHM_NAME
-                     << " error=" << GetLastError());
+        LOG_DXRT_ERR("Failed to create shared memory: " << shm_name
+                     << " error=" << ::GetLastError());
         return false;
     }
 
     // GetLastError는 다음 Win32 호출이 덮어쓰기 전에 즉시 캡처
-    bool already_existed = (GetLastError() == ERROR_ALREADY_EXISTS);
+    bool already_existed = (::GetLastError() == ERROR_ALREADY_EXISTS);
 
     _shm_ptr = static_cast<MonitorSharedMemory*>(
         MapViewOfFile(
@@ -132,7 +173,7 @@ bool SharedMemoryWriter::Initialize()
 
     if (_shm_ptr == nullptr)
     {
-        LOG_DXRT_ERR("Failed to map view of shared memory, error=" << GetLastError());
+        LOG_DXRT_ERR("Failed to map view of shared memory, error=" << ::GetLastError());
         CloseHandle(static_cast<HANDLE>(_shm_handle));
         _shm_handle = nullptr;
         return false;
@@ -152,7 +193,7 @@ bool SharedMemoryWriter::Initialize()
     _shm_ptr->writer_pid = static_cast<uint32_t>(GetCurrentProcessId());
 
     _initialized = true;
-    LOG_DXRT << "Shared memory writer initialized: " << MONITOR_SHM_NAME;
+    LOG_DXRT << "Shared memory writer initialized: " << shm_name;
     return true;
 
 #else
@@ -168,6 +209,8 @@ void SharedMemoryWriter::Cleanup()
     }
 
 #ifdef __linux__
+    const char* shm_name = GetMonitorShmName();
+
     if (_shm_ptr != nullptr && _shm_ptr != MAP_FAILED)
     {
         // Use sequence lock to safely reset all device data
@@ -213,8 +256,10 @@ void SharedMemoryWriter::Cleanup()
 
     // Keep SHM object persistent so reader/writer can attach independently.
     // A future writer will reopen and reuse/reinitialize this segment as needed.
-    LOG_DXRT_DBG << "Shared memory writer cleaned up: " << MONITOR_SHM_NAME;
+    LOG_DXRT_DBG << "Shared memory writer cleaned up: " << shm_name;
 #elif _WIN32
+    const char* shm_name = GetMonitorShmName();
+
     if (_shm_ptr != nullptr)
     {
         BeginWrite();
@@ -252,7 +297,7 @@ void SharedMemoryWriter::Cleanup()
         _shm_handle = nullptr;
     }
     // Windows: 모든 핸들/뷰 해제 시 자동 소멸 (shm_unlink 불필요)
-    LOG_DXRT_DBG << "Shared memory writer cleaned up: " << MONITOR_SHM_NAME;
+    LOG_DXRT_DBG << "Shared memory writer cleaned up: " << shm_name;
 #endif
 
     _initialized = false;

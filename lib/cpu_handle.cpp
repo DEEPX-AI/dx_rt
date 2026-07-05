@@ -396,6 +396,8 @@ int CpuHandle::InferenceRequest(RequestPtr req) const
 #ifdef USE_PROFILER
     auto& profiler = dxrt::Profiler::GetInstance();
     profiler.Start(dxrt::Profiler::EventType::CPU_DISPATCH_WAIT, _name, req->job_id());
+    req->setDispatchTimestampNs(std::chrono::duration_cast<std::chrono::nanoseconds>(
+        dxrt::ProfilerClock::now().time_since_epoch()).count());
 #endif
     return _worker->request(req);
 }

@@ -32,7 +32,6 @@
 static constexpr int kBoundInfMax = 7;       // == dxrt::N_BOUND_INF_MAX (driver.h)
 static constexpr int kTaskMaxLoadLimit = 100; // == DXRT_TASK_MAX_LOAD_LIMIT (common.h)
 static int getTaskMaxLoadValue() { return dxrt::get_task_max_load(); }
-#define LOG_VALUE(val) std::cout << #val << ": " << val << std::endl
 
 // Local file-I/O helpers (replace internal filesys_support)
 static int64_t localGetFileSize(const std::string& filename) {
@@ -203,6 +202,15 @@ std::ostream& operator<<(std::ostream& os, RunModelMode mode) {
     return os;
 }
 
+struct ReportConfig
+{
+    int64_t interval_sec = 0;
+    std::string input_file;
+    std::string output_file;
+    std::string model_file;
+    bool verbose = false;
+};
+
 std::string float_to_string_fixed(float value, int precision) {
     std::ostringstream oss;
     oss << std::fixed << std::setprecision(precision) << value;
@@ -292,6 +300,91 @@ void PrintInfResult(const std::string& inputFile, const std::string& outputFile,
 }
 
 
+class PeriodicReporter
+{
+public:
+    PeriodicReporter(dxrt::InferenceEngine& ie,
+                     const ReportConfig& cfg,
+                     std::function<int64_t()> getCount,
+                     std::chrono::steady_clock::time_point startTime,
+                     RunModelMode runMode)
+        : _ie(ie)
+        , _cfg(cfg)
+        , _get_count(std::move(getCount))
+        , _start(startTime)
+        , _mode(runMode)
+        , _stop(false)
+    {
+        if (_cfg.interval_sec <= 0) return;
+        _thread = std::thread([this]() { loop(); });
+    }
+
+    ~PeriodicReporter()
+    {
+        stopAndJoin();
+    }
+
+    PeriodicReporter(const PeriodicReporter&) = delete;
+    PeriodicReporter& operator=(const PeriodicReporter&) = delete;
+    PeriodicReporter(PeriodicReporter&&) = delete;
+    PeriodicReporter& operator=(PeriodicReporter&&) = delete;
+
+    void stopAndJoin()
+    {
+        std::call_once(_stop_once, [this]()
+        {
+            {
+                std::lock_guard<std::mutex> lock(_m);
+                _stop.store(true);
+            }
+            _cv.notify_all();
+            if (_thread.joinable()) _thread.join();
+        });
+    }
+
+private:
+    void loop()
+    {
+        int seq = 0;
+        while (true)
+        {
+            {
+                std::unique_lock<std::mutex> lock(_m);
+                _cv.wait_for(lock, std::chrono::seconds(_cfg.interval_sec),
+                             [this] { return _stop.load(); });
+                if (_stop.load()) break;
+            }
+            ++seq;
+
+            auto now = std::chrono::steady_clock::now();
+            double elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(now - _start).count();
+            int64_t count = _get_count();
+            float fps = (elapsed_us > 0 && count > 0) ? static_cast<float>(1e6 * count / elapsed_us) : 0.0f;
+            float latency_ms = _ie.GetLatencyMean() / 1000.0f;
+            float npu_ms = _ie.GetNpuInferenceTimeMean() / 1000.0f;
+
+            std::cout << "\n[Periodic Report #" << seq << "] cumulative elapsed="
+                      << float_to_string_fixed(static_cast<float>(elapsed_us / 1e6), 3)
+                      << "s, completions=" << count << std::endl;
+            PrintInfResult(_cfg.input_file, _cfg.output_file, _cfg.model_file,
+                           latency_ms, npu_ms, fps, count, _mode, _cfg.verbose);
+            std::cout << std::endl;
+        }
+    }
+
+    dxrt::InferenceEngine& _ie;
+    const ReportConfig& _cfg;
+    std::function<int64_t()> _get_count;
+    std::chrono::steady_clock::time_point _start;
+    RunModelMode _mode;
+    std::atomic<bool> _stop;
+    std::once_flag _stop_once;
+    std::mutex _m;
+    std::condition_variable _cv;
+    std::thread _thread;
+};
+
+
 void SetRunModelMode(bool single, int targetFps)
 {
     if (single) {
@@ -338,7 +431,8 @@ static MultiInputBuffers prepareMultiInputBuffers(dxrt::InferenceEngine& ie, voi
     return result;
 }
 
-static float runBenchmarkByTime(int64_t& outLoops, dxrt::InferenceEngine& ie, void* inputBuffer, int64_t targetDurationSec)
+static float runBenchmarkByTime(int64_t& outLoops, dxrt::InferenceEngine& ie, void* inputBuffer,
+                                int64_t targetDurationSec, const ReportConfig& reportCfg = {})
 {
     float fps = 0;
 
@@ -368,6 +462,14 @@ static float runBenchmarkByTime(int64_t& outLoops, dxrt::InferenceEngine& ie, vo
     auto mi = prepareMultiInputBuffers(ie, inputBuffer);
 
     auto start = std::chrono::steady_clock::now();
+
+    PeriodicReporter reporter(ie, reportCfg,
+        [&cb_mutex, &cb_count]() -> int64_t {
+            std::lock_guard<std::mutex> lock(cb_mutex);
+            return cb_count;
+        },
+        start, BENCHMARK_MODE);
+
     for(;;) // no limit
     {
         if (mi.is_multi_input)
@@ -405,13 +507,16 @@ static float runBenchmarkByTime(int64_t& outLoops, dxrt::InferenceEngine& ie, vo
 
     ie.RegisterCallback(nullptr);
 
+    reporter.stopAndJoin();
+
     outLoops = run_count;
     std::cout << "Inference by time: total-inference-time=" << infTime / 1000000.0 << "(s)" << " total-loops=" << outLoops << std::endl;
 
     return fps;
 }
 
-static float runAsyncTargetFPS(int64_t& outLoops, dxrt::InferenceEngine& ie, int targetFps, void* inputBuffer, int64_t targetDurationSec)
+static float runAsyncTargetFPS(int64_t& outLoops, dxrt::InferenceEngine& ie, int targetFps, void* inputBuffer,
+                               int64_t targetDurationSec)
 {
 
 #ifdef TARGET_FPS_DEBUG
@@ -446,6 +551,7 @@ static float runAsyncTargetFPS(int64_t& outLoops, dxrt::InferenceEngine& ie, int
     auto mi = prepareMultiInputBuffers(ie, inputBuffer);
 
     auto start_clock = std::chrono::steady_clock::now();
+
     for(int64_t i = 0; ; ++i)
     {
 #ifdef TARGET_FPS_DEBUG
@@ -538,6 +644,7 @@ int main(int argc, char *argv[])
     int64_t duration = 0;
     int num_devices = 0;
     int64_t warmup_runs = 0;  // Added warmup runs
+    int64_t report_interval = 0;  // Hidden: periodic cumulative report interval (sec)
     int buffer_count = getTaskMaxLoadValue();
     bool profiler_enable = false;
     bool throttling_info = false;
@@ -597,7 +704,8 @@ int main(int argc, char *argv[])
         ("i, input", "Input data file", cxxopts::value<string>(inputFile)->default_value(""))
         ("o, output", "Output data file", cxxopts::value<string>(outputFile)->default_value("output.bin"))
         ("skip-io", "Attempt to skip Inference I/O (Benchmark mode only)", cxxopts::value<bool>(skip_inference_io)->default_value("false"))
-        ("throttling-info", "Enable display throttling info", cxxopts::value<bool>(throttling_info)->default_value("false"));
+        ("throttling-info", "Enable display throttling info", cxxopts::value<bool>(throttling_info)->default_value("false"))
+        ("report-interval", "Periodically print cumulative latency/fps every N seconds", cxxopts::value<int64_t>(report_interval)->default_value("0"));
 
     try
     {
@@ -926,6 +1034,13 @@ int main(int argc, char *argv[])
             dxrt::set_skip_inference_io(true);
         }
 
+        ReportConfig report_cfg;
+        report_cfg.interval_sec = report_interval;
+        report_cfg.input_file = inputFile;
+        report_cfg.output_file = outputFile;
+        report_cfg.model_file = modelFile;
+        report_cfg.verbose = verbose;
+
         switch (mode)
         {
             case SINGLE_MODE: {
@@ -963,7 +1078,7 @@ int main(int argc, char *argv[])
                 float fps = 0;
                 if ( duration > 0 )
                 {
-                    fps = runBenchmarkByTime(loops, ie, inputBuf.data(), duration);
+                    fps = runBenchmarkByTime(loops, ie, inputBuf.data(), duration, report_cfg);
                 }
                 else
                 {

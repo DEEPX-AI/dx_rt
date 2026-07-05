@@ -995,7 +995,12 @@ static std::mutex sValidationMutex;  //NOSONAR:S5421 because it only used for sy
 
 TensorPtrs InferenceEngine::ValidateDevice(void *inputPtr, int deviceId)
 {
-    DXRT_ASSERT(_tasks.size() == 1, "ONLY ONE TASK IS ALLOWED WHEN VALIDATE DEVICE");
+    // Return empty result if the model has multiple internal tasks
+    // (ValidateDevice requires exactly one task).
+    if (_tasks.size() != 1) {
+        LOG_DXRT_ERR("ONLY ONE TASK IS ALLOWED WHEN VALIDATE DEVICE. _tasks.size()=" << _tasks.size());
+        return TensorPtrs();
+    }
 
     // Return empty result if not in debug mode
     if (_modelCompileType != "debug") {

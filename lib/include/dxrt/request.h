@@ -93,6 +93,10 @@ class DXRT_API Request // NOSONAR
     TimePointPtr time_point() const;
     Status status() const;
     int &latency();
+    int64_t queueWaitTime() const { return _queueWaitTime; }
+    void setQueueWaitTime(int64_t us) { _queueWaitTime = us; }
+    void setDispatchTimestampNs(uint64_t ns) { _dispatchTimestampNs = ns; }
+    uint64_t dispatchTimestampNs() const { return _dispatchTimestampNs; }
     bool &latency_valid();
     bool &validate_device();
     ModelType modelType() const;
@@ -133,6 +137,8 @@ class DXRT_API Request // NOSONAR
     std::atomic<Status> _status = {REQ_IDLE};
     std::shared_ptr<TimePoint> _timePoint;
     int _latency;
+    int64_t _queueWaitTime = 0;
+    uint64_t _dispatchTimestampNs = 0;
     bool _latencyValid;
     bool _validateDevice = false;
     int16_t _modelType;

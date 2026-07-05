@@ -79,6 +79,12 @@ int RequestResponse::InferenceRequest(RequestPtr req)
 #endif // USE_VNPU
                 // Store the BufferSet in the Request so it can be released automatically
                 req->setBufferSet(MAKE_UNIQUE<BufferSet>(buffers));
+#ifndef USE_VNPU
+                // Zero-copy: back encoded I/O with the device's SHM slice (service mode) so the
+                // device DMA path needs no staging memcpy. No-op when not applicable -> falls back
+                // to the heap-encoded + memcpy path.
+                device->PrepareZeroCopyIo(req->getData());
+#endif  // USE_VNPU
             }
             catch (const std::exception& e) {
                 LOG_DXRT_ERR(

@@ -1,6 +1,7 @@
 ## v3.4.0 (July 2026)
 
 #### Changed
+- Debian package now bundles `dx_engine` Python wheels for Python 3.10 – 3.13.
 - CLI binary names updated for consistency: `dxrt-cli` → `dxcli`, `parse_model` → `dxparse`, `run_model` → `dxrun`
 - Old names (`dxrt-cli`, `parse_model`, `run_model`) remain functional as backward-compatible aliases (symlinks on Linux/macOS, hard links on Windows)
 - Python bindings now use dxrt_cxx_api.h (header-only) instead of direct C++ linkage
@@ -15,7 +16,7 @@
 - Replace top-level matplotlib imports with lazy loading via `ensure_dependencies()` in `plot.py` to provide install guidance instead of ImportError
 
 #### Fixed
-- Fix wrong version showing in run_model
+- Improved shared-memory performance.
 - Fix SEGV in NFHLayer caused by dereferencing uninitialized `Request::_task` in profiler instrumentation
 - Return `INT16_MIN` instead of `0` from `DeviceStatus::GetTemperature()` when channel index is out of range
 - Improve dxrtd error messages when manually executed
@@ -26,9 +27,12 @@
 - Fix multi-input dictionary handling issue.
 
 #### Added
+- Script to build `dx_engine` wheels per Python version.
+- Documentation describing the Debian prebuilt directory structure.
+- Script to generate the `prebuilt/` directory.
 - Stable C ABI (dxrt_c_api.h, 103 functions) enabling prebuilt SDK distribution without recompilation
 - Header-only C++ wrapper (dxrt_cxx_api.h) for single-include modern C++ usage
-- SDK-compat bridge headers (wrapper/) for backward compatibility with existing dxrt_api.h code
+- SDK-compat bridge headers (legacy/) for backward compatibility with existing dxrt_api.h code
 - H1M firmware compatibility check: distinguish H1M (LPDDR4) from H1 (LPDDR5/LPDDR5X) in firmware update and device detection; support mixed 4-pack / 6-pack H1M configurations
 - Deprecated Python API migration guide added to Python API Reference documentation
 - Add shared memory-based inter-process communication using memfd

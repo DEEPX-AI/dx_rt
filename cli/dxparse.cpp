@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
     }
     catch (const dxrt::Exception& e)
     {
-        std::cerr << e.what() << " error-code=" << e.code() << std::endl;
+        std::cerr << e.what() << " error-code=" << static_cast<int>(e.code()) << std::endl;
         return -1;
     }
     catch (const std::exception& e)
