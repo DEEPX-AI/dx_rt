@@ -1,9 +1,9 @@
 # RELEASE_NOTES
 
-## v3.4.0 / 2026-07-05
+## v3.4.0 / 2026-07-07
 
 ### 1. Changed
-- Debian package now bundles `dx_engine` Python wheels for Python 3.10 – 3.13.
+- Debian package bundles `dx_engine` Python wheels for Python 3.8 – 3.14.
 - CLI binary names updated for consistency: `dxrt-cli` → `dxcli`, `parse_model` → `dxparse`, `run_model` → `dxrun`
 - Old names (`dxrt-cli`, `parse_model`, `run_model`) remain functional as backward-compatible aliases (symlinks on Linux/macOS, hard links on Windows)
 - Python bindings now use dxrt_cxx_api.h (header-only) instead of direct C++ linkage

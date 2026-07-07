@@ -492,7 +492,6 @@ public:
 
     TensorPtrs Run(void* input, void* userArg = nullptr, void* output = nullptr)
     {
-        (void)userArg;
         uint64_t out_sz = 0;
         detail::check(dxrt_engine_get_output_size(h_, &out_sz));
         std::vector<uint8_t> buf;
@@ -507,8 +506,8 @@ public:
         int count = 0;
         detail::check(dxrt_engine_get_output_tensor_info(h_, nullptr, &count));
         std::vector<dxrt_tensor_info_t> infos(count);
-        detail::check(dxrt_engine_run_with_tensor_info(
-            h_, input, out_ptr, count > 0 ? infos.data() : nullptr, &count));
+        detail::check(dxrt_engine_run_with_tensor_info_and_user_arg(
+            h_, input, userArg, out_ptr, count > 0 ? infos.data() : nullptr, &count));
         infos.resize(static_cast<size_t>(count));
         return build_output_tensors_from_infos(out_ptr, out_sz, owns, infos);
     }
@@ -592,9 +591,15 @@ public:
         const std::vector<void*>& outputBuffers,
         const std::vector<void*>& userArgs = {})
     {
-        (void)userArgs;
         int batch = static_cast<int>(inputBuffers.size());
+        if (!userArgs.empty() && static_cast<int>(userArgs.size()) != batch)
+            throw Exception("userArgs size does not match batch size", DXRT_ERR_INVALID_ARG);
         std::vector<const void*> in_ptrs(inputBuffers.begin(), inputBuffers.end());
+        std::vector<const void*> user_arg_ptrs;
+        if (!userArgs.empty())
+        {
+            user_arg_ptrs.assign(userArgs.begin(), userArgs.end());
+        }
         std::vector<void*> out_ptrs(outputBuffers);
 
         uint64_t out_sz = 0;
@@ -618,8 +623,8 @@ public:
         detail::check(dxrt_engine_get_output_tensor_info(h_, nullptr, &output_count));
         int info_count = batch * output_count;
         std::vector<dxrt_tensor_info_t> infos(static_cast<size_t>(info_count));
-        detail::check(dxrt_engine_run_batch_with_tensor_info(
-            h_, in_ptrs.data(), out_ptrs.data(), batch,
+        detail::check(dxrt_engine_run_batch_with_tensor_info_and_user_arg(
+            h_, in_ptrs.data(), user_arg_ptrs.empty() ? nullptr : user_arg_ptrs.data(), out_ptrs.data(), batch,
             info_count > 0 ? infos.data() : nullptr, &info_count));
         if (info_count % batch != 0)
             throw Exception("runtime output metadata count is not divisible by batch size",
@@ -641,7 +646,6 @@ public:
     TensorPtrs RunMultiInput(const std::map<std::string, void*>& inputTensors,
                              void* userArg = nullptr, void* outputPtr = nullptr)
     {
-        (void)userArg;
         int num = static_cast<int>(inputTensors.size());
         std::vector<const char*> names;
         std::vector<const void*> buffers;
@@ -664,8 +668,8 @@ public:
         int count = 0;
         detail::check(dxrt_engine_get_output_tensor_info(h_, nullptr, &count));
         std::vector<dxrt_tensor_info_t> infos(count);
-        detail::check(dxrt_engine_run_multi_input_with_tensor_info(
-            h_, names.data(), buffers.data(), num, out_ptr,
+        detail::check(dxrt_engine_run_multi_input_with_tensor_info_and_user_arg(
+            h_, names.data(), buffers.data(), num, userArg, out_ptr,
             count > 0 ? infos.data() : nullptr, &count));
         infos.resize(static_cast<size_t>(count));
         return build_output_tensors_from_infos(out_ptr, out_sz, outputPtr == nullptr, infos);
@@ -674,7 +678,6 @@ public:
     TensorPtrs RunMultiInput(const std::vector<void*>& inputPtrs,
                              void* userArg = nullptr, void* outputPtr = nullptr)
     {
-        (void)userArg;
         int num = static_cast<int>(inputPtrs.size());
         std::vector<const void*> in_ptrs(inputPtrs.begin(), inputPtrs.end());
 
@@ -691,8 +694,8 @@ public:
         int count = 0;
         detail::check(dxrt_engine_get_output_tensor_info(h_, nullptr, &count));
         std::vector<dxrt_tensor_info_t> infos(count);
-        detail::check(dxrt_engine_run_multi_input_vector_with_tensor_info(
-            h_, in_ptrs.data(), num, out_ptr,
+        detail::check(dxrt_engine_run_multi_input_vector_with_tensor_info_and_user_arg(
+            h_, in_ptrs.data(), num, userArg, out_ptr,
             count > 0 ? infos.data() : nullptr, &count));
         infos.resize(static_cast<size_t>(count));
         return build_output_tensors_from_infos(out_ptr, out_sz, outputPtr == nullptr, infos);

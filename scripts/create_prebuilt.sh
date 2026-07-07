@@ -12,8 +12,8 @@ PREBUILT_LIB_DIR="${PREBUILT_DIR}/lib"
 PREBUILT_PYTHON_DIR="${PREBUILT_DIR}/python"
 PREBUILT_SERVICE_DIR="${PREBUILT_DIR}/service"
 
-SRC_BIN_DIR="${WORKSPACE_ROOT}/bin_files/bin"
-SRC_LIB_DIR="${WORKSPACE_ROOT}/bin_files/lib"
+SRC_BIN_DIR="${WORKSPACE_ROOT}/prebuilt_files/bin"
+SRC_LIB_DIR="${WORKSPACE_ROOT}/prebuilt_files/lib"
 SRC_INCLUDE_DXRT_DIR="/usr/local/include/dxrt"
 SRC_WHEELHOUSE="${DX_RT_ROOT}/python_package/wheelhouse"
 SRC_SERVICE_DIR="${DX_RT_ROOT}/service"
@@ -72,8 +72,34 @@ copy_include_dxrt() {
   cp -a "${SRC_INCLUDE_DXRT_DIR}" "${PREBUILT_INCLUDE_DIR}/"
 }
 
+get_architecture() {
+  local arch
+  arch=$(uname -m)
+  case "${arch}" in
+    x86_64)
+      echo "x86_64"
+      ;;
+    armv7l|armv6l|aarch64)
+      echo "arm"
+      ;;
+    *)
+      echo "unknown"
+      ;;
+  esac
+}
+
 copy_onnx_libs() {
-  local onnx_real="libonnxruntime.so.1.22.0"
+  local arch
+  arch=$(get_architecture)
+  
+  local onnx_version
+  if [[ "${arch}" == "arm" ]]; then
+    onnx_version="1.20.1"
+  else
+    onnx_version="1.22.0"
+  fi
+  
+  local onnx_real="libonnxruntime.so.${onnx_version}"
   require_file "${SRC_LIB_DIR}/${onnx_real}"
 
   cp -a "${SRC_LIB_DIR}/${onnx_real}" "${PREBUILT_LIB_DIR}/${onnx_real}"
@@ -81,6 +107,8 @@ copy_onnx_libs() {
   rm -f "${PREBUILT_LIB_DIR}/libonnxruntime.so.1" "${PREBUILT_LIB_DIR}/libonnxruntime.so"
   ln -s "${onnx_real}" "${PREBUILT_LIB_DIR}/libonnxruntime.so.1"
   ln -s "libonnxruntime.so.1" "${PREBUILT_LIB_DIR}/libonnxruntime.so"
+  
+  log "Copied libonnxruntime.so.${onnx_version} for ${arch}"
 }
 
 copy_and_relink_libdxrt() {

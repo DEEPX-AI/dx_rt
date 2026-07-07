@@ -246,6 +246,26 @@ DXRT_CAPI dxrt_status_t dxrt_engine_run(
     const void*    input,
     void*          output);
 
+/**
+ * Run synchronous inference, delivering `user_arg` to the callback registered
+ * via dxrt_engine_register_callback() (if any).
+ *
+ * Behaviorally identical to dxrt_engine_run(), except `user_arg` is forwarded
+ * to the completion callback instead of being discarded.
+ *
+ * @param engine    Engine handle.
+ * @param input     Input buffer (must be at least input_size bytes).
+ * @param user_arg  Opaque pointer forwarded to the completion callback, or NULL.
+ * @param output    Output buffer (must not be NULL; must be at least
+ *                  output_size bytes).
+ * @return DXRT_OK on success.
+ */
+DXRT_CAPI dxrt_status_t dxrt_engine_run_with_user_arg(
+    dxrt_engine_t  engine,
+    const void*    input,
+    void*          user_arg,
+    void*          output);
+
 /* ══════════════════════════════════════════════════════════════
  *  Asynchronous Inference
  * ══════════════════════════════════════════════════════════════ */
@@ -1014,6 +1034,27 @@ DXRT_CAPI dxrt_status_t dxrt_engine_run_with_tensor_info(
     int* count);
 
 /**
+ * Run synchronous inference, return runtime output tensor metadata, and
+ * deliver `user_arg` to the callback registered via
+ * dxrt_engine_register_callback() (if any).
+ *
+ * Behaviorally identical to dxrt_engine_run_with_tensor_info(), except
+ * `user_arg` is forwarded to the completion callback instead of being
+ * discarded.
+ *
+ * @param user_arg Opaque pointer forwarded to the completion callback, or NULL.
+ * @param infos [out] Array of dxrt_tensor_info_t.
+ * @param count [in/out] In: array capacity. Out: actual tensor count.
+ */
+DXRT_CAPI dxrt_status_t dxrt_engine_run_with_tensor_info_and_user_arg(
+    dxrt_engine_t engine,
+    const void* input,
+    void* user_arg,
+    void* output,
+    dxrt_tensor_info_t* infos,
+    int* count);
+
+/**
  * Wait for an async job, copy output, and return runtime output tensor metadata.
  * @param infos [out] Array of dxrt_tensor_info_t.
  * @param count [in/out] In: array capacity. Out: actual tensor count.
@@ -1080,6 +1121,44 @@ DXRT_CAPI dxrt_status_t dxrt_engine_run_batch_with_tensor_info(
     int* count);
 
 /**
+ * Run batch inference, delivering each item's `user_args[i]` to the callback
+ * registered via dxrt_engine_register_callback() (if any) when that item's
+ * job completes.
+ *
+ * Behaviorally identical to dxrt_engine_run_batch(), except `user_args` is
+ * forwarded to the completion callback instead of being discarded.
+ *
+ * @param input_buffers  Array of input data pointers (one per batch element).
+ * @param user_args      Array of per-item opaque pointers forwarded to the
+ *                       completion callback (one per batch element), or NULL
+ *                       to opt out for the whole batch. If non-NULL, must have
+ *                       at least `batch_size` valid entries (same implicit-
+ *                       length contract as input_buffers/output_buffers).
+ * @param output_buffers Array of output data pointers (one per batch element).
+ * @param batch_size     Number of elements in the batch.
+ */
+DXRT_CAPI dxrt_status_t dxrt_engine_run_batch_with_user_arg(
+    dxrt_engine_t engine,
+    const void** input_buffers,
+    const void** user_args,
+    void** output_buffers,
+    int batch_size);
+
+/**
+ * Run batch inference, return runtime output tensor metadata, and deliver
+ * each item's `user_args[i]` to the registered callback. See
+ * dxrt_engine_run_batch_with_user_arg() for the `user_args` contract.
+ */
+DXRT_CAPI dxrt_status_t dxrt_engine_run_batch_with_tensor_info_and_user_arg(
+    dxrt_engine_t engine,
+    const void** input_buffers,
+    const void** user_args,
+    void** output_buffers,
+    int batch_size,
+    dxrt_tensor_info_t* infos,
+    int* count);
+
+/**
  * Run inference with multiple named input tensors.
  * @param input_names Array of input tensor name strings.
  * @param input_buffers Array of corresponding input data pointers.
@@ -1118,6 +1197,69 @@ DXRT_CAPI dxrt_status_t dxrt_engine_run_multi_input_vector_with_tensor_info(
     dxrt_engine_t engine,
     const void** input_buffers,
     int num_inputs,
+    void* output,
+    dxrt_tensor_info_t* infos,
+    int* count);
+
+/**
+ * Run inference with multiple named input tensors, delivering `user_arg` to
+ * the callback registered via dxrt_engine_register_callback() (if any).
+ *
+ * Behaviorally identical to dxrt_engine_run_multi_input(), except `user_arg`
+ * is forwarded to the completion callback instead of being discarded.
+ *
+ * @param user_arg  Opaque pointer forwarded to the completion callback, or NULL.
+ */
+DXRT_CAPI dxrt_status_t dxrt_engine_run_multi_input_with_user_arg(
+    dxrt_engine_t engine,
+    const char** input_names,
+    const void** input_buffers,
+    int num_inputs,
+    void* user_arg,
+    void* output);
+
+/**
+ * Run inference with multiple named input tensors, return runtime output
+ * tensor metadata, and deliver `user_arg` to the registered callback.
+ */
+DXRT_CAPI dxrt_status_t dxrt_engine_run_multi_input_with_tensor_info_and_user_arg(
+    dxrt_engine_t engine,
+    const char** input_names,
+    const void** input_buffers,
+    int num_inputs,
+    void* user_arg,
+    void* output,
+    dxrt_tensor_info_t* infos,
+    int* count);
+
+/**
+ * Run inference with multiple input buffers (ordered by tensor index),
+ * delivering `user_arg` to the callback registered via
+ * dxrt_engine_register_callback() (if any).
+ *
+ * Behaviorally identical to dxrt_engine_run_multi_input_vector(), except
+ * `user_arg` is forwarded to the completion callback instead of being
+ * discarded.
+ *
+ * @param user_arg  Opaque pointer forwarded to the completion callback, or NULL.
+ */
+DXRT_CAPI dxrt_status_t dxrt_engine_run_multi_input_vector_with_user_arg(
+    dxrt_engine_t engine,
+    const void** input_buffers,
+    int num_inputs,
+    void* user_arg,
+    void* output);
+
+/**
+ * Run inference with multiple input buffers (ordered by tensor index), return
+ * runtime output tensor metadata, and deliver `user_arg` to the registered
+ * callback.
+ */
+DXRT_CAPI dxrt_status_t dxrt_engine_run_multi_input_vector_with_tensor_info_and_user_arg(
+    dxrt_engine_t engine,
+    const void** input_buffers,
+    int num_inputs,
+    void* user_arg,
     void* output,
     dxrt_tensor_info_t* infos,
     int* count);

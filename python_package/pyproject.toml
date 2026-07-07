@@ -29,10 +29,13 @@ name="dx-engine"
 version = "3.4.0"
 description="Python wrapper class for dx_rt"
 readme = "README.md"
-license = {text="MIT"}
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE"]
 authors = [{name="DEEPX-RT", email="rt@deepx.ai"}]
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -60,8 +63,8 @@ wheel.packages = ["src/dx_engine"]
 
 # cibuildwheel configuration for building wheels across multiple Python versions
 [tool.cibuildwheel]
-# Build for Python 3.10, 3.11, 3.12, 3.13, 3.14
-build = ["cp310-*", "cp311-*", "cp312-*", "cp313-*", "cp314-*"]
+# Build for Python 3.8 - 3.14
+build = ["cp38-*", "cp39-*", "cp310-*", "cp311-*", "cp312-*", "cp313-*", "cp314-*"]
 
 # Skip 32-bit builds and musllinux
 skip = ["*-win32", "*-manylinux_i686", "*-musllinux_*"]

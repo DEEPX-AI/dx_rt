@@ -466,7 +466,9 @@ void Request::releaseBuffers()
     // request reuse and overwrite the slice mid-consumption -> torn output / bitmatch failure on
     // multi-task (NPU->CPU) models under async + a single bound device. No-op for CPU requests
     // and for NPU requests that never acquired a cache slice (unknown reqId).
-    if (_data._processedDevId >= 0) {
+    if (_data._processedDevId >= 0
+        && _data._processedDevId < static_cast<int>(DevicePool::GetInstance().GetDeviceCountNoInit()))
+    {
         auto devLayer = DevicePool::GetInstance().GetDeviceTaskLayer(_data._processedDevId);
         if (devLayer) {
             devLayer->ReleaseInferenceCache(id());

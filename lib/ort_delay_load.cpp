@@ -18,6 +18,8 @@
  * from that same directory.
  */
 
+#include <dxrt/gen.h>
+
 #if defined(_WIN32) && defined(USE_ORT)
 
 #include <windows.h>
@@ -79,8 +81,19 @@ void WideToUtf8(const wchar_t* src, char* dst, size_t dstSize)
         strcpy_s(dst, dstSize, "(utf8-convert-failed)");
 }
 
+bool IsDelayLoadLoggingEnabled()
+{
+    char value[8];
+    DWORD len = GetEnvironmentVariableA("DXRT_ORT_DELAY_LOG", value, static_cast<DWORD>(_countof(value)));
+    return len > 0 && len < _countof(value) && strcmp(value, "0") != 0;
+}
+
 void DxrtOrtDelayLog(const char* fmt, ...)
 {
+    static const bool enabled = IsDelayLoadLoggingEnabled();
+    if (!enabled)
+        return;
+
     char payload[2048];
     va_list args;
     va_start(args, fmt);

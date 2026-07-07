@@ -169,29 +169,18 @@ void DeviceTaskLayer::Deallocate_npuBuf(const NpuMemoryCacheSlice &slice, int ta
     if (errorInfo != nullptr)
     {
         std::cout << " ** Detailed error payload from service:" << std::endl;
-        std::cout << "    - npu_id=" << errorInfo->npu_id
-                  << ", err_code=" << errorInfo->err_code
-                  << ", cmd_num=" << errorInfo->cmd_num
-                  << ", last_cmd=" << errorInfo->last_cmd
-                  << ", busy=" << errorInfo->busy << std::endl;
-        std::cout << "    - PCIe BDF="
-                  << static_cast<int>(errorInfo->bus) << ":"
-                  << static_cast<int>(errorInfo->dev) << "."
-                  << static_cast<int>(errorInfo->func)
-                  << ", ltssm=" << errorInfo->ltssm
-                  << ", speed=" << errorInfo->speed
-                  << ", width=" << errorInfo->width << std::endl;
-        std::cout << "    - DMA WR status=["
-                  << errorInfo->dma_wr_ch_sts[0] << ", "
-                  << errorInfo->dma_wr_ch_sts[1] << ", "
-                  << errorInfo->dma_wr_ch_sts[2] << ", "
-                  << errorInfo->dma_wr_ch_sts[3] << "]" << std::endl;
-        std::cout << "    - DMA RD status=["
-                  << errorInfo->dma_rd_ch_sts[0] << ", "
-                  << errorInfo->dma_rd_ch_sts[1] << ", "
-                  << errorInfo->dma_rd_ch_sts[2] << ", "
-                  << errorInfo->dma_rd_ch_sts[3] << "]" << std::endl;
+        std::cout << *errorInfo;
     }
+    std::cout << "************************************************************************" << std::endl;
+    std::cout << " * Error occurred! Please follow the steps below to recover the device." << std::endl;
+    std::cout << " * Refer to the user guide if additional help is needed." << std::endl;
+    std::cout << std::endl;
+    std::cout << " Step 1: Reset the device using dxrt-cli" << std::endl;
+    std::cout << "         > dxrt-cli -r 0" << std::endl;
+    std::cout << " Step 2: Retry the inference using run_model" << std::endl;
+    std::cout << "         > run_model -m [model.dxnn]" << std::endl;
+    std::cout << " ** If the error persists, please contact DeepX support for assistance." << std::endl;
+    std::cout << "************************************************************************" << std::endl;
     std::cout << " ** Device recovery was performed by the service." << std::endl;
     std::cout << " ** This application must exit and restart to reload models." << std::endl;
     std::cout << "============================================================" << std::endl;

@@ -411,6 +411,29 @@ DXRT_CAPI dxrt_status_t dxrt_engine_run(
     DXRT_C_CATCH
 }
 
+DXRT_CAPI dxrt_status_t dxrt_engine_run_with_user_arg(
+    dxrt_engine_t  engine,
+    const void*    input,
+    void*          user_arg,
+    void*          output)
+{
+    if (!engine || !input || !output) {
+        set_error("engine, input, and output must not be NULL");
+        return DXRT_ERR_INVALID_ARG;
+    }
+
+    DXRT_C_TRY
+
+    auto results = engine->engine->Run(
+        const_cast<void*>(input),
+        user_arg,
+        output);
+    (void)results;
+    return DXRT_OK;
+
+    DXRT_C_CATCH
+}
+
 /* ══════════════════════════════════════════════════════════════
  *  Asynchronous Inference
  * ══════════════════════════════════════════════════════════════ */
@@ -476,6 +499,30 @@ DXRT_CAPI dxrt_status_t dxrt_engine_run_with_tensor_info(
     auto results = engine->engine->Run(
         const_cast<void*>(input),
         /*userArg=*/nullptr,
+        output);
+    return fill_output_infos(results, infos, count);
+
+    DXRT_C_CATCH
+}
+
+DXRT_CAPI dxrt_status_t dxrt_engine_run_with_tensor_info_and_user_arg(
+    dxrt_engine_t engine,
+    const void* input,
+    void* user_arg,
+    void* output,
+    dxrt_tensor_info_t* infos,
+    int* count)
+{
+    if (!engine || !input || !output || !count) {
+        set_error("engine, input, output, and count must not be NULL");
+        return DXRT_ERR_INVALID_ARG;
+    }
+
+    DXRT_C_TRY
+
+    auto results = engine->engine->Run(
+        const_cast<void*>(input),
+        user_arg,
         output);
     return fill_output_infos(results, infos, count);
 
@@ -1987,6 +2034,36 @@ DXRT_CAPI dxrt_status_t dxrt_engine_run_batch(
     DXRT_C_CATCH
 }
 
+DXRT_CAPI dxrt_status_t dxrt_engine_run_batch_with_user_arg(
+    dxrt_engine_t engine,
+    const void** input_buffers,
+    const void** user_args,
+    void** output_buffers,
+    int batch_size)
+{
+    if (!engine || !input_buffers || !output_buffers || batch_size <= 0)
+        return DXRT_ERR_INVALID_ARG;
+    DXRT_C_TRY
+    std::vector<void*> inputs(batch_size);
+    std::vector<void*> outputs(batch_size);
+    std::vector<void*> user_arg_vec;
+    if (user_args)
+        user_arg_vec.resize(batch_size);
+    for (int i = 0; i < batch_size; ++i) {
+        if (!input_buffers[i] || !output_buffers[i]) {
+            set_error("input_buffers[i] and output_buffers[i] must not be NULL");
+            return DXRT_ERR_INVALID_ARG;
+        }
+        inputs[i] = const_cast<void*>(input_buffers[i]);
+        outputs[i] = output_buffers[i];
+        if (user_args)
+            user_arg_vec[i] = const_cast<void*>(user_args[i]);
+    }
+    engine->engine->Run(inputs, outputs, user_arg_vec);
+    return DXRT_OK;
+    DXRT_C_CATCH
+}
+
 DXRT_CAPI dxrt_status_t dxrt_engine_run_batch_with_tensor_info(
     dxrt_engine_t engine,
     const void** input_buffers,
@@ -2011,6 +2088,40 @@ DXRT_CAPI dxrt_status_t dxrt_engine_run_batch_with_tensor_info(
         outputs[i] = output_buffers[i];
     }
     auto results = engine->engine->Run(inputs, outputs);
+    return fill_batch_output_infos(results, infos, count);
+    DXRT_C_CATCH
+}
+
+DXRT_CAPI dxrt_status_t dxrt_engine_run_batch_with_tensor_info_and_user_arg(
+    dxrt_engine_t engine,
+    const void** input_buffers,
+    const void** user_args,
+    void** output_buffers,
+    int batch_size,
+    dxrt_tensor_info_t* infos,
+    int* count)
+{
+    if (!engine || !input_buffers || !output_buffers || batch_size <= 0 || !count) {
+        set_error("engine, input_buffers, output_buffers, count must be valid and batch_size > 0");
+        return DXRT_ERR_INVALID_ARG;
+    }
+    DXRT_C_TRY
+    std::vector<void*> inputs(batch_size);
+    std::vector<void*> outputs(batch_size);
+    std::vector<void*> user_arg_vec;
+    if (user_args)
+        user_arg_vec.resize(batch_size);
+    for (int i = 0; i < batch_size; ++i) {
+        if (!input_buffers[i] || !output_buffers[i]) {
+            set_error("input_buffers[i] and output_buffers[i] must not be NULL");
+            return DXRT_ERR_INVALID_ARG;
+        }
+        inputs[i] = const_cast<void*>(input_buffers[i]);
+        outputs[i] = output_buffers[i];
+        if (user_args)
+            user_arg_vec[i] = const_cast<void*>(user_args[i]);
+    }
+    auto results = engine->engine->Run(inputs, outputs, user_arg_vec);
     return fill_batch_output_infos(results, infos, count);
     DXRT_C_CATCH
 }
@@ -2044,6 +2155,32 @@ DXRT_CAPI dxrt_status_t dxrt_engine_run_multi_input(
     DXRT_C_CATCH
 }
 
+DXRT_CAPI dxrt_status_t dxrt_engine_run_multi_input_with_user_arg(
+    dxrt_engine_t engine,
+    const char** input_names,
+    const void** input_buffers,
+    int num_inputs,
+    void* user_arg,
+    void* output)
+{
+    if (!engine || !input_names || !input_buffers || !output || num_inputs <= 0) {
+        set_error("engine, input_names, input_buffers, output must be valid and num_inputs > 0");
+        return DXRT_ERR_INVALID_ARG;
+    }
+    DXRT_C_TRY
+    std::map<std::string, void*> inputs;
+    for (int i = 0; i < num_inputs; ++i) {
+        if (!input_names[i]) {
+            set_error("input_names[i] must not be NULL");
+            return DXRT_ERR_INVALID_ARG;
+        }
+        inputs[input_names[i]] = const_cast<void*>(input_buffers[i]);
+    }
+    engine->engine->RunMultiInput(inputs, user_arg, output);
+    return DXRT_OK;
+    DXRT_C_CATCH
+}
+
 DXRT_CAPI dxrt_status_t dxrt_engine_run_multi_input_with_tensor_info(
     dxrt_engine_t engine,
     const char** input_names,
@@ -2071,6 +2208,34 @@ DXRT_CAPI dxrt_status_t dxrt_engine_run_multi_input_with_tensor_info(
     DXRT_C_CATCH
 }
 
+DXRT_CAPI dxrt_status_t dxrt_engine_run_multi_input_with_tensor_info_and_user_arg(
+    dxrt_engine_t engine,
+    const char** input_names,
+    const void** input_buffers,
+    int num_inputs,
+    void* user_arg,
+    void* output,
+    dxrt_tensor_info_t* infos,
+    int* count)
+{
+    if (!engine || !input_names || !input_buffers || !output || num_inputs <= 0 || !count) {
+        set_error("engine, input_names, input_buffers, output, count must be valid and num_inputs > 0");
+        return DXRT_ERR_INVALID_ARG;
+    }
+    DXRT_C_TRY
+    std::map<std::string, void*> inputs;
+    for (int i = 0; i < num_inputs; ++i) {
+        if (!input_names[i]) {
+            set_error("input_names[i] must not be NULL");
+            return DXRT_ERR_INVALID_ARG;
+        }
+        inputs[input_names[i]] = const_cast<void*>(input_buffers[i]);
+    }
+    auto results = engine->engine->RunMultiInput(inputs, user_arg, output);
+    return fill_output_infos(results, infos, count);
+    DXRT_C_CATCH
+}
+
 DXRT_CAPI dxrt_status_t dxrt_engine_run_multi_input_vector(
     dxrt_engine_t engine,
     const void** input_buffers,
@@ -2087,6 +2252,26 @@ DXRT_CAPI dxrt_status_t dxrt_engine_run_multi_input_vector(
         inputs[i] = const_cast<void*>(input_buffers[i]);
     // K2: see comment in dxrt_engine_run_multi_input above.
     engine->engine->RunMultiInput(inputs, nullptr, output);
+    return DXRT_OK;
+    DXRT_C_CATCH
+}
+
+DXRT_CAPI dxrt_status_t dxrt_engine_run_multi_input_vector_with_user_arg(
+    dxrt_engine_t engine,
+    const void** input_buffers,
+    int num_inputs,
+    void* user_arg,
+    void* output)
+{
+    if (!engine || !input_buffers || !output || num_inputs <= 0) {
+        set_error("engine, input_buffers, output must be valid and num_inputs > 0");
+        return DXRT_ERR_INVALID_ARG;
+    }
+    DXRT_C_TRY
+    std::vector<void*> inputs(num_inputs);
+    for (int i = 0; i < num_inputs; ++i)
+        inputs[i] = const_cast<void*>(input_buffers[i]);
+    engine->engine->RunMultiInput(inputs, user_arg, output);
     return DXRT_OK;
     DXRT_C_CATCH
 }
@@ -2108,6 +2293,28 @@ DXRT_CAPI dxrt_status_t dxrt_engine_run_multi_input_vector_with_tensor_info(
     for (int i = 0; i < num_inputs; ++i)
         inputs[i] = const_cast<void*>(input_buffers[i]);
     auto results = engine->engine->RunMultiInput(inputs, nullptr, output);
+    return fill_output_infos(results, infos, count);
+    DXRT_C_CATCH
+}
+
+DXRT_CAPI dxrt_status_t dxrt_engine_run_multi_input_vector_with_tensor_info_and_user_arg(
+    dxrt_engine_t engine,
+    const void** input_buffers,
+    int num_inputs,
+    void* user_arg,
+    void* output,
+    dxrt_tensor_info_t* infos,
+    int* count)
+{
+    if (!engine || !input_buffers || !output || num_inputs <= 0 || !count) {
+        set_error("engine, input_buffers, output, count must be valid and num_inputs > 0");
+        return DXRT_ERR_INVALID_ARG;
+    }
+    DXRT_C_TRY
+    std::vector<void*> inputs(num_inputs);
+    for (int i = 0; i < num_inputs; ++i)
+        inputs[i] = const_cast<void*>(input_buffers[i]);
+    auto results = engine->engine->RunMultiInput(inputs, user_arg, output);
     return fill_output_infos(results, infos, count);
     DXRT_C_CATCH
 }

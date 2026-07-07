@@ -7,7 +7,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-DEFAULT_VERSIONS=(3.10 3.11 3.12 3.13)
+DEFAULT_VERSIONS=(3.8 3.9 3.10 3.11 3.12 3.13 3.14)
 OUTPUT_DIR="$SCRIPT_DIR/wheelhouse"
 VENV_ROOT="$SCRIPT_DIR/.venvs"
 CLEAN=0
@@ -67,6 +67,20 @@ if [[ $CLEAN -eq 1 ]]; then
 fi
 
 mkdir -p "$OUTPUT_DIR" "$VENV_ROOT"
+
+# --- Refresh LICENSE next to pyproject.toml ---------------------------------
+# python_package/LICENSE is a committed copy of the repo-root LICENSE.
+# Re-copy on every build so drift from ../LICENSE is impossible; PEP 639
+# requires the file to live under the project root, and scikit-build-core
+# then embeds it in each wheel's .dist-info/licenses/ directory via
+# `license-files = ["LICENSE"]`.
+REPO_LICENSE="$SCRIPT_DIR/../LICENSE"
+LOCAL_LICENSE="$SCRIPT_DIR/LICENSE"
+if [[ -f "$REPO_LICENSE" ]]; then
+    cp -f "$REPO_LICENSE" "$LOCAL_LICENSE"
+elif [[ ! -f "$LOCAL_LICENSE" ]]; then
+    echo "WARNING: ../LICENSE not found; wheels will lack LICENSE metadata." >&2
+fi
 
 # --- libdxrt sanity check ---------------------------------------------------
 # ldconfig lives in /usr/sbin which is not always on PATH for non-root users.
