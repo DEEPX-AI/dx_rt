@@ -141,26 +141,55 @@ bool SharedMemoryWriter::Initialize()
     return true;
 
 #elif _WIN32
-    const char* shm_name = GetMonitorShmName();
+    // Env override bypasses Global/Local namespace selection entirely.
+    const char* env_override = std::getenv("DXRT_MONITOR_SHM_NAME");
+    const bool use_env = (env_override != nullptr && env_override[0] != '\0');
 
-    _shm_handle = CreateFileMappingA(
-        INVALID_HANDLE_VALUE,
-        nullptr,
-        PAGE_READWRITE,
-        0,
-        static_cast<DWORD>(sizeof(MonitorSharedMemory)),
-        shm_name
-    );
+    bool already_existed = false;
+    if (use_env)
+    {
+        _win_shm_name = env_override;
+        _shm_handle = CreateFileMappingA(
+            INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE,
+            0, static_cast<DWORD>(sizeof(MonitorSharedMemory)),
+            _win_shm_name.c_str());
+        if (_shm_handle != nullptr)
+            already_existed = (::GetLastError() == ERROR_ALREADY_EXISTS);
+    }
+    else
+    {
+        // Try Global\ first — granted to services/SYSTEM/admin (SeCreateGlobalObjects).
+        // On ERROR_ACCESS_DENIED (standard user process), fall back to Local\.
+        _shm_handle = CreateFileMappingA(
+            INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE,
+            0, static_cast<DWORD>(sizeof(MonitorSharedMemory)),
+            MONITOR_SHM_NAME_WIN_GLOBAL);
+        if (_shm_handle != nullptr)
+        {
+            already_existed = (::GetLastError() == ERROR_ALREADY_EXISTS);
+            _win_shm_name = MONITOR_SHM_NAME_WIN_GLOBAL;
+        }
+        else
+        {
+            LOG_DXRT_DBG << "Global\\ shared memory failed; falling back to Local\\" << std::endl;
+            _shm_handle = CreateFileMappingA(
+                INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE,
+                0, static_cast<DWORD>(sizeof(MonitorSharedMemory)),
+                MONITOR_SHM_NAME_WIN_LOCAL);
+            if (_shm_handle != nullptr)
+            {
+                already_existed = (::GetLastError() == ERROR_ALREADY_EXISTS);
+                _win_shm_name = MONITOR_SHM_NAME_WIN_LOCAL;
+            }
+        }
+    }
 
     if (_shm_handle == nullptr)
     {
-        LOG_DXRT_ERR("Failed to create shared memory: " << shm_name
+        LOG_DXRT_ERR("Failed to create shared memory: " << _win_shm_name
                      << " error=" << ::GetLastError());
         return false;
     }
-
-    // GetLastError는 다음 Win32 호출이 덮어쓰기 전에 즉시 캡처
-    bool already_existed = (::GetLastError() == ERROR_ALREADY_EXISTS);
 
     _shm_ptr = static_cast<MonitorSharedMemory*>(
         MapViewOfFile(
@@ -193,7 +222,7 @@ bool SharedMemoryWriter::Initialize()
     _shm_ptr->writer_pid = static_cast<uint32_t>(GetCurrentProcessId());
 
     _initialized = true;
-    LOG_DXRT << "Shared memory writer initialized: " << shm_name;
+    LOG_DXRT << "Shared memory writer initialized: " << _win_shm_name;
     return true;
 
 #else
@@ -258,8 +287,6 @@ void SharedMemoryWriter::Cleanup()
     // A future writer will reopen and reuse/reinitialize this segment as needed.
     LOG_DXRT_DBG << "Shared memory writer cleaned up: " << shm_name;
 #elif _WIN32
-    const char* shm_name = GetMonitorShmName();
-
     if (_shm_ptr != nullptr)
     {
         BeginWrite();
@@ -297,7 +324,7 @@ void SharedMemoryWriter::Cleanup()
         _shm_handle = nullptr;
     }
     // Windows: 모든 핸들/뷰 해제 시 자동 소멸 (shm_unlink 불필요)
-    LOG_DXRT_DBG << "Shared memory writer cleaned up: " << shm_name;
+    LOG_DXRT_DBG << "Shared memory writer cleaned up: " << _win_shm_name;
 #endif
 
     _initialized = false;

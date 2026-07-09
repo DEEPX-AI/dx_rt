@@ -42,10 +42,14 @@ int32_t LinuxDriverAdapter::IOControl(dxrt_cmd_t request, void* data, uint32_t s
     dxrt_message_t msg;
     // Suppress false-positive warning: struct has default initializers but memset is intentional
     // to clear padding bytes for ioctl() syscall (required for Valgrind clean run)
+#ifdef __linux__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wclass-memaccess"
+#endif
     memset(&msg, 0, sizeof(dxrt_message_t));
+#ifdef __linux__
 #pragma GCC diagnostic pop
+#endif
     msg.cmd = static_cast<::int32_t>(request);
     msg.sub_cmd = static_cast<::int32_t>(sub_cmd);
     msg.data = data;

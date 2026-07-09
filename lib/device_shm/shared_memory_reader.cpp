@@ -142,24 +142,46 @@ bool SharedMemoryReader::Open()
     return true;
 
 #elif _WIN32
-    const char* shm_name = GetMonitorShmName();
+    // Opening an existing Global\ object needs no special privilege (just FILE_MAP_READ
+    // on its DACL), so try Global\ first — this is the common case when the writer is a
+    // service/SYSTEM process.  Fall back to Local\ if the Global\ segment doesn't exist.
+    const char* env_override = std::getenv("DXRT_MONITOR_SHM_NAME");
+    const bool use_env = (env_override != nullptr && env_override[0] != '\0');
 
-    // 기존 read-only 매핑 열기 시도
-    HANDLE ro_handle = OpenFileMappingA(FILE_MAP_READ, FALSE, shm_name);
+    HANDLE ro_handle = nullptr;
+    if (use_env)
+    {
+        ro_handle = OpenFileMappingA(FILE_MAP_READ, FALSE, env_override);
+    }
+    else
+    {
+        ro_handle = OpenFileMappingA(FILE_MAP_READ, FALSE, MONITOR_SHM_NAME_WIN_GLOBAL);
+        if (ro_handle == nullptr)
+            ro_handle = OpenFileMappingA(FILE_MAP_READ, FALSE, MONITOR_SHM_NAME_WIN_LOCAL);
+    }
 
     if (ro_handle == nullptr)
     {
-        // dxtop-first 시나리오: Writer 없이 Reader가 먼저 시작된 경우
-        LOG_DXRT_DBG << "Shared memory doesn't exist, creating placeholder for Writer..." << std::endl;
+        // dxtop-first 시나리오: Writer 없이 Reader가 먼저 시작된 경우.
+        // Bootstrap with Global\ if we have privilege, otherwise Local\.
+        LOG_DXRT_DBG << "Shared memory doesn't exist, creating placeholder for Writer..."
+                     << std::endl;
 
+        const char* create_name = use_env ? env_override : MONITOR_SHM_NAME_WIN_GLOBAL;
         HANDLE init_handle = CreateFileMappingA(
-            INVALID_HANDLE_VALUE,
-            nullptr,
-            PAGE_READWRITE,
-            0,
-            static_cast<DWORD>(sizeof(MonitorSharedMemory)),
-            shm_name
-        );
+            INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE,
+            0, static_cast<DWORD>(sizeof(MonitorSharedMemory)),
+            create_name);
+
+        if (init_handle == nullptr && !use_env)
+        {
+            // Fall back to Local\ for bootstrap placeholder.
+            create_name = MONITOR_SHM_NAME_WIN_LOCAL;
+            init_handle = CreateFileMappingA(
+                INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE,
+                0, static_cast<DWORD>(sizeof(MonitorSharedMemory)),
+                create_name);
+        }
 
         if (init_handle == nullptr)
         {
@@ -182,7 +204,7 @@ bool SharedMemoryReader::Open()
         UnmapViewOfFile(init_ptr);
 
         // init_handle이 열린 상태에서 read-only 핸들 획득 후 init_handle 해제
-        ro_handle = OpenFileMappingA(FILE_MAP_READ, FALSE, shm_name);
+        ro_handle = OpenFileMappingA(FILE_MAP_READ, FALSE, create_name);
         CloseHandle(init_handle);
 
         if (ro_handle == nullptr)

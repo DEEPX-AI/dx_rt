@@ -24,7 +24,10 @@ constexpr uint32_t MONITOR_SHM_MAGIC = 0x44585254;  // "DXRT"
 constexpr uint32_t MONITOR_SHM_VERSION = 2;
 constexpr int MAX_MONITOR_DEVICES = 32;
 #ifdef _WIN32
-constexpr const char* MONITOR_SHM_NAME = "Local\\dxrt_monitor_v2";
+constexpr const char* MONITOR_SHM_NAME_WIN_GLOBAL = "Global\\dxrt_monitor_v2";
+constexpr const char* MONITOR_SHM_NAME_WIN_LOCAL  = "Local\\dxrt_monitor_v2";
+// Default name used for env-override fallback and GetMonitorShmName() on Windows.
+constexpr const char* MONITOR_SHM_NAME            = MONITOR_SHM_NAME_WIN_LOCAL;
 #else
 // POSIX SHM names use a namespace-style leading '/'.
 // This is not a filesystem root path like '/var' or '/tmp'.

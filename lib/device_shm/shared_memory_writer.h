@@ -61,6 +61,7 @@ private:
     bool _initialized{false};
 #ifdef _WIN32
     void* _shm_handle{nullptr};
+    std::string _win_shm_name;  // "Global\\..." or "Local\\..." depending on privilege
 #else
     int _shm_fd{-1};
 #endif

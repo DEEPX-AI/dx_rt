@@ -1421,36 +1421,40 @@ int DxrtServiceV2::HandleProcessDeInit(pid_t pid, int deviceId)
 
     _scheduler->StopAllInferenceForProcess(pid, deviceId);
 
-    std::vector<int> taskIds = _taskInfoStore.extractTaskIds(pid, deviceId);
-    for (int taskId : taskIds)
+    const std::vector<std::pair<int, dxrt::npu_bound_op>> taskEntries =
+        _taskInfoStore.extractTaskIdsWithBound(pid, deviceId);
+    for (const auto &entry : taskEntries)
     {
+        const int taskId = entry.first;
         _scheduler->StopTaskInference(pid, deviceId, taskId);
     }
     _scheduler->ClearRunningRequests(pid, deviceId);
 
     auto *memService = GetMemoryService(deviceId);
-    if (memService != nullptr)
+    for (const auto &entry : taskEntries)
     {
-        for (int taskId : taskIds)
+        const int taskId = entry.first;
+        const dxrt::npu_bound_op bound = entry.second;
+
+        if (memService != nullptr)
         {
             LOG_DXRT_S << "HandleProcessDeInit mem clear: pid=" << pid
                        << ", deviceId=" << deviceId
                        << ", taskId=" << taskId << std::endl;
-#if 0
-    /*Note: Do NOT DeallocateTask here for tasks with in-flight requests. The device may still
-    reference the task s RMAP/Weight memory until it completes the request and sends the
-    response back to the service; premature deallocation here causes use-after-free and
-    data corruption in the device, which can lead to system instability and security risks.*/
+            // Do not deallocate tasks that still have in-flight requests.
+            // Those are deferred and reclaimed in onTaskDrained().
             if (runningTaskIdSet.count(taskId) == 0)
-#endif
             {
                 // No in-flight request: RMAP/Weight is safe to free now.
                 (void)memService->DeallocateTask(pid, taskId);
             }
-            // Running tasks: DeallocateTask deferred to _onTaskDrained.
+        }
 
-            // remove bounds
-            TaskDeInit(deviceId, taskId, pid);
+        // Running tasks: DeallocateTask deferred to _onTaskDrained.
+        std::lock_guard<std::mutex> lock(_deviceMutex);
+        if (deviceId >= 0 && deviceId < static_cast<int>(_devices.size()))
+        {
+            (void)_devices[deviceId]->DeleteBound(bound);
         }
     }
     ReleaseAllSharedMemoryHandlesForProcess(deviceId, pid);

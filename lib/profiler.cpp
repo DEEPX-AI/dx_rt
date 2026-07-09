@@ -184,7 +184,7 @@ namespace dxrt
 
     void Profiler::Start(EventType type, const std::string& taskName, int deviceId, int jobId)
     {
-        if (!_enabled) 
+        if (!_enabled)
         {
             return;  // @no_else: guard clause
         }
@@ -192,11 +192,11 @@ namespace dxrt
         {
             return;  // @no_else: profiler disabled at compile time
         }
-        if (type == EventType::UNKNOWN) 
+        if (type == EventType::UNKNOWN)
         {
             return;  // @no_else: guard clause
         }
-        if (jobId < 0) 
+        if (jobId < 0)
         {
             return;  // @no_else: guard clause
         }
@@ -230,7 +230,7 @@ namespace dxrt
 
     void Profiler::End(EventType type, const std::string& taskName, int deviceId, int jobId)
     {
-        if (!_enabled) 
+        if (!_enabled)
         {
             return;  // @no_else: guard clause
         }
@@ -238,11 +238,11 @@ namespace dxrt
         {
             return;  // @no_else: profiler disabled at compile time
         }
-        if (type == EventType::UNKNOWN) 
+        if (type == EventType::UNKNOWN)
         {
             return;  // @no_else: guard clause
-        }   
-        if (jobId < 0) 
+        }
+        if (jobId < 0)
         {
             return;  // @no_else: guard clause
         }
@@ -578,10 +578,14 @@ namespace dxrt
 
     std::map<string, std::vector<int64_t>> Profiler::GetPerformanceData()
     {
+#ifdef __linux__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
         return GetPerformanceDataByDevice(-1);  // -1 means all devices
+#ifdef __linux__
 #pragma GCC diagnostic pop
+#endif
     }
 
     // !! IMPORTANT: When adding a new EventType, add its string mapping here !!

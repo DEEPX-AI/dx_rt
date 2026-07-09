@@ -240,7 +240,7 @@ void PrintInfResult(const std::string& inputFile, const std::string& outputFile,
         std::string core_content = label + value_with_unit;
 
         std::string line = core_content;
-        int current_length = core_content.length();
+        int current_length = static_cast<int>(core_content.length());
         int spaces_to_add = description_parenthesis_start_column - current_length;
 
         if (spaces_to_add <= 0) {
@@ -357,11 +357,11 @@ private:
             ++seq;
 
             auto now = std::chrono::steady_clock::now();
-            double elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(now - _start).count();
+            double elapsed_us = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(now - _start).count());
             int64_t count = _get_count();
             float fps = (elapsed_us > 0 && count > 0) ? static_cast<float>(1e6 * count / elapsed_us) : 0.0f;
-            float latency_ms = _ie.GetLatencyMean() / 1000.0f;
-            float npu_ms = _ie.GetNpuInferenceTimeMean() / 1000.0f;
+            float latency_ms = static_cast<float>(_ie.GetLatencyMean() / 1000.0);
+            float npu_ms = static_cast<float>(_ie.GetNpuInferenceTimeMean() / 1000.0);
 
             std::cout << "\n[Periodic Report #" << seq << "] cumulative elapsed="
                       << float_to_string_fixed(static_cast<float>(elapsed_us / 1e6), 3)
@@ -616,7 +616,7 @@ static float runAsyncTargetFPS(int64_t& outLoops, dxrt::InferenceEngine& ie, int
         outLoops = run_count;
         std::cout << "Inference by time: total-inference-time=" << infTime / 1000000.0 << "(s)" << " total-loops=" << outLoops << std::endl;
     }
-    fps = 1000000.0 * outLoops/infTime;
+    fps = static_cast<float>(1000000.0 * outLoops / infTime);
 
 #ifdef TARGET_FPS_DEBUG
     for (const auto& result : results) {
@@ -771,7 +771,7 @@ int main(int argc, char *argv[])
 
     // always showing the model information
     dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::SHOW_MODEL_INFO, true);
-    
+
 
     try
     {
@@ -1061,7 +1061,7 @@ int main(int argc, char *argv[])
                     }
                     auto end_clock = std::chrono::steady_clock::now();
                     infTime = std::chrono::duration_cast<std::chrono::microseconds>(end_clock - start_clock).count();
-                    fps = 1000000.0/infTime;
+                    fps = static_cast<float>(1000000.0 / infTime);
                     if (!inputFile.empty())
                         localDataDumpBin(outputFile, outputs);
                     PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatency()/1000., ie.GetNpuInferenceTime()/1000., fps, 1, mode, verbose);
@@ -1071,18 +1071,18 @@ int main(int argc, char *argv[])
             case TARGET_FPS_MODE: {
 
                 float fps = runAsyncTargetFPS(loops, ie, targetFps, inputBuf.data(), duration);
-                PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatencyMean()/1000.0, ie.GetNpuInferenceTimeMean()/1000.0, fps, loops, mode, verbose);
+                PrintInfResult(inputFile, outputFile, modelFile, static_cast<float>(ie.GetLatencyMean()/1000.0), static_cast<float>(ie.GetNpuInferenceTimeMean()/1000.0), fps, loops, mode, verbose);
                 break;
             }
             case BENCHMARK_MODE: {
                 float fps = 0;
                 if ( duration > 0 )
                 {
-                    fps = runBenchmarkByTime(loops, ie, inputBuf.data(), duration, report_cfg);
+                    fps = static_cast<float>(runBenchmarkByTime(loops, ie, inputBuf.data(), duration, report_cfg));
                 }
                 else
                 {
-                    fps = ie.RunBenchmark(loops, inputBuf.data());
+                    fps = static_cast<float>(ie.RunBenchmark(static_cast<int>(loops), inputBuf.data()));
                     if (!inputFile.empty())
                     {
                         auto bench_mi = prepareMultiInputBuffers(ie, inputBuf.data());
@@ -1099,7 +1099,7 @@ int main(int argc, char *argv[])
                         localDataDumpBin(outputFile, outputs);  /* TODO: sparse tensor */
                     }
                 }
-                PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatencyMean()/1000., ie.GetNpuInferenceTimeMean()/1000., fps, loops, mode, verbose);
+                PrintInfResult(inputFile, outputFile, modelFile, static_cast<float>(ie.GetLatencyMean()/1000.), static_cast<float>(ie.GetNpuInferenceTimeMean()/1000.0), fps, loops, mode, verbose);
 
                 break;
             }

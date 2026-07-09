@@ -109,6 +109,27 @@ class ProcessTaskInfoStore
         return taskIds;
     }
 
+    std::vector<std::pair<int, dxrt::npu_bound_op>> extractTaskIdsWithBound(pid_t pid, int deviceId)
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+        auto it = _taskInfoMap.find(std::make_pair(pid, deviceId));
+        if (it == _taskInfoMap.end())
+        {
+            return {};
+        }
+
+        const std::vector<int> taskIds = it->second.getTaskIds();
+        std::vector<std::pair<int, dxrt::npu_bound_op>> taskEntries;
+        taskEntries.reserve(taskIds.size());
+        for (int taskId : taskIds)
+        {
+            taskEntries.emplace_back(taskId, it->second.getTaskBound(taskId));
+        }
+
+        _taskInfoMap.erase(it);
+        return taskEntries;
+    }
+
  private:
     using Key = std::pair<pid_t, int>;
 
