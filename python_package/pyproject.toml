@@ -63,25 +63,66 @@ wheel.packages = ["src/dx_engine"]
 
 # cibuildwheel configuration for building wheels across multiple Python versions
 [tool.cibuildwheel]
-# Build for Python 3.8 - 3.14
+# cp38 is served from the legacy 2025.04.19-1 image; cp39+ from :latest.
+# build_all_wheels.sh splits the run so each version uses the correct image
+# (via CIBW_MANYLINUX_X86_64_IMAGE), keeping this list as the full matrix.
 build = ["cp38-*", "cp39-*", "cp310-*", "cp311-*", "cp312-*", "cp313-*", "cp314-*"]
-
-# Skip 32-bit builds and musllinux
 skip = ["*-win32", "*-manylinux_i686", "*-musllinux_*"]
-
-# Test command to verify the wheel works
-test-command = "python -c \"import dx_engine; print(dx_engine.__version__)\""
+# We build inside the manylinux2014 container (glibc 2.17) for a wide
+# toolchain compatibility, then upgrade the tag to manylinux_2_28 during
+# auditwheel repair (libdxrt.so needs glibc 2.24). The manylinux2014
+# container cannot install a manylinux_2_28 wheel, so skip the in-container
+# smoke test — verify manually on the target host instead.
+test-skip = "*"
 
 [tool.cibuildwheel.linux]
-# Use manylinux2014 for broader compatibility
-manylinux-x86_64-image = "manylinux2014"
-manylinux-aarch64-image = "manylinux2014"
+# "auto" builds only the host architecture: x86_64 on x86_64 hosts,
+# aarch64 on ARM64 hosts. Avoids QEMU emulation.
+archs = ["auto"]
+# Pin to the ":latest" local tag rather than cibuildwheel's built-in
+# alias (which resolves to a specific pinned tag that may not be present
+# locally under --pull=never). This lets a freshly loaded tarball —
+# tagged :latest — be picked up automatically even when older tags
+# (e.g. 2025.04.19-1 without cp314) coexist in the local docker cache.
+manylinux-x86_64-image = "quay.io/pypa/manylinux2014_x86_64:latest"
+manylinux-aarch64-image = "quay.io/pypa/manylinux2014_aarch64:latest"
+
+# Corporate network blocks quay.io/ghcr.io. Load the manylinux image
+# manually via `docker load` and disable cibuildwheel's forced pull so the
+# local image is used instead. See BUILD_WHEELS.md.
+container-engine = { name = "docker", create-args = ["--pull=never"] }
+
+# Stage libdxrt.so* and its transitive deps (libonnxruntime.so*) inside the
+# manylinux container so the C++ extension links against them during the
+# build. auditwheel repair then bundles all discovered shared libraries
+# (and their symlink chains) into the final wheel automatically.
+before-all = "cp /project/prebuilt_files/lib/libdxrt.so* /project/prebuilt_files/lib/libonnxruntime.so* /usr/local/lib/ && ldconfig"
+
+# cibuildwheel reuses the /project mount across identifiers. CMakeLists.txt's
+# `add_custom_target(pydxrt_target ALL ... copy _pydxrt.so ${SOURCE_DIR})`
+# leaves a stale .so from the previous version inside the source tree, which
+# both trips cibuildwheel's "shared object detected" warning and — more
+# critically — has been observed to poison the next compiler invocation
+# (GCC 10 ICE on the second identifier). Wipe it before every build.
+before-build = "rm -f /project/src/dx_engine/capi/_pydxrt.so /project/src/dx_engine/capi/_pydxrt*.so"
+
+environment = { LD_LIBRARY_PATH = "/usr/local/lib", LIBRARY_PATH = "/usr/local/lib", CMAKE_ARGS = "-DDX_ROOT_DIR=/project" }
+
+# libdxrt.so was pre-compiled against glibc ≤2.24, exceeding manylinux2014's
+# 2.17 baseline. Build the extension in manylinux2014 (widest toolchain
+# compatibility) but tag the final wheel as manylinux_2_28 (AlmaLinux 8-era
+# glibc, comfortably covers 2.24) so auditwheel accepts the bundled library.
+# `$(uname -m)` resolves to x86_64 or aarch64 inside the container so the
+# same command works for both architectures.
+# `--strip` runs `strip --strip-debug` on the extension module and every
+# bundled shared library (libdxrt.so, libonnxruntime.so, ...). onnxruntime
+# ships with heavy debug info, so stripping typically shrinks the wheel by
+# an order of magnitude.
+repair-wheel-command = "auditwheel repair --strip --plat manylinux_2_28_$(uname -m) -w {dest_dir} {wheel}"
 
 [tool.cibuildwheel.macos]
-# Build for both x86_64 and arm64 on macOS
 archs = ["x86_64", "arm64"]
 
 [tool.cibuildwheel.windows]
-# Build for 64-bit Windows only
 archs = ["AMD64"]
 

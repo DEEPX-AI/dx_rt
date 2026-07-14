@@ -21,10 +21,57 @@
 #include <chrono>
 #elif _WIN32
 #include <windows.h>
+#include <sddl.h>
 #include <chrono>
 #endif
 
 namespace dxrt {
+
+#ifdef _WIN32
+namespace {
+
+// SYSTEM/Administrators: full access, Authenticated Users: read/write.
+constexpr const char* MONITOR_SHM_SDDL = "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRGW;;;AU)";
+
+class SecurityDescriptorGuard {
+public:
+    ~SecurityDescriptorGuard()
+    {
+        if (_descriptor != nullptr)
+        {
+            LocalFree(_descriptor);
+            _descriptor = nullptr;
+        }
+    }
+
+    PSECURITY_DESCRIPTOR* OutParam()
+    {
+        return &_descriptor;
+    }
+
+private:
+    PSECURITY_DESCRIPTOR _descriptor{nullptr};
+};
+
+bool BuildMonitorShmSecurityAttributes(SECURITY_ATTRIBUTES& attributes, SecurityDescriptorGuard& guard)
+{
+    if (!ConvertStringSecurityDescriptorToSecurityDescriptorA(
+            MONITOR_SHM_SDDL,
+            SDDL_REVISION_1,
+            guard.OutParam(),
+            nullptr))
+    {
+        return false;
+    }
+
+    attributes.nLength = sizeof(SECURITY_ATTRIBUTES);
+    attributes.lpSecurityDescriptor = *guard.OutParam();
+    attributes.bInheritHandle = FALSE;
+    return true;
+}
+
+} // namespace
+#endif
 
 SharedMemoryWriter::~SharedMemoryWriter()
 {
@@ -141,6 +188,19 @@ bool SharedMemoryWriter::Initialize()
     return true;
 
 #elif _WIN32
+    SECURITY_ATTRIBUTES security_attributes{};
+    SecurityDescriptorGuard security_descriptor;
+    SECURITY_ATTRIBUTES* security_attributes_ptr = nullptr;
+    if (BuildMonitorShmSecurityAttributes(security_attributes, security_descriptor))
+    {
+        security_attributes_ptr = &security_attributes;
+    }
+    else
+    {
+        LOG_DXRT_DBG << "Failed to build shared memory ACL, using default security. error="
+                     << ::GetLastError();
+    }
+
     // Env override bypasses Global/Local namespace selection entirely.
     const char* env_override = std::getenv("DXRT_MONITOR_SHM_NAME");
     const bool use_env = (env_override != nullptr && env_override[0] != '\0');
@@ -150,7 +210,7 @@ bool SharedMemoryWriter::Initialize()
     {
         _win_shm_name = env_override;
         _shm_handle = CreateFileMappingA(
-            INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE,
+            INVALID_HANDLE_VALUE, security_attributes_ptr, PAGE_READWRITE,
             0, static_cast<DWORD>(sizeof(MonitorSharedMemory)),
             _win_shm_name.c_str());
         if (_shm_handle != nullptr)
@@ -161,7 +221,7 @@ bool SharedMemoryWriter::Initialize()
         // Try Global\ first — granted to services/SYSTEM/admin (SeCreateGlobalObjects).
         // On ERROR_ACCESS_DENIED (standard user process), fall back to Local\.
         _shm_handle = CreateFileMappingA(
-            INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE,
+            INVALID_HANDLE_VALUE, security_attributes_ptr, PAGE_READWRITE,
             0, static_cast<DWORD>(sizeof(MonitorSharedMemory)),
             MONITOR_SHM_NAME_WIN_GLOBAL);
         if (_shm_handle != nullptr)
@@ -173,7 +233,7 @@ bool SharedMemoryWriter::Initialize()
         {
             LOG_DXRT_DBG << "Global\\ shared memory failed; falling back to Local\\" << std::endl;
             _shm_handle = CreateFileMappingA(
-                INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE,
+                INVALID_HANDLE_VALUE, security_attributes_ptr, PAGE_READWRITE,
                 0, static_cast<DWORD>(sizeof(MonitorSharedMemory)),
                 MONITOR_SHM_NAME_WIN_LOCAL);
             if (_shm_handle != nullptr)

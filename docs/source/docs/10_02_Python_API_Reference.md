@@ -702,6 +702,9 @@ A singleton class that provides a centralized event dispatching mechanism for ru
     info = parse_model("model.dxnn")
     print(info)
     ```
--   **Note**: A separate function `dx_engine.utils.parse_model(model_path, options=None) -> int` also exists with a different signature and an `int` return code (0 on success, -1 on failure). The function documented here (returning `str`) is the recommended one for retrieving model information.  
-  
+
+!!! note "NOTE"  
+
+    A separate function `dx_engine.utils.parse_model(model_path, options=None) -> int` also exists with a different signature and an `int` return code (0 on success, -1 on failure). The function documented here (returning `str`) is the recommended one for retrieving model information.
+
 ---  

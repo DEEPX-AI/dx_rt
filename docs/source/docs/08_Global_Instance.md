@@ -8,10 +8,10 @@ The `Configuration` class serves as the centralized interface for managing globa
 
 **Key Features:**
 
-  * **Singleton Design**: Guarantees a single, globally accessible configuration instance.
-  * **Runtime Configurability**: Supports dynamic enabling/disabling of features and real-time attribute updates.
-  * **Version Access**: Provides functions to retrieve library, driver, and device version information.
-  * **Cross-Language Support**: Fully accessible from both C++ and Python with identical behavior.
+  * **Singleton Design**: Guarantees a single, globally accessible configuration instance.  
+  * **Runtime Configurability**: Supports dynamic enabling/disabling of features and real-time attribute updates.  
+  * **Version Access**: Provides functions to retrieve library, driver, and device version information.  
+  * **Cross-Language Support**: Fully accessible from both C++ and Python with identical behavior.  
 
 ---
 
@@ -200,6 +200,7 @@ CUSTOM_INTER_OP_THREADS_COUNT=2
 ```
 
 !!! warning "IMPORTANT"  
+
     The ONNX Runtime thread settings shown above are an **opt-in example**. The actual default `common.cfg` file sets `USE_CUSTOM_INTRA_OP_THREADS=0` and `USE_CUSTOM_INTER_OP_THREADS=0`, which means ONNX Runtime will use its automatic thread management by default.
 
 #### Configuration Parameters
@@ -348,7 +349,8 @@ For programmatic use, both C++ and Python interfaces offer methods to retrieve s
 | **Data Validity** | `IsValid()` | `is_valid()` | `bool` |
 
 !!! note "NOTE"
-      The monitoring thread updates shared memory approximately every 1 second. Polling `GetCurrentStatus()` more frequently than this interval will return the same data.
+
+    The monitoring thread updates shared memory approximately every 1 second. Polling `GetCurrentStatus()` more frequently than this interval will return the same data.
 
 **Formatted Summary Strings (C++ Only)**
 
@@ -487,7 +489,8 @@ if __name__ == "__main__":
 The following examples demonstrate how to continuously monitor a device in a background thread with a configurable refresh interval. This is useful for frontend or business applications that need periodic device status updates while performing other tasks.
 
 !!! note "NOTE"
-     The runtime's monitoring thread updates shared memory approximately every **1 second**. Setting the refresh interval below 1 second will not yield more frequent data updates. A minimum interval of **1 second** is recommended.
+
+    The runtime's monitoring thread updates shared memory approximately every **1 second**. Setting the refresh interval below 1 second will not yield more frequent data updates. A minimum interval of **1 second** is recommended.
 
 **C++**
 

@@ -247,8 +247,8 @@ Starting with v3.0.0, when ONNX Runtime is disabled (built with `USE_ORT=OFF` or
 As a result, applications no longer need to manually attach input dummy bytes or remove output dummy bytes in non-ORT inference paths. This behavior applies to both C++ and Python APIs, including PPU models. If you provide user output buffers, ensure the buffer size is at least `ie.GetOutputSize()` (C++) or `ie.get_output_size()` (Python).
 
 !!! note "NOTE"  
-     - This automatic handling is internal to the runtime’s NPU format processing and does not change model-visible tensor shapes reported by the APIs.  
-     - When `use_ort = True`, CPU-side execution for unsupported subgraphs is enabled via ONNX Runtime; NPU tasks still follow the same alignment policy internally.  
+    - This automatic handling is internal to the runtime’s NPU format processing and does not change model-visible tensor shapes reported by the APIs.  
+    - When `use_ort = True`, CPU-side execution for unsupported subgraphs is enabled via ONNX Runtime; NPU tasks still follow the same alignment policy internally.  
 
 ---
 
@@ -333,7 +333,7 @@ Optional Arguments
 - `-j JOBS_PER_IMAGE, --jobs-per-image JOBS_PER_IMAGE`: Max jobs per image before splitting (default: 200)  
 - `-t, --show_text`: Show duration text labels on bars  
 
-!!! note
+!!! note "NOTE" 
     The `-a, --auto-select` option automatically selects 200 jobs from the stable centre region, which can be useful for filtering out warm-up and tail effects.  
 
 ---
@@ -353,7 +353,7 @@ The profiler records the following events during inference. Use this table to id
 | **CPU Task Queue Wait** | Waiting in the CPU task queue before execution | Enable CPU op acceleration (see *Hardware-Accelerated Data Processing*) |
 | **cpu_N** | CPU operator execution on thread N (e.g., `cpu_0`, `cpu_1`) | Enable CPU op acceleration (see *Hardware-Accelerated Data Processing*) |
 
-!!! note
+!!! note "NOTE" 
     **NPU Task** represents the total NPU processing time from input formatting through NPU computation to output formatting. It is the aggregate of NPU Input Format Handler, PCIe Write, NPU Core, PCIe Read, and NPU Output Format Handler.
 
 ---
@@ -647,7 +647,7 @@ You can use the profiler (see *Profile Application* section) to identify whether
 | YoloV11S | 82 | 82 | 127 | **131** |
 
 !!! note "NOTE"  
-     These numbers are for reference only. Actual performance depends on device conditions, input resolution, and system load. When pre/post-processing is added to the application pipeline, end-to-end FPS may differ from the values shown here.  
+    These numbers are for reference only. Actual performance depends on device conditions, input resolution, and system load. When pre/post-processing is added to the application pipeline, end-to-end FPS may differ from the values shown here.  
 
 **Step 1. Build with Acceleration Support**
 
@@ -671,11 +671,11 @@ After changing the options, perform a **clean build**:
 ```
 
 !!! warning "IMPORTANT"  
-     A clean build is required after changing these options. Incremental builds may not pick up the change correctly.  
+    A clean build is required after changing these options. Incremental builds may not pick up the change correctly.  
 
 !!! note "NOTE"  
-     The build system automatically downloads and installs the required acceleration libraries (Intel IPP, OpenVINO, XNNPACK, etc.) during the clean build. **An internet connection is required** at build time. You do not need to install these libraries manually.  
-     If a library cannot be obtained (e.g., due to network restrictions or platform incompatibility), the corresponding acceleration option is disabled even when set to `ON`.  
+    The build system automatically downloads and installs the required acceleration libraries (Intel IPP, OpenVINO, XNNPACK, etc.) during the clean build. **An internet connection is required** at build time. You do not need to install these libraries manually.  
+    If a library cannot be obtained (e.g., due to network restrictions or platform incompatibility), the corresponding acceleration option is disabled even when set to `ON`.  
 
 **Step 2. Enable at Runtime**
 
@@ -702,17 +702,17 @@ config.set_enable(Configuration.ITEM.CPU_OP_ACCELERATION, True)
 ```
 
 !!! note "TIP"  
-     To quickly test the effect of acceleration without modifying application code, you can use the `dxrun` CLI tool with the `--accel-nfh` and `--accel-cpu` options:  
-     ```
-     dxrun -m model.dxnn --accel-nfh --accel-cpu
-     ```
+    To quickly test the effect of acceleration without modifying application code, you can use the `dxrun` CLI tool with the `--accel-nfh` and `--accel-cpu` options:  
+    ```
+    dxrun -m model.dxnn --accel-nfh --accel-cpu
+    ```
 
 !!! warning "Build Dependency"  
-     The acceleration APIs (`ITEM::NFH_ACCELERATION`, `ITEM::CPU_OP_ACCELERATION`) and CLI options (`--accel-nfh`, `--accel-cpu`) are only available when the corresponding CMake option is set to `ON` at build time.  
-     If the feature was **not** compiled in (default `OFF` build), these enum values and CLI options **do not exist**: using them will result in a compilation error (C++) or an "unrecognized arguments" error (CLI).  
+    The acceleration APIs (`ITEM::NFH_ACCELERATION`, `ITEM::CPU_OP_ACCELERATION`) and CLI options (`--accel-nfh`, `--accel-cpu`) are only available when the corresponding CMake option is set to `ON` at build time.  
+    If the feature was **not** compiled in (default `OFF` build), these enum values and CLI options **do not exist**: using them will result in a compilation error (C++) or an "unrecognized arguments" error (CLI).  
 
 !!! warning "WARNING"  
-     Enabling acceleration does **not** guarantee a performance improvement for every model. The effect depends on the model structure, operation types, and host platform. In particular, CPU op acceleration primarily benefits arithmetic-heavy operations (Conv, MatMul); memory-bound operations (Reshape, Concat) may see little improvement.  
+    Enabling acceleration does **not** guarantee a performance improvement for every model. The effect depends on the model structure, operation types, and host platform. In particular, CPU op acceleration primarily benefits arithmetic-heavy operations (Conv, MatMul); memory-bound operations (Reshape, Concat) may see little improvement.  
 
 ---
 
@@ -734,14 +734,14 @@ export DXRT_DYNAMIC_CPU_THREAD=ON
 This activates internal logic to automatically adjust the ONNX Runtime thread pool size based on queue pressure.  
 
 !!! note "NOTE"  
-     When high CPU task load is detected at runtime, the system may print the following message:  
-     ```
-     To improve FPS, set: 'export DXRT_DYNAMIC_CPU_THREAD=ON'
-     ```
-     This serves as a recommendation to enable the feature for improved inference performance. 
+    When high CPU task load is detected at runtime, the system may print the following message:  
+    ```
+    To improve FPS, set: 'export DXRT_DYNAMIC_CPU_THREAD=ON'
+    ```
+    This serves as a recommendation to enable the feature for improved inference performance. 
 
 
 !!! warning "WARNING"  
-     Enabling the `DXRT_DYNAMIC_CPU_THREAD=ON` option does **not** guarantee an FPS improvement in all cases. The effectiveness of this feature depends on the specific workload, input size, and CPU capacity of the system.  
+    Enabling the `DXRT_DYNAMIC_CPU_THREAD=ON` option does **not** guarantee an FPS improvement in all cases. The effectiveness of this feature depends on the specific workload, input size, and CPU capacity of the system.  
 
 ---

@@ -27,12 +27,13 @@ namespace dxrt {
 
 #define MAX_CHECKPOINT_COUNT 3
 
-typedef enum { 
+typedef enum {
     DXRT_EVENT_NONE,
     DXRT_EVENT_ERROR,
     DXRT_EVENT_NOTIFY_THROT,
     DXRT_EVENT_RECOVERY,
     DXRT_EVENT_PROC_EXIT,
+    DXRT_EVENT_TIMEOUT,
     DXRT_EVENT_NUM,
 } dxrt_event_t;
 

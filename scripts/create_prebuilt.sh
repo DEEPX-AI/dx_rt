@@ -11,6 +11,7 @@ PREBUILT_INCLUDE_DIR="${PREBUILT_DIR}/include"
 PREBUILT_LIB_DIR="${PREBUILT_DIR}/lib"
 PREBUILT_PYTHON_DIR="${PREBUILT_DIR}/python"
 PREBUILT_SERVICE_DIR="${PREBUILT_DIR}/service"
+PREBUILT_CMAKE_DIR="${PREBUILT_LIB_DIR}/cmake/dxrt"
 
 SRC_BIN_DIR="${WORKSPACE_ROOT}/prebuilt_files/bin"
 SRC_LIB_DIR="${WORKSPACE_ROOT}/prebuilt_files/lib"
@@ -50,7 +51,8 @@ create_dirs() {
     "${PREBUILT_INCLUDE_DIR}" \
     "${PREBUILT_LIB_DIR}" \
     "${PREBUILT_PYTHON_DIR}" \
-    "${PREBUILT_SERVICE_DIR}"
+    "${PREBUILT_SERVICE_DIR}" \
+    "${PREBUILT_CMAKE_DIR}"
 }
 
 copy_bins() {
@@ -179,6 +181,23 @@ copy_service_files() {
   log "Copied service files from ${SRC_SERVICE_DIR}"
 }
 
+copy_cmake_configs() {
+  local cmake_file
+  for cmake_file in dxrtConfig.cmake dxrtConfigVersion.cmake; do
+    require_file "${SRC_LIB_DIR}/${cmake_file}"
+    cp -f "${SRC_LIB_DIR}/${cmake_file}" "${PREBUILT_CMAKE_DIR}/${cmake_file}"
+  done
+  log "Copied dxrt cmake config files to ${PREBUILT_CMAKE_DIR}"
+}
+
+copy_sanity_check() {
+  local src="${DX_RT_ROOT}/SanityCheckForDebian.sh"
+  require_file "${src}"
+  cp -f "${src}" "${PREBUILT_DIR}/SanityCheckForDebian.sh"
+  chmod +x "${PREBUILT_DIR}/SanityCheckForDebian.sh"
+  log "Copied SanityCheckForDebian.sh to ${PREBUILT_DIR}"
+}
+
 main() {
   log "Creating prebuilt directory structure"
   create_dirs
@@ -200,6 +219,12 @@ main() {
 
   log "Copying service files"
   copy_service_files
+
+  log "Copying dxrt cmake config files"
+  copy_cmake_configs
+
+  log "Copying SanityCheckForDebian.sh"
+  copy_sanity_check
 
   log "Done: ${PREBUILT_DIR}"
 }

@@ -1,8 +1,9 @@
 This chapter describes the system requirements, source file structure, and the installation instructions for setting up **DX-RT** on a Linux-based host system.  
 
-> **Prebuilt Package (Recommended for end-users):**  
-> If you received a prebuilt `libdxrt.so` package from DEEPX, install it with the package-provided instructions. No source build is required.  
-> The build/install steps in this chapter are for developers building DX-RT from source.
+!!! note "Prebuilt Package (Recommended for end-users)"  
+
+    If you received a prebuilt `libdxrt.so` package from DEEPX, install it with the package-provided instructions. No source build is required.  
+    The build/install steps in this chapter are for developers building DX-RT from source.  
 
 After you check the system requirements, follow these instructions.  
 
@@ -13,7 +14,7 @@ After you check the system requirements, follow these instructions.
 - Linux Device Driver Installation  
 - Python Package Installation  
 - Service Registration  
-- Sanity Check    
+- Sanity Check  
 
 ---
 
@@ -28,6 +29,9 @@ This section describes the hardware and software requirements for running **DX-R
 - **Storage:** 4GB or higher available disk space
 - **OS**: Ubuntu 18.04 / 20.04 / 22.04 / 24.04 (x64)
           Debian 12 / Debian 13 (x64)
+- **Driver:** v2.5.0 or later
+- **PCIe Driver:** v2.4.0 or later
+- **Firmware:** v2.7.0 or later
 - **Hardware:** The system **must** support connection to an **M1 M.2** module with the **M.2 interface** on the host PC. 
 
 <div class="center-text">
@@ -252,6 +256,16 @@ DX-RT is distributed as a **prebuilt binary Debian package** (`libdxrt-bin`), pr
 | `libdxrt-bin_3.4.0_arm64.deb` | aarch64 (arm64) |
 
 The package contains precompiled shared libraries, headers, CLI tools, and the Python module — no on-target compilation is required.
+
+!!! warning "Supported OS versions"
+    The prebuilt binaries are compiled against **glibc ≥ 2.27** and **libstdc++ from GCC 10+**, so the package supports the following distributions and newer:
+
+    | Distribution | Minimum supported version |
+    |--------------|---------------------------|
+    | Ubuntu       | **20.04 LTS** (glibc 2.31) |
+    | Debian       | **11 (bullseye)** (glibc 2.31) |
+
+    **Ubuntu 18.04 and older releases are not supported** — they ship glibc 2.27 with an older libstdc++ ABI and lack the `libgcc-s1` package (renamed from `libgcc1` starting Ubuntu 20.04). Attempting to install on these systems will fail with unmet dependency errors. Use the source-based build (`./build.sh`) if you must target older distributions.
 
 !!! note "NOTE"
     The source-based Debian package (`libdxrt_<version>_all.deb`) is **no longer distributed**. If you need to build from source, use `./build.sh` as described in the **Framework Build on Linux** section above.
@@ -1013,17 +1027,17 @@ Log file location : /.../sanity_check_result_..._....log
 [INFO] /lib/modules/6.8.0-87-generic/updates/dkms/dx_dma.ko ... OK
 ==== Runtime Version Dependency Check ====
 [OK] Version Dependency Check
-   Runtime Framework Version: 3.2.0
-   Device Driver Version: v1.8.0
-   PCIe Driver Version: v1.5.1
-   Firmware Version: device-id=0 v2.4.0
+   Runtime Framework Version: 3.4.0
+   Device Driver Version: v2.5.0
+   PCIe Driver Version: v2.4.0
+   Firmware Version: device-id=0 v2.7.0
    ONNX Runtime Version: v1.20.1
 ==== Runtime Executable File Check ====
 [OK] Executable File Check
-   Runtime Framework Version: 3.2.0
-   Device Driver Version: v1.8.0
-   PCIe Driver Version: v1.5.1
-   Firmware Version: device-id=0 v2.4.0
+   Runtime Framework Version: 3.4.0
+   Device Driver Version: v2.5.0
+   PCIe Driver Version: v2.4.0
+   Firmware Version: device-id=0 v2.7.0
    ONNX Runtime Version: v1.20.1
    dxcli ...OK
    dxrun ...OK
@@ -1054,17 +1068,17 @@ Log file location : /.../sanity_check_result_..._....log
 
 ==== Runtime Version Dependency Check ====
 [OK] Version Dependency Check
-   Runtime Framework Version: 3.2.0
-   Device Driver Version: v1.8.0
-   PCIe Driver Version: v1.5.1
-   Firmware Version: device-id=0 v2.4.0
+   Runtime Framework Version: 3.4.0
+   Device Driver Version: v2.5.0
+   PCIe Driver Version: v2.4.0
+   Firmware Version: device-id=0 v2.7.0
    ONNX Runtime Version: v1.20.1
 ==== Runtime Executable File Check ====
 [OK] Executable File Check
-   Runtime Framework Version: 3.2.0
-   Device Driver Version: v1.8.0
-   PCIe Driver Version: v1.5.1
-   Firmware Version: device-id=0 v2.4.0
+   Runtime Framework Version: 3.4.0
+   Device Driver Version: v2.5.0
+   PCIe Driver Version: v2.4.0
+   Firmware Version: device-id=0 v2.7.0
    ONNX Runtime Version: v1.20.1
    dxcli ...OK
    dxrun ...OK

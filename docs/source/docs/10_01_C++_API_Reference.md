@@ -7,8 +7,10 @@ This section documents the core C++ classes provided by the DX-RT SDK. It includ
 | `<dxrt/dxrt_cxx_api.h>` | **Recommended.** Single self-contained C++14 header for all applications. |
 | `<dxrt/dxrt_api.h>` | Legacy header — still works, no source changes needed. Emits a compile-time maintenance note by default (`DXRT_LEGACY_HEADER_OK` to suppress). |
 
-> **Note:** Internal headers (e.g., `dxrt/internal/*.h`) are no longer publicly accessible. Code that directly included internal headers will get compile errors — switch to `dxrt_cxx_api.h`.  
-> Also, do not include `<dxrt/dxrt_api.h>` and `<dxrt/dxrt_cxx_api.h>` in the same translation unit.
+!!! note "NOTE"  
+
+    Internal headers (e.g., `dxrt/internal/*.h`) are no longer publicly accessible. Code that directly included internal headers will get compile errors — switch to `dxrt_cxx_api.h`.  
+    Also, do not include `<dxrt/dxrt_api.h>` and `<dxrt/dxrt_cxx_api.h>` in the same translation unit.
 
 ---
 
@@ -19,11 +21,12 @@ This class abstracts the runtime inference executor for a user's compiled model.
 #### Constructor  
   
 ***`explicit InferenceEngine(const std::string &modelPath, InferenceOption &option = DefaultInferenceOption)`***  
+
 -   **Description**: Loads a model from the specified file path and configures the NPU to run it.  
 -   **Parameters**:  
     -   `modelPath`: The file path to the compiled model (e.g., `model.dxnn`).  
     -   `option`: A reference to an `InferenceOption` object to configure devices and NPU cores. If not provided, uses `DefaultInferenceOption`.  
--   **Example**:
+-   **Example**:  
     ```cpp
     // Load model from file path
     dxrt::InferenceEngine ie("model.dxnn");
@@ -36,12 +39,13 @@ This class abstracts the runtime inference executor for a user's compiled model.
     ```
 
 ***`explicit InferenceEngine(const uint8_t* modelBuffer, size_t modelSize, InferenceOption &option = DefaultInferenceOption)`***  
+
 -   **Description**: Loads a model from a memory buffer and configures the NPU to run it. This constructor is useful for embedded systems or when models are loaded from custom sources (e.g., encrypted storage, network).  
 -   **Parameters**:  
     -   `modelBuffer`: A pointer to the compiled model data in memory.  
     -   `modelSize`: The size of the model data in bytes.  
     -   `option`: A reference to an `InferenceOption` object to configure devices and NPU cores. If not provided, uses `DefaultInferenceOption`.  
--   **Example**:
+-   **Example**:  
     ```cpp
     // Load model file into memory buffer
     std::ifstream file("model.dxnn", std::ios::binary | std::ios::ate);
@@ -58,7 +62,7 @@ This class abstracts the runtime inference executor for a user's compiled model.
         dxrt::InferenceEngine ie2(buffer.data(), buffer.size(), option);
     }
     ```
--   **Use Cases**:
+-   **Use Cases**:  
     -   Loading models from encrypted or compressed storage
     -   Network-based model distribution
     -   Embedded systems with models stored in ROM

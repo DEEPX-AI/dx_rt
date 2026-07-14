@@ -11,6 +11,7 @@
 #include "dxrt/common.h"
 #include <cstdint>
 #include <cerrno>
+#include <cstdlib>
 
 #ifdef __linux__
 #include <sys/mman.h>
@@ -20,9 +21,56 @@
 #include <csignal>
 #elif _WIN32
 #include <windows.h>
+#include <sddl.h>
 #endif
 
 namespace dxrt {
+
+#ifdef _WIN32
+namespace {
+
+// SYSTEM/Administrators: full access, Authenticated Users: read/write.
+constexpr const char* MONITOR_SHM_SDDL = "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRGW;;;AU)";
+
+class SecurityDescriptorGuard {
+public:
+    ~SecurityDescriptorGuard()
+    {
+        if (_descriptor != nullptr)
+        {
+            LocalFree(_descriptor);
+            _descriptor = nullptr;
+        }
+    }
+
+    PSECURITY_DESCRIPTOR* OutParam()
+    {
+        return &_descriptor;
+    }
+
+private:
+    PSECURITY_DESCRIPTOR _descriptor{nullptr};
+};
+
+bool BuildMonitorShmSecurityAttributes(SECURITY_ATTRIBUTES& attributes, SecurityDescriptorGuard& guard)
+{
+    if (!ConvertStringSecurityDescriptorToSecurityDescriptorA(
+            MONITOR_SHM_SDDL,
+            SDDL_REVISION_1,
+            guard.OutParam(),
+            nullptr))
+    {
+        return false;
+    }
+
+    attributes.nLength = sizeof(SECURITY_ATTRIBUTES);
+    attributes.lpSecurityDescriptor = *guard.OutParam();
+    attributes.bInheritHandle = FALSE;
+    return true;
+}
+
+} // namespace
+#endif
 
 constexpr int MAX_SEQLOCK_RETRIES = 1000;
 
@@ -142,6 +190,19 @@ bool SharedMemoryReader::Open()
     return true;
 
 #elif _WIN32
+    SECURITY_ATTRIBUTES security_attributes{};
+    SecurityDescriptorGuard security_descriptor;
+    SECURITY_ATTRIBUTES* security_attributes_ptr = nullptr;
+    if (BuildMonitorShmSecurityAttributes(security_attributes, security_descriptor))
+    {
+        security_attributes_ptr = &security_attributes;
+    }
+    else
+    {
+        LOG_DXRT_DBG << "Failed to build shared memory ACL, using default security. error="
+                     << ::GetLastError();
+    }
+
     // Opening an existing Global\ object needs no special privilege (just FILE_MAP_READ
     // on its DACL), so try Global\ first — this is the common case when the writer is a
     // service/SYSTEM process.  Fall back to Local\ if the Global\ segment doesn't exist.
@@ -169,7 +230,7 @@ bool SharedMemoryReader::Open()
 
         const char* create_name = use_env ? env_override : MONITOR_SHM_NAME_WIN_GLOBAL;
         HANDLE init_handle = CreateFileMappingA(
-            INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE,
+            INVALID_HANDLE_VALUE, security_attributes_ptr, PAGE_READWRITE,
             0, static_cast<DWORD>(sizeof(MonitorSharedMemory)),
             create_name);
 
@@ -178,7 +239,7 @@ bool SharedMemoryReader::Open()
             // Fall back to Local\ for bootstrap placeholder.
             create_name = MONITOR_SHM_NAME_WIN_LOCAL;
             init_handle = CreateFileMappingA(
-                INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE,
+                INVALID_HANDLE_VALUE, security_attributes_ptr, PAGE_READWRITE,
                 0, static_cast<DWORD>(sizeof(MonitorSharedMemory)),
                 create_name);
         }
@@ -190,7 +251,7 @@ bool SharedMemoryReader::Open()
         }
 
         auto* init_ptr = static_cast<MonitorSharedMemory*>(
-            MapViewOfFile(init_handle, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(MonitorSharedMemory)));
+            MapViewOfFile(init_handle, FILE_MAP_WRITE | FILE_MAP_READ, 0, 0, sizeof(MonitorSharedMemory)));
 
         if (init_ptr == nullptr)
         {
@@ -482,9 +543,18 @@ bool SharedMemoryReader::IsWriterAlive() const
     HANDLE process_handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, writer_pid);
     if (process_handle == nullptr)
     {
+        // ERROR_ACCESS_DENIED means the process EXISTS but we lack permission to
+        // open it — e.g. the writer is the dxrtd service running as LocalSystem
+        // and this reader is a non-elevated user process. Treat it as alive,
+        // analogous to the Linux EPERM case above. (A non-existent PID fails with
+        // ERROR_INVALID_PARAMETER instead, which correctly falls through to false.)
+        const DWORD err = ::GetLastError();
+        if (err == ERROR_ACCESS_DENIED)
+        {
+            return true;
+        }
         return false;
     }
-
     DWORD exit_code = 0;
     bool alive = GetExitCodeProcess(process_handle, &exit_code) && (exit_code == STILL_ACTIVE);
     CloseHandle(process_handle);

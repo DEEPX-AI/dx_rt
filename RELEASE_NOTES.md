@@ -1,6 +1,6 @@
 # RELEASE_NOTES
 
-## v3.4.0 / 2026-07-07
+## DX-RT v3.4.0 / 2026-07-07
 
 ### 1. Changed
 - Debian package bundles `dx_engine` Python wheels for Python 3.8 – 3.14.
@@ -48,7 +48,9 @@
 - Add input dtype validation to prevent undefined behavior caused by mismatching NumPy array types.
 - Add `libdxrt-bin` Debian packaging for pre-built binaries with amd64/arm64 auto-detection.
 
-## v3.3.2 / 2026-05-08
+---
+
+## DX-RT v3.3.2 / 2026-05-08
 
 ### 1. Changed
 - Removed redundant build artifacts and temporary directories from the Debian package.
@@ -59,7 +61,9 @@
 ### 3. Added
 - Added conditional pip upgrade (v21.3+) to ensure build stability on legacy OS environments.
 
-## v3.3.1 / 2026-04-21
+---
+
+## DX-RT v3.3.1 / 2026-04-21
 
 ### 1. Changed
 - Change the version of pre-built onnxruntime(1.23.2 -> 1.22.0) and openvino(25.4 -> 25.1)
@@ -72,8 +76,9 @@
 ### 3. Added
 - Add libdxrt 3.3.1 debian package with updated build and install pipeline
 
+---
 
-## v3.3.0 / 2026-04-07
+## DX-RT v3.3.0 / 2026-04-07
 
 ### 1. Changed
 - Update minimum versions
@@ -93,7 +98,9 @@
 - Add python InferenceEngine from numpy array
 - Add acceleration features for CPU operations (Requires separate option configuration and build)
 
-## v3.2.0 / 2025-12-23
+---
+
+## DX-RT v3.2.0 / 2025-12-23
 
 ### 1. Changed
 - Optimize PCIe DMA sequence for better performance.
@@ -119,6 +126,8 @@
 - Implement per-instance configuration of Input and Output buffer counts for the Inference Engine.
 - Enable direct loading of the .dxnn model format from a memory buffer within the Inference Engine.
 - Add RuntimeEventDispatcher for centralized event handling and logging.
+
+---
 
 ## DX-RT v3.1.0 / 2025-11-28
 
@@ -349,13 +358,10 @@
 ---
 
 ## DX-RT v2.7.1 / 2025-03-12
-
 ### 1. Changed
 - display dxnn versions in parse_model (.dxnn file format version & compiler version)
-
 ### 2. Fixed
 - None
-
 ### 3. Added
 - Add otp read / write api (internal only)
 

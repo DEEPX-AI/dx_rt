@@ -1,4 +1,4 @@
-## v3.4.0 (July 2026)
+## DX-RT v3.4.0 (July 2026)
 
 #### Changed
 - Debian package bundles `dx_engine` Python wheels for Python 3.8 – 3.14.
@@ -46,8 +46,9 @@
 - Add input dtype validation to prevent undefined behavior caused by mismatching NumPy array types.
 - Add `libdxrt-bin` Debian packaging for pre-built binaries with amd64/arm64 auto-detection.
  
+---
 
-## v3.3.2 (May 2026)
+## DX-RT v3.3.2 (May 2026)
 
 #### Changed
 - Removed redundant build artifacts and temporary directories from the Debian package.
@@ -58,7 +59,9 @@
 #### Added
 - Added conditional pip upgrade (v21.3+) to ensure build stability on legacy OS environments.
 
-## v3.3.1 (April 2026)
+---
+
+## DX-RT v3.3.1 (April 2026)
 
 #### Changed
 - Change the version of pre-built onnxruntime(1.23.2 -> 1.22.0) and openvino(25.4 -> 25.1)
@@ -71,7 +74,9 @@
 #### Added
 - Add libdxrt 3.3.1 debian package with updated build and install pipeline
 
-## v3.3.0 (April 2026)
+---
+
+## DX-RT v3.3.0 (April 2026)
 
 #### Changed
 - Update minimum versions
@@ -91,8 +96,9 @@
 - Add python InferenceEngine from numpy array
 - Add acceleration features for CPU operations (Requires separate option configuration and build)
 
+---
 
-## v3.2.0 (December 2025)
+## DX-RT v3.2.0 (December 2025)
 
 #### Changed
 - Optimize PCIe DMA sequence for better performance.
@@ -119,7 +125,9 @@
 - Enable direct loading of the .dxnn model format from a memory buffer within the Inference Engine.
 - Add RuntimeEventDispatcher for centralized event handling and logging.
 
-## v3.1.0 (November 2025)
+---
+
+## DX-RT v3.1.0 (November 2025)
 
 #### Changed
 - Update minimum versions
@@ -202,7 +210,7 @@
 
 ---
 
-## v3.0.0 (September 2025)
+## DX-RT v3.0.0 (September 2025)
 
 - Update the .dxnn file format to version 7 (from v6).
 - Update C++ exception handling to translate exceptions into Python for improved error handling.
@@ -292,7 +300,7 @@
  
 ---
 
-## v2.9.5 (May 2025)
+## DX-RT v2.9.5 (May 2025)
 - Added full support for Python run_model.  
 - Updated the run_model option and its description  
 - Improve the Python API  
@@ -336,7 +344,7 @@
 
 ---
 
-## v2.8.2 (April 2025)
+## DX-RT v2.8.2 (April 2025)
 
 - Modify Inference Engine to be used with 'with' statements, and update relevant examples.  
 - Add Python inference option interface with the following configurations  

@@ -248,6 +248,11 @@ string DeviceStatus::DeviceTypeWord() const
 }
 string DeviceStatus::DeviceVariantStr() const
 {
+    if ( _info.ddr_type == 1 ) // LPDDR4
+    {
+        return map_lookup(device_variants, _info.variant) + "M";
+    }
+    
     return map_lookup(device_variants, _info.variant);
 }
 string DeviceStatus::BoardTypeStr() const

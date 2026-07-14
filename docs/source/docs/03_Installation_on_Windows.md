@@ -30,7 +30,7 @@ After you check the system requirements, follow these instructions.
 The built libraries are used by [dx_app](https://github.com/DEEPX-AI/dx_app), and users can also develop their own applications by referencing the dx_app code.
 
 !!! note "NOTE. Legacy Names"  
-    Legacy executable names `dxrt-cli.exe`, `run_model.exe`, and `parse_model.exe` are preserved as backward-compatible hard links and continue to work.
+    Legacy executable names `dxrt-cli.exe`, `run_model.exe`, and `parse_model.exe` are preserved as backward-compatible copies and continue to work.
 
 !!! note "NOTE. Pre-built Binaries"  
     To use pre-built binaries without building, refer to the [dx_rt_windows](https://github.com/DEEPX-AI/dx_rt_windows) repository.  
@@ -43,7 +43,7 @@ The built libraries are used by [dx_app](https://github.com/DEEPX-AI/dx_app), an
 | **CPU** | amd64 (x86_64) | |
 | **RAM** | 8GB or more | 16GB or more recommended |
 | **Storage** | 4GB or more | Free disk space |
-| **NPU Connection** | DEEPX NPU device (DX-M1) | Choose one of the connection methods below |
+| **NPU Connection** | DEEPX NPU device | Choose one of the connection methods below |
 
 **Supported NPU Connection Methods**
 
@@ -61,7 +61,9 @@ The built libraries are used by [dx_app](https://github.com/DEEPX-AI/dx_app), an
 | **Visual Studio** | Visual Studio Community 2022 (Desktop development with C++ workload) |
 | **CMake** | Included with Visual Studio 2022 |
 | **VCPKG** | Included with Visual Studio 2022 |
-| **DX_FW** | v2.5.0 or later |
+| **Driver** | v1.8.0 or later |
+| **PCIe Driver** | v1.6.1 or later |
+| **Firmware** | v2.7.0 or later |
 
 !!! warning "IMPORTANT"  
     **The NPU device driver must be installed first.** For driver installation instructions, see Section. **DX-RT Windows Driver Installation** below.  
@@ -80,7 +82,7 @@ Drivers are provided in the [dx_rt_windows](https://github.com/DEEPX-AI/dx_rt_wi
 
 ```
 dx_rt_windows/
-└── m1/v.3.2.0/
+└── m1/v.3.4.0/
     ├── dxm1drv/           # PCIe driver package (dxm1drv.zip)
     ├── dx_rt/             # Runtime (bin/, include/, lib/)
     └── dx_app/            # Demo applications and examples
@@ -101,7 +103,7 @@ Connect the DEEPX NPU device to your system.
 
 **Step 2.** Install the Driver
 
-2-1. Navigate to the `m1/v.3.2.0/dxm1drv/` directory  
+2-1. Navigate to the `m1/v.3.4.0/dxm1drv/` directory  
 2-2. Extract `dxm1drv.zip`  
 2-3. Open the extracted `dxm1drv/` folder  
 2-4. Right-click on the `dxm1drv.inf` file  

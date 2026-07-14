@@ -1,7 +1,9 @@
 This chapter introduces the inference APIs provided by **DX-RT**, including both C++ and Python interfaces. It covers synchronous and asynchronous execution, support for single and multi-input models, and guidance on input/output formatting. Key topics include model execution, input parsing, special handling cases, and performance tuning to help developers integrate inference efficiently.  
 
-> **Recommended Header:** Include `<dxrt/dxrt_cxx_api.h>` — a single, self-contained C++14 header that provides the full inference API. Existing code using `dxrt_api.h` continues to build without changes.  
-> Do not include `<dxrt/dxrt_api.h>` and `<dxrt/dxrt_cxx_api.h>` in the same translation unit.
+!!! note "Recommended Header"  
+
+    Include `<dxrt/dxrt_cxx_api.h>` — a single, self-contained C++14 header that provides the full inference API. Existing code using `dxrt_api.h` continues to build without changes.  
+    Do not include `<dxrt/dxrt_api.h>` and `<dxrt/dxrt_cxx_api.h>` in the same translation unit.  
 
 ---
 

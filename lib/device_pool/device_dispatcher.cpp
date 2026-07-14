@@ -312,9 +312,11 @@ int DeviceDispatcher::EventLoop()  // NOSONAR
 
         auto eventType = static_cast<dxrt::dxrt_event_t>(eventInfo.event_type);
         bool showEventTypeLog = (eventType != dxrt::dxrt_event_t::DXRT_EVENT_NONE);
-#if _WIN32
-        if (static_cast<int>(eventType) == 5)
+#ifdef _WIN32
+        if (eventType == dxrt::dxrt_event_t::DXRT_EVENT_TIMEOUT)
+        {
             showEventTypeLog = false; // in windows, event_type=5 is a regular timeout event, ignore it.
+        }
 #endif
         if (showEventTypeLog)
         {

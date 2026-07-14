@@ -13,6 +13,11 @@ device status, and collect profiling data from Python.
 
 ## Installation
 
+### From PyPI
+```bash
+python -m pip install dx-engine
+```
+
 ### From a prebuilt wheel (recommended)
 
 Wheels are shipped inside the `libdxrt-bin` Debian package under
@@ -102,14 +107,6 @@ whenever you upgrade `libdxrt-bin`.
 ```bash
 python -c "import dx_engine; print(dx_engine.__version__)"
 ```
-
-## Related Documents
-
-- [BUILD_WHEELS.md](BUILD_WHEELS.md) — how to build wheels for
-  Python 3.8 – 3.14 with `uv` + `scikit-build-core` + `pybind11`.
-- `../debian_m1_bin/prebuilt_structure.md` — how the `prebuilt/` tree
-  and the `libdxrt-bin` `.deb` package (which carries these wheels) are
-  assembled.
 
 ## License
 
