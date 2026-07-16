@@ -47,8 +47,15 @@ class MemoryService
     void PrintMemoryStatus() const;
     int deviceId() const { return _deviceId; }
 
-private:
-    MemoryService(uint64_t start, uint64_t size);
+ private:
+    MemoryService(uint64_t start, uint64_t size)
+    {
+        dxrt_device_info_t info;
+        info.mem_addr = start;
+        info.mem_size = size;
+
+        _mem = new dxrt::Memory(info, nullptr);
+    }
     dxrt::Memory* _mem;
 
     // std::map<pid_t, std::set<uint64_t> > _allocInfo;

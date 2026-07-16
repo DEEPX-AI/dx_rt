@@ -217,7 +217,7 @@ void SchedulerService::StopTaskInference(pid_t pid, int deviceId, int taskId)
             // _loads[deviceId] will be decremented by FinishJobs when NPU responds.
             // _loadsProc[pid] will be decremented by FinishJobs as well.
         }
-        else  // PENDING or already CANCELLED
+        else if (entry.state == RequestEntry::State::PENDING)
         {
             toErase.push_back(reqId);
             if (_loadsProc.count(pid) && _loadsProc[pid] > 0)
@@ -225,6 +225,11 @@ void SchedulerService::StopTaskInference(pid_t pid, int deviceId, int taskId)
                 _loadsProc[pid]--;
             }
             // Do NOT touch _loads[deviceId]: PENDING requests were never counted there.
+        }
+        else
+        {
+            LOG_DXRT_S_DBG << "[StopTaskInference] keep CANCELLED req " << reqId
+                           << " (pid=" << pid << ", task=" << taskId << ")" << endl;
         }
     }
 
@@ -260,7 +265,7 @@ void SchedulerService::StopAllInferenceForProcess(pid_t pid, int deviceId)
             entry.state = RequestEntry::State::CANCELLED;
             ++cancelledCount;
         }
-        else  // PENDING (or already CANCELLED from a prior StopTaskInference call)
+        else if (entry.state == RequestEntry::State::PENDING)
         {
             toErase.push_back(kv.first);
             if (_loadsProc.count(pid) && _loadsProc[pid] > 0)
@@ -268,6 +273,11 @@ void SchedulerService::StopAllInferenceForProcess(pid_t pid, int deviceId)
                 _loadsProc[pid]--;
             }
             // PENDING requests were never counted in _loads[deviceId]; don't decrement.
+        }
+        else
+        {
+            LOG_DXRT_S_DBG << "[StopAllInferenceForProcess] keep CANCELLED req " << kv.first
+                           << " (pid=" << pid << ")" << endl;
         }
     }
 
@@ -702,4 +712,3 @@ bool operator<(const SJFSchedulerService::request_elem& a, const SJFSchedulerSer
     }
     return a.time > b.time;
 }
-

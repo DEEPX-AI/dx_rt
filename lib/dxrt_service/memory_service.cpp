@@ -61,15 +61,6 @@ MemoryService* MemoryService::getInstance(int deviceId)
 }
 
 
-MemoryService::MemoryService(uint64_t start, uint64_t size)
-{
-    dxrt_device_info_t info;
-    info.mem_addr = start;
-    info.mem_size = size;
-
-    _mem = new dxrt::Memory(info, nullptr);
-}
-
 uint64_t MemoryService::Allocate(uint64_t size, pid_t pid)
 {
     if (ENABLE_MEMORY_TRACE_LOGS) {
