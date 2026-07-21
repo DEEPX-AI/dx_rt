@@ -269,29 +269,107 @@ This provides a quick way to collect profiling data without modifying your appli
 
 You can profile events within your application using the Profiler APIs. Please refer to **Section. API reference**.  
 
-Here is a basic usage example. 
+#### Enable the Profiler
 
-```
-// Built-in core profiling event
+Before collecting profiling data, enable the profiler and configure its output options.
 
+```cpp
 // Enable the profiler
 dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::PROFILER, true);
 
 // Set attributes to show data in console and save to a file
-dxrt::Configuration::GetInstance().SetAttribute(dxrt::Configuration::ITEM::PROFILER, 
-dxrt::Configuration::ATTRIBUTE::PROFILER_SHOW_DATA, "ON");
+dxrt::Configuration::GetInstance().SetAttribute(dxrt::Configuration::ITEM::PROFILER,
+    dxrt::Configuration::ATTRIBUTE::PROFILER_SHOW_DATA, "ON");
 
-dxrt::Configuration::GetInstance().SetAttribute(dxrt::Configuration::ITEM::PROFILER, 
-dxrt::Configuration::ATTRIBUTE::PROFILER_SAVE_DATA, "ON");
-
-// User's profiling event
-auto& profiler = dxrt::Profiler::GetInstance();
-profiler.Start("1sec");
-sleep(1);
-profiler.End("1sec");
+dxrt::Configuration::GetInstance().SetAttribute(dxrt::Configuration::ITEM::PROFILER,
+    dxrt::Configuration::ATTRIBUTE::PROFILER_SAVE_DATA, "ON");
 ```
 
-After the application is finished, `profiler.json` is created in the working directory.
+After the application finishes, `profiler.json` is created in the working directory.
+
+---
+
+#### Get Per-Job Metrics with `GetJobMetrics()`
+
+Use `dxrt::Profiler::GetJobMetrics()` to retrieve detailed timing breakdowns for a specific inference job. This is the **recommended** way to access per-job inference timing data programmatically.
+
+Call it immediately after `Wait()` returns with the corresponding job ID.
+
+```cpp
+auto& profiler = dxrt::Profiler::GetInstance();
+
+int jobId = ie.RunAsync(inputBuf.data());
+auto outputs = ie.Wait(jobId);
+
+auto jm = profiler.GetJobMetrics(jobId);
+if (jm.valid) {
+    // NPU task metrics (per device)
+    auto npu = jm.GetTask("npu_0");
+    if (npu.valid) {
+        auto& dev = npu.devices[0];         // device 0 metrics
+        double h2d      = dev.h2d_us;       // Host-to-Device transfer (µs)
+        double inference = dev.inference_core_all_us; // NPU compute (µs)
+        double d2h      = dev.d2h_us;       // Device-to-Host transfer (µs)
+        double total    = dev.total_us;     // End-to-end NPU task time (µs)
+    }
+
+    // CPU task metrics (when USE_ORT is enabled)
+    auto cpu = jm.GetTask("cpu_0");
+    if (cpu.valid) {
+        double cpuExec = cpu.cpu_task_us;   // CPU op execution time (µs)
+    }
+}
+```
+
+**`JobMetrics` Structure**
+
+| Field | Type | Description |
+|---|---|---|
+| `tasks` | `vector<TaskMetrics>` | One entry per task that participated in the job |
+| `valid` | `bool` | `false` if the job ID was not found |
+| `GetTask(name)` | method | Safe lookup by task name; returns `valid=false` if not found |
+
+**`TaskMetrics` Structure**
+
+| Field | Type | Description |
+|---|---|---|
+| `task_name` | `string` | Task name (e.g., `"npu_0"`, `"cpu_0"`) |
+| `devices` | `map<int, NpuDeviceMetrics>` | Per-device NPU metrics (NPU tasks only) |
+| `cpu_task_us` | `double` | CPU task execution time in µs (CPU tasks only; 0 for NPU tasks) |
+| `valid` | `bool` | `true` if this task was measured |
+
+**`NpuDeviceMetrics` Structure**
+
+| Field | Type | Description |
+|---|---|---|
+| `input_format_us` | `double` | NPU input format handler time (µs) |
+| `h2d_us` | `double` | Host-to-Device PCIe transfer time (µs) |
+| `inference_core_all_us` | `double` | NPU compute time across all cores (µs) |
+| `inference_core_0_us` | `double` | NPU compute time on core 0 (µs) |
+| `inference_core_1_us` | `double` | NPU compute time on core 1 (µs) |
+| `inference_core_2_us` | `double` | NPU compute time on core 2 (µs) |
+| `d2h_us` | `double` | Device-to-Host PCIe transfer time (µs) |
+| `output_format_us` | `double` | NPU output format handler time (µs) |
+| `total_us` | `double` | End-to-end NPU task time (µs) |
+| `valid` | `bool` | `true` if at least one of H2D/NPU/D2H was measured |
+
+!!! note "NOTE"
+    `GetJobMetrics()` is the recommended API. The older `GetPerformanceData()` and `GetPerformanceDataByDevice()` methods are **deprecated** and will be removed in a future release.
+
+---
+
+#### Record Custom User Events
+
+You can also record arbitrary named events in your application to include them in the profiler output.
+
+```cpp
+auto& profiler = dxrt::Profiler::GetInstance();
+profiler.Start("my_preprocess");
+// ... preprocessing code ...
+profiler.End("my_preprocess");
+```
+
+User events are included in `profiler.json` when saved via `Save(file, userEvents)`.
 
 ---
 
