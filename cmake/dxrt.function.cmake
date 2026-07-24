@@ -24,7 +24,7 @@ file(MAKE_DIRECTORY ${DXRT_PUBLIC_INCLUDE_STAGING}/dxrt/exception)
 # Core headers — symlink
 foreach(_hdr dxrt_c_api.h dxrt_cxx_api.h gen.h)
     file(CREATE_LINK ${_DXRT_SRC_INCLUDE}/dxrt/${_hdr}
-         ${DXRT_PUBLIC_INCLUDE_STAGING}/dxrt/${_hdr} SYMBOLIC)
+         ${DXRT_PUBLIC_INCLUDE_STAGING}/dxrt/${_hdr} SYMBOLIC COPY_ON_ERROR)
 endforeach()
 
 # Legacy headers (installed flat as dxrt/*.h for backward compat) — symlink each
@@ -32,16 +32,16 @@ file(GLOB _LEGACY_HEADERS ${_DXRT_SRC_INCLUDE}/dxrt/legacy/*.h)
 foreach(_hdr ${_LEGACY_HEADERS})
     get_filename_component(_fname ${_hdr} NAME)
     file(CREATE_LINK ${_hdr}
-         ${DXRT_PUBLIC_INCLUDE_STAGING}/dxrt/${_fname} SYMBOLIC)
+         ${DXRT_PUBLIC_INCLUDE_STAGING}/dxrt/${_fname} SYMBOLIC COPY_ON_ERROR)
 endforeach()
 
 # Exception subdir — symlink
 file(CREATE_LINK ${_DXRT_SRC_INCLUDE}/dxrt/legacy/exception/exception.h
-     ${DXRT_PUBLIC_INCLUDE_STAGING}/dxrt/exception/exception.h SYMBOLIC)
+     ${DXRT_PUBLIC_INCLUDE_STAGING}/dxrt/exception/exception.h SYMBOLIC COPY_ON_ERROR)
 
 # Extern vendored headers (cxxopts, rapidjson) — symlink the directory
 file(CREATE_LINK ${_DXRT_EXTERN_INCLUDE}/dxrt/extern
-     ${DXRT_PUBLIC_INCLUDE_STAGING}/dxrt/extern SYMBOLIC)
+     ${DXRT_PUBLIC_INCLUDE_STAGING}/dxrt/extern SYMBOLIC COPY_ON_ERROR)
 
 macro(add_googletest target)
   if(MSVC)
