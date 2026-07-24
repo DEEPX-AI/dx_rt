@@ -51,11 +51,17 @@
 
 
  // ANSI escape codes for terminal text colors
- namespace Color {
-    static bool& get_color_enabled()
+class Color {
+ public:
+    static bool get_color_enabled()
     {
-        static bool color_enabled = true;
         return color_enabled;
+    }
+    static void enable_color(bool enable)
+    {
+#ifndef _WIN32
+        color_enabled = enable;  // temporary disable color on windows
+#endif
     }
 
 #ifdef _WIN32
@@ -85,43 +91,43 @@
      }
 #endif
 
-    static std::string get_color(const std::string& color_code)
-    {
-        if (!get_color_enabled())
-        {
-            return "";
-        }
-        else
-        {
-            return color_code;
-        }
+    static std::string reset() { return get_color(RESET); }
+    static std::string bold() { return get_color(BOLD); }
+    static std::string yellow() { return get_color(YELLOW); }
+    static std::string green() { return get_color(GREEN); }
+    static std::string blue() { return get_color(BLUE); }
+    static std::string red() { return get_color(RED); }
+    static std::string purple() { return get_color(PURPLE); }
+    static std::string cyan() { return get_color(CYAN); }
+    static std::string gray() { return get_color(GRAY); }
+
+ private:
+     static bool color_enabled;
+     static std::string get_color(const char *color_code)
+     {
+         if (!get_color_enabled())
+         {
+             return "";
+         }
+         else
+         {
+             return color_code;
+         }
     }
 
-     const std::string RESET       = "\033[0m";
-     const std::string BOLD        = "\033[1m";
-     const std::string YELLOW      = "\033[1;33m";
-     const std::string GREEN       = "\033[1;32m";
-     const std::string BLUE        = "\033[1;34m";
-     const std::string RED         = "\033[1;31m";
-     const std::string PURPLE      = "\033[1;35m";
-     const std::string CYAN        = "\033[1;36m";
-     const std::string GRAY        = "\033[90m";
+     static constexpr const char* RESET       = "\033[0m";
+     static constexpr const char* BOLD        = "\033[1m";
+     static constexpr const char* YELLOW      = "\033[1;33m";
+     static constexpr const char* GREEN       = "\033[1;32m";
+     static constexpr const char* BLUE        = "\033[1;34m";
+     static constexpr const char* RED         = "\033[1;31m";
+     static constexpr const char* PURPLE      = "\033[1;35m";
+     static constexpr const char* CYAN        = "\033[1;36m";
+     static constexpr const char* GRAY        = "\033[90m";
 
-     void enable_color(bool enable)
-     {
-        get_color_enabled() = enable;
-     }
+};
 
-     std::string reset() { return get_color(RESET); }
-     std::string bold() { return get_color(BOLD); }
-     std::string yellow() { return get_color(YELLOW); }
-     std::string green() { return get_color(GREEN); }
-     std::string blue() { return get_color(BLUE); }
-     std::string red() { return get_color(RED); }
-     std::string purple() { return get_color(PURPLE); }
-     std::string cyan() { return get_color(CYAN); }
-     std::string gray() { return get_color(GRAY); }
- }
+bool Color::color_enabled = true;
 
  // Helper to add thousand separators to a number string
  static string add_commas(const string& s)
