@@ -19,7 +19,7 @@
 #include "dxrt/common.h"
 #include "dxrt/driver.h"
 #include "dxrt/device_struct.h"
-#include "../../../include/dxrt/ipc_wrapper/ipc_client.h"
+#include "dxrt/ipc_wrapper/ipc_client.h"
 #include "ipc_pipe_windows.h"
 #include <map>
 #include <set>

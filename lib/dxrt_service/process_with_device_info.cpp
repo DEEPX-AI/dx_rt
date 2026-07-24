@@ -54,6 +54,12 @@ const ProcessWithDeviceInfo::eachTaskInfo& ProcessWithDeviceInfo::getTaskInfo(in
 {
     return _taskInfo.at(taskId);
 }
+
+ProcessWithDeviceInfo::eachTaskInfo* ProcessWithDeviceInfo::mutableTaskInfo(int taskId)
+{
+    auto it = _taskInfo.find(taskId);
+    return (it != _taskInfo.end()) ? &it->second : nullptr;
+}
 int ProcessWithDeviceInfo::firstTaskNumber() const
 {
 

@@ -10,12 +10,13 @@ target_include_directories(${target} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
     ${CMAKE_SOURCE_DIR}/extern/include 
     ${CURSES_INCLUDE_DIR}
   )
+target_include_directories(${target} PRIVATE ${DXRT_INTERNAL_INCLUDE_DIRS})
 
 if (MSVC)
     target_link_libraries(${target} PRIVATE user32 advapi32 dxrt ${link_libs})
     target_link_options(${target} PRIVATE "/SUBSYSTEM:CONSOLE")
 else()
-    target_link_libraries(${target} dxrt ${link_libs})
+    target_link_libraries(${target} dxrt_static pthread rt ${link_libs})
 endif()
   
 install( TARGETS ${target} DESTINATION bin )

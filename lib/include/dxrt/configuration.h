@@ -208,6 +208,14 @@ namespace dxrt {
         std::string GetVersion() const;
 
         /**
+        * @brief Retrieves the git commit hash this library was built from.
+        * @return Short git hash (e.g. "0814ceb"), with a "-dirty" suffix when the
+        *         working tree had uncommitted changes, or "" if git was unavailable
+        *         at build time.
+        */
+        std::string GetGitHash() const;
+
+        /**
         * @brief Retrieves the version of the associated device driver.
         * @return The driver version as a string.
         * @throws InvalidOperationException If the driver's version is below the minimum requirement.

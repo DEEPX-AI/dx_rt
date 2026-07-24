@@ -53,12 +53,6 @@ int cdiv(int a, int b)
 int NpuFormatHandler::encode(const Bytes& input, Bytes& output, int col, int unit)
 {
 
-#ifndef USE_VNPU
-    if (input.size == output.size && input.data == output.data)
-    {
-        return 0;
-    }
-#endif
 
     if (col <= 0 || unit <= 0)
     {
@@ -90,13 +84,19 @@ int NpuFormatHandler::encode(const Bytes& input, Bytes& output, int col, int uni
     }
      // It's generally better if the caller provides a sufficiently sized buffer.
      // Warn if provided size is different, then set the correct expected size.
+    if (expected_size > output.size)
+    {
+        LOG_DXRT_ERR("[encode] Error: Output buffer too small. "
+                  << "Expected size: " << expected_size << ", Provided size: " << output.size << ".");
+        return -1;
+    }
     if (expected_size != output.size)
     {
         LOG_DXRT_ERR("[encode] Warning: Output size is different than expected. "
                   << "Expected size: " << expected_size << ", Provided size: " << output.size
                   << ". Output size will be set to expected.");
     }
-    output.size = expected_size; // Set the correct size for the output
+    output.size = expected_size; // Shrink to exact required size (buffer is large enough)
 
     uint8_t* data = output.data; // Use the provided output buffer
 
@@ -343,13 +343,19 @@ int NpuFormatHandler::decode(const Bytes& input, Bytes& output, int col, int uni
         LOG_DXRT_ERR("[decode] Error: Output data buffer is null.");
         return -1;
     }
+    if (expected_size > output.size)
+    {
+        LOG_DXRT_ERR("[decode] Error: Output buffer too small. "
+                  << "Expected size: " << expected_size << ", Provided size: " << output.size << ".");
+        return -1;
+    }
     if (expected_size != output.size)
     {
          LOG_DXRT_ERR("[decode] Warning: Output size is different than expected. "
                    << "Expected size: " << expected_size << ", Provided size: " << output.size
                    << ". Output size will be set to expected.");
     }
-    output.size = expected_size; // Set the correct size for the output
+    output.size = expected_size; // Shrink to exact required size (buffer is large enough)
 
     uint8_t* data = output.data;
 
@@ -755,6 +761,7 @@ void NpuFormatHandler::bidirectional_transpose_inplace(void* src, int row, int c
 
 int NpuFormatHandler::EncodeInputs(void* reqDataPtr, int threadIdForProfiling)
 {
+    (void)threadIdForProfiling;
     using namespace dxrt;
 
     auto reqData = static_cast<RequestData*>(reqDataPtr);
@@ -784,14 +791,7 @@ int NpuFormatHandler::EncodeInputs(void* reqDataPtr, int threadIdForProfiling)
             DataDumpBin(reqData->taskData->name() + "_encoder_input.bin", reqData->inputs);
         }
 
-#ifdef USE_PROFILER
-        auto& profiler = dxrt::Profiler::GetInstance();
-        std::string profile_name = "NPU Input Format Handler[Job_" + std::to_string(reqData->jobId) +
-                                   "][" + reqData->taskData->name() +
-                                   "][Req_" + std::to_string(reqData->requestId) + "]" +
-                                   (threadIdForProfiling >= 0 ? "(" + std::to_string(threadIdForProfiling) + ")" : "");
-        profiler.Start(profile_name);
-#endif
+// Profiling for NPU Input Format Handler is done in nfh_layer.cpp (caller) where device_id is available.
 
         for (size_t i = 0; i < input_count; i++)
         {
@@ -805,11 +805,16 @@ int NpuFormatHandler::EncodeInputs(void* reqDataPtr, int threadIdForProfiling)
             deepx_rmapinfo::TensorInfo tensor_info = reqData->taskData->_npuInputTensorInfos[i];
             auto shape_dims = static_cast<int>(tensor_info.shape_encoded().size());
 
+            // Skipping add encoding if the following conditions are met:
+            // 1) Only one input tensor (input_count == 1)
+            // 2) The size of the input tensor matches the expected encoded size (no padding needed)
+            // 3) Transpose is not needed
+            // 4) VNPU flag is not set
+            bool can_skip_input_copy = false;
 #ifndef USE_VNPU
             if (input_count == 1 && input_tensor.size_in_bytes() == reqData->taskData->_encodedInputSizes[i])
             {
-                reqData->encoded_inputs_ptr = static_cast<uint8_t*>(input_tensor.data());
-                reqData->encoded_input_ptrs[i] = static_cast<uint8_t*>(input_tensor.data());
+                can_skip_input_copy = true;
             }
 #endif
 
@@ -830,26 +835,50 @@ int NpuFormatHandler::EncodeInputs(void* reqDataPtr, int threadIdForProfiling)
 
             if (static_cast<deepx_rmapinfo::Layout>(tensor_info.layout()) == deepx_rmapinfo::Layout::PRE_FORMATTER)
             {
-                NpuFormatHandler::encode_preformatter(original_input, encoded_input, tensor_info.align_unit());
+                if (can_skip_input_copy)
+                {
+                    reqData->encoded_inputs_ptr = static_cast<uint8_t*>(input_tensor.data());
+                    reqData->encoded_input_ptrs[i] = static_cast<uint8_t*>(input_tensor.data());
+                }
+                else
+                {
+                    NpuFormatHandler::encode_preformatter(original_input, encoded_input, tensor_info.align_unit());
+                }
             }
             else if (static_cast<deepx_rmapinfo::Layout>(tensor_info.layout()) == deepx_rmapinfo::Layout::PRE_IM2COL)
             {
-                NpuFormatHandler::encode_preim2col(
-                    original_input, encoded_input,
-                    static_cast<int>(tensor_info.shape_encoded()[shape_dims - 2]),
-                    static_cast<int>(tensor_info.shape_encoded()[shape_dims - 1]),
-                    tensor_info.align_unit()
-                );
+                if (can_skip_input_copy)
+                {
+                    reqData->encoded_inputs_ptr = static_cast<uint8_t*>(input_tensor.data());
+                    reqData->encoded_input_ptrs[i] = static_cast<uint8_t*>(input_tensor.data());
+                }
+                else
+                {
+                    NpuFormatHandler::encode_preim2col(
+                        original_input, encoded_input,
+                        static_cast<int>(tensor_info.shape_encoded()[shape_dims - 2]),
+                        static_cast<int>(tensor_info.shape_encoded()[shape_dims - 1]),
+                        tensor_info.align_unit()
+                    );
+                }
             }
             else if (static_cast<deepx_rmapinfo::Layout>(tensor_info.layout()) == deepx_rmapinfo::Layout::FORMATTED)
             {
                 if (tensor_info.transpose() == deepx_rmapinfo::Transpose::TRANSPOSE_NONE)
                 {
-                    NpuFormatHandler::encode_formatted(
-                        original_input, encoded_input,
-                        static_cast<int>(tensor_info.shape_encoded()[shape_dims - 1]),
-                        tensor_info.align_unit()
-                    );
+                    if (can_skip_input_copy)
+                    {
+                        reqData->encoded_inputs_ptr = static_cast<uint8_t*>(input_tensor.data());
+                        reqData->encoded_input_ptrs[i] = static_cast<uint8_t*>(input_tensor.data());
+                    }
+                    else
+                    {
+                        NpuFormatHandler::encode_formatted(
+                            original_input, encoded_input,
+                            static_cast<int>(tensor_info.shape_encoded()[shape_dims - 1]),
+                            tensor_info.align_unit()
+                        );
+                    }
                 }
                 else if (tensor_info.transpose() == deepx_rmapinfo::Transpose::CHANNEL_FIRST_TO_LAST)
                 {
@@ -873,7 +902,15 @@ int NpuFormatHandler::EncodeInputs(void* reqDataPtr, int threadIdForProfiling)
                 }
                 else
                 {
-                    memcpy(static_cast<void*>(encoded_input.data), static_cast<const void*>(original_input.data), original_input.size);
+                    if (can_skip_input_copy)
+                    {
+                        reqData->encoded_inputs_ptr = static_cast<uint8_t*>(input_tensor.data());
+                        reqData->encoded_input_ptrs[i] = static_cast<uint8_t*>(input_tensor.data());
+                    }
+                    else
+                    {
+                        memcpy(static_cast<void*>(encoded_input.data), static_cast<const void*>(original_input.data), original_input.size);
+                    }
                 }
             }
             else if (static_cast<deepx_rmapinfo::Layout>(tensor_info.layout()) == deepx_rmapinfo::Layout::ALIGNED)
@@ -881,21 +918,29 @@ int NpuFormatHandler::EncodeInputs(void* reqDataPtr, int threadIdForProfiling)
                 // Handle ALIGNED layout with transpose options
                 if (tensor_info.transpose() == deepx_rmapinfo::Transpose::TRANSPOSE_NONE)
                 {
-                    // Use encode function with channel parameter (same as decode_aligned uses)
-                    auto channel = static_cast<int>(tensor_info.shape_encoded()[shape_dims - 1]);
-                    int unit = tensor_info.align_unit(); // Use align_unit from tensor info
-                    int col = channel; // Number of columns in elements
-
-                    // Scale unit and col to bytes for FLOAT32 if needed
-                    auto datatype_encoded = static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded());
-                    if (datatype_encoded == deepx_rmapinfo::DataType::FLOAT32)
+                    if (can_skip_input_copy)
                     {
-                        // Scale unit and col to bytes for the underlying encode function
-                        unit *= 4;
-                        col *= 4;
+                        reqData->encoded_inputs_ptr = static_cast<uint8_t*>(input_tensor.data());
+                        reqData->encoded_input_ptrs[i] = static_cast<uint8_t*>(input_tensor.data());
                     }
+                    else
+                    {
+                        // Use encode function with channel parameter (same as decode_aligned uses)
+                        auto channel = static_cast<int>(tensor_info.shape_encoded()[shape_dims - 1]);
+                        int unit = tensor_info.align_unit(); // Use align_unit from tensor info
+                        int col = channel; // Number of columns in elements
 
-                    NpuFormatHandler::encode(original_input, encoded_input, col, unit);
+                        // Scale unit and col to bytes for FLOAT32 if needed
+                        auto datatype_encoded = static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded());
+                        if (datatype_encoded == deepx_rmapinfo::DataType::FLOAT32)
+                        {
+                            // Scale unit and col to bytes for the underlying encode function
+                            unit *= 4;
+                            col *= 4;
+                        }
+
+                        NpuFormatHandler::encode(original_input, encoded_input, col, unit);
+                    }
                 }
                 else if (tensor_info.transpose() == deepx_rmapinfo::Transpose::CHANNEL_FIRST_TO_LAST)
                 {
@@ -932,20 +977,34 @@ int NpuFormatHandler::EncodeInputs(void* reqDataPtr, int threadIdForProfiling)
                 else
                 {
                     LOG_DXRT_ERR("Invalid transpose type for ALIGNED layout");
-                    memcpy(static_cast<void*>(encoded_input.data),
-                            static_cast<const void*>(original_input.data),
-                            original_input.size);
+                    if (can_skip_input_copy)
+                    {
+                        reqData->encoded_inputs_ptr = static_cast<uint8_t*>(input_tensor.data());
+                        reqData->encoded_input_ptrs[i] = static_cast<uint8_t*>(input_tensor.data());
+                    }
+                    else
+                    {
+                        memcpy(static_cast<void*>(encoded_input.data),
+                                static_cast<const void*>(original_input.data),
+                                original_input.size);
+                    }
                 }
             }
             else
             {
-                memcpy(static_cast<void*>(encoded_input.data), static_cast<const void*>(original_input.data), original_input.size);
+                if (can_skip_input_copy)
+                {
+                    reqData->encoded_inputs_ptr = static_cast<uint8_t*>(input_tensor.data());
+                    reqData->encoded_input_ptrs[i] = static_cast<uint8_t*>(input_tensor.data());
+                }
+                else
+                {
+                    memcpy(static_cast<void*>(encoded_input.data), static_cast<const void*>(original_input.data), original_input.size);
+                }
             }
         }
 
-#ifdef USE_PROFILER
-        profiler.End(profile_name);
-#endif
+// (profiling end moved to caller)
     }
     else
     {
@@ -961,6 +1020,7 @@ int NpuFormatHandler::EncodeInputs(void* reqDataPtr, int threadIdForProfiling)
 
 int NpuFormatHandler::DecodeOutputs(const void* reqPtr, const void* responsePtr, int threadIdForProfiling)
 {
+    (void)threadIdForProfiling;
     using namespace dxrt;
 
     // Cast from const void* to const std::shared_ptr<Request>*
@@ -981,14 +1041,7 @@ int NpuFormatHandler::DecodeOutputs(const void* reqPtr, const void* responsePtr,
         auto* req_data = req->getData();
         if (!Configuration::_sNpuValidateOpt)
         {
-#ifdef USE_PROFILER
-            auto& profiler = dxrt::Profiler::GetInstance();
-            std::string profile_name = "NPU Output Format Handler[Job_" + std::to_string(req->job_id()) +
-                                       "][" + req->taskData()->name() +
-                                       "][Req_" + std::to_string(req->id()) + "]" +
-                                       (threadIdForProfiling >= 0 ? "(" + std::to_string(threadIdForProfiling) + ")" : "");
-            profiler.Start(profile_name);
-#endif
+// Profiling for NPU Output Format Handler is done in nfh_layer.cpp (caller) where device_id is available.
             for (size_t i = 0; i < req_data->outputs.size(); i++)
             {
                 Tensor& output_tensor = req_data->outputs[i];
@@ -1072,9 +1125,7 @@ int NpuFormatHandler::DecodeOutputs(const void* reqPtr, const void* responsePtr,
                     memcpy(static_cast<void*>(decoded_output.data), static_cast<const void*>(encoded_output.data), encoded_output.size);
                 }
             }
-#ifdef USE_PROFILER
-            profiler.End(profile_name);
-#endif
+// (profiling end moved to caller)
         }
         else
         {

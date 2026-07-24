@@ -22,6 +22,7 @@
 #include "dxrt/request_response_class.h"
 #include "dxrt/device_pool.h"
 #include "dxrt/inference_job.h"
+#include "dxrt/profiler.h"
 
 namespace dxrt
 {
@@ -90,7 +91,14 @@ static int processInputNfh(const NfhInputRequest& work, int threadId)
     }
 
     // common encoding utility
+#ifdef USE_PROFILER
+    const std::string& taskName = reqData->taskData->name();
+    dxrt::Profiler::GetInstance().Start(dxrt::Profiler::EventType::NPU_INPUT_FORMAT, taskName, work.deviceId, work.req->job_id());
+#endif
     int enc = npu_format_handler::NpuFormatHandler::EncodeInputs(reqData, threadId);
+#ifdef USE_PROFILER
+    dxrt::Profiler::GetInstance().End(dxrt::Profiler::EventType::NPU_INPUT_FORMAT, taskName, work.deviceId, work.req->job_id());
+#endif
     if (enc != 0) return enc;
 
     return 0;
@@ -177,8 +185,22 @@ int processOutputNfh(const NfhOutputRequest& work, int threadId)
         return -1;
     }
 
+    auto reqData = work.req->getData();
+    if (!reqData || !reqData->taskData)
+    {
+        LOG_DXRT_ERR("Invalid request data in processOutputNfh");
+        return -1;
+    }
+
     // common decoding utility
+#ifdef USE_PROFILER
+    const std::string& taskName = reqData->taskData->name();
+    dxrt::Profiler::GetInstance().Start(dxrt::Profiler::EventType::NPU_OUTPUT_FORMAT, taskName, work.deviceId, work.req->job_id());
+#endif
     int dec = npu_format_handler::NpuFormatHandler::DecodeOutputs(&work.req, &work.response, threadId);
+#ifdef USE_PROFILER
+    dxrt::Profiler::GetInstance().End(dxrt::Profiler::EventType::NPU_OUTPUT_FORMAT, taskName, work.deviceId, work.req->job_id());
+#endif
     if (dec != 0) return dec;
 
     return 0;
@@ -188,6 +210,8 @@ int NFHLayer::handleOutput(const NfhOutputRequest &outputReq, int threadId) cons
 #ifdef DXRT_USE_DEVICE_VALIDATION
     if (outputReq.req->is_validate_request())
     {
+        // Return the cache slice before completing the request (see note below).
+        releaseInferenceCacheForOutput(outputReq);
         outputReq.req->onRequestComplete(outputReq.req);
         return 0;
     }
@@ -196,6 +220,14 @@ int NFHLayer::handleOutput(const NfhOutputRequest &outputReq, int threadId) cons
     {
         int result = 0;
         result = processOutputNfh(outputReq, threadId);
+
+        // NOTE: The NPU memory-cache slice is intentionally NOT released here. Its encoded output
+        // may be aliased by the output tensor or consumed by a downstream CPU task until the job
+        // completes, so the slice is released together with the request's host buffers in
+        // Request::releaseBuffers() (at job completion). Releasing it here (right after decode)
+        // let a waiting request reuse/overwrite the slice mid-consumption -> torn output /
+        // bitmatch failure on multi-task (NPU->CPU) models under async + a single bound device.
+
         if (result != 0)
         {
             LOG_DXRT_ERR("Failed to process output NFH for request " << outputReq.requestId);
@@ -234,7 +266,27 @@ int NFHLayer::handleOutput(const NfhOutputRequest &outputReq, int threadId) cons
     {
         LOG_DXRT_ERR("Exception in NFH output processing: " << e.what());
     }
+
     return 0;
+}
+
+void NFHLayer::releaseInferenceCacheForOutput(const NfhOutputRequest &outputReq) const
+{
+    if (!outputReq.req)
+    {
+        return;
+    }
+
+    // Common NFH layer (deviceId == -1) is shared across devices, so the slice's owning
+    // device is the one that produced this response (outputReq.deviceId). A per-device
+    // layer owns its bound device directly.
+    auto releaseDev = (_deviceId == COMMON_NFH_LAYER_DEVICE_ID)
+        ? DevicePool::GetInstance().GetDeviceTaskLayer(outputReq.deviceId)
+        : _device;
+    if (releaseDev)
+    {
+        releaseDev->ReleaseInferenceCache(outputReq.req->id());
+    }
 }
 
 int NFHLayer::ProcessResponse(int deviceId, int reqId, const dxrt_response_t *response)

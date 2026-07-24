@@ -22,7 +22,7 @@
 // #include <errno.h>
 // #include <csignal>
 
-#include "../../../include/dxrt/common.h"
+#include "dxrt/common.h"
 
 // for debug
 // #define LOG_DXRT_DBG std::cout

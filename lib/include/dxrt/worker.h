@@ -92,15 +92,24 @@ private:
 class CpuHandleWorker : public Worker
 {
 public:
-    CpuHandleWorker(const string& name_, int buffer_count_, int numThreads, int initDynamicThreads, CpuHandle *cpuHandle_, size_t device_num);
+
     ~CpuHandleWorker() override;
     static shared_ptr<CpuHandleWorker> Create(const string& name_, int buffer_count_, int numThreads, int initDynamicThreads, CpuHandle *cpuHandle_, size_t device_num);
     int request(std::shared_ptr<Request> req);
 
+
+
 private:
     std::queue<std::shared_ptr<Request>> _queue;
+
+    CpuHandleWorker(const string& name_, int buffer_count_, int numThreads, int initDynamicThreads, CpuHandle *cpuHandle_, size_t device_num);
+
+    void InitializeThreadCPUWorker();
+
     void ThreadWork(int id) override;
     void ThreadWorkImpl(int id);
+    bool HandleThreadStop(int id, bool isDynamic, bool& dynamicStop, const std::string& threadName);
+    bool ProcessRequest(int id, const std::string& threadName, const std::shared_ptr<Request>& req);
     int MakeDynamicThreadId(int dynamicIndex) const;
     void StartDynamicThread(int dynamicIndex);
 

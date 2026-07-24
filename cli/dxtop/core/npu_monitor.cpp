@@ -388,7 +388,7 @@ CoreViewModel NpuMonitor::createCoreViewModel(const NpuCore& core)
     });
 
     // Utilization
-    const double utilization = std::min(100.0, core.GetUtilization() / 10.0);
+    const double utilization = (std::min)(100.0, core.GetUtilization() / 10.0);
     std::ostringstream utilization_stream;
     utilization_stream <<std::fixed << std::setprecision(1) << std::setw(5) << utilization << "%";
 

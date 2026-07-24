@@ -52,6 +52,9 @@ def ensure_dependencies():
 # RT flow order definitions
 # ---------------------------------------------------------------------------
 
+# Shared label used in multiple places.
+CPU_TASK_QUEUE_WAIT = "CPU Task Queue Wait"
+
 # Full RT pipeline order (device + common events combined)
 RT_FLOW_ORDER = [
     "Buffer Wait",
@@ -61,11 +64,18 @@ RT_FLOW_ORDER = [
     "PCIe Read",
     "NPU Output Format Handler",
     "NPU Task",
-    # CPU Task Queue Wait and cpu_N events are appended dynamically after this
+    "CPU Dispatch Wait",
+    CPU_TASK_QUEUE_WAIT,
+    "CPU Task",
+    "Framework Overhead",
+    # Older profiler.json files may still use the legacy name below.
+    "Framework Response Handling Delay",
+    "Service Process Wait",
 ]
 
 # Events to exclude from the plot
 EXCLUDED_EVENTS = {
+    "Framework Overhead",
     "Framework Response Handling Delay",
     "Service Process Wait",
 }
@@ -90,21 +100,48 @@ def extract_device_id(event_name):
     return int(match.group(1)) if match else None
 
 
+def extract_task_name(event_name):
+    """Extract task name from event name."""
+    match = re.search(r"^.+?\[([^\[\]]+)\]\[Device_", event_name)
+    return match.group(1) if match else None
+
+
+def parse_event_name(event_name):
+    """Parse a profiler event key.
+
+    Supports the current format:
+      EventType[taskName][Device_X][Job_Y]
+
+    Returns
+    -------
+    (event_type, task_name, device_id, job_id)
+    """
+    event_type = get_event_type(event_name)
+    task_name = extract_task_name(event_name)
+    device_id = extract_device_id(event_name)
+    job_id = extract_job_id(event_name)
+    return event_type, task_name, device_id, job_id
+
+
 def get_event_type(event_name):
     """Return the base event type (everything before the first '[')."""
     return event_name.split("[")[0].rstrip()
 
 
 def get_sub_identifier(event_name, event_type):
-    """Return a sub-identifier (channel / thread) for row-level grouping.
+    """Return a sub-identifier for row-level grouping.
 
     Examples
     -------
-    PCIe Write[...](0)                -> 'ch0'
-    NPU Core[...][Req_0]_2            -> 'ch2'
-    NPU Output Format Handler[...](1) -> 't1'
-    cpu_0[...][Req_15]_t0             -> 't0'
+    NPU Task[npu_0][Device_0][Job_773] -> 'npu_0'
+    CPU Task[cpu_0][Device_-1][Job_989] -> 'cpu_0'
     """
+    task_name = extract_task_name(event_name)
+    if task_name:
+        return task_name
+
+    # Backward compatibility with older profiler.json formats that encoded
+    # channels / worker threads inside the event name itself.
     if event_type in ("PCIe Write", "PCIe Read"):
         m = re.search(r"\((\d+)\)$", event_name)
         if m:
@@ -145,19 +182,18 @@ def build_per_device_events(json_data):
     cpu_task_types = set()
 
     for event_name, timing_data in json_data.items():
-        event_type = get_event_type(event_name)
+        event_type, task_name, device_id, _job_id = parse_event_name(event_name)
 
         # Skip excluded events
         if event_type in EXCLUDED_EVENTS:
             continue
 
-        device_id = extract_device_id(event_name)
         if device_id is not None:
             device_events.setdefault(device_id, {})[event_name] = timing_data
         else:
             common_events[event_name] = timing_data
-            if event_type.startswith("cpu_"):
-                cpu_task_types.add(event_type)
+        if task_name and task_name.startswith("cpu_"):
+            cpu_task_types.add(task_name)
 
     # Merge common events into every device bucket
     for dev_id in device_events:
@@ -173,10 +209,19 @@ def build_per_device_events(json_data):
 def _sort_key_for_group(group_key, order_list):
     """Return a tuple for sorting group_key according to order_list."""
     base = group_key.split(" (")[0] if " (" in group_key else group_key
+
+    sub_id = group_key[len(base) + 2:-1] if group_key.startswith(base + " (") and group_key.endswith(")") else ""
+
+    def _natural_key(text):
+        m = re.match(r"^([a-zA-Z_]+)(\d+)$", text)
+        if m:
+            return (m.group(1), int(m.group(2)))
+        return (text, -1)
+
     try:
-        return (order_list.index(base), group_key)
+        return (order_list.index(base), _natural_key(sub_id), group_key)
     except ValueError:
-        return (len(order_list), group_key)
+        return (len(order_list), _natural_key(sub_id), group_key)
 
 
 def group_events(events, order_list):
@@ -189,7 +234,7 @@ def group_events(events, order_list):
     """
     grouped = {}
     for event_name, timing_data in events.items():
-        event_type = get_event_type(event_name)
+        event_type, _task_name, _device_id, _job_id = parse_event_name(event_name)
         sub_id = get_sub_identifier(event_name, event_type)
         group_key = f"{event_type} ({sub_id})" if sub_id else event_type
 
@@ -330,7 +375,7 @@ def plot_timeline(grouped, sorted_keys, job_colors,
     def _needs_expanded(key):
         base = key.split(" (")[0] if " (" in key else key
         return (base.startswith("NPU Task")
-                or base.startswith("CPU Task Queue Wait"))
+                or base.startswith(CPU_TASK_QUEUE_WAIT))
 
     y_map = {}
     y_pos = 0
@@ -493,7 +538,7 @@ def plot_profiler(input_file, output_base, start_ratio, end_ratio,
     with open(input_file, "r") as f:
         json_data = json.load(f)
 
-    per_device, cpu_task_types = build_per_device_events(json_data)
+    per_device, _cpu_task_types = build_per_device_events(json_data)
     all_job_ids = collect_all_job_ids(json_data)
 
     if auto_select:
@@ -516,7 +561,7 @@ def plot_profiler(input_file, output_base, start_ratio, end_ratio,
     base_name = os.path.splitext(os.path.basename(output_base))[0]
     ext = os.path.splitext(output_base)[1] or ".png"
 
-    full_order = RT_FLOW_ORDER + ["CPU Task Queue Wait"] + cpu_task_types
+    full_order = RT_FLOW_ORDER
 
     for dev_id in sorted(per_device.keys()):
         grouped, sorted_keys = group_events(per_device[dev_id], full_order)

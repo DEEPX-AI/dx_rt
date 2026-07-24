@@ -13,8 +13,8 @@
 
 #include <string>
 #include "dxrt/common.h"
-#include "dxrt/device_pool.h"
 #include "dxrt/extern/cxxopts.hpp"
+#include "dxrt/driver.h"
 
 
 namespace dxrt {
@@ -29,6 +29,7 @@ const uint16_t M1_DDR_TYPE_LPDDR5X = 3;
 const uint16_t BOARD_TYPE_M_dot_2 = 2;
 const uint16_t BOARD_TYPE_H1 = 3;
 
+class DeviceCore;
 
 class DXRT_API CLICommand
 {
@@ -51,7 +52,7 @@ class DXRT_API CLICommand
    bool _withDevice = true;
    dxrt::dxrt_ident_sub_cmd_t _subCmd = dxrt::dxrt_ident_sub_cmd_t::DX_IDENTIFY_NONE; // NOSONAR: Set by FWUploadCommand
    int _deviceId = -1;
-    
+
 };
 
 class DXRT_API DeviceStatusCLICommand : public CLICommand

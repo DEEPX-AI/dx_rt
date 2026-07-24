@@ -30,6 +30,50 @@ using std::string;
 
 static int bounding = 0;
 
+static std::map<string, vector<double>> buildPerfMap(
+    dxrt::Profiler& profiler,
+    const std::vector<int>& jobIds)
+{
+    std::map<string, vector<double>> perf_map;
+
+    for (int jobId : jobIds)
+    {
+        auto jm = profiler.GetJobMetrics(jobId);
+        if (!jm.valid)
+        {
+            continue;
+        }
+
+        double e2e_latency_us = 0.0;
+        double npu_inference_us = 0.0;
+
+        for (const auto& task : jm.tasks)
+        {
+            double max_total = 0.0;
+            double max_inference = 0.0;
+            for (const auto& devPair : task.devices)
+            {
+                const auto& m = devPair.second;
+                if (m.total_us > max_total)
+                {
+                    max_total = m.total_us;
+                }
+                if (m.inference_core_all_us > max_inference)
+                {
+                    max_inference = m.inference_core_all_us;
+                }
+            }
+            e2e_latency_us += max_total + task.cpu_task_us;
+            npu_inference_us += max_inference;
+        }
+
+        perf_map["E2E Latency"].push_back(e2e_latency_us / 1000.0);
+        perf_map["NPU Inference Time"].push_back(npu_inference_us / 1000.0);
+    }
+
+    return perf_map;
+}
+
 int main(int argc, char *argv[])
 {
     // always showing the model information
@@ -277,15 +321,13 @@ int main(int argc, char *argv[])
 
 
         vector<Result> results;
-        //{modelName:[{perfName:[timeSeries Data]}, {perfName:[timeSeries Data]} ... ]}
-        std::map<string, vector<std::map<string, vector<int64_t>>>> time_series;
+        //{modelName:{perfName:[timeSeries Data]}}
+        std::map<string, std::map<string, vector<double>>> time_series;
         results.reserve(fileList.size());
 
         for(unsigned long i=0; i < fileList.size(); ++i)
         {
             auto& file = fileList[i];
-
-            profiler.Start("dxbenchmark_"+file.first);
 
             Runner runner(file.second, op);
             runner.Run(time, loops, warmup);
@@ -294,9 +336,7 @@ int main(int argc, char *argv[])
             result.modelName = file;
             results.push_back(result);
 
-            profiler.End("dxbenchmark_"+file.first);
-
-            time_series[file.first].push_back(profiler.GetPerformanceData());
+            time_series[file.first] = buildPerfMap(profiler, runner.GetJobIds());
 
             if(i != fileList.size()-1)
             {

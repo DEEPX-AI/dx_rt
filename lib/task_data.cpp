@@ -66,7 +66,7 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_, bool
     using std::vector;
 
     // Fix: Initialize with max value to find minimum offset correctly
-    int64_t last_output_lower_bound = std::numeric_limits<int64_t>::max();
+    int64_t last_output_lower_bound = (std::numeric_limits<int64_t>::max)();
     int64_t last_output_upper_bound = 0;
     bool has_valid_output = false;  // Track if we have any valid outputs
 
@@ -168,7 +168,7 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_, bool
         }
 
         // If no valid outputs exist, set to 0
-        if (!has_valid_output || last_output_lower_bound == std::numeric_limits<int64_t>::max()) {
+        if (!has_valid_output || last_output_lower_bound == (std::numeric_limits<int64_t>::max)()) {
             last_output_lower_bound = 0;
         }
 
@@ -450,7 +450,7 @@ void TaskData::set_from_npu(const std::vector<std::vector<uint8_t>>& data_, bool
         _npuModel.npu_id = 0;
     }
 
-    _outputMemSize = std::max(static_cast<uint32_t>(0), _npuModel.output_all_size);
+    _outputMemSize = (std::max)(static_cast<uint32_t>(0), _npuModel.output_all_size);
     _memUsage = rmapSize + weightSize + (static_cast<uint64_t>(data_align(_encodedInputSize, 64)) * _bufferCount) + (static_cast<uint64_t>(_outputMemSize) * _bufferCount);
     LOG_DXRT_DBG << "NPU Task: imported npu parameters" << endl;
 }

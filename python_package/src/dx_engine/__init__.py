@@ -13,3 +13,4 @@ from dx_engine.inference_option import InferenceOption
 from dx_engine.configuration import Configuration
 from dx_engine.device_status import DeviceStatus
 from dx_engine.runtime_event_dispatcher import RuntimeEventDispatcher
+from dx_engine.profiler import Profiler, JobMetrics, TaskMetrics, NpuDeviceMetrics

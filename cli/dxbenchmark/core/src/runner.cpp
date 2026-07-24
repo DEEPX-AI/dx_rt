@@ -28,6 +28,7 @@ void Runner::Run(int time, int loops, int warmup)
     vector<uint8_t> inputBuf(_ie.GetInputSize(), 0);
     double elapsed_time;
     _runCount = 0;
+    _jobIds.clear();
 
     for (int i  = 0; i < warmup; ++i)
     {
@@ -52,21 +53,23 @@ void Runner::Run(int time, int loops, int warmup)
     auto start = std::chrono::high_resolution_clock::now();
     if (loops > 0)
     {
-        int inference_count = std::max(1, loops);
+        int inference_count = (std::max)(1, loops);
 
         for (int i=0 ; i < inference_count ; i++)
         {
-            _ie.RunAsync(inputBuf.data());
+            int jobId = _ie.RunAsync(inputBuf.data());
+            _jobIds.push_back(jobId);
             _runCount++;
         }
     }
     else if (time > 0)
     {
-        const int TIME_CHECK_INTERVAL = 100; 
+        const int TIME_CHECK_INTERVAL = 100;
 
         for(int iter = 0; ; iter++)
         {
-            _ie.RunAsync(inputBuf.data());
+            int jobId = _ie.RunAsync(inputBuf.data());
+            _jobIds.push_back(jobId);
             _runCount++;
             if (iter % TIME_CHECK_INTERVAL == 0)
             {
@@ -112,4 +115,9 @@ void Runner::Run(int time, int loops, int warmup)
 const Result Runner::GetResult() const
 {
     return result;
+}
+
+const std::vector<int>& Runner::GetJobIds() const
+{
+    return _jobIds;
 }

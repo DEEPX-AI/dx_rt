@@ -7,12 +7,16 @@
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
-#include "dxrt/dxrt_api.h"
+#include "dxrt/dxrt_cxx_api.h"
+#include <thread>
+#include <condition_variable>
 #include "dxrt/extern/cxxopts.hpp"
 #include "../include/logger.h"
 
 #include <string>
 #include <iostream>
+#include <thread>
+#include <vector>
 
 void RunInferenceThread(const std::string& modelPath, int loopCount, int threadIndex, dxrt::InferenceOption::BOUND_OPTION boundOption)
 {

@@ -225,6 +225,14 @@ endif()
 
 if(USE_VNPU)
     add_definitions(-DUSE_VNPU)
+    # RK embedded board requires glibc 2.33 from /opt/glibc-2.33
+    # Set interpreter and rpath so binaries can run directly without manual ld.so invocation
+    # --disable-new-dtags forces RPATH (applies to transitive deps) instead of RUNPATH (direct only)
+    add_link_options(
+        "-Wl,--dynamic-linker=/opt/glibc-2.33/lib/ld-linux-aarch64.so.1"
+        "-Wl,--disable-new-dtags"
+        "-Wl,-rpath,/opt/glibc-2.33/lib:/usr/local/lib:/lib:/usr/lib:/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu"
+    )
 endif()
 
 #if(MSVC)

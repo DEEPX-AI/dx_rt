@@ -31,15 +31,20 @@
     #pragma warning(disable : 5208)
     #ifdef DXRT_STATIC
         #define DXRT_API
+        #define DXRT_INTERNAL_API
     #else
         #ifdef DXRT_EXPORTS
             #define DXRT_API __declspec(dllexport)
+            #define DXRT_INTERNAL_API __declspec(dllexport)
         #else
             #define DXRT_API __declspec(dllimport)
+            #define DXRT_INTERNAL_API __declspec(dllimport)
         #endif
     #endif
 #else
     #define DXRT_API
+    // Linux: version script (dxrt_export.map) already hides all non-dxrt_* symbols
+    #define DXRT_INTERNAL_API
 #endif
 
 #include <string>
@@ -134,6 +139,7 @@ const int DXRT_NPU_FULL_MAX_LOAD = 10;
 #define IOMEM_BARRIER()
 #endif
 
+// define MAKE_UNIQUE for C++11, since std::make_unique is only available in C++14 and later
 #if CXX_STANDARD_VERSION >= 14
 #define MAKE_UNIQUE std::make_unique
 #else

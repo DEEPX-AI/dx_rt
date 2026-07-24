@@ -15,6 +15,8 @@
 #include <atomic>
 #include <array>
 #include "dxrt/device.h"
+#include "dxrt/device_pool.h"
+#include "dxrt/device_task_layer.h"
 #include "dxrt/task.h"
 #include "dxrt/inference_engine.h"
 #include "dxrt/inference_job.h"
@@ -31,11 +33,13 @@ namespace dxrt
 
 Request::Request(void)
 {
+    _task = nullptr;
     _data.requestId = 0;
     LOG_DXRT_DBG << getData()->requestId << endl;
 }
 Request::Request(int id)
 {
+    _task = nullptr;
     _data.requestId = id;
     _data.inputs = {};
     _data.outputs = {};
@@ -45,7 +49,7 @@ Request::Request(int id)
 Request::Request(Task *task_, const Tensors &inputs_, const Tensors &outputs_)
 : _task(task_)
 {
-
+    _data.taskData = (task_ != nullptr) ? task_->getData() : nullptr;
     _data.inputs = inputs_;
     _data.outputs = outputs_;
     _timePoint = std::make_shared<TimePoint>();
@@ -69,6 +73,8 @@ RequestPtr Request::Create(Task *task_, const Tensors &inputs_, const Tensors &o
     req->_userArg = userArg;
     req->latency_valid() = true;
     req->latency() = 0;
+    req->setQueueWaitTime(0);
+    req->setDispatchTimestampNs(0);
     req->inference_time() = 0;
     req->_requestorName = "";
     req->_data.jobId = jobId;
@@ -76,6 +82,7 @@ RequestPtr Request::Create(Task *task_, const Tensors &inputs_, const Tensors &o
     req->_modelType = task_->getData()->_npuModel.type;
     req->_data.encoded_inputs_ptr = nullptr;
     req->_data.encoded_outputs_ptr = nullptr;
+    req->_data._ioSliceValid = false;
     return req;
 }
 
@@ -97,6 +104,8 @@ RequestPtr Request::Create(Task *task_, void *input, void *output, void *userArg
     req->_userArg = userArg;
     req->latency_valid() = true;
     req->latency() = 0;
+    req->setQueueWaitTime(0);
+    req->setDispatchTimestampNs(0);
     req->inference_time() = 0;
     req->_requestorName = "";
     req->_data.jobId = jobId;
@@ -104,6 +113,7 @@ RequestPtr Request::Create(Task *task_, void *input, void *output, void *userArg
     req->_modelType = task_->getData()->_npuModel.type;
     req->_data.encoded_inputs_ptr = nullptr;
     req->_data.encoded_outputs_ptr = nullptr;
+    req->_data._ioSliceValid = false;
 
     return req;
 }
@@ -448,6 +458,23 @@ void Request::releaseBuffers()
         }
         _bufferSet.reset();
     }
+
+    // Release the device-side NPU memory-cache slice (if any) now that all consumers are done.
+    // The slice is released here, tied to the host BufferSet lifetime, rather than right after
+    // NFH decode: the NPU encoded output in the slice may be aliased by the output tensor or
+    // read by a downstream CPU task until the job completes. Releasing it earlier lets a waiting
+    // request reuse and overwrite the slice mid-consumption -> torn output / bitmatch failure on
+    // multi-task (NPU->CPU) models under async + a single bound device. No-op for CPU requests
+    // and for NPU requests that never acquired a cache slice (unknown reqId).
+    if (_data._processedDevId >= 0
+        && _data._processedDevId < static_cast<int>(DevicePool::GetInstance().GetDeviceCountNoInit()))
+    {
+        auto devLayer = DevicePool::GetInstance().GetDeviceTaskLayer(_data._processedDevId);
+        if (devLayer) {
+            devLayer->ReleaseInferenceCache(id());
+        }
+    }
+
     _bufferReleased = true;
 }
 
@@ -481,6 +508,8 @@ RequestPtr Request::CreateValidateRequest(Task* task_, void* input, void* output
     req->_userArg = nullptr;
     req->latency_valid() = true;
     req->latency() = 0;
+    req->setQueueWaitTime(0);
+    req->setDispatchTimestampNs(0);
     req->inference_time() = 0;
     req->_requestorName = "";
     req->_data.jobId = 0;

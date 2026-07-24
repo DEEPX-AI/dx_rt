@@ -202,29 +202,29 @@ function ExecutableFileCheck()
     # service
     SERVICE_NAME="dxrtd"
 
-    IGNORE=$(../../bin/dxrt-cli -h)
+    IGNORE=$(../../bin/dxcli -h)
     CLI_RETURN_VALUE=$?
     if [ $CLI_RETURN_VALUE -eq 0 ]; then
-        RESULT+=$'\n'"dxrt-cli ...OK"
+        RESULT+=$'\n'"dxcli ...OK"
     else
-        RESULT+=$'\n'"dxrt-cli ...ERROR"
+        RESULT+=$'\n'"dxcli ...ERROR"
     fi
-    
 
-    IGNORE=$(../../bin/run_model -h)
+
+    IGNORE=$(../../bin/dxrun -h)
     RUN_MODEL_RETURN_VALUE=$?
     if [ $RUN_MODEL_RETURN_VALUE -eq 0 ]; then
-        RESULT+=$'\n'"run_model ...OK"
+        RESULT+=$'\n'"dxrun ...OK"
     else
-        RESULT+=$'\n'"run_model ...ERROR"
+        RESULT+=$'\n'"dxrun ...ERROR"
     fi
 
-    IGNORE=$(../../bin/parse_model -h)
+    IGNORE=$(../../bin/dxparse -h)
     PARSE_MODEL_RETURN_VALUE=$?
     if [ $PARSE_MODEL_RETURN_VALUE -eq 0 ]; then
-        RESULT+=$'\n'"parse_model ...OK"
+        RESULT+=$'\n'"dxparse ...OK"
     else
-        RESULT+=$'\n'"parse_model ...ERROR"
+        RESULT+=$'\n'"dxparse ...ERROR"
     fi
 
     IGNORE=$(../../bin/dxtop -h)

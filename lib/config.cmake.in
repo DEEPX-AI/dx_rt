@@ -1,13 +1,40 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+find_dependency(Threads REQUIRED)
+
+# Locate the library
 find_library(DXRT_LIBRARY
     NAMES dxrt
-    PATHS ${CMAKE_INSTALL_PREFIX}/lib
+    PATHS "${PACKAGE_PREFIX_DIR}/lib"
+    NO_DEFAULT_PATH
 )
+find_library(DXRT_LIBRARY NAMES dxrt)
 
-if(DXRT_LIBRARY)
-    set(DXRT_FOUND TRUE)
-endif()
+# Locate the include directory
+find_path(DXRT_INCLUDE_DIR
+    NAMES dxrt/dxrt_c_api.h
+    PATHS "${PACKAGE_PREFIX_DIR}/include"
+    NO_DEFAULT_PATH
+)
+find_path(DXRT_INCLUDE_DIR NAMES dxrt/dxrt_c_api.h)
 
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(dxrt DEFAULT_MSG DXRT_LIBRARY)
+find_package_handle_standard_args(dxrt
+    REQUIRED_VARS DXRT_LIBRARY DXRT_INCLUDE_DIR
+)
 
-mark_as_advanced(DXRT_LIBRARY)
+if(dxrt_FOUND AND NOT TARGET dxrt::dxrt)
+    add_library(dxrt::dxrt SHARED IMPORTED)
+    set_target_properties(dxrt::dxrt PROPERTIES
+        IMPORTED_LOCATION "${DXRT_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${DXRT_INCLUDE_DIR}"
+        INTERFACE_LINK_LIBRARIES Threads::Threads
+    )
+endif()
+
+# Legacy variable (backward compat)
+set(DXRT_LIBRARIES ${DXRT_LIBRARY})
+set(DXRT_INCLUDE_DIRS ${DXRT_INCLUDE_DIR})
+
+mark_as_advanced(DXRT_LIBRARY DXRT_INCLUDE_DIR)

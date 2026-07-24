@@ -125,6 +125,13 @@ static inline uint64_t get_elapsed_time(struct timeval s)
 
     return elapsed;
 }
+template <typename T>
+std::string ToHexString(T value)
+{
+    std::ostringstream oss;
+    oss << std::hex << value;
+    return oss.str();
+}
 
 DXRT_API int GetDataSize_rmapinfo_datatype(deepx_rmapinfo::DataType dType);
 DXRT_API int GetDataSize_Datatype(DataType dType);

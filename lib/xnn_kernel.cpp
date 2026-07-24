@@ -5,6 +5,7 @@
 // License: BSD 3-Clause
 
 #include "dxrt/xnn_kernel.h"
+#include "dxrt/common.h"
 #include <arm_neon.h>
 #include <assert.h>
 #include <stddef.h>
@@ -375,8 +376,10 @@ static void xnnpack_transpose_macro(
       // micro kernel can advance row-by-row through the sub-block correctly.
       if (sizeof(T) == 1) 
       {
-        // The uint8 16x16 micro kernel cannot handle block_height < 16
-        // (partial tile not implemented). Split into full tiles + scalar remainder.
+        LOG_DXRT_DBG << "[xnnpack_transpose_macro] uint8 tile: bw=" << bw
+                     << " bh=" << bh << " full_bh=" << round_down_po2(bh, 16) << std::endl;
+        // uint8: The 16x16 micro kernel cannot handle block_height < 16.
+        // Split into full tiles + scalar remainder.
         const size_t full_bh = round_down_po2(bh, 16);
         if (full_bh > 0) 
         {
@@ -393,11 +396,46 @@ static void xnnpack_transpose_macro(
           }
         }
       } 
-      else 
+      else if (sizeof(T) == 4)
       {
-        xnn_x32_transposec_ukernel__4x4_aarch64_neon_tbl128(
-            (const uint32_t*)src_block, (uint32_t*)dst_block,
-            input_stride, output_stride, bw, bh);
+        const size_t full_bw = bw & ~size_t(3);
+        LOG_DXRT_DBG << "[xnnpack_transpose_macro] float tile: bw=" << bw
+                     << " bh=" << bh << " full_bw=" << full_bw
+                     << " remainder=" << (bw - full_bw) << std::endl;
+        // float/uint32: split into full 4-column groups for NEON + scalar
+        // remainder to avoid page faults from NEON over-read.
+        if (full_bw > 0)
+        {
+          xnn_x32_transposec_ukernel__4x4_aarch64_neon_tbl128(
+              (const uint32_t*)src_block, (uint32_t*)dst_block,
+              input_stride, output_stride, full_bw, bh);
+        }
+        const size_t in_stride_elems = input_stride / sizeof(T);
+        const size_t out_stride_elems = output_stride / sizeof(T);
+        for (size_t r = 0; r < bh; r++)
+        {
+          for (size_t c = full_bw; c < bw; c++)
+          {
+            ((uint32_t*)dst_block)[c * out_stride_elems + r] =
+                ((const uint32_t*)src_block)[r * in_stride_elems + c];
+          }
+        }
+      }
+      else
+      {
+        LOG_DXRT_DBG << "[xnnpack_transpose_macro] scalar fallback tile: bw=" << bw
+                     << " bh=" << bh << " sizeof(T)=" << sizeof(T) << std::endl;
+        // Fallback: scalar transpose for unsupported element sizes
+        const size_t in_stride_elems = input_stride / sizeof(T);
+        const size_t out_stride_elems = output_stride / sizeof(T);
+        for (size_t r = 0; r < bh; r++)
+        {
+          for (size_t c = 0; c < bw; c++)
+          {
+            ((T*)dst_block)[c * out_stride_elems + r] =
+                ((const T*)src_block)[r * in_stride_elems + c];
+          }
+        }
       }
     }
   }
@@ -458,7 +496,9 @@ void xnnpack_transpose(
 
     if (sizeof(T) == 1) 
     {
-      // The uint8 16x16 micro kernel cannot handle block_height < 16
+      LOG_DXRT_DBG << "[xnnpack_transpose] uint8 path: rows=" << rows
+                   << " cols=" << cols << " full_rows=" << round_down_po2(rows, 16) << std::endl;
+      // uint8: The 16x16 micro kernel cannot handle block_height < 16
       // (partial tile not implemented). Split into full tiles + scalar remainder.
       const size_t full_rows = round_down_po2(rows, 16);
       if (full_rows > 0) 
@@ -475,11 +515,43 @@ void xnnpack_transpose(
         }
       }
     } 
-    else 
+    else if (sizeof(T) == 4)
     {
-      xnn_x32_transposec_ukernel__4x4_aarch64_neon_tbl128(
-        (const uint32_t*)input, (uint32_t*)output,
-        input_stride, output_stride, cols, rows);
+      const size_t full_cols = cols & ~size_t(3);
+      LOG_DXRT_DBG << "[xnnpack_transpose] float path: rows=" << rows
+                   << " cols=" << cols << " full_cols=" << full_cols
+                   << " remainder=" << (cols - full_cols) << std::endl;
+      // float/uint32: The x32 4x4 micro kernel always loads 16 bytes (4 elements)
+      // per row via NEON ldr q. When cols%4 != 0, this causes a (4 - cols%4)
+      // element over-read on the last row which can cross into an unmapped page
+      // if the buffer ends at a page boundary.
+      // Split: NEON handles full 4-column groups, scalar handles remainder.
+      if (full_cols > 0)
+      {
+        xnn_x32_transposec_ukernel__4x4_aarch64_neon_tbl128(
+          (const uint32_t*)input, (uint32_t*)output,
+          input_stride, output_stride, full_cols, rows);
+      }
+      for (size_t r = 0; r < rows; r++)
+      {
+        for (size_t c = full_cols; c < cols; c++)
+        {
+          output[c * rows + r] = input[r * cols + c];
+        }
+      }
+    }
+    else
+    {
+      LOG_DXRT_DBG << "[xnnpack_transpose] scalar fallback: rows=" << rows
+                   << " cols=" << cols << " sizeof(T)=" << sizeof(T) << std::endl;
+      // Fallback: scalar transpose for unsupported element sizes
+      for (size_t r = 0; r < rows; r++)
+      {
+        for (size_t c = 0; c < cols; c++)
+        {
+          output[c * rows + r] = input[r * cols + c];
+        }
+      }
     }
   }
 }

@@ -1,0 +1,11 @@
+# Linker version script for libdxrt.so.
+# Only C ABI functions (dxrt_*) are exported as dynamic symbols.
+# All C++ symbols are hidden from the external user.
+#
+# Applied at build time via target_link_options in lib/CMakeLists.txt.
+{
+  global:
+    dxrt_*;
+  local:
+    *;
+};

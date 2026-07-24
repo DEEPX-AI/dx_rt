@@ -14,6 +14,7 @@
 #include <unordered_set>
 #include <array>
 #include "dxrt/driver.h"
+#include "../device_pool/inference_context.h"
 
 namespace dxrt{
     bool operator==(const dxrt::dxrt_custom_weight_info_t& a, const dxrt::dxrt_custom_weight_info_t& b);
@@ -34,6 +35,7 @@ class ProcessWithDeviceInfo
         int deviceId;
         dxrt::npu_bound_op bound;
         uint64_t mem_usage;
+        dxrt::InferenceContext inferenceContext;
     };
     static constexpr int BOUND_NUM = static_cast<int>(dxrt::npu_bound_op::N_BOUND_INF_MAX);
 
@@ -46,6 +48,7 @@ class ProcessWithDeviceInfo
         return getTaskInfo(taskId).bound;
     }
     const eachTaskInfo& getTaskInfo(int taskId) const;
+    eachTaskInfo* mutableTaskInfo(int taskId);
     void deleteTaskFromMap(int taskId);
     bool hasTask(int taskId) const{return _taskInfo.find(taskId) != _taskInfo.end();}
     int firstTaskNumber() const;

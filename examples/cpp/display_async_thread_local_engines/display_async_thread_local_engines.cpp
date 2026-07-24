@@ -7,13 +7,16 @@
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
-#include "dxrt/dxrt_api.h"
+#include "dxrt/dxrt_cxx_api.h"
+#include <thread>
+#include <condition_variable>
 #include "dxrt/extern/cxxopts.hpp"
 #include "../include/logger.h"
 #include <string>
 #include <iostream>
 #include <algorithm>
-
+#include <vector>
+#include <thread>
 // Each thread creates its own InferenceEngine instance independently.
 // Suitable for isolating thread resources but may increase memory usage.
 static double RunInferenceThread(const std::string& modelPath, int loopCount, int threadIndex, bool ort)

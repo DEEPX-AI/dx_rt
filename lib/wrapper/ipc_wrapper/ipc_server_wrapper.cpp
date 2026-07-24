@@ -7,7 +7,9 @@
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
-#include "../../include/dxrt/ipc_wrapper/ipc_server_wrapper.h"
+#include "dxrt/ipc_wrapper/ipc_server_wrapper.h"
+
+#include <cerrno>
 
 #ifdef __linux__
 	#include "message_queue/ipc_mq_server_linux.h"
@@ -20,20 +22,16 @@ namespace dxrt{
 IPCServerWrapper::IPCServerWrapper(IPC_TYPE type)
 {
 #ifdef __linux__
-    if (type == IPC_TYPE::MESSAGE_QUEUE)
-    {
-        _ipcServer = std::make_shared<IPCMessageQueueServerLinux>();
-    }
+    // Linux: Legacy message-queue IPC is disabled. Use Dynamic IPC service (v2).
+    LOG_DXRT_I_ERR("[ERROR] IPCServerWrapper legacy message queue is not supported on Linux. Use Dynamic IPC service.");
+    _ipcServer = nullptr;
+    (void)type;
 #elif _WIN32
-    if (type == IPC_TYPE::WIN_PIPE)
-    {
-        _ipcServer = std::make_shared<IPCPipeServerWindows>();
-    }
+    // Windows: Legacy named-pipe IPC is disabled. Use Dynamic IPC service (v2).
+    LOG_DXRT_I_ERR("[ERROR] IPCServerWrapper legacy named pipe is not supported on Windows. Use Dynamic IPC service.");
+    _ipcServer = nullptr;
+    (void)type;
 #endif
-    else
-    {
-        LOG_DXRT_I_ERR("[ERROR] IPCClientWrapper No implementation");
-    }
 }
 
 
@@ -44,46 +42,94 @@ IPCServerWrapper::~IPCServerWrapper() = default;
 // return error code
 int32_t IPCServerWrapper::Initialize() const
 {
+    if (_ipcServer == nullptr)
+    {
+        errno = ENOTSUP;
+        return -1;
+    }
+
     return _ipcServer->Initialize();
 }
 
 // listen
 int32_t IPCServerWrapper::Listen() const
 {
+    if (_ipcServer == nullptr)
+    {
+        errno = ENOTSUP;
+        return -1;
+    }
+
     return _ipcServer->Listen();
 }
 
 int32_t IPCServerWrapper::Select(int64_t& connectedFd) const
 {
+    if (_ipcServer == nullptr)
+    {
+        errno = ENOTSUP;
+        return -1;
+    }
+
     return _ipcServer->Select(connectedFd);
 }
 
 // ReciveFromClient
 int32_t IPCServerWrapper::ReceiveFromClient(IPCClientMessage& clientMessage) const
 {
+    if (_ipcServer == nullptr)
+    {
+        errno = ENOTSUP;
+        return -1;
+    }
+
     return _ipcServer->ReceiveFromClient(clientMessage);
 }
 
 // SendToClient
 int32_t IPCServerWrapper::SendToClient(IPCServerMessage& serverMessage) const
 {
+    if (_ipcServer == nullptr)
+    {
+        errno = ENOTSUP;
+        return -1;
+    }
+
     return _ipcServer->SendToClient(serverMessage);
 }
 
 // register receive message callback function
 int32_t IPCServerWrapper::RegisterReceiveCB(std::function<int32_t(IPCClientMessage&, void*, int32_t)> receiveCB, void* usrData) const
 {
+    if (_ipcServer == nullptr)
+    {
+        errno = ENOTSUP;
+        return -1;
+    }
+
     return _ipcServer->RegisterReceiveCB(receiveCB, usrData);
 }
 
 int32_t IPCServerWrapper::RemoveClient(long msgType) const // Only for Message Queue (POSIX)
 {
+    if (_ipcServer == nullptr)
+    {
+        errno = ENOTSUP;
+        return -1;
+    }
+
     return _ipcServer->RemoveClient(msgType);
 }
 
 // Close
 int32_t IPCServerWrapper::Close() const
 {
+    if (_ipcServer == nullptr)
+    {
+        errno = ENOTSUP;
+        return -1;
+    }
+
     return _ipcServer->Close();
 }
 

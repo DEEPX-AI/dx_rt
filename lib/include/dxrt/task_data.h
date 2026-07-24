@@ -121,7 +121,6 @@ private:
     bool _isArgMax = false;
     bool _isPPU = false;
     bool _isPPCPU = false; // v8 PPCPU model type
-    uint32_t _ppuBinaryOffset = 0; // v8 PPCPU: device memory offset of PPU binary
 
     // Reference to binary data (rmap, weight, ppu if exists)
     // This is set by Task and used by Device for writing to device memory

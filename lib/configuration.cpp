@@ -14,6 +14,7 @@
 #include "dxrt/configuration.h"
 #include "dxrt/exception/exception.h"
 #include "dxrt/profiler.h"
+#include "dxrt/user_event_store.h"
 #include "dxrt/device_info_status.h"
 #include "dxrt/device_pool.h"
 #include "dxrt/device_version.h"
@@ -236,8 +237,8 @@ namespace dxrt {
             int count = std::stoi(value);
             // Clamp between 1 and hardware_concurrency()
             auto hw = static_cast<int>(std::thread::hardware_concurrency());
-            int maxThreads = std::max(1, hw);
-            int clamped = std::max(1, std::min(count, maxThreads));
+            int maxThreads = (std::max)(1, hw);
+            int clamped = (std::max)(1, (std::min)(count, maxThreads));
 
             if (clamped != count) {
                 LOG_DXRT_DBG << "Thread count clamped from " << count << " to " << clamped
@@ -349,6 +350,7 @@ namespace dxrt {
         if (item == ITEM::PROFILER)
         {
             Profiler::GetInstance().SetEnabled(enabled);
+            UserEventStore::GetInstance().SetEnabled(enabled);
         }
 #ifdef DXRT_NFH_ACCELERATION_AVAILABLE
         if (item == ITEM::NFH_ACCELERATION)
@@ -468,6 +470,14 @@ namespace dxrt {
             return version.substr(1);
 
         return version;
+    }
+
+#ifndef DXRT_GIT_HASH
+#define DXRT_GIT_HASH ""
+#endif
+    std::string Configuration::GetGitHash() const
+    {
+        return DXRT_GIT_HASH;
     }
 
     std::string Configuration::GetDriverVersion() const

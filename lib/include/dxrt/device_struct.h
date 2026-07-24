@@ -180,3 +180,4 @@ enum class DeviceType : uint32_t
     ACC_TYPE = 0,
     STD_TYPE = 1,
 };
+

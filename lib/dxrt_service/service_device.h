@@ -40,6 +40,7 @@
 #include <chrono>
 #include <array>
 #include <condition_variable>
+#include <utility>
 
 #include "dxrt/request.h"
 #include "dxrt/driver.h"
@@ -60,6 +61,10 @@
 #include "dxrt/driver_adapter/linux_driver_adapter.h"
 #include "dxrt/usage_timer.h"
 #include "dxrt/driver.h"
+#include "dxrt/device_core.h"
+#include "../device_pool/device_dispatcher.h"
+#include "bound_manager.h"
+#include "dxrt/handler_que_template.h"
 
 #ifdef __linux__
     #include <poll.h>
@@ -81,6 +86,9 @@ class FwLog;
 class DXRT_API ServiceDevice  // NOSONAR:S1820
 {
  public:
+    // Type alias kept for API compatibility.  Implementation lives in DeviceDispatcher.
+    using RecoveryAdapter = DeviceDispatcher::IRecoveryAdapter;
+
     explicit ServiceDevice(const std::string &);
     virtual ~ServiceDevice(void);
     ServiceDevice(const ServiceDevice&) = delete;
@@ -92,6 +100,7 @@ class DXRT_API ServiceDevice  // NOSONAR:S1820
     int id() const { return _id; }
 
     dxrt_device_info_t info() const{ return _info;}
+    dxrt_dev_info_t devInfo() const { return _devInfo; }
     dxrt_device_status_t status();
     int Process(dxrt_cmd_t, void*, uint32_t size = 0, uint32_t sub_cmd = 0) const;
 
@@ -102,12 +111,15 @@ class DXRT_API ServiceDevice  // NOSONAR:S1820
     void SetSubMode(uint32_t cmd) { _subCmd = cmd; }
     void Terminate() const;
 
-    int AddBound(npu_bound_op boundOp);
-    int DeleteBound(npu_bound_op boundOp);
-    int GetBoundCount(npu_bound_op boundOp);
-    int GetBoundTypeCount();
+    int  AddBound(npu_bound_op boundOp);
+    int  DeleteBound(npu_bound_op boundOp);
+    int  GetBoundCount(npu_bound_op boundOp);
+    int  GetBoundTypeCount();
     bool CanAcceptBound(npu_bound_op boundOp);
 
+    void DMAReadAsync(const dxrt_meminfo_t& memInfo, pid_t pid, int seqId);
+    void DMAWriteAsync(const dxrt_meminfo_t& memInfo, pid_t pid, int seqId);
+    void SetDMACompletionCallback(const std::function<void(bool, pid_t, int, int, int)> &callback);
 
 
     void CallBack();
@@ -115,12 +127,14 @@ class DXRT_API ServiceDevice  // NOSONAR:S1820
 
     //void Identify(int id_, dxrt::SkipMode skip);
     void SetCallback(const std::function<void(const dxrt_response_t&)>& f);
-    void SetErrorCallback(const std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)>& f);
+    void SetErrorCallback(const std::function<void(dxrt::dxrt_server_err_t, uint32_t, int, const dx_pcie_dev_err_t *)>& f);
     void SetRecoveryCallback(const std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)>& f);
     void SetThrottleCallback(const std::function<void(dx_pcie_dev_ntfy_throt_t, int)>& f);
+    void SetRecoveryAdapter(const std::shared_ptr<RecoveryAdapter>& adapter);
 
     static std::vector<shared_ptr<ServiceDevice>> CheckServiceDevices(uint32_t subCmd = 0);
     bool isBlocked () const {return _isBlocked;}
+    DeviceDispatcher* dispatcher() const { return _dispatcher.get(); }
 
     double getUsage(int core_id);
 
@@ -132,8 +146,6 @@ class DXRT_API ServiceDevice  // NOSONAR:S1820
     int _id = 0;
     DeviceType _type = DeviceType::ACC_TYPE; /* 0: ACC type, 1: STD type */
 
-    std::array<int, static_cast<int>(npu_bound_op::N_BOUND_INF_MAX)> _bound_count;
-
     uint32_t _variant;
     int _devFd = -1;
 #ifdef __linux__
@@ -144,6 +156,7 @@ class DXRT_API ServiceDevice  // NOSONAR:S1820
     std::string _file;
     std::string _name;
     dxrt_device_info_t _info;
+    dxrt_dev_info_t _devInfo = {};
     dxrt_device_status_t _status;
     uint32_t _subCmd;
     int _load = 0;
@@ -151,32 +164,39 @@ class DXRT_API ServiceDevice  // NOSONAR:S1820
     bool _hasWorkers = false;
     Profiler &_profiler;
 
-    std::array<std::thread, 3> _thread;
-    std::thread _eventThread;
+    std::unique_ptr<DeviceDispatcher> _dispatcher;
+    std::unique_ptr<BoundManager>     _boundManager;
 
     std::mutex _lock;
-
-    SharedMutex _boundLock;
     std::atomic<bool> _stop {false};
 
 
-    std::shared_ptr<DriverAdapter> _driverAdapter;
+    std::shared_ptr<DeviceCore> _core;
 
     std::function<void(const dxrt_response_t&)> _callBack;
 
-    std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)> _errCallBack;
+    std::function<void(dxrt::dxrt_server_err_t, uint32_t, int, const dx_pcie_dev_err_t *)> _errCallBack;
     std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)> _recoveryCallBack;
     std::function<void(dx_pcie_dev_ntfy_throt_t, int)> _throttleCallBack;
     bool _isBlocked = false;
     std::array<UsageTimer, 3> _timer;
 
-    int BoundOption(dxrt_sche_sub_cmd_t subCmd, npu_bound_op boundOp) const;
-    int GetBoundTypeCountInternal() const;
+    struct DMAItem
+    {
+        dxrt_meminfo_t memInfo;
+        pid_t pid;
+        int seqId;
+    };
 
-    int WaitThread(int ids);
-    int EventThread();
+    HandlerQueueThread<DMAItem> _readHandlerQueue;
+    HandlerQueueThread<DMAItem> _writeHandlerQueue;
+    std::function<void(bool, pid_t, int, int, int)> _dmaCompletionCallback;
+    void HandleDMARead(const DMAItem& item, int ch);
+    void HandleDMAWrite(const DMAItem& item, int ch);
 
-    void LogDmaChannelStatus(const dx_pcie_dev_err_t *err) const;
+
+
+    int UsageTimerTick();
 
 };
 

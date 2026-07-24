@@ -7,7 +7,8 @@ With simple APIs compatible with various applications, DXRT empowers developers 
 - **Model Compatibility**: Supports pre-built models from the DEEPX model zoo and compiled models by DXCOM (DEEPX Compiler).  
 - **Optimized Latency**: Achieves low-latency performance for parallel processing.  
 - **Dynamic Execution Environment**: Provides flexible runtime environment adaptable to various applications.  
-- **Easy Integration**: Streamlined API for straightforward integration with existing applications.  
+- **Binary Compatibility**: Prebuilt `libdxrt.so` — minor version upgrades require no recompilation.  
+- **Easy Integration**: `#include <dxrt/dxrt_cxx_api.h>` (recommended) or existing `dxrt_api.h` still works.  
 - **Configurable Parameters**: Fine-tune inference settings through user-configurable parameters.  
 
 ## Supported devices

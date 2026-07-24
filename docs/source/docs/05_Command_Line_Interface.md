@@ -4,18 +4,30 @@ These utilities are essential for validating model compilation, tuning inference
 
 ---
 
+## Legacy Command Aliases
+
+The legacy command names from earlier releases are preserved as aliases and continue to work.
+
+| New | Legacy alias |
+|---|---|
+| `dxparse` | `parse_model` |
+| `dxrun` | `run_model` |
+| `dxcli` | `dxrt-cli` |
+
+---
+
 ## Parse Model
 
 This tool parses a compiled `.dxnn` model file and displays detailed information such as model structure, input/output tensors, and metadata.  
 
 **Source**  
 ```
-cli/parse_model.cpp
+cli/dxparse.cpp
 ```
 
 **Usage**  
 ```
-parse_model -m <model_dir>
+dxparse -m <model_dir>
 ```
 
 **Option**  
@@ -29,7 +41,7 @@ parse_model -m <model_dir>
 
 **Example**  
 ```
-$./parse_model -m model.dxnn
+$./dxparse -m model.dxnn
 ```
 
 ---
@@ -41,12 +53,12 @@ This tool executes a compiled model to verify basic functionality, measure infer
 
 **Source**  
 ```
-cli/run_model.cpp
+cli/dxrun.cpp
 ```
 
 **Usage**  
 ```
-run_model -m <model_dir> -i <input_bin> -o <output_bin> -r <reference output_bin> -l <number of loops>
+dxrun -m <model_dir> [-l <number of loops>] [-t <seconds>] [-d <devices>] [--use-ort] [--profiler] [--buffer-count <N>]
 ```
 
 **Option**  
@@ -87,6 +99,10 @@ run_model -m <model_dir> -i <input_bin> -o <output_bin> -r <reference output_bin
                           graph
                           If disabled, only NPU tasks operate
       --profiler          Enable profiler
+      --accel-nfh         Enable NFH (transpose) acceleration
+                          (if available)
+      --accel-cpu         Enable CPU op acceleration (OpenVINO/XNNPACK)
+                          (if available)
       --buffer-count arg  Number of input/output buffers, count's range is
                           1~100 (default: 6)
   -h, --help              Print usage
@@ -96,29 +112,29 @@ run_model -m <model_dir> -i <input_bin> -o <output_bin> -r <reference output_bin
 
 Basic inference with 100 loops:
 ```
-run_model -m /.../model.dxnn -i /.../input.bin -l 100
+dxrun -m /.../model.dxnn -i /.../input.bin -l 100
 ```
 
 Enable profiler to collect detailed timing data:
 ```
-run_model -m model.dxnn --profiler -l 50
+dxrun -m model.dxnn --profiler -l 50
 ```
 This generates a `profiler.json` file in the working directory containing detailed performance metrics.
 
 Configure buffer count for optimized throughput:
 ```
-run_model -m model.dxnn --buffer-count 8 -l 100
+dxrun -m model.dxnn --buffer-count 8 -l 100
 ```
 Adjust the number of input/output buffers (range: 1-100) to balance memory usage and inference throughput. Higher buffer counts can improve performance in pipelined scenarios.
 
 Combined options with profiling and custom buffer count:
 ```
-run_model -m model.dxnn --profiler --buffer-count 10 -l 200 -v
+dxrun -m model.dxnn --profiler --buffer-count 10 -l 200 -v
 ```
 
 Benchmark mode with profiling enabled:
 ```
-run_model -m model.dxnn --benchmark --profiler -t 60
+dxrun -m model.dxnn --benchmark --profiler -t 60
 ```
 Run benchmark for 60 seconds with profiling enabled to analyze performance bottlenecks.
 
@@ -133,7 +149,7 @@ This tool provides a CLI for interacting with **DX-RT** accelerator devices, sup
 
 **Usage**  
 ```
-dxrt-cli <option> <argument>
+dxcli <option> <argument>
 ```
 
 **Option**  
@@ -156,25 +172,29 @@ dxrt-cli <option> <argument>
 
 **Example**
 ```
-dxrt-cli --status
+dxcli -s
+dxcli --status
 
-dxrt-cli --reset 0
+dxcli -r
+dxcli -r=1
+dxcli --reset
+dxcli --reset=1
 
-dxrt-cli --fwupdate fw.bin
-dxrt-cli -u fw.bin
+dxcli --fwupdate fw.bin
+dxcli -u fw.bin
 
-dxrt-cli -m 1
+dxcli -m 1
 ```
 
 !!! note "NOTE"
     **Firmware update issue**  
-    If an issue occurs during firmware update with `dxrt-cli -u` or `dxrt-cli --fwupdate`, run the following sequence:
+    If an issue occurs during firmware update with `dxcli -u` or `dxcli --fwupdate`, run the following sequence:
      ```bash
      # service off
      sudo systemctl disable dxrt.service
      sudo systemctl stop dxrt.service
 
-     dxrt-cli -u fw.bin
+     dxcli -u fw.bin
 
      # service on
      sudo systemctl enable dxrt.service
@@ -328,7 +348,7 @@ After building, you can execute the tool directly using the dxbenchmark command 
 
 | Execution Method | Format | Description |
 | --- | --- | --- |
-| **Model Directory** | `./dx_rt/bin/dxbenchmark [OPTION...]` | The path to the directory containing the models. |
+| **Model Directory** | `--dir {Directory}` | The path to the directory containing the models. |
 | **Termination Condition** | `-t {Time}` | Time duration in seconds. This option is currently prioritized over `-l.` |
 | **Loop** | `-l {Loops}`	 | Number of inference loops.|
 

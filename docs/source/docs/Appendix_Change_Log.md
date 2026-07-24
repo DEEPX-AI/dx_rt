@@ -1,4 +1,54 @@
-## v3.3.2 (May 2026)
+## DX-RT v3.4.0 (July 2026)
+
+#### Changed
+- Debian package bundles `dx_engine` Python wheels for Python 3.8 – 3.14.
+- CLI binary names updated for consistency: `dxrt-cli` → `dxcli`, `parse_model` → `dxparse`, `run_model` → `dxrun`
+- Old names (`dxrt-cli`, `parse_model`, `run_model`) remain functional as backward-compatible aliases (symlinks on Linux/macOS, hard links on Windows)
+- Python bindings now use dxrt_cxx_api.h (header-only) instead of direct C++ linkage
+- libdxrt.so exports C symbols only (dxrt_*); internal C++ symbols hidden via version script
+- Update minimum versions
+   - Driver : 2.4.0 -> 2.5.0
+   - PCIe Driver : 2.2.0 -> 2.4.0
+   - Firmware : 2.5.2 -> 2.7.0
+- Code style cleanup across Python package (`inference_option.py`, `runtime_event_dispatcher.py`, `utils.py`, etc.)
+- Upgrade extern/include/dxrt/extern/cxxopts.hpp from v3.1.1 to v3.3.1
+- Increase firmware update sequence wait time from 2s to 4s.
+- Replace top-level matplotlib imports with lazy loading via `ensure_dependencies()` in `plot.py` to provide install guidance instead of ImportError
+
+#### Fixed
+- Improved shared-memory performance.
+- Fix SEGV in NFHLayer caused by dereferencing uninitialized `Request::_task` in profiler instrumentation
+- Return `INT16_MIN` instead of `0` from `DeviceStatus::GetTemperature()` when channel index is out of range
+- Improve dxrtd error messages when manually executed
+- Fix missing separator between `devices` and `buffer_count` fields in `InferenceOption.__repr__` output
+- Update ppcpu logic for hardness
+- Fixed a critical crash (nullptr) in pyRunBenchmark by ensuring the memory lifetime of input buffers.
+- Improve temperature range validation in dxtop.
+- Fix multi-input dictionary handling issue.
+
+#### Added
+- Script to build `dx_engine` wheels per Python version.
+- Documentation describing the Debian prebuilt directory structure.
+- Script to generate the `prebuilt/` directory.
+- Stable C ABI (dxrt_c_api.h, 103 functions) enabling prebuilt SDK distribution without recompilation
+- Header-only C++ wrapper (dxrt_cxx_api.h) for single-include modern C++ usage
+- SDK-compat bridge headers (legacy/) for backward compatibility with existing dxrt_api.h code
+- H1M firmware compatibility check: distinguish H1M (LPDDR4) from H1 (LPDDR5/LPDDR5X) in firmware update and device detection; support mixed 4-pack / 6-pack H1M configurations
+- Deprecated Python API migration guide added to Python API Reference documentation
+- Add shared memory-based inter-process communication using memfd
+- Add dynamic IPC infrastructure with packet-based protocol layer
+- Add cross-platform support for Linux and Windows IPC transport
+- Add new device monitoring APIs (memory usage, per-core temperature, and utilization)
+- Add a tool (plot_html.py) to generate HTML visualization reports for profiling data (profiler.json)
+- Profiler
+  - Add GetJobMetrics() API for comprehensive per-job profiling
+  - Enhance performance statistics with Coefficient of Variation (CoV) metric
+- Add input dtype validation to prevent undefined behavior caused by mismatching NumPy array types.
+- Add `libdxrt-bin` Debian packaging for pre-built binaries with amd64/arm64 auto-detection.
+ 
+---
+
+## DX-RT v3.3.2 (May 2026)
 
 #### Changed
 - Removed redundant build artifacts and temporary directories from the Debian package.
@@ -9,7 +59,9 @@
 #### Added
 - Added conditional pip upgrade (v21.3+) to ensure build stability on legacy OS environments.
 
-## v3.3.1 (April 2026)
+---
+
+## DX-RT v3.3.1 (April 2026)
 
 #### Changed
 - Change the version of pre-built onnxruntime(1.23.2 -> 1.22.0) and openvino(25.4 -> 25.1)
@@ -22,7 +74,9 @@
 #### Added
 - Add libdxrt 3.3.1 debian package with updated build and install pipeline
 
-## v3.3.0 (April 2026)
+---
+
+## DX-RT v3.3.0 (April 2026)
 
 #### Changed
 - Update minimum versions
@@ -42,8 +96,9 @@
 - Add python InferenceEngine from numpy array
 - Add acceleration features for CPU operations (Requires separate option configuration and build)
 
+---
 
-## v3.2.0 (December 2025)
+## DX-RT v3.2.0 (December 2025)
 
 #### Changed
 - Optimize PCIe DMA sequence for better performance.
@@ -70,7 +125,9 @@
 - Enable direct loading of the .dxnn model format from a memory buffer within the Inference Engine.
 - Add RuntimeEventDispatcher for centralized event handling and logging.
 
-## v3.1.0 (November 2025)
+---
+
+## DX-RT v3.1.0 (November 2025)
 
 #### Changed
 - Update minimum versions
@@ -153,7 +210,7 @@
 
 ---
 
-## v3.0.0 (September 2025)
+## DX-RT v3.0.0 (September 2025)
 
 - Update the .dxnn file format to version 7 (from v6).
 - Update C++ exception handling to translate exceptions into Python for improved error handling.
@@ -175,7 +232,7 @@
 - Add profiling data memory usage tracking with high usage warnings.
 - Update user guide document
 - Force-disabled with a warning instead of throwing a runtime exception in builds that don't support USE_ORT.
-- Add time-base inference mode to run_model (-t, --time option)
+- Add time-based inference mode to run_model (-t, --time option)
 - Profiler now groups events by base name (before) instead of showing individual job/request entries
 - Limited duration details to 30 values per group for cleaner output
 - Fix run_model error when -f option and -l loop count exceeds 1024
@@ -201,7 +258,7 @@
 - Modify run_async_model and run_async_model_output examples
 - Modify build.sh (print python package install info)
 - removed some unnecessary items from header files
-- use Pyproject.toml instead setup.py (now setup.py is not recommended)
+- use Pyproject.toml instead of setup.py (now setup.py is not recommended)
 - Fix some rapidjson issue from clients.
 - Remove bad using namespace std from model.h (some programs need change)
 - Add usb inference module (tcp/ip)
@@ -210,7 +267,7 @@
    ```
    - Usage: sudo SanityCheck.sh [all(default) | dx_rt | dx_driver | help]
    ```
--  Change build compiler has been updated to version 14 for both USE_ORT=ON and USE_ORT=OFF configurations.
+- The build compiler has been updated to version 14 for both USE_ORT=ON and USE_ORT=OFF configurations.
 - Fix an issue where temporary files from the ONNX Runtime installation would accumulate.
 - Fix a cross-compilation error related to the ncurses library for the dxtop utility.
 - Add Sanity Check Features
@@ -243,7 +300,7 @@
  
 ---
 
-## v2.9.5 (May 2025)
+## DX-RT v2.9.5 (May 2025)
 - Added full support for Python run_model.  
 - Updated the run_model option and its description  
 - Improve the Python API  
@@ -287,7 +344,7 @@
 
 ---
 
-## v2.8.2 (April 2025)
+## DX-RT v2.8.2 (April 2025)
 
 - Modify Inference Engine to be used with 'with' statements, and update relevant examples.  
 - Add Python inference option interface with the following configurations  

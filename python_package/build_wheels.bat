@@ -146,7 +146,19 @@ for %%v in (%PYTHON_VERSIONS%) do (
     if errorlevel 1 (
         echo   [INFO] Python %%v is not installed
         call :install_python %%v
-        
+        set "INSTALL_RC=!errorlevel!"
+
+        if not "!INSTALL_RC!"=="0" (
+            echo.
+            echo ============================================
+            echo Build aborted due to Python installation failure.
+            echo Please install the required Python versions manually
+            echo or run with only installed versions:
+            echo   build_wheels.bat 3.12 3.13
+            echo ============================================
+            exit /b !INSTALL_RC!
+        )
+
         REM Check again after installation
         py -%%v --version >nul 2>&1
         if errorlevel 1 (
@@ -178,12 +190,16 @@ REM Map version to winget package ID
 REM winget package IDs: Python.Python.3.10, Python.Python.3.11, etc.
 set "WINGET_ID=Python.Python.%PY_VER%"
 
-echo   Running: winget install %WINGET_ID% --silent --accept-package-agreements --accept-source-agreements
-winget install %WINGET_ID% --silent --accept-package-agreements --accept-source-agreements
+echo   Running: winget install %WINGET_ID% --source winget --silent --accept-package-agreements --accept-source-agreements
+winget install %WINGET_ID% --source winget --silent --accept-package-agreements --accept-source-agreements
+set "WINGET_RC=!errorlevel!"
 
-if errorlevel 1 (
-    echo   [WARN] Failed to install Python %PY_VER% via winget
-    exit /b 1
+if not "!WINGET_RC!"=="0" (
+    echo.
+    echo   [ERROR] Failed to install Python %PY_VER% via winget ^(exit code: !WINGET_RC!^)
+    echo   [ERROR] Network issue detected. Please check your internet connection, proxy, or firewall settings.
+    echo   [ERROR] Aborting build.
+    exit /b 2
 )
 
 echo   [INFO] Python %PY_VER% installed successfully

@@ -7,9 +7,8 @@
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
-#include "dxrt/dxrt_api.h"
+#include "dxrt/dxrt_cxx_api.h"
 #include "dxrt/extern/cxxopts.hpp"
-#include "dxrt/device_info_status.h"
 #include "../include/logger.h"
 
 #include <string>
@@ -132,9 +131,9 @@ int main(int argc, char* argv[])
         {
             auto device_status = dxrt::DeviceStatus::GetCurrentStatus(i);
             log.Info("Device: " + std::to_string(device_status.GetId()));
-            log.Info("   Temperature: " + std::to_string(device_status.GetTemperature(0)));
-            log.Info("   Voltage: " + std::to_string(device_status.GetNpuVoltage(0)));
-            log.Info("   Clock: " + std::to_string(device_status.GetNpuClock(0)));
+            log.Info("   Temperature: " + std::to_string(device_status.Temperature(0)));
+            log.Info("   Voltage: " + std::to_string(device_status.Voltage(0)));
+            log.Info("   Clock: " + std::to_string(device_status.NpuClock(0)));
         }
 
     }

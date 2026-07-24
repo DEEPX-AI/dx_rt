@@ -9,20 +9,39 @@ if(NOT MSVC)
     # Linux build
 
     # --- Python ---
-    find_package(Python COMPONENTS Interpreter Development REQUIRED)
+    # Development.Module (not full Development) so manylinux Pythons — built
+    # without --enable-shared and therefore lacking libpython.so — still
+    # satisfy the requirement. Extension modules never link libpython.
+    find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
 
     # Define project root relative to current source directory
-    set(DX_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../")
+    # Override with -DDX_ROOT_DIR=... when building outside the normal
+    # dx_rt_fork tree (e.g. cibuildwheel stages lib/include and extern/include
+    # inside /project and passes DX_ROOT_DIR=/project).
+    if(NOT DEFINED DX_ROOT_DIR)
+        set(DX_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../")
+    endif()
 
     # --- pybind11 Configuration ---
-    # Use the bundled pybind11 source located in the extern directory
-    set(PYBIND11_DIR "${DX_ROOT_DIR}/extern/pybind11")
-
-    # Verify if pybind11 exists and add its include directory
-    if(EXISTS "${PYBIND11_DIR}/include/pybind11/pybind11.h")
-        set(PYBIND11_INCLUDE_DIR "${PYBIND11_DIR}/include")
+    # 1st: pip build dependency (PEP 517 isolated build, pybind11 in build-system.requires)
+    find_package(pybind11 CONFIG QUIET)
+    if(pybind11_FOUND)
+        if(NOT pybind11_INCLUDE_DIR)
+            message(FATAL_ERROR "find_package found pybind11 but pybind11_INCLUDE_DIR is empty. "
+                                "Reinstall pybind11: pip install --force-reinstall pybind11")
+        endif()
+        set(PYBIND11_INCLUDE_DIR "${pybind11_INCLUDE_DIR}")
+        message(STATUS "Found pybind11 via cmake package (v${pybind11_VERSION}): ${PYBIND11_INCLUDE_DIR}")
     else()
-        message(FATAL_ERROR "pybind11 headers not found at: ${PYBIND11_DIR}/include")
+        # 2nd: bundled pybind11 at dx_rt/extern/pybind11 (full repo build)
+        set(PYBIND11_DIR "${DX_ROOT_DIR}/extern/pybind11")
+        if(EXISTS "${PYBIND11_DIR}/include/pybind11/pybind11.h")
+            set(PYBIND11_INCLUDE_DIR "${PYBIND11_DIR}/include")
+            message(STATUS "Found bundled pybind11: ${PYBIND11_INCLUDE_DIR}")
+        else()
+            message(FATAL_ERROR "pybind11 headers not found. Neither find_package(pybind11) nor bundled "
+                                "path '${PYBIND11_DIR}/include' resolved. Install with: pip install pybind11")
+        endif()
     endif()
 
     # --- Source files ---
@@ -30,6 +49,7 @@ if(NOT MSVC)
     set(SOURCES
         ${BINDING_CPP_DIR}/py_inference_engine.cpp
         ${BINDING_CPP_DIR}/py_configuration.cpp
+        ${BINDING_CPP_DIR}/py_profiler.cpp
         ${BINDING_CPP_DIR}/py_device_status.cpp
         ${BINDING_CPP_DIR}/py_runtime_event_dispatcher.cpp
     )
@@ -76,6 +96,23 @@ if(NOT MSVC)
 
     # --- Visibility ---
     target_compile_options(${target} PRIVATE -fvisibility=hidden)
+
+    # --- Size optimization ---
+    # scikit-build-core defaults CMAKE_BUILD_TYPE to Release; enforce it so
+    # standalone cmake invocations (e.g. developer builds) also opt in.
+    # -ffunction-sections/-fdata-sections + --gc-sections drops unreferenced
+    # code/data. --strip-all removes the symbol table from _pydxrt.so. The
+    # bundled prebuilt libs are stripped separately by `auditwheel repair
+    # --strip` during the cibuildwheel repair step.
+    if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+        set(CMAKE_BUILD_TYPE Release CACHE STRING "" FORCE)
+    endif()
+    target_compile_options(${target} PRIVATE
+        $<$<CONFIG:Release>:-ffunction-sections -fdata-sections>
+    )
+    target_link_options(${target} PRIVATE
+        $<$<CONFIG:Release>:-Wl,--gc-sections -Wl,--strip-all>
+    )
 
     # --- Install (for scikit-build-core / pip install) ---
     install(TARGETS ${target}
@@ -126,10 +163,10 @@ else()
     )
 
     find_package(pybind11 REQUIRED)
-
     pybind11_add_module( ${target}
     ${BINDING_CPP_DIR}/py_inference_engine.cpp
     ${BINDING_CPP_DIR}/py_configuration.cpp
+    ${BINDING_CPP_DIR}/py_profiler.cpp
     ${BINDING_CPP_DIR}/py_device_status.cpp
     ${BINDING_CPP_DIR}/py_runtime_event_dispatcher.cpp)
 

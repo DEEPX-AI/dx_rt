@@ -12,7 +12,7 @@ Model dir.
 ```
 
 - `graph.dxnn`  
-  : A unified DEEPX artifact that contains  NPU command data, model metadata, model parameters.  
+  : A unified DEEPX artifact that contains NPU command data, model metadata, model parameters.  
 
 This file is used directly for inference on DEEPX hardware.  
 
@@ -20,7 +20,7 @@ This file is used directly for inference on DEEPX hardware.
 
 ## Inference Workflow
 
-Here the inference workflow using the DXNN Runtime as follows.  
+Here is the inference workflow of the DXNN Runtime.  
 
 <div class="center-text">
 <p align="center">
@@ -247,19 +247,19 @@ Starting with v3.0.0, when ONNX Runtime is disabled (built with `USE_ORT=OFF` or
 As a result, applications no longer need to manually attach input dummy bytes or remove output dummy bytes in non-ORT inference paths. This behavior applies to both C++ and Python APIs, including PPU models. If you provide user output buffers, ensure the buffer size is at least `ie.GetOutputSize()` (C++) or `ie.get_output_size()` (Python).
 
 !!! note "NOTE"  
-     - This automatic handling is internal to the runtime’s NPU format processing and does not change model-visible tensor shapes reported by the APIs.  
-     - When `use_ort = True`, CPU-side execution for unsupported subgraphs is enabled via ONNX Runtime; NPU tasks still follow the same alignment policy internally.  
+    - This automatic handling is internal to the runtime’s NPU format processing and does not change model-visible tensor shapes reported by the APIs.  
+    - When `use_ort = True`, CPU-side execution for unsupported subgraphs is enabled via ONNX Runtime; NPU tasks still follow the same alignment policy internally.  
 
 ---
 
 ## Profile Application
 
-### Extract Profiling Data Using `run_model`
+### Extract Profiling Data Using `dxrun`
 
-When you run a model with the `--profiler` option using `run_model`, a `profiler.json` file is automatically generated in the working directory.
+When you run a model with the `--profiler` option using `dxrun`, a `profiler.json` file is automatically generated in the working directory.
 
 ```
-run_model -m model.dxnn --profiler
+dxrun -m model.dxnn --profiler
 # Check the generated profiler.json file
 ```
 
@@ -269,29 +269,107 @@ This provides a quick way to collect profiling data without modifying your appli
 
 You can profile events within your application using the Profiler APIs. Please refer to **Section. API reference**.  
 
-Here is a basic usage example. 
+#### Enable the Profiler
 
-```
-// Built-in core profiling event
+Before collecting profiling data, enable the profiler and configure its output options.
 
+```cpp
 // Enable the profiler
 dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::PROFILER, true);
 
 // Set attributes to show data in console and save to a file
-dxrt::Configuration::GetInstance().SetAttribute(dxrt::Configuration::ITEM::PROFILER, 
-dxrt::Configuration::ATTRIBUTE::PROFILER_SHOW_DATA, "ON");
+dxrt::Configuration::GetInstance().SetAttribute(dxrt::Configuration::ITEM::PROFILER,
+    dxrt::Configuration::ATTRIBUTE::PROFILER_SHOW_DATA, "ON");
 
-dxrt::Configuration::GetInstance().SetAttribute(dxrt::Configuration::ITEM::PROFILER, 
-dxrt::Configuration::ATTRIBUTE::PROFILER_SAVE_DATA, "ON");
-
-// User's profiling event
-auto& profiler = dxrt::Profiler::GetInstance();
-profiler.Start("1sec");
-sleep(1);
-profiler.End("1sec");
+dxrt::Configuration::GetInstance().SetAttribute(dxrt::Configuration::ITEM::PROFILER,
+    dxrt::Configuration::ATTRIBUTE::PROFILER_SAVE_DATA, "ON");
 ```
 
-After the application is finished, `profiler.json` is created in the working directory.
+After the application finishes, `profiler.json` is created in the working directory.
+
+---
+
+#### Get Per-Job Metrics with `GetJobMetrics()`
+
+Use `dxrt::Profiler::GetJobMetrics()` to retrieve detailed timing breakdowns for a specific inference job. This is the **recommended** way to access per-job inference timing data programmatically.
+
+Call it immediately after `Wait()` returns with the corresponding job ID.
+
+```cpp
+auto& profiler = dxrt::Profiler::GetInstance();
+
+int jobId = ie.RunAsync(inputBuf.data());
+auto outputs = ie.Wait(jobId);
+
+auto jm = profiler.GetJobMetrics(jobId);
+if (jm.valid) {
+    // NPU task metrics (per device)
+    auto npu = jm.GetTask("npu_0");
+    if (npu.valid) {
+        auto& dev = npu.devices[0];         // device 0 metrics
+        double h2d      = dev.h2d_us;       // Host-to-Device transfer (µs)
+        double inference = dev.inference_core_all_us; // NPU compute (µs)
+        double d2h      = dev.d2h_us;       // Device-to-Host transfer (µs)
+        double total    = dev.total_us;     // End-to-end NPU task time (µs)
+    }
+
+    // CPU task metrics (when USE_ORT is enabled)
+    auto cpu = jm.GetTask("cpu_0");
+    if (cpu.valid) {
+        double cpuExec = cpu.cpu_task_us;   // CPU op execution time (µs)
+    }
+}
+```
+
+**`JobMetrics` Structure**
+
+| Field | Type | Description |
+|---|---|---|
+| `tasks` | `vector<TaskMetrics>` | One entry per task that participated in the job |
+| `valid` | `bool` | `false` if the job ID was not found |
+| `GetTask(name)` | method | Safe lookup by task name; returns `valid=false` if not found |
+
+**`TaskMetrics` Structure**
+
+| Field | Type | Description |
+|---|---|---|
+| `task_name` | `string` | Task name (e.g., `"npu_0"`, `"cpu_0"`) |
+| `devices` | `map<int, NpuDeviceMetrics>` | Per-device NPU metrics (NPU tasks only) |
+| `cpu_task_us` | `double` | CPU task execution time in µs (CPU tasks only; 0 for NPU tasks) |
+| `valid` | `bool` | `true` if this task was measured |
+
+**`NpuDeviceMetrics` Structure**
+
+| Field | Type | Description |
+|---|---|---|
+| `input_format_us` | `double` | NPU input format handler time (µs) |
+| `h2d_us` | `double` | Host-to-Device PCIe transfer time (µs) |
+| `inference_core_all_us` | `double` | NPU compute time across all cores (µs) |
+| `inference_core_0_us` | `double` | NPU compute time on core 0 (µs) |
+| `inference_core_1_us` | `double` | NPU compute time on core 1 (µs) |
+| `inference_core_2_us` | `double` | NPU compute time on core 2 (µs) |
+| `d2h_us` | `double` | Device-to-Host PCIe transfer time (µs) |
+| `output_format_us` | `double` | NPU output format handler time (µs) |
+| `total_us` | `double` | End-to-end NPU task time (µs) |
+| `valid` | `bool` | `true` if at least one of H2D/NPU/D2H was measured |
+
+!!! note "NOTE"
+    `GetJobMetrics()` is the recommended API. The older `GetPerformanceData()` and `GetPerformanceDataByDevice()` methods are **deprecated** and will be removed in a future release.
+
+---
+
+#### Record Custom User Events
+
+You can also record arbitrary named events in your application to include them in the profiler output.
+
+```cpp
+auto& profiler = dxrt::Profiler::GetInstance();
+profiler.Start("my_preprocess");
+// ... preprocessing code ...
+profiler.End("my_preprocess");
+```
+
+User events are included in `profiler.json` when saved via `Save(file, userEvents)`.
 
 ---
 
@@ -333,7 +411,7 @@ Optional Arguments
 - `-j JOBS_PER_IMAGE, --jobs-per-image JOBS_PER_IMAGE`: Max jobs per image before splitting (default: 200)  
 - `-t, --show_text`: Show duration text labels on bars  
 
-!!! note
+!!! note "NOTE" 
     The `-a, --auto-select` option automatically selects 200 jobs from the stable centre region, which can be useful for filtering out warm-up and tail effects.  
 
 ---
@@ -353,7 +431,7 @@ The profiler records the following events during inference. Use this table to id
 | **CPU Task Queue Wait** | Waiting in the CPU task queue before execution | Enable CPU op acceleration (see *Hardware-Accelerated Data Processing*) |
 | **cpu_N** | CPU operator execution on thread N (e.g., `cpu_0`, `cpu_1`) | Enable CPU op acceleration (see *Hardware-Accelerated Data Processing*) |
 
-!!! note
+!!! note "NOTE" 
     **NPU Task** represents the total NPU processing time from input formatting through NPU computation to output formatting. It is the aggregate of NPU Input Format Handler, PCIe Write, NPU Core, PCIe Read, and NPU Output Format Handler.
 
 ---
@@ -405,7 +483,7 @@ Specific event codes identify the exact nature of events using `RuntimeEventDisp
 **Basic Event Handler Registration**
 
 ```cpp
-#include "dxrt/dxrt_api.h"
+#include <dxrt/dxrt_cxx_api.h>
 #include <iostream>
 
 int main()
@@ -529,7 +607,7 @@ touch CMakeLists.txt
 Create a simple source file (`main.cpp`) that uses a **DX-RT** API.  
 
 ```
-#include "dxrt/dxrt_api.h"
+#include <dxrt/dxrt_cxx_api.h>
 using namespace std;
 
 int main(int argc, char *argv[])
@@ -633,7 +711,7 @@ You can use the profiler (see *Profile Application* section) to identify whether
 | OS | Ubuntu 22.04 |
 | DX-RT Version | v3.3.0 |
 | Model | Q-PRO variants from DEEPX ModelZoo |
-| Measurement Tool | `run_model` (no pre/post-processing) |
+| Measurement Tool | `dxrun` (no pre/post-processing) |
 | Iterations | 2000 |
 | Build Option | `USE_ORT=ON` |
 
@@ -647,7 +725,7 @@ You can use the profiler (see *Profile Application* section) to identify whether
 | YoloV11S | 82 | 82 | 127 | **131** |
 
 !!! note "NOTE"  
-     These numbers are for reference only. Actual performance depends on device conditions, input resolution, and system load. When pre/post-processing is added to the application pipeline, end-to-end FPS may differ from the values shown here.  
+    These numbers are for reference only. Actual performance depends on device conditions, input resolution, and system load. When pre/post-processing is added to the application pipeline, end-to-end FPS may differ from the values shown here.  
 
 **Step 1. Build with Acceleration Support**
 
@@ -671,11 +749,11 @@ After changing the options, perform a **clean build**:
 ```
 
 !!! warning "IMPORTANT"  
-     A clean build is required after changing these options. Incremental builds may not pick up the change correctly.  
+    A clean build is required after changing these options. Incremental builds may not pick up the change correctly.  
 
 !!! note "NOTE"  
-     The build system automatically downloads and installs the required acceleration libraries (Intel IPP, OpenVINO, XNNPACK, etc.) during the clean build. **An internet connection is required** at build time. You do not need to install these libraries manually.  
-     If a library cannot be obtained (e.g., due to network restrictions or platform incompatibility), the corresponding acceleration option is disabled even when set to `ON`.  
+    The build system automatically downloads and installs the required acceleration libraries (Intel IPP, OpenVINO, XNNPACK, etc.) during the clean build. **An internet connection is required** at build time. You do not need to install these libraries manually.  
+    If a library cannot be obtained (e.g., due to network restrictions or platform incompatibility), the corresponding acceleration option is disabled even when set to `ON`.  
 
 **Step 2. Enable at Runtime**
 
@@ -684,7 +762,7 @@ Even after building with acceleration support, the feature is **disabled at runt
 *C++ Example*
 
 ```cpp
-#include "dxrt/dxrt_api.h"
+#include <dxrt/dxrt_cxx_api.h>
 
 auto& config = dxrt::Configuration::GetInstance();
 config.SetEnable(dxrt::Configuration::ITEM::NFH_ACCELERATION, true);
@@ -702,22 +780,22 @@ config.set_enable(Configuration.ITEM.CPU_OP_ACCELERATION, True)
 ```
 
 !!! note "TIP"  
-     To quickly test the effect of acceleration without modifying application code, you can use the `run_model` CLI tool with the `--accel-nfh` and `--accel-cpu` options:  
-     ```
-     run_model -m model.dxnn --accel-nfh --accel-cpu
-     ```
+    To quickly test the effect of acceleration without modifying application code, you can use the `dxrun` CLI tool with the `--accel-nfh` and `--accel-cpu` options:  
+    ```
+    dxrun -m model.dxnn --accel-nfh --accel-cpu
+    ```
 
 !!! warning "Build Dependency"  
-     The acceleration APIs (`ITEM::NFH_ACCELERATION`, `ITEM::CPU_OP_ACCELERATION`) and CLI options (`--accel-nfh`, `--accel-cpu`) are only available when the corresponding CMake option is set to `ON` at build time.  
-     If the feature was **not** compiled in (default `OFF` build), these enum values and CLI options **do not exist**: using them will result in a compilation error (C++) or an "unrecognized arguments" error (CLI).  
+    The acceleration APIs (`ITEM::NFH_ACCELERATION`, `ITEM::CPU_OP_ACCELERATION`) and CLI options (`--accel-nfh`, `--accel-cpu`) are only available when the corresponding CMake option is set to `ON` at build time.  
+    If the feature was **not** compiled in (default `OFF` build), these enum values and CLI options **do not exist**: using them will result in a compilation error (C++) or an "unrecognized arguments" error (CLI).  
 
 !!! warning "WARNING"  
-     Enabling acceleration does **not** guarantee a performance improvement for every model. The effect depends on the model structure, operation types, and host platform. In particular, CPU op acceleration primarily benefits arithmetic-heavy operations (Conv, MatMul); memory-bound operations (Reshape, Concat) may see little improvement.  
+    Enabling acceleration does **not** guarantee a performance improvement for every model. The effect depends on the model structure, operation types, and host platform. In particular, CPU op acceleration primarily benefits arithmetic-heavy operations (Conv, MatMul); memory-bound operations (Reshape, Concat) may see little improvement.  
 
 ---
 
 ### Improving CPU Capacity with Dynamic Threading 
-When executing CPU task via ONNX Runtime, performance bottlenecks may arise depending on the Host CPU performance and symbol load. To address this, **DX-RT** provides an optional dynamic multi-threading feature that can improve throughput  in high-load scenarios.  
+When executing CPU task via ONNX Runtime, performance bottlenecks may arise depending on the Host CPU performance and symbol load. To address this, **DX-RT** provides an optional dynamic multi-threading feature that can improve throughput in high-load scenarios.  
 
 **Feature Overview**  
 
@@ -734,14 +812,14 @@ export DXRT_DYNAMIC_CPU_THREAD=ON
 This activates internal logic to automatically adjust the ONNX Runtime thread pool size based on queue pressure.  
 
 !!! note "NOTE"  
-     When high CPU task load is detected at runtime, the system may print the following message:  
-     ```
-     To improve FPS, set: 'export DXRT_DYNAMIC_CPU_THREAD=ON'
-     ```
-     This serves as a recommendation to enable the feature for improved inference performance. 
+    When high CPU task load is detected at runtime, the system may print the following message:  
+    ```
+    To improve FPS, set: 'export DXRT_DYNAMIC_CPU_THREAD=ON'
+    ```
+    This serves as a recommendation to enable the feature for improved inference performance. 
 
 
 !!! warning "WARNING"  
-     Enabling the `DXRT_DYNAMIC_CPU_THREAD=ON` option does **not** guarantee an FPS improvement in all cases. The effectiveness of this feature depends on the specific workload, input size, and CPU capacity of the system.  
+    Enabling the `DXRT_DYNAMIC_CPU_THREAD=ON` option does **not** guarantee an FPS improvement in all cases. The effectiveness of this feature depends on the specific workload, input size, and CPU capacity of the system.  
 
 ---

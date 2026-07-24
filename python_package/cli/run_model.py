@@ -206,6 +206,7 @@ def main(): # NOSONAR
     if args.profiler:
         configuration.set_enable(Configuration.ITEM.PROFILER, True)
         configuration.set_attribute(Configuration.ITEM.PROFILER, Configuration.ATTRIBUTE.PROFILER_SAVE_DATA, "ON")
+        configuration.set_attribute(Configuration.ITEM.PROFILER, Configuration.ATTRIBUTE.PROFILER_SHOW_DATA, "ON")
         print("[INFO] Profiler is enabled.")
     else:
         configuration.set_enable(Configuration.ITEM.PROFILER, False)
@@ -322,15 +323,32 @@ def main(): # NOSONAR
                 print(f"[ERR] Input file size mismatch. Expected {expected_total_size}, got {file_size}.", file=sys.stderr)
                 sys.exit(-1)
             with open(args.input, "rb") as f:
-                input_buf_list = [np.frombuffer(f.read(), dtype=np.uint8)]
+                raw_data = np.frombuffer(f.read(), dtype=np.uint8)
+            if ie.is_multi_input_model():
+                tensor_sizes = ie.get_input_tensor_sizes()
+                input_buf_list = []
+                offset = 0
+                for sz in tensor_sizes:
+                    input_buf_list.append(raw_data[offset:offset + sz].copy())
+                    offset += sz
+            else:
+                input_buf_list = [raw_data]
         else:
             # NOTE: np.zeros() uses COW zero pages — all virtual pages share one
             # physical page. PCIe DMA driver's get_user_pages() then sees duplicate
             # physical pages in the SG list and fails with EFAULT.
             # np.empty() + explicit fill forces unique physical page allocation.
-            buf = np.empty(ie.get_input_size(), dtype=np.uint8)
-            buf.fill(0)
-            input_buf_list = [buf]
+            if ie.is_multi_input_model():
+                tensor_sizes = ie.get_input_tensor_sizes()
+                input_buf_list = []
+                for sz in tensor_sizes:
+                    buf = np.empty(sz, dtype=np.uint8)
+                    buf.fill(0)
+                    input_buf_list.append(buf)
+            else:
+                buf = np.empty(ie.get_input_size(), dtype=np.uint8)
+                buf.fill(0)
+                input_buf_list = [buf]
 
 
         # Perform warmup runs if specified
@@ -367,13 +385,7 @@ def main(): # NOSONAR
                 
                 
 
-                print_inf_result(args.input, args.output,
-                                 current_latency_us / 1000.0,
-                                 current_npu_time_us / 1000.0,
-                                 loop_fps,
-                                 1, 
-                                 current_run_mode, args.verbose)
-                print_inf_result("", OUTPUT_BIN,
+                print_inf_result(args.input if args.input else "", args.output,
                                  current_latency_us / 1000.0,
                                  current_npu_time_us / 1000.0,
                                  loop_fps,
@@ -439,11 +451,7 @@ def main(): # NOSONAR
             npu_time_mean_ms = ie.get_npu_inference_time_mean() / 1000.0
 
             # Disable until DX_SIM is supported
-            print_inf_result(args.input, args.output,
-                             latency_mean_ms, npu_time_mean_ms, actual_fps,
-                             args.loops, current_run_mode, args.verbose)
-
-            print_inf_result("", OUTPUT_BIN,
+            print_inf_result(args.input if args.input else "", args.output,
                              latency_mean_ms, npu_time_mean_ms, actual_fps,
                              args.loops, current_run_mode, args.verbose)
 
@@ -459,15 +467,10 @@ def main(): # NOSONAR
             latency_mean_ms = ie.get_latency_mean() / 1000.0
             npu_time_mean_ms = ie.get_npu_inference_time_mean() / 1000.0
 
-            # Disable until DX_SIM is supported
-            print_inf_result(args.input, args.output,
+            print_inf_result(args.input if args.input else "", args.output,
                              latency_mean_ms, npu_time_mean_ms, measured_fps,
                              args.loops, current_run_mode, args.verbose)
 
-            print_inf_result("", "output.bin",
-                             latency_mean_ms, npu_time_mean_ms, measured_fps,
-                             args.loops, current_run_mode, args.verbose)
-            
             sys.exit(-1 if critical_error else 0)
         else:
             print(f"[ERR] Unknown run model mode: {current_run_mode}", file=sys.stderr)

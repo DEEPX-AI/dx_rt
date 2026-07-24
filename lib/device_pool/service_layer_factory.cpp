@@ -7,28 +7,20 @@
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
-
-#include "dxrt/common.h"
-#include "dxrt/service_layer_factory.h"
-#include "dxrt/objects_pool.h"
-#include "dxrt/device_pool.h"
+#include "service_layer_factory.hpp"
 
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
+
+#include "dxrt/device_pool.h"
 
 namespace dxrt {
 
 std::shared_ptr<ServiceLayerInterface>
-ServiceLayerFactory::CreateServiceLayer(bool useService, std::shared_ptr<MultiprocessMemory> mem)
+ServiceLayerFactory::CreateServiceLayer(bool useService)
 {
     if (useService) {
-        if (mem == nullptr) {
-            mem = ObjectsPool::GetInstance().GetMultiProcessMemory();
-        }
-
-        return std::make_shared<ServiceLayer>(mem);
-
+        return std::make_shared<ServiceLayer>();
     }
     auto layer = std::shared_ptr<ServiceLayerInterface>(std::make_shared<NoServiceLayer>());
     auto device_len = static_cast<int>(DevicePool::GetInstance().GetDeviceCount());
@@ -45,7 +37,7 @@ ServiceLayerFactory::CreateServiceLayerFromEnv()
 {
     const char* env = std::getenv("DXRT_USE_SERVICE");
     bool useService = (env && (std::strcmp(env, "1") == 0 || std::strcmp(env, "true") == 0));
-    return CreateServiceLayer(useService, nullptr);
+    return CreateServiceLayer(useService);
 }
 
 std::shared_ptr<ServiceLayerInterface>
@@ -57,10 +49,10 @@ ServiceLayerFactory::CreateDefaultServiceLayer()
     if (env) {
         useService = (std::strcmp(env, "0") != 0 && std::strcmp(env, "false") != 0);
     }
-    return CreateServiceLayer(useService, nullptr);
+    return CreateServiceLayer(useService);
 #else
-    return CreateServiceLayer(false, nullptr);
+    return CreateServiceLayer(false);
 #endif
 }
 
-} // namespace dxrt
+}  // namespace dxrt

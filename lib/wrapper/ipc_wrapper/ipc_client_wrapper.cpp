@@ -8,7 +8,8 @@
  * Unauthorized sharing or usage is strictly prohibited by law.
  */
 
-#include "../../include/dxrt/ipc_wrapper/ipc_client_wrapper.h"
+#include "dxrt/ipc_wrapper/ipc_client_wrapper.h"
+#include <cerrno>
 #ifdef __linux__
 #include "message_queue/ipc_mq_client_linux.h"
 #elif _WIN32
@@ -21,28 +22,27 @@ namespace dxrt{
 constexpr long IPCClientWrapper::MAX_PID = 0x20000000;  // default max pid value
 
 
-    int ipc_callBack(const dxrt::IPCServerMessage& outResponseServerMessage, void* usrData);
-
-
-
 IPCClientWrapper::IPCClientWrapper(IPC_TYPE type, long msgType)
 {
 #ifdef __linux__
-    if (type == IPC_TYPE::MESSAGE_QUEUE)
-    {
-        _ipcClient = std::make_shared<IPCMessageQueueClientLinux>(msgType);
-    }
+    // Linux: Legacy message-queue IPC is disabled. Use Dynamic IPC via ServiceLayer.
+    LOG_DXRT_I_ERR("[ERROR] IPCClientWrapper legacy message queue is not supported on Linux. Use ServiceLayer Dynamic IPC.");
+    _ipcClient = nullptr;
+    (void)type;
+    (void)msgType;
 
 #elif _WIN32
-    if (type == IPC_TYPE::WIN_PIPE)
-    {
-        _ipcClient = std::make_shared<IPCPipeClientWindows>(msgType);
-    }
+    // Windows: Legacy IPC pipe is disabled. Use ServiceLayer with Dynamic IPC instead.
+    LOG_DXRT_I_ERR("[ERROR] IPCClientWrapper legacy pipe not supported on Windows. Use ServiceLayer Dynamic IPC.");
+    _ipcClient = nullptr;
+    (void)type;
+    (void)msgType;
+
+#else
+    LOG_DXRT_I_ERR("[ERROR] IPCClientWrapper No implementation");
+    (void)type;
+    (void)msgType;
 #endif
-    else
-    {
-        LOG_DXRT_I_ERR("[ERROR] IPCClientWrapper No implementation");
-    }
 }
 
 IPCClientWrapper::~IPCClientWrapper()
@@ -53,13 +53,15 @@ IPCClientWrapper::~IPCClientWrapper()
 // Intitialize IPC
 int32_t IPCClientWrapper::Initialize(bool enableInternalCB)  // NOSONAR:S5817
 {
-    int32_t ret = _ipcClient->Initialize();
+    std::ignore = enableInternalCB;
 
-    if (enableInternalCB && ret == 0)
+    if (_ipcClient == nullptr)
     {
-        LOG_DXRT_I_DBG << "Registering internal callback" << std::endl;
-        RegisterReceiveCB(ipc_callBack, nullptr);
-    }  // register internal callback
+        errno = ENOTSUP;
+        return -1;
+    }
+
+    int32_t ret = _ipcClient->Initialize();
     return ret;
 }
 
@@ -67,14 +69,20 @@ int32_t IPCClientWrapper::Initialize(bool enableInternalCB)  // NOSONAR:S5817
 int32_t IPCClientWrapper::SendToServer(IPCClientMessage& clientMessage) const
 {
     if (_ipcClient == nullptr)
+    {
+        errno = ENOTSUP;
         return -1;
+    }
     return _ipcClient->SendToServer(clientMessage);
 }
 
 int32_t IPCClientWrapper::SendToServer(IPCServerMessage& outServerMessage, IPCClientMessage& inClientMessage) const
 {
     if (_ipcClient == nullptr)
+    {
+        errno = ENOTSUP;
         return -1;
+    }
     return _ipcClient->SendToServer(outServerMessage, inClientMessage);
 }
 
@@ -83,7 +91,10 @@ int32_t IPCClientWrapper::ReceiveFromServer(IPCServerMessage& serverMessage) con
 {
     LOG_DXRT_I_DBG << serverMessage.code << std::endl;
     if (_ipcClient == nullptr)
+    {
+        errno = ENOTSUP;
         return -1;
+    }
     return _ipcClient->ReceiveFromServer(serverMessage);
 }
 
@@ -91,18 +102,33 @@ int32_t IPCClientWrapper::ReceiveFromServer(IPCServerMessage& serverMessage) con
 int32_t IPCClientWrapper::RegisterReceiveCB(std::function<int32_t(const IPCServerMessage&, void*)> receiveCB, void* usrData) const
 {
     if (_ipcClient == nullptr)
+    {
+        errno = ENOTSUP;
         return -1;
+    }
     return _ipcClient->RegisterReceiveCB(receiveCB, usrData);
 }
 
 int32_t IPCClientWrapper::ClearMessages() const
 {
+    if (_ipcClient == nullptr)
+    {
+        errno = ENOTSUP;
+        return -1;
+    }
+
     // no need callback, only initialize
     return _ipcClient->Initialize();
 }
 
 int32_t IPCClientWrapper::Close() const
 {
+    if (_ipcClient == nullptr)
+    {
+        errno = ENOTSUP;
+        return -1;
+    }
+
     return _ipcClient->Close();
 }
 

@@ -311,8 +311,20 @@ void FWUpdateCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
     else if ( fw.GetBoardType() == BOARD_TYPE_H1
         && deviceInfo.bd_type == BOARD_TYPE_H1 )
     {
-        // H1 board type
-        isCompatible = true; // H1
+        // NOTE: H1 and H1M share the same bd_type (BOARD_TYPE_H1), so they cannot be distinguished
+        //       by board type alone. Currently H1M is identified solely by ddr_type == M1_DDR_TYPE_LPDDR4.
+        //       This logic should be replaced once firmware/driver provides a dedicated board type
+        //       or identification field for H1M.
+        if ( ((fw.GetDdrType() == M1_DDR_TYPE_LPDDR5) || (fw.GetDdrType() == M1_DDR_TYPE_LPDDR5X))
+            && ((deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR5) || (deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR5X)) )
+        {
+            isCompatible = true; // H1
+        }
+        else if ( fw.GetDdrType() == M1_DDR_TYPE_LPDDR4
+            && deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR4 )
+        {
+            isCompatible = true; // H1M
+        }
 
     }
     //else isCompatible is false;
@@ -363,7 +375,7 @@ void FWUpdateCommand::finish()
     else
     {
         // sleep for a while to wait for device reset after firmware update
-        std::this_thread::sleep_for(std::chrono::seconds(2));
+        std::this_thread::sleep_for(std::chrono::seconds(4));
     }
 }
 
@@ -529,37 +541,117 @@ void DDRErrorCLICommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
 
 bool CheckH1Devices()
 {
+    constexpr int kH1ChipsPerDevice = 4;   // H1 = m1x4
+    constexpr int kH1MSixPackSize = 6;     // H1M six-pack composition
+    constexpr int kH1MFourPackSize = 4;    // H1M four-pack composition
+
     bool foundH1 = false;
+    bool foundH1M = false;
     auto& pool = DevicePool::GetInstance();
     auto device_total_count = static_cast<int>(pool.GetDeviceCount());
 
     int h1_count = 0;
+    int h1m_count = 0;
+    int unexpected_lpddr4_count = 0;
 
+    // NOTE: H1 and H1M share the same bd_type (BOARD_TYPE_H1), so they cannot be distinguished
+    //       by board type alone. Currently H1M is identified solely by ddr_type == M1_DDR_TYPE_LPDDR4.
+    //       This logic should be replaced once firmware/driver provides a dedicated board type
+    //       or identification field for H1M.
     for (int i = 0; i < device_total_count; i++)
     {
         auto devicePtr = pool.GetDeviceCores(i);
         auto deviceInfo = devicePtr->info();
 
-        if (deviceInfo.bd_type == BOARD_TYPE_H1) // H1 board type (3)
+        if (deviceInfo.bd_type == BOARD_TYPE_H1 && deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR4)
+        {
+            // count of devices recognized as H1M
+            h1m_count++;
+        }
+        else if (deviceInfo.bd_type == BOARD_TYPE_H1)
         {
             // count of devices recognized as H1
-            h1_count ++;
+            h1_count++;
+        }
+        else if (deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR4
+                 && deviceInfo.bd_type != BOARD_TYPE_M_dot_2)
+        {
+            // Defensive: BOARD_TYPE_M_dot_2 with LPDDR4 is the valid M1M case (handled by
+            // CheckM1Devices). Any other bd_type carrying LPDDR4 means the assumption
+            // "LPDDR4 within BOARD_TYPE_H1 ⇒ H1M" is no longer sufficient on this platform.
+            unexpected_lpddr4_count++;
         }
     }
 
-    // h1 device found (h1 = m1x4)
-    // it must be multiple of 4 for h1
-    if (h1_count > 0 && h1_count % 4 == 0)
+    if (unexpected_lpddr4_count > 0)
     {
-        foundH1 = true;
-        LOG_DXRT << "H1 devices found. (h1-device-count=" << h1_count << ", h1-count=" << h1_count / 4 << ")" << std::endl;
-    }
-    else
-    {
-        LOG_DXRT << "H1 devices not found or not fully recognized. (h1-device-count=" << h1_count << ")" << std::endl;
+        LOG_DXRT_ERR("Found " << unexpected_lpddr4_count
+                     << " LPDDR4 device(s) with bd_type other than BOARD_TYPE_H1/BOARD_TYPE_M_dot_2. "
+                     << "H1M identification in CheckH1Devices may need updating.");
     }
 
-    return foundH1;
+    // h1 device found (h1 = m1x4), must be multiple of 4
+    if (h1_count > 0 && h1_count % kH1ChipsPerDevice == 0)
+    {
+        foundH1 = true;
+        LOG_DXRT << "H1 devices found. (h1-device-count=" << h1_count << ", h1-count=" << h1_count / kH1ChipsPerDevice << ")" << std::endl;
+    }
+    else if (h1_count > 0)
+    {
+        LOG_DXRT << "H1 devices not fully recognized. (h1-device-count=" << h1_count << ")" << std::endl;
+    }
+
+    // h1m device found (h1m = m1mx4 or m1mx6), allow mixed compositions (4a + 6b)
+    // Valid h1m_count satisfies h1m_count == 4a + 6b for some non-negative integers a, b.
+    // The outer `h1m_count > 0` guard is required: with h1m_count == 0 the loop body would
+    // evaluate `0 % 4 == 0` and falsely mark zero devices as valid.
+    // With h1m_count >= 1, the loop fixes b (six_pack) from 0..floor(h1m_count/6) and checks
+    // whether the remainder is divisible by 4. Implicitly covers:
+    //   - 4-pack only  (b=0, h1m_count % 4 == 0)
+    //   - 6-pack only  (a=0, h1m_count % 6 == 0)
+    //   - mixed 4a+6b  (any a, b > 0 satisfying the above)
+    bool is_valid_h1m_count = false;
+    if (h1m_count > 0)
+    {
+        for (int six_pack = 0; six_pack <= h1m_count / kH1MSixPackSize; ++six_pack)
+        {
+            int remaining = h1m_count - (six_pack * kH1MSixPackSize);
+            if (remaining % kH1MFourPackSize == 0)
+            {
+                is_valid_h1m_count = true;
+                break;
+            }
+        }
+    }
+
+    if (is_valid_h1m_count)
+    {
+        foundH1M = true;
+        LOG_DXRT << "H1M devices found. (h1m-device-count=" << h1m_count << ")" << std::endl;
+    }
+    else if (h1m_count > 0)
+    {
+        LOG_DXRT << "H1M devices not fully recognized. (h1m-device-count=" << h1m_count << ")" << std::endl;
+    }
+
+    if (!foundH1 && !foundH1M)
+    {
+        if (h1_count == 0 && h1m_count == 0)
+        {
+            // Normal case on non-H1/H1M systems (e.g., M1/M1M-only hosts).
+            LOG_DXRT << "No H1/H1M devices detected." << std::endl;
+        }
+        else
+        {
+            // At least one H1 or H1M device exists but the per-classification recognition
+            // ("H1 devices not fully recognized" / "H1M devices not fully recognized") above
+            // already provides the specific reason. Emit a single summary here for context.
+            LOG_DXRT << "H1/H1M devices partially recognized. (h1-device-count=" << h1_count
+                     << ", h1m-device-count=" << h1m_count << ")" << std::endl;
+        }
+    }
+
+    return foundH1 || foundH1M;
 }
 
 // Check M1 or M1M devices

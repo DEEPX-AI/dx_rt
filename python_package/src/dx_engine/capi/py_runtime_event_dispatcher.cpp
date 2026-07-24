@@ -4,7 +4,7 @@
 #include <numeric>
 #include <stdexcept>
 
-#include "dxrt/dxrt_api.h"
+#include "dxrt/dxrt_cxx_api.h"
 
 namespace dxrt
 {

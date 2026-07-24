@@ -14,7 +14,6 @@
 
 #include "core/version.h"
 #include "core/npu_monitor.h"
-#include "core/data_source/service_data_source.h"
 #include "core/data_source/noservice_data_source.h"
 #include "core/input_provider/input_provider.h"
 #include "core/view/renderer.h"
@@ -38,40 +37,14 @@ int main(int argc, char *argv[])
             std::cout << options.help() << std::endl;
             exit(0);
         }
-        
-#ifdef USE_SERVICE
-        bool serviceRunning = dxrt::isDxrtServiceRunning();
-        if (!serviceRunning)
-        {
-            std::cerr << "Error: dxrt.service is not running\n"
-                      << "\n"
-                      << "This build of dxtop requires dxrt.service.\n"
-                      << "Please start the service with one of the following:\n"
-                      << "  sudo systemctl start dxrt.service\n"
-                      << "  sudo service dxrt start\n"
-                      << "\n"
-                      << "Alternatively, rebuild dxtop without USE_SERVICE for standalone mode:\n"
-                      << "  cmake -DUSE_SERVICE=OFF ..\n"
-                      << std::endl;
-            exit(1);
-        }
-        
-        dxrt::ServiceDataSource dataSource;
-        if (!dataSource.IsAvailable())
-        {
-            std::cerr << "Error: dxrt.service is running but not responding properly\n"
-                      << "Try restarting the service: sudo systemctl restart dxrt.service"
-                      << std::endl;
-            exit(1);
-        }
-#else
+
+
         dxrt::NoServiceDataSource dataSource;
-#endif
-        
+
         dxrt::NpuMonitor monitor(dataSource);
         dxrt::NcursesRenderer renderer;
         dxrt::NcursesInputProvider inputProvider;
-        
+
         monitor.Initialize(renderer);
         monitor.Run(inputProvider, renderer);
     }

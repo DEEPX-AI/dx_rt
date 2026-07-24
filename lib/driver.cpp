@@ -35,7 +35,7 @@ using std::pair;
 
 namespace dxrt {
 
-DXRT_API vector<pair<int,string>> ioctlTable = {  // NOSONAR due to external usage
+DXRT_API vector<pair<int,const char*>> ioctlTable = {  // NOSONAR due to external usage
     { dxrt::dxrt_ioctl_t::DXRT_IOCTL_MESSAGE, "IOCTL_MESSAGE" },
     { dxrt::dxrt_ioctl_t::DXRT_IOCTL_DUMMY, "IOCTL_DUMMY" },
 };
@@ -316,6 +316,13 @@ std::ostream& operator<<(std::ostream& os, const dxrt_fct_result_t& info)
         << left << setw(20) << "DDR Margin:" << (info.ddr_margin == 1 ? "PASS" : "FAIL") << "\n"
         << left << setw(20) << "I2C Fail:" << (info.i2c_fail == 1 ? "FAIL" : "PASS") << "\n"
         << left << setw(20) << "Test Done:" << static_cast<int>(info.test_done) << "\n";
+
+    for (int i = 0; i < 4; ++i) {
+        const uint8_t raw = info.memtest[i];
+        os << left << setw(20) << ("MEM Test[CH" + std::to_string(i) + "]:")
+            << (raw == 1 ? "PASS" : "FAIL")
+           << "\n";
+    }
 
     os << "=====================================\n";
 

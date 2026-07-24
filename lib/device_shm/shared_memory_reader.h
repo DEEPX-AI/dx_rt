@@ -38,6 +38,9 @@ public:
     
     // Get all devices
     bool GetAllDevices(MonitorDeviceData* outDevices, uint32_t& outCount, uint32_t maxCount) const;
+
+    // Get device count
+    uint32_t GetDeviceCount() const;
     
     // Check if writer is alive
     bool IsWriterAlive() const;

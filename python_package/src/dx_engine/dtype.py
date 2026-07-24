@@ -2,12 +2,13 @@
 # Copyright (C) 2018- DEEPX Ltd.
 # All rights reserved.
 #
-# This software is the property of DEEPX and is provided exclusively to customers 
-# who are supplied with DEEPX NPU (Neural Processing Unit). 
+# This software is the property of DEEPX and is provided exclusively to customers
+# who are supplied with DEEPX NPU (Neural Processing Unit).
 # Unauthorized sharing or usage is strictly prohibited by law.
 #
 
 import numpy as np
+
 
 class NumpyDataTypeMapper:
     NONE_TYPE = None
@@ -19,13 +20,13 @@ class NumpyDataTypeMapper:
     INT16 = np.int16
     INT32 = np.int32
     INT64 = np.int64
-    FLOAT = np.float32 
+    FLOAT = np.float32
 
     BBOX = "BBOX"
     FACE = "FACE"
     POSE = "POSE"
 
-    MAX_TYPE = None  
+    MAX_TYPE = None
 
     @classmethod
     def from_string(cls, dtype_str: str):
