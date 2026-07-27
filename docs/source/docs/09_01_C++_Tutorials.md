@@ -720,7 +720,7 @@ dxrt::Configuration::GetInstance().SetAttribute(dxrt::Configuration::ITEM::PROFI
 
 ***Saving Profiler Data to a File***
 
-To save the profiling report to a file for later analysis, use the `PROFILER_SAVE_DATA` attribute. The resulting report is generated in the same folder with the name **`profiler.json`**. 📄
+To save the profiling report to a file for later analysis, use the `PROFILER_SAVE_DATA` attribute. The resulting report is generated in the same folder with the name **`profiler.json`**. 
 
 ```cpp
 // Configure the profiler to save its report to a file
