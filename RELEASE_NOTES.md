@@ -1,5 +1,23 @@
 # RELEASE_NOTES
 
+## DX-RT v3.4.1 / 2026-07-28
+
+This is a documentation-only hotfix. The `libdxrt` and `libdxrt-bin` Debian packages and `dx_engine` Python wheels are unchanged and remain at v3.4.0.
+
+### 1. Changed
+- None
+
+### 2. Fixed
+- Corrected supported OS list in installation guide: removed Ubuntu 18.04 (EOL), added Ubuntu 26.04
+- Clarified ONNX Runtime version recommendation wording in installation guide (`02_Installation_on_Linux.md`)
+- Removed stray emoji characters from C++ and Python tutorial pages
+
+### 3. Added
+- Added bundled wheel installation guide (Option B) for virtual environments in installation guide
+- Added info note documenting `/usr/share/libdxrt-bin/python/` bundled wheel directory usage
+
+---
+
 ## DX-RT v3.4.0 / 2026-07-07
 
 ### 1. Changed
