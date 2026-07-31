@@ -39,9 +39,27 @@ endforeach()
 file(CREATE_LINK ${_DXRT_SRC_INCLUDE}/dxrt/legacy/exception/exception.h
      ${DXRT_PUBLIC_INCLUDE_STAGING}/dxrt/exception/exception.h SYMBOLIC COPY_ON_ERROR)
 
-# Extern vendored headers (cxxopts, rapidjson) — symlink the directory
+# Extern vendored headers (cxxopts, rapidjson) — symlink the directory.
+# Directory symlinks require Developer Mode/admin on Windows, which creates
+# two failure modes to guard against:
+#   1. CREATE_LINK's COPY_ON_ERROR fallback does not recursively copy
+#      directories — it silently leaves an empty destination directory,
+#      causing downstream "cannot open include file" errors. We detect that
+#      below and fall back to an explicit recursive copy.
+#   2. If a prior configure (e.g. with Developer Mode off) left a real,
+#      non-empty directory at the destination, CREATE_LINK aborts with a
+#      hard error ("existing path cannot be removed") instead of falling
+#      back gracefully. We avoid that by always clearing the destination
+#      first, so this step is idempotent regardless of Developer Mode state
+#      or what a prior run left behind.
+file(REMOVE_RECURSE ${DXRT_PUBLIC_INCLUDE_STAGING}/dxrt/extern)
 file(CREATE_LINK ${_DXRT_EXTERN_INCLUDE}/dxrt/extern
      ${DXRT_PUBLIC_INCLUDE_STAGING}/dxrt/extern SYMBOLIC COPY_ON_ERROR)
+if(MSVC AND NOT IS_SYMLINK ${DXRT_PUBLIC_INCLUDE_STAGING}/dxrt/extern)
+    file(REMOVE_RECURSE ${DXRT_PUBLIC_INCLUDE_STAGING}/dxrt/extern)
+    file(COPY ${_DXRT_EXTERN_INCLUDE}/dxrt/extern
+         DESTINATION ${DXRT_PUBLIC_INCLUDE_STAGING}/dxrt)
+endif()
 
 macro(add_googletest target)
   if(MSVC)
