@@ -18,6 +18,8 @@
         "VCPKG_CRT_LINKAGE": "dynamic",
         "VCPKG_LIBRARY_LINKAGE": "dynamic",
         "VCPKG_TARGET_ARCHITECTURE": "x64",
+        "VCPKG_APPLOCAL_DEPS": "OFF",
+        "X_VCPKG_APPLOCAL_DEPS_INSTALL": "OFF",
         "ONNXRUNTIME_ROOTDIR": "${sourceDir}/extern/onnxruntime-win-x64-1.20.1",
         "onnxruntime_LIB_DIRS": "${sourceDir}/extern/onnxruntime-win-x64-1.20.1/lib",
         "onnxruntime_INCLUDE_DIRS": "${sourceDir}/extern/onnxruntime-win-x64-1.20.1/include",
