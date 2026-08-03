@@ -22,7 +22,11 @@ file(MAKE_DIRECTORY ${DXRT_PUBLIC_INCLUDE_STAGING}/dxrt)
 file(MAKE_DIRECTORY ${DXRT_PUBLIC_INCLUDE_STAGING}/dxrt/exception)
 
 # Core headers — symlink
-foreach(_hdr dxrt_c_api.h dxrt_cxx_api.h gen.h)
+# NOTE: gen.h is intentionally excluded here. It is generated later by
+# configure_file() in lib/CMakeLists.txt (it depends on the lib target's
+# COMPILE_DEFINITIONS), so it does not exist yet during this top-level
+# include(dxrt.function). It is staged there, right after it is generated.
+foreach(_hdr dxrt_c_api.h dxrt_cxx_api.h)
     file(CREATE_LINK ${_DXRT_SRC_INCLUDE}/dxrt/${_hdr}
          ${DXRT_PUBLIC_INCLUDE_STAGING}/dxrt/${_hdr} SYMBOLIC COPY_ON_ERROR)
 endforeach()
