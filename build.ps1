@@ -461,6 +461,15 @@ function Build-PythonPackage {
         Write-Host "  - $($pythonInfo.VersionText) [$($pythonInfo.Executable)]"
     }
 
+    # Force the Ninja generator for the scikit-build-core wheel build. The VS
+    # developer environment (cl.exe + ninja) is already on PATH via vcvars, but
+    # scikit-build-core otherwise defaults to the "Visual Studio 17 2022"
+    # generator, whose compiler auto-detection fails inside an activated vcvars
+    # shell ("No CMAKE_C_COMPILER could be found"). Ninja reuses the cl.exe on
+    # PATH and matches the generator used by the rest of this project.
+    $previousCMakeGenerator = $env:CMAKE_GENERATOR
+    $env:CMAKE_GENERATOR = "Ninja"
+
     Push-Location $packageDir
     try {
         foreach ($pythonInfo in $installedPythons) {
@@ -479,6 +488,7 @@ function Build-PythonPackage {
         }
     } finally {
         Pop-Location
+        $env:CMAKE_GENERATOR = $previousCMakeGenerator
     }
 }
 
