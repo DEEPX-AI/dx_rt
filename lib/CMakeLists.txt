@@ -512,6 +512,13 @@ if(_dxrt_compile_defs)
 endif()
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/include/dxrt/gen.h.in ${CMAKE_CURRENT_SOURCE_DIR}/include/dxrt/gen.h @ONLY)
 
+# Stage gen.h into the public include dir now that it exists (see dxrt.function.cmake).
+if(DEFINED DXRT_PUBLIC_INCLUDE_STAGING)
+    file(MAKE_DIRECTORY ${DXRT_PUBLIC_INCLUDE_STAGING}/dxrt)
+    file(CREATE_LINK ${CMAKE_CURRENT_SOURCE_DIR}/include/dxrt/gen.h
+         ${DXRT_PUBLIC_INCLUDE_STAGING}/dxrt/gen.h SYMBOLIC COPY_ON_ERROR)
+endif()
+
 if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/data/CMakeLists.txt")
     add_subdirectory(data)
 endif()
