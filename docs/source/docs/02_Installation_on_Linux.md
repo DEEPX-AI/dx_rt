@@ -27,7 +27,7 @@ This section describes the hardware and software requirements for running **DX-R
 - **CPU:** amd64(x86_64), aarch64(arm64)
 - **RAM:** 8GB RAM (16GB RAM or higher is recommended)
 - **Storage:** 4GB or higher available disk space
-- **OS**: Ubuntu 18.04 / 20.04 / 22.04 / 24.04 (x64)
+- **OS**: Ubuntu 20.04 / 22.04 / 24.04 / 26.04 (x64)
           Debian 12 / Debian 13 (x64)
 - **Driver:** v2.5.0 or later
 - **PCIe Driver:** v2.4.0 or later
@@ -49,7 +49,7 @@ Figure. DX-M1 M.2 Module
 
 DEEPX provides an installation shell script to set up the **DX-RT** build environment. You can install the entire toolchain installation or perform a partial installation as necessary.
 
-**DX-RT** supports the Target OS of **Ubuntu 18.04,** **Ubuntu 20.04,** **Ubuntu 22.04,** and **Ubuntu 24.04**. 
+**DX-RT** supports the Target OS of **Ubuntu 20.04,** **Ubuntu 22.04,** **Ubuntu 24.04,** and **Ubuntu 26.04**. 
 
 **Installation of DX-RT**  
 To install the full **DX-RT** toolchain, use the following commands.  
@@ -83,7 +83,7 @@ Options:
 **Installation with ONNX Runtime**  
 Use the ONNX Runtime option if you need to offload certain neural network (NN) operations to the CPU that are **not** supported by the NPU.  
 
-We recommend using ONNX Runtime linux x64 version more than v1.20.1.  
+We recommend using ONNX Runtime linux x64 version v1.20.1 or higher.  
 ```
 https://github.com/microsoft/onnxruntime/releases/download/v1.20.1/onnxruntime-linux-x64-1.20.1.tgz
 
@@ -298,6 +298,9 @@ sudo apt --fix-broken install
 !!! note "NOTE"  
     When installing via the Debian package, the Python module is installed to the system Python. For virtual environments, please refer to the section "Using a Virtual Environment" below.
 
+!!! info "Bundled Python Wheels"
+    The Debian package includes pre-built wheel files for Python 3.8 – 3.14 in `/usr/share/libdxrt-bin/python/`. These wheels can be used to install `dx_engine` in virtual environments or custom Python installations.
+
 #### Post-Installation Verification
 
 ```bash
@@ -315,6 +318,8 @@ sudo ldconfig
 
 #### Using a Virtual Environment
 
+##### Option A: Access System Installation
+
 While the Debian package installs the Python module to the system Python, you can make it visible inside a virtual environment as follows:
 
 ```bash
@@ -326,6 +331,35 @@ python3 -m venv --system-site-packages my_venv
 
 # Activate the virtual environment
 source my_venv/bin/activate
+```
+
+##### Option B: Install from Bundled Wheel (Recommended)
+
+For more flexibility, install directly from the bundled wheel file:
+
+```bash
+# Create a clean virtual environment (without system packages)
+python3 -m venv my_venv
+source my_venv/bin/activate
+
+# Install from the bundled wheel (adjust Python version as needed)
+pip install /usr/share/libdxrt-bin/python/dx_engine-3.4.0-cp311-cp311-linux_x86_64.whl
+
+# Verify
+python -c "import dx_engine; print(dx_engine.__version__)"
+```
+
+To find the correct wheel for your Python version:
+
+```bash
+ls /usr/share/libdxrt-bin/python/
+# Example output:
+# dx_engine-3.4.0-cp38-cp38-linux_x86_64.whl
+# dx_engine-3.4.0-cp39-cp39-linux_x86_64.whl
+# dx_engine-3.4.0-cp310-ㅁcp310-linux_x86_64.whl
+# dx_engine-3.4.0-cp311-cp311-linux_x86_64.whl
+# ...
+# dx_engine-3.4.0-cp314-cp314-linux_x86_64.whl
 ```
 
 #### Uninstalling the package

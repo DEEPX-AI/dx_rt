@@ -59,9 +59,7 @@ class Color {
     }
     static void enable_color(bool enable)
     {
-#ifndef _WIN32
         color_enabled = enable;  // temporary disable color on windows
-#endif
     }
 
 #ifdef _WIN32
@@ -349,7 +347,12 @@ bool Color::color_enabled = true;
  int ParseModel(const string& file, const ParseOptions& options)
  {
      // Set color mode
+#ifdef __linux__
      Color::enable_color(!options.no_color);
+#else
+     Color::enable_color(false);  // Disable color on Windows for now
+#endif
+
 
      // Redirect output if file is specified
      std::ofstream outputFile;
