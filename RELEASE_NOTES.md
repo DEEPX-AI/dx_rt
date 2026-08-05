@@ -1,5 +1,20 @@
 # RELEASE_NOTES
 
+## DX-RT v3.4.2 / 2026-08-04
+
+### 1. Changed
+- Add `release.ver` based version information to the Windows DXRT executable and DLLs
+- Improve the MSVC build log by resolving Windows build warnings in the C++ CLI code
+
+### 2. Fixed
+- Staged the generated `gen.h` into the public include path (with a copy fallback when symlinks are unavailable on Windows), fixing downstream "cannot open include file" errors.
+
+### 3. Added
+- Added `release.ver` based version information to the Windows DXRT executable and DLLs
+- Added a recursive copy fallback for vendored headers (cxxopts, rapidjson) on Windows when directory symlinks are unavailable (Developer Mode/admin disabled).
+
+---
+
 ## DX-RT v3.4.1 / 2026-07-28
 
 This is a documentation-only hotfix. The `libdxrt` and `libdxrt-bin` Debian packages and `dx_engine` Python wheels are unchanged and remain at v3.4.0.
