@@ -1,5 +1,21 @@
 # RELEASE_NOTES
 
+## DX-RT v3.4.2 / 2026-08-04
+
+### 1. Changed
+- Improve the MSVC build log by resolving Windows build warnings in the C++ CLI code
+- Made external (vendored) header staging on Windows idempotent regardless of Developer Mode state, preventing "existing path cannot be removed" errors and stale empty-directory failures on reconfigure.
+- Forced the Ninja generator for Python wheel builds on Windows to avoid Visual Studio generator compiler auto-detection failures (No CMAKE_C_COMPILER could be found) inside an activated vcvars shell.
+
+### 2. Fixed
+- Staged the generated `gen.h` into the public include path (with a copy fallback when symlinks are unavailable on Windows), fixing downstream "cannot open include file" errors.
+
+### 3. Added
+- Added `release.ver` based version information to the Windows DXRT executable and DLLs
+- Added a recursive copy fallback for vendored headers (cxxopts, rapidjson) on Windows when directory symlinks are unavailable (Developer Mode/admin disabled).
+
+---
+
 ## DX-RT v3.4.1 / 2026-07-28
 
 This is a documentation-only hotfix. The `libdxrt` and `libdxrt-bin` Debian packages and `dx_engine` Python wheels are unchanged and remain at v3.4.0.

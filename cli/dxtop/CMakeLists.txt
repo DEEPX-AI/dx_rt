@@ -3,6 +3,7 @@ set(target dxtop)
 file(GLOB_RECURSE srcs "*.cpp" "*.cc" "*.c")
 
 add_executable(${target} ${srcs})
+add_dxrt_windows_version_info(${target} "DX Top Monitor")
 
 if (MSVC)
    set(CURSES_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/extern/windows_pdcurses)

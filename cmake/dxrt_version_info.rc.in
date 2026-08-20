@@ -1,0 +1,34 @@
+#include <winresrc.h>
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION @DXRT_RESOURCE_VERSION_COMMAS@
+PRODUCTVERSION @DXRT_RESOURCE_VERSION_COMMAS@
+FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+#ifdef _DEBUG
+FILEFLAGS VS_FF_DEBUG
+#else
+FILEFLAGS 0
+#endif
+FILEOS VOS_NT_WINDOWS32
+FILETYPE @DXRT_RESOURCE_FILETYPE@
+FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "DEEPX Co., Ltd."
+            VALUE "FileDescription", "@DXRT_RESOURCE_FILE_DESCRIPTION@"
+            VALUE "FileVersion", "@DXRT_RESOURCE_VERSION@"
+            VALUE "InternalName", "@DXRT_RESOURCE_INTERNAL_NAME@"
+            VALUE "LegalCopyright", "Copyright (C) 2026 DEEPX Co., Ltd. All Rights Reserved."
+            VALUE "OriginalFilename", "@DXRT_RESOURCE_ORIGINAL_FILENAME@"
+            VALUE "ProductName", "DEEPX DX SDK"
+            VALUE "ProductVersion", "@DXRT_RESOURCE_VERSION@"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
+END

@@ -1064,7 +1064,7 @@ int main(int argc, char *argv[])
                     fps = static_cast<float>(1000000.0 / infTime);
                     if (!inputFile.empty())
                         localDataDumpBin(outputFile, outputs);
-                    PrintInfResult(inputFile, outputFile, modelFile, ie.GetLatency()/1000., ie.GetNpuInferenceTime()/1000., fps, 1, mode, verbose);
+                    PrintInfResult(inputFile, outputFile, modelFile, static_cast<float>(ie.GetLatency()/1000.0), static_cast<float>(ie.GetNpuInferenceTime()/1000.0), fps, 1, mode, verbose);
                 }
                 break;
             }
