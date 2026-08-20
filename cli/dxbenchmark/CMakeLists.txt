@@ -3,6 +3,7 @@ set(target dxbenchmark)
 file(GLOB_RECURSE srcs "*.cpp" "*.cc" "*.c")
  
 add_executable(${target} ${srcs})
+add_dxrt_windows_version_info(${target} "DX Benchmark")
 target_include_directories(${target} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)  
 
  target_include_directories(${target} PUBLIC 

@@ -102,6 +102,7 @@ if (MSVC)
 
     # set include dir
     include_directories("${WINDOWS_SDK_PATH}/Include/${WINDOWS_SDK_VERSION}/um")
+    include_directories("${WINDOWS_SDK_PATH}/Include/${WINDOWS_SDK_VERSION}/shared")
     include_directories("${WINDOWS_SDK_PATH}/Include/${WINDOWS_SDK_VERSION}/ucrt")
 
     # link windows lib
@@ -139,7 +140,14 @@ if (NOT MSVC)
     add_link_options(-pthread)
 endif()
 set(build_cfg_contents "${build_cfg_contents}" CACHE STRING "global compile def.")
-file(STRINGS release.ver release_ver)
+file(STRINGS "${CMAKE_SOURCE_DIR}/release.ver" release_ver LIMIT_COUNT 1)
+string(REGEX MATCH "^v([0-9]+)\\.([0-9]+)\\.([0-9]+)$" _dxrt_version_match "${release_ver}")
+if(NOT _dxrt_version_match)
+    message(FATAL_ERROR "release.ver must contain a semantic version such as v3.4.0")
+endif()
+set(DXRT_RESOURCE_VERSION "${CMAKE_MATCH_1}.${CMAKE_MATCH_2}.${CMAKE_MATCH_3}")
+# release.ver has no build number, so VERSIONINFO uses a zero fourth field.
+set(DXRT_RESOURCE_VERSION_COMMAS "${CMAKE_MATCH_1},${CMAKE_MATCH_2},${CMAKE_MATCH_3},0")
 foreach(cfg ${build_cfg_contents})
     add_compile_definitions(${cfg})
 endforeach()

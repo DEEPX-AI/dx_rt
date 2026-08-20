@@ -132,6 +132,40 @@ macro(add_dxrt_static target)
   endif()
 endmacro(add_dxrt_static)
 
+function(add_dxrt_windows_version_info target description)
+  if(NOT WIN32)
+    return()
+  endif()
+
+  set(options DLL)
+  cmake_parse_arguments(ARG "${options}" "" "" ${ARGN})
+
+  get_target_property(_dxrt_output_name ${target} OUTPUT_NAME)
+  if(_dxrt_output_name STREQUAL "_dxrt_output_name-NOTFOUND")
+    set(_dxrt_output_name ${target})
+  endif()
+
+  if(ARG_DLL)
+    set(DXRT_RESOURCE_FILETYPE VFT_DLL)
+    set(_dxrt_output_suffix "${CMAKE_SHARED_LIBRARY_SUFFIX}")
+  else()
+    set(DXRT_RESOURCE_FILETYPE VFT_APP)
+    set(_dxrt_output_suffix "${CMAKE_EXECUTABLE_SUFFIX}")
+  endif()
+
+  set(DXRT_RESOURCE_FILE_DESCRIPTION "${description}")
+  set(DXRT_RESOURCE_INTERNAL_NAME "${_dxrt_output_name}${_dxrt_output_suffix}")
+  set(DXRT_RESOURCE_ORIGINAL_FILENAME "${_dxrt_output_name}${_dxrt_output_suffix}")
+  set(_dxrt_version_resource_dir "${CMAKE_BINARY_DIR}/version_info")
+  file(MAKE_DIRECTORY "${_dxrt_version_resource_dir}")
+  set(_dxrt_version_resource "${_dxrt_version_resource_dir}/${target}.rc")
+  configure_file(
+    "${CMAKE_SOURCE_DIR}/cmake/dxrt_version_info.rc.in"
+    "${_dxrt_version_resource}"
+    @ONLY)
+  target_sources(${target} PRIVATE "${_dxrt_version_resource}")
+endfunction()
+
 macro(add_target target)
     set(options)
     set(oneValueArgs)

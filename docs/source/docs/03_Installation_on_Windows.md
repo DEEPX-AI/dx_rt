@@ -3,7 +3,7 @@ This chapter describes the system requirements, source file structure, and the i
 After you check the system requirements, follow these instructions.  
 
 - System Requirement Check  
-- DX-RT Windows Driver Installation  
+- DEEPX SDK Installation  
 - Visual Studio 2022 Setup  
 - DX-RT Framework Build  
 - Runtime Service Setup  
@@ -32,8 +32,8 @@ The built libraries are used by [dx_app](https://github.com/DEEPX-AI/dx_app), an
 !!! note "NOTE. Legacy Names"  
     Legacy executable names `dxrt-cli.exe`, `run_model.exe`, and `parse_model.exe` are preserved as backward-compatible copies and continue to work.
 
-!!! note "NOTE. Pre-built Binaries"  
-    To use pre-built binaries without building, refer to the [dx_rt_windows](https://github.com/DEEPX-AI/dx_rt_windows) repository.  
+!!! note "NOTE. Installer Package"  
+    To install the pre-built DEEPX software package, including the driver, firmware binaries, Python wheel, and DX-RT runtime files, download and run the installer from the [DEEPX Software Download](https://developer.deepx.ai/sw-download/) page.  
 
 
 ### Hardware Requirements
@@ -57,7 +57,7 @@ The built libraries are used by [dx_app](https://github.com/DEEPX-AI/dx_app), an
 
 | Component | Requirement |
 |-----------|-------------|
-| **OS** | Windows 10 or later (x64) |
+| **OS** | Windows 10 22H2 (build 19045) or later (x64) |
 | **Visual Studio** | Visual Studio Community 2022 (Desktop development with C++ workload) |
 | **CMake** | Included with Visual Studio 2022 |
 | **VCPKG** | Included with Visual Studio 2022 |
@@ -66,33 +66,21 @@ The built libraries are used by [dx_app](https://github.com/DEEPX-AI/dx_app), an
 | **Firmware** | v2.7.0 or later |
 
 !!! warning "IMPORTANT"  
-    **The NPU device driver must be installed first.** For driver installation instructions, see Section. **DX-RT Windows Driver Installation** below.  
+    **The NPU device driver must be installed before using DX-RT.** The DEEPX SDK installer installs the driver as part of the SDK installation process described below.  
 
 ---
 
 ## Pre-installation Setup
 
-### DX-RT Windows Driver Installation
+### DEEPX SDK Installation
 
-Before building and running DX-RT, you need to install the DX-RT Windows driver.
+Before building and running DX-RT, install the DEEPX SDK. The installer includes the NPU driver, firmware binaries, runtime, and SDK components.
 
-**Driver Download**  
+**SDK Installer Download**  
 
-Drivers are provided in the [dx_rt_windows](https://github.com/DEEPX-AI/dx_rt_windows) repository.  
+Download the DEEPX SDK installer for your NPU from the [DEEPX Software Download](https://developer.deepx.ai/sw-download/) page. The installer includes the driver, firmware binaries, Python wheel, runtime, and SDK components.  
 
-```
-dx_rt_windows/
-└── m1/v.3.4.0/
-    ├── dxm1drv/           # PCIe driver package (dxm1drv.zip)
-    ├── dx_rt/             # Runtime (bin/, include/, lib/)
-    └── dx_app/            # Demo applications and examples
-```
-
-- `dxm1drv/`: DX-RT Windows driver (dxm1drv.zip archive)  
-- `dx_rt/`: DLLs and executables built from DX-RT code  
-- `dx_app/`: Executables built by linking dx_app repository with dxrt.lib  
-
-**Driver Installation Steps**  
+**SDK Installation Steps**  
 
 **Step 1.** Connect the Device  
 
@@ -101,29 +89,93 @@ Connect the DEEPX NPU device to your system.
 - **PCIe or M.2 connection:** Install device in an available PCIe or M.2 slot  
 - **USB connection:** Connect to a USB 4.0 port with PCIe tunneling support (regular USB 3.x ports are not supported)  
 
-**Step 2.** Install the Driver
+**Step 2.** Run the Installer
 
-2-1. Navigate to the `m1/v.3.4.0/dxm1drv/` directory  
-2-2. Extract `dxm1drv.zip`  
-2-3. Open the extracted `dxm1drv/` folder  
-2-4. Right-click on the `dxm1drv.inf` file  
-2-5. Select **Install** from the context menu  
-2-6. If a security warning about the driver publisher appears, click **Install** or **Yes**  
-2-7. Wait for installation to complete  
+2-1. Run the downloaded installer, for example `DEEPX_SDK_Setup_vX.Y.Z.exe`. The installer is a single executable and does not require extraction.  
+2-2. In the User Account Control dialog, verify the publisher is **DEEPX Co., Ltd.** and select **Yes**. Administrator privileges are required to install the driver and register services.  
 
-**Advanced.** Installation via Command Line  
+**Step 3.** Wait for the Prerequisite Checks
 
-Open Command Prompt or PowerShell as Administrator and run.  
+Before the installer window opens, it verifies the following requirements automatically:  
 
+- Windows 10 22H2 (build 19045) or later. If the requirement is not met, the installer provides Windows Update guidance.  
+- .NET Desktop Runtime 10 (x64). If it is not installed, the installer provides a download link or `winget` command.  
+
+**Step 4.** Select an SDK Package
+
+4-1. Select the SDK package to install.  
+4-2. Select a package card to view its supported hardware specifications.  
+4-3. Select at least one SDK package to enable **Next**.  
+
+**Step 5.** Accept the License Agreement
+
+Read the end-user license agreement and select the agreement checkbox at the bottom. **Next** remains disabled until you accept the agreement.  
+
+**Step 6.** Review the Pre-installation Checks
+
+The installer checks available disk space, DEEPX NPU hardware connectivity, and Python installation. You can install the SDK even when the hardware is not connected.  
+
+**Step 7.** Select Components
+
+Select the components you need: **Driver**, **Runtime**, **C/C++ SDK**, **Python SDK**, **C# SDK**, and **Examples**. The driver and runtime are required.  
+
+**Step 8.** Select an Installation Path
+
+Choose the installation path. Use the storage gauge to review current usage, estimated installation size, and available space.  
+
+**Step 9.** Install the SDK
+
+Select **Install** to begin installation. The installer extracts and copies files, installs the driver, registers services, configures environment variables, and creates shortcuts. If another program is using a target file, close the program when prompted.  
+
+**Step 10.** Review the Installation Result
+
+The completion screen displays the installation result and validation status for each item: **Passed**, **Needs Attention**, or **Unable to Verify**. From this screen, you can open:  
+
+- Installation Status Diagnostics  
+- Quick Start and Next Steps  
+- DEEPX Launcher  
+- User Guide  
+
+**Step 11.** Finish
+
+Select **Finish** to close the installer.  
+
+### Installation Status Diagnostics
+
+Select **Installation Status Diagnostics** from the completion screen to check environment variables, services, hardware, installed components, and Python integration. After resolving an issue, select **Rescan** to verify it again. Select **Copy Results** to copy the full diagnostic results for support.  
+
+### Quick Start and Next Steps
+
+From the completion screen, you can install the Python SDK with `pip`, open the installation folder, start DEEPX Launcher or the firmware downloader, and view component-specific next steps and commands. Do not close the installer while the Python SDK is being installed.  
+
+### Modify an Existing Installation
+
+When you run the installer on a system with an existing installation, a mode selection screen displays the installed version and path. Select one of the following modes:  
+
+| Mode | Action |
+|------|--------|
+| Upgrade | Overwrite the existing installation with a new version |
+| Repair | Reinstall the same component configuration |
+| Modify | Add or remove components |
+| Uninstall | Remove the complete installation |
+
+During uninstallation, close any programs using installed files when prompted. The installer also removes the DEEPX Start menu group and desktop shortcuts.  
+
+### Optional Post-installation Verification
+
+Run the following commands from Command Prompt to verify the installation:  
+
+```batch
+dxcli -s
 ```
-pnputil /add-driver "path\to\extracted\dxm1drv\dxm1drv.inf" /install
+
+If you installed the **Python SDK** component, verify Python integration:  
+
+```batch
+python -c "import dx_engine"
 ```
 
-**Step 3.** Verify Installation
-
-3-1. Open Device Manager (right-click Start menu → Device Manager)  
-3-2. Look for **M1 PCI CONTROLLER** device  
-3-3. Verify that the device appears in the list without warning icons  
+You can also start DEEPX Launcher, the firmware downloader, or DX Top Monitor from the **DEEPX** Start menu group or desktop shortcuts.  
 
 ### Visual Studio 2022 Setup
 
@@ -365,7 +417,9 @@ dx_rt/
 
 ## Runtime Setup (Service Configuration)
 
-After the build is complete, you must configure the runtime environment. The most critical component in this stage is the DEEPX Runtime Daemon (`dxrtd.exe`).
+When you install the DEEPX SDK using the installer, it automatically registers and starts the DEEPX Runtime Daemon (`dxrtd.exe`) as a Windows service. It also adds command-line tools such as `dxcli.exe` and `dxrtd.exe` to the system `PATH`, so you can run them from any Command Prompt or PowerShell window.
+
+The manual service configuration steps below apply only when you build DX-RT from source.
 
 **Understanding the DX-RT Architecture**  
 
@@ -378,28 +432,38 @@ Before proceeding with the setup, it is important to understand how the applicat
 !!! warning "IMPORTANT. Why is the Daemon Required?"  
      Without dxrtd.exe running in the background, dxrt.dll cannot establish a connection to the DX-RT driver. Therefore, **the service must be active** before you run any inference tasks or CLI tools.
 
-### Option A: Register as Windows Service (Recommended)
+### Option A: Register a Source Build as a Windows Service
 
-This method ensures the daemon starts automatically with Windows and runs efficiently in the background.
+Use this method to test a source build as a Windows service. It ensures the daemon starts automatically with Windows and runs efficiently in the background.
+
+!!! warning "IMPORTANT. Existing Installer Service"  
+    The source build and the DEEPX SDK installer use the same `dxrtd` Windows service name. Before registering a source build, stop and uninstall the existing installer service; otherwise, `dxrtd.exe --install` fails. After testing the source build, run the DEEPX SDK installer and select **Repair** to restore the installer-managed service.  
 
 A-1. Open Command Prompt or PowerShell as Administrator  
 
-A-2. Navigate to the built `bin/` directory  
-   ```batch
-   cd out\install\x64-Release\bin
-   ```
+A-2. If the DEEPX SDK installer service is registered, stop and uninstall it  
+    ```batch
+    dxrtd.exe --stop
+    dxrtd.exe --uninstall
+    ```
 
-A-3. Install Windows service  
+A-3. Navigate to the source build output directory  
+    ```batch
+    cd out\install\x64-Release\bin
+    ```
+    Replace `x64-Release` with `x64-Debug` when testing a Debug build.  
+
+A-4. Install Windows service  
    ```batch
    dxrtd.exe --install
    ```
 
-A-4. Start the service  
+A-5. Start the service  
    ```batch
    dxrtd.exe --start
    ```
 
-A-5. Verify service is running  
+A-6. Verify service is running  
      : Check DeepX runtime service in Windows Services list (`services.msc`)  
      : Or verify `dxrtd.exe` process in Task Manager  
 
@@ -409,14 +473,29 @@ dxrtd.exe --stop
 dxrtd.exe --uninstall
 ```
 
-### Option B: Manual Execution (Debug Mode)
+### Option B: Run a Source Build Manually (Debug Mode)
 
 For development and testing purposes, you can run manually. In this case, you need to keep the terminal window open. 
+
+If the DEEPX SDK installer service is running, stop it before testing the source build:  
+
+```batch
+dxrtd.exe --stop
+```
 
 ```batch
 cd out\install\x64-Release\bin
 dxrtd.exe
 ```
+Replace `x64-Release` with `x64-Debug` when testing a Debug build.  
+
+If you stopped the installer-managed service, restart it after the source-build test finishes:  
+
+```batch
+dxrtd.exe --start
+```
+
+Do not run `dxrtd.exe --uninstall` for manual testing because the installer service remains registered.  
 
 !!! warning "IMPORTANT"  
     When running manually, closing the terminal window will terminate the service. For production environments, **Method A (Windows Service registration)** is recommended.  
@@ -435,7 +514,6 @@ After completing the installation and service setup, follow these steps to verif
 **Step 1.** Check Device Status  
 
 ```batch
-cd out\install\x64-Release\bin
 dxcli.exe -s
 ```
 
@@ -549,7 +627,8 @@ The built **DX-RT** library can be used with [dx_app](https://github.com/DEEPX-A
 
 - Verify the device is properly seated in the PCIe/M.2 slot
 - Check for warning icons in Device Manager
-- Try reinstalling the driver using the right-click INF file installation method
+- Open **Installation Status Diagnostics** from the installer completion screen and select **Rescan**
+- Run the installer again and select **Repair** to reinstall the installed components
 
 ### dxrtd.exe Won't Start
 
@@ -574,7 +653,7 @@ The built **DX-RT** library can be used with [dx_app](https://github.com/DEEPX-A
 
 ## Related Links
 
-- [dx_rt_windows](https://github.com/DEEPX-AI/dx_rt_windows) - Pre-built Windows binaries and drivers
+- [DEEPX Software Download](https://developer.deepx.ai/sw-download/) - DEEPX SDK installer package for Windows
 - [dx_app](https://github.com/DEEPX-AI/dx_app) - Demo applications using DX-RT
 
 ---
