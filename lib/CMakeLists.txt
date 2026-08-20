@@ -99,6 +99,10 @@ else()
     endif()
 endif()
 
+if(WIN32 AND USE_SHARED_DXRT_LIB)
+    add_dxrt_windows_version_info(${target} "DX Runtime Library" DLL)
+endif()
+
 file(GLOB CFG_FILES ${CMAKE_CURRENT_SOURCE_DIR}/cfg/*.cfg)
 
 foreach(cfg_file ${CFG_FILES})
