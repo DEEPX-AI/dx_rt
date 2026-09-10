@@ -471,7 +471,14 @@ int DeviceDispatcher::EventLoop()  // NOSONAR
                              &eventInfo.dx_rt_err);
 
                 Process(dxrt::dxrt_cmd_t::DXRT_CMD_RECOVERY, nullptr);
-                std::abort();
+
+                // Non-recoverable device fault: clients have already been
+                // notified above. Terminate in a controlled manner (no core
+                // dump / SIGABRT) so the service manager can restart us.
+                LOG_DXRT_S_ERR("[EventLoop] Non-recoverable error (code="
+                    + std::to_string(err_code) + ") on device " + std::to_string(_deviceId)
+                    + ". Terminating dxrtd for systemd restart.");
+                std::quick_exit(EXIT_FAILURE);
             }
         }
         else if (static_cast<dxrt::dxrt_event_t>(eventInfo.event_type)
@@ -617,7 +624,7 @@ void DeviceDispatcher::TriggerRecovery(uint32_t errCode)
         if (!pauseOk)
         {
             LOG_DXRT_S_ERR("PauseForRecovery timeout/failure for device " + std::to_string(_deviceId));
-            std::abort();
+            _recoveryAdapter->OnRecoveryFailed(_deviceId);  // [[noreturn]]
         }
     }
     else if (_onRecovery)
@@ -633,12 +640,12 @@ void DeviceDispatcher::TriggerRecovery(uint32_t errCode)
     if (recovery_ret < 0)
     {
         LOG_DXRT_S_ERR("DXRT_CMD_RECOVERY failed for device " + std::to_string(_deviceId)
-            + " ret=" + std::to_string(recovery_ret) + ". Aborting.");
+            + " ret=" + std::to_string(recovery_ret) + ". Terminating.");
         if (_recoveryAdapter)
         {
-            _recoveryAdapter->OnRecoveryFailed(_deviceId);
+            _recoveryAdapter->OnRecoveryFailed(_deviceId);  // [[noreturn]]
         }
-        std::abort();
+        std::quick_exit(EXIT_FAILURE);
     }
     LOG_DXRT_S_DBG << "Step 3: DXRT_CMD_RECOVERY completed with ret=" << recovery_ret << endl;
 
@@ -649,12 +656,12 @@ void DeviceDispatcher::TriggerRecovery(uint32_t errCode)
     if (info_ret != 0)
     {
         LOG_DXRT_S_ERR("DXRT_CMD_IDENTIFY_DEVICE failed ret=" + std::to_string(info_ret)
-            + " after recovery for device " + std::to_string(_deviceId) + ". Device unusable; aborting.");
+            + " after recovery for device " + std::to_string(_deviceId) + ". Device unusable; terminating.");
         if (_recoveryAdapter)
         {
-            _recoveryAdapter->OnRecoveryFailed(_deviceId);
+            _recoveryAdapter->OnRecoveryFailed(_deviceId);  // [[noreturn]]
         }
-        std::abort();
+        std::quick_exit(EXIT_FAILURE);
     }
     LOG_DXRT_S_DBG << "DXRT_CMD_IDENTIFY_DEVICE succeeded - device is READY" << endl;
 

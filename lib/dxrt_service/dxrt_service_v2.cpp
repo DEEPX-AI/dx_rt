@@ -1993,8 +1993,14 @@ void DxrtServiceV2::ServiceRecoveryAdapter::ResumeAfterRecovery(int deviceId)
 
 [[noreturn]] void DxrtServiceV2::ServiceRecoveryAdapter::OnRecoveryFailed(int deviceId)
 {
-    LOG_DXRT_S_ERR("Recovery failed for device " + std::to_string(deviceId) + ". Aborting service.");
-    std::abort();
+    LOG_DXRT_S_ERR("Recovery failed for device " + std::to_string(deviceId) + ". Terminating service.");
+
+    // Let connected clients know the service is going down before we exit,
+    // then terminate in a controlled manner (no core dump / SIGABRT) so the
+    // service manager (e.g. systemd) can restart it with a clean state.
+    _service->ErrorBroadCastToClient(
+        dxrt::dxrt_server_err_t::S_ERR_SERVICE_TERMINATION, 0, deviceId, nullptr);
+    std::quick_exit(EXIT_FAILURE);
 }
 
 void DxrtServiceV2::RecoveryBroadcastAndWait(dxrt::dxrt_server_err_t err, uint32_t errCode, int deviceId)
