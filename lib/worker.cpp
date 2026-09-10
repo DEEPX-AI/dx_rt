@@ -80,7 +80,11 @@ Worker::~Worker()
             }
             else
             {
-                DXRT_ASSERT(false, "CANNOT JOIN WORKER "+ _name);
+                // Destructors are implicitly noexcept: DXRT_ASSERT (which
+                // throws) would call std::terminate() here instead of
+                // raising a catchable error. Just log; there is nothing
+                // more we can safely do.
+                LOG_DXRT_ERR("CANNOT JOIN WORKER " + _name);
             }
         }
 

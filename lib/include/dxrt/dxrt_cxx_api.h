@@ -99,21 +99,16 @@
 #endif
 
 #ifndef DXRT_ASSERT
-#ifdef NDEBUG
+// Raise a C++ exception instead of terminating the process outright, so
+// callers can catch and translate it (see DXRT_C_CATCH in dxrt_c_api.h).
 #define DXRT_ASSERT(cond, msg) do { \
         if (!(cond)) { \
             LOG_DXRT_ERR(msg); \
-            std::abort(); \
+            std::ostringstream dxrt_assert_oss_; \
+            dxrt_assert_oss_ << msg; \
+            throw std::runtime_error(dxrt_assert_oss_.str()); \
         } \
     } while (0)
-#else
-#define DXRT_ASSERT(cond, msg) do { \
-        if (!(cond)) { \
-            LOG_DXRT_ERR(msg); \
-            assert((cond)); \
-        } \
-    } while (0)
-#endif
 #endif
 
 // ---------------------------------------------------------------------------

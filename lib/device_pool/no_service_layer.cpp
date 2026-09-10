@@ -9,6 +9,7 @@
 
 
 #include "dxrt/service_abstract_layer.h"
+#include "dxrt/exception/exception.h"
 #include "shared_memory_writer.h"
 #include "../dynamic_ipc/protocol/memory_type.hpp"
 #include <cerrno>
@@ -178,8 +179,14 @@ void NoServiceLayer::ResumeAfterRecovery(int deviceId)
 
 [[noreturn]] void NoServiceLayer::OnRecoveryFailed(int deviceId)
 {
-    LOG_DXRT_ERR("Recovery failed for device " + std::to_string(deviceId) + ". Aborting.");
-    std::abort();
+    // The device is unusable, but this runs inside the *client's own process*
+    // (library/no-service mode): the SDK must not unilaterally kill the host
+    // application. Raise an exception so the caller (DmaAbortRecoveryThread,
+    // which marks the device unusable and lets future requests fail fast) can
+    // decide what to do, instead of calling abort()/quick_exit() here.
+    LOG_DXRT_ERR("Recovery failed for device " + std::to_string(deviceId) + ".");
+    throw dxrt::DeviceIOException(
+        "Recovery failed for device " + std::to_string(deviceId) + ": device unusable");
 }
 
 

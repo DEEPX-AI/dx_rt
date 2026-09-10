@@ -13,6 +13,7 @@
 #include <vector>
 #include <algorithm>
 #include <cstring>
+#include <cstdlib>
 #include <chrono>
 #include <iomanip>
 #include <sstream>
@@ -32,6 +33,7 @@
 #include "dxrt/runtime_event_dispatcher.h"
 #include "../resource/log_messages.h"
 #include "dxrt/safe_cast.h"
+#include "dxrt/exception/exception.h"
 
 #include <memory>
 #ifdef DXRT_USE_DEVICE_VALIDATION
@@ -250,7 +252,18 @@ int AccDeviceTaskLayer::Release(TaskData* task)
 
 int AccDeviceTaskLayer::InferenceRequest(RequestData *req, npu_bound_op boundOp)
 {
+    if (IsDeviceUnusable())
+    {
+        throw dxrt::DeviceIOException(
+            "Device " + std::to_string(id()) + " is unusable after failed DMA-abort recovery");
+    }
     auto dmaPass = _dmaStopGate.WaitIfStopped();
+    if (IsDeviceUnusable())
+    {
+        // Recovery failed while we were waiting for the gate to reopen.
+        throw dxrt::DeviceIOException(
+            "Device " + std::to_string(id()) + " is unusable after failed DMA-abort recovery");
+    }
     int retval = InferenceRequestACC(req, boundOp);
     return retval;
 }
@@ -1594,7 +1607,22 @@ void AccDeviceTaskLayer::DmaAbortRecoveryThread()
         RuntimeEventDispatcher::CODE::RECOVERY_OCCURRED,
         LogMessages::RuntimeDispatch_RecoveryStarted(id()));
 
-    int ret = triggerRecovery();
+    int ret = 0;
+    std::string failureReason;
+    try
+    {
+        ret = triggerRecovery();
+    }
+    catch (const dxrt::Exception& e)
+    {
+        ret = -1;
+        failureReason = e.what();
+    }
+    catch (const std::exception& e)
+    {
+        ret = -1;
+        failureReason = e.what();
+    }
 
     if (ret == 0)
     {
@@ -1610,16 +1638,30 @@ void AccDeviceTaskLayer::DmaAbortRecoveryThread()
     }
     else
     {
-        // triggerRecovery() already called OnRecoveryFailed (which aborts),
-        // so this branch should never be reached.
+        // Recovery failed permanently (DXRT_CMD_RECOVERY/IDENTIFY ioctl failed, or
+        // OnRecoveryFailed() raised). This device can never come back without a
+        // process restart, but that is a decision for the *embedding application*
+        // to make, not the SDK: mark the device unusable and unblock any waiters
+        // so pending/future requests fail fast with a catchable exception instead
+        // of hanging forever or silently touching a dead device.
         LOG_DXRT_ERR(
-            "DmaAbortRecoveryThread: Recovery failed for device " + std::to_string(id())
-            + ", ret=" + std::to_string(ret));
-        std::abort();
+            "DmaAbortRecoveryThread: Recovery failed permanently for device " + std::to_string(id())
+            + ", ret=" + std::to_string(ret)
+            + (failureReason.empty() ? "" : (", reason=" + failureReason)));
+
+        _deviceUnusable.store(true, std::memory_order_release);
+        _dmaStopGate.Shutdown();
+
+        RuntimeEventDispatcher::GetInstance().DispatchEvent(
+            RuntimeEventDispatcher::LEVEL::ERROR,
+            RuntimeEventDispatcher::TYPE::DEVICE_CORE,
+            RuntimeEventDispatcher::CODE::RECOVERY_OCCURRED,
+            LogMessages::RuntimeDispatch_RecoveryFailed(id(), failureReason));
     }
 
     _recoveryPending.store(false, std::memory_order_release);
 }
+
 void AccDeviceTaskLayer::StartThread()
 {
     core()->CheckVersion();
