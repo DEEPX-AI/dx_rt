@@ -209,7 +209,19 @@ public:
     void SignalStoppedDmaToWaitRecovery(int deviceId, uint32_t recoveryId) override;
     void PauseForRecovery(int /*deviceId*/) override {}
     void ResumeAfterRecovery(int /*deviceId*/) override {}
-    [[noreturn]] void OnRecoveryFailed(int /*deviceId*/) override { std::abort(); }
+    [[noreturn]] void OnRecoveryFailed(int deviceId) override
+    {
+        // NOTE: this ServiceLayer is the *client-side* IPC stub used when a
+        // client talks to dxrtd (isRunOnService() == true); it runs inside the
+        // embedding application's process, not inside dxrtd. In practice the
+        // client never drives its own DXRT_CMD_RECOVERY in service mode (dxrtd
+        // owns that via DeviceDispatcher), so this should not be reachable, but
+        // if it ever is, the SDK must not unilaterally kill the host process:
+        // raise an exception so the caller can decide what to do.
+        LOG_DXRT_ERR("Recovery failed for device " << deviceId << ".");
+        throw dxrt::DeviceIOException(
+            "Recovery failed for device " + std::to_string(deviceId) + ": device unusable");
+    }
     void CommitMemory(const SharedMemoryInfo &info) override;
     void InvalidateMemory(const SharedMemoryInfo &info) override;
     int DMARead(SharedMemoryView view) override;

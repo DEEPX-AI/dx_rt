@@ -65,6 +65,8 @@
 #include <assert.h>
 #include <numeric>
 #include <cstdlib>
+#include <sstream>
+#include <stdexcept>
 #include "dxrt/gen.h"
 #include <mutex>
 #if __cplusplus >= 201402L
@@ -121,17 +123,18 @@ const int DXRT_NPU_FULL_MAX_LOAD = 10;
 #define LOG_VALUE(val) std::cout << DXRT_STR(val) << ": " << val << std::endl
 #define LOG_VALUE_HEX(val) std::cout << DXRT_STR(val) << ": " << std::showbase << std::hex << val << std::dec << std::endl
 
-#ifdef NDEBUG
+// Assertion failures are recoverable programmer/logic errors from the
+// caller's point of view: rather than terminating the whole process with
+// std::abort()/assert(), raise a C++ exception so callers (e.g. the C API
+// boundary in dxrt_c_api.cpp) can catch it and convert it into an error code.
 #define DXRT_ASSERT(cond, msg) do {\
-        if(!(cond)) {LOG_DXRT_ERR(msg);\
-        std::abort();}\
+        if(!(cond)) {\
+            std::ostringstream dxrt_assert_oss_; \
+            dxrt_assert_oss_ << msg; \
+            LOG_DXRT_ERR(dxrt_assert_oss_.str()); \
+            throw std::runtime_error(dxrt_assert_oss_.str()); \
+        }\
     }while(0)
-#else
-#define DXRT_ASSERT(cond, msg) do {\
-        if(!(cond)) {LOG_DXRT_ERR(msg);\
-        assert((cond));}\
-    }while(0)
-#endif
 
 #ifdef __aarch64__
 #define IOMEM_BARRIER() asm volatile("isb");asm volatile("dsb sy");

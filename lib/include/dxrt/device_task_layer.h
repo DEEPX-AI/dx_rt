@@ -301,6 +301,12 @@ class DXRT_API AccDeviceTaskLayer : public DeviceTaskLayer {
 
      int getFullLoad() const override { return DXRT_NPU_FULL_MAX_LOAD;}
 
+     // True once DMA-abort recovery has permanently failed for this device.
+     // Set from DmaAbortRecoveryThread(); checked by InferenceRequest() so new
+     // requests fail fast with an exception instead of being submitted to (or
+     // blocked forever waiting on) a device that can never recover.
+     bool IsDeviceUnusable() const { return _deviceUnusable.load(std::memory_order_acquire); }
+
      void ProcessResponseFromService(const dxrt_response_t &resp) override;
     std::vector<Tensors> inputs(int taskId) override { return {_inputTensorFormats[taskId]}; }
     void HandleThrottlingEvent(const dxrt::dx_pcie_dev_ntfy_throt_t &throtInfo) const;
@@ -362,6 +368,7 @@ private:
     std::array<std::atomic<bool>, 4> _outputDispatcherTerminateFlag;
 
     StopGate _dmaStopGate;  // Used to block input handlers during DMA abort recovery
+    std::atomic<bool> _deviceUnusable{false};  // set on permanent recovery failure
 
 #ifdef DXRT_USE_DEVICE_VALIDATION
     void ReadValidationOutput(std::shared_ptr<Request> req);
