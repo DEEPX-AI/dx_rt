@@ -73,9 +73,7 @@ Options:
 
   --python_version <VERSION>   Specify the Python version to install (e.g., 3.10.4).
                                  * Minimum supported version: 3.8.10.
-                                 * If not specified:
-                                     - For Ubuntu 20.04+, the OS default Python 3 will be used.
-                                     - For Ubuntu 18.04, Python 3.8.10 will be source-built.
+                                 * If not specified, the OS default Python 3 will be used (Ubuntu 20.04+).
   --venv_path <PATH>          Specify the path for the virtual environment.
                                  * If this option is omitted, no virtual environment will be created.
 ```
@@ -263,9 +261,9 @@ The package contains precompiled shared libraries, headers, CLI tools, and the P
     | Distribution | Minimum supported version |
     |--------------|---------------------------|
     | Ubuntu       | **20.04 LTS** (glibc 2.31) |
-    | Debian       | **11 (bullseye)** (glibc 2.31) |
+    | Debian       | **12 (bookworm)** (glibc 2.36) |
 
-    **Ubuntu 18.04 and older releases are not supported** — they ship glibc 2.27 with an older libstdc++ ABI and lack the `libgcc-s1` package (renamed from `libgcc1` starting Ubuntu 20.04). Attempting to install on these systems will fail with unmet dependency errors. Use the source-based build (`./build.sh`) if you must target older distributions.
+    **Ubuntu 20.04 and older releases are not supported** — they ship glibc 2.27 with an older libstdc++ ABI and lack the `libgcc-s1` package (renamed from `libgcc1` starting Ubuntu 20.04). Attempting to install on these systems will fail with unmet dependency errors. Use the source-based build (`./build.sh`) if you must target older distributions.
 
 !!! note "NOTE"
     The source-based Debian package (`libdxrt_<version>_all.deb`) is **no longer distributed**. If you need to build from source, use `./build.sh` as described in the **Framework Build on Linux** section above.
@@ -356,7 +354,7 @@ ls /usr/share/libdxrt-bin/python/
 # Example output:
 # dx_engine-3.4.0-cp38-cp38-linux_x86_64.whl
 # dx_engine-3.4.0-cp39-cp39-linux_x86_64.whl
-# dx_engine-3.4.0-cp310-ㅁcp310-linux_x86_64.whl
+# dx_engine-3.4.0-cp310-cp310-linux_x86_64.whl
 # dx_engine-3.4.0-cp311-cp311-linux_x86_64.whl
 # ...
 # dx_engine-3.4.0-cp314-cp314-linux_x86_64.whl
@@ -464,6 +462,7 @@ Typical contents:
  ├── dxcli
  ├── dxparse
  ├── dxrun
+ ├── dxtop
  └── examples
 ```
 
@@ -630,7 +629,7 @@ lspci -vn | grep 1ff4
 
 **Optional.** Display the DEEPX name in `lspci`.  
 If you want to display the DEEPX name in `lspci`, you can modify the PCI DB. (Only for Ubuntu)  
-To display the DeepX device name, run the following command.  
+To display the DEEPX device name, run the following command.  
 ```
 sudo update-pciids
 lspci

@@ -32,6 +32,11 @@ static constexpr bool ENABLE_MEMORY_TRACE_LOGS = false;
 
 MemoryService* MemoryService::getInstance(int deviceId)
 {
+    if (deviceId < 0)
+    {
+        return nullptr;
+    }
+
     if (_instances.empty())
     {
         auto device_list = ServiceDevice::CheckServiceDevices();

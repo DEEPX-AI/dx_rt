@@ -50,6 +50,9 @@ $./dxparse -m model.dxnn
 
 This tool executes a compiled model to verify basic functionality, measure inference time, and optionally perform repeated runs for stress testing.
 
+By default, `dxrun` measures performance in a **fixed buffer-count environment**: the I/O buffer count stays at a single value (the default `6`, or whatever is given to `--buffer-count <N>`) for the whole run, so the reported FPS/latency reflects only that one configuration.
+
+To find the **maximum throughput** across different buffer counts, use `--max-throughput` together with a `--buffer-count <low>-<high>` range. In this mode `dxrun` sweeps the buffer counts in the given range, measures each candidate for `--probe-time` seconds, and then benchmarks at the buffer count that produced the highest FPS.
 
 **Source**  
 ```
@@ -59,6 +62,7 @@ cli/dxrun.cpp
 **Usage**  
 ```
 dxrun -m <model_dir> [-l <number of loops>] [-t <seconds>] [-d <devices>] [--use-ort] [--profiler] [--buffer-count <N>]
+dxrun -m <model_dir> --max-throughput [--buffer-count <low>-<high>] [--probe-time <seconds>]
 ```
 
 **Option**  
@@ -103,8 +107,16 @@ dxrun -m <model_dir> [-l <number of loops>] [-t <seconds>] [-d <devices>] [--use
                           (if available)
       --accel-cpu         Enable CPU op acceleration (OpenVINO/XNNPACK)
                           (if available)
-      --buffer-count arg  Number of input/output buffers, count's range is
-                          1~100 (default: 6)
+      --buffer-count arg  I/O buffer count: a number (default 6), or a
+                          range such as 3-16 when used with
+                          --max-throughput
+      --max-throughput    Search buffer counts for peak throughput, then
+                          benchmark at the best one. Give --buffer-count
+                          a range (e.g. 3-16) to set the search bounds;
+                          without a range, the default search is 3-100.
+                          Mutually exclusive with --single and --fps.
+      --probe-time arg    Seconds to measure each candidate buffer count
+                          during the sweep (default: 5)
   -h, --help              Print usage
 ```
 
@@ -121,11 +133,11 @@ dxrun -m model.dxnn --profiler -l 50
 ```
 This generates a `profiler.json` file in the working directory containing detailed performance metrics.
 
-Configure buffer count for optimized throughput:
+Measure performance at a fixed buffer count:
 ```
 dxrun -m model.dxnn --buffer-count 8 -l 100
 ```
-Adjust the number of input/output buffers (range: 1-100) to balance memory usage and inference throughput. Higher buffer counts can improve performance in pipelined scenarios.
+The buffer count is held at `8` for the entire run, so the result represents that single configuration only. Adjust the number of input/output buffers (range: 1-100) to balance memory usage and inference throughput. Higher buffer counts can improve performance in pipelined scenarios. To compare multiple buffer counts automatically, use `--max-throughput` with a `--buffer-count <low>-<high>` range instead.
 
 Combined options with profiling and custom buffer count:
 ```
@@ -138,7 +150,24 @@ dxrun -m model.dxnn --benchmark --profiler -t 60
 ```
 Run benchmark for 60 seconds with profiling enabled to analyze performance bottlenecks.
 
+Auto-tune the buffer count for maximum throughput (default search range 3-100):
+```
+dxrun -m model.dxnn --max-throughput
+```
+Each round runs a dedicated engine at one buffer count for `--probe-time` seconds; the sweep stops once throughput falls below its peak or stalls, then reports the buffer count with the highest measured FPS.
+
+Restrict the sweep to a specific buffer-count range and probe duration:
+```
+dxrun -m model.dxnn --max-throughput --buffer-count 3-16 --probe-time 3
+```
+
+!!! note "NOTE"
+    `--buffer-count` takes either a single value (e.g. `6`) or a range (e.g. `3-16`). A range is only
+    valid together with `--max-throughput`; combining `--max-throughput` with a single value, or using
+    a range without `--max-throughput`, is rejected with an error.
+
 ---
+
 
 ## DX-RT CLI Tool (Firmware Interface)
 

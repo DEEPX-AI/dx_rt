@@ -18,7 +18,7 @@ device status, and collect profiling data from Python.
 python -m pip install dx-engine
 ```
 
-### From a prebuilt wheel (recommended)
+### From a prebuilt wheel
 
 Wheels are shipped inside the `libdxrt-bin` Debian package under
 `/usr/share/libdxrt-bin/python/`. Install the wheel whose `cpXY` tag
@@ -37,18 +37,6 @@ pip install /usr/share/libdxrt-bin/python/dx_engine-*-${PYTAG}-${PYTAG}-*.whl
 `python3` interpreter. Any user-owned venv must repeat the `pip install`
 step because `dpkg` runs as root and cannot safely write into a venv.
 
-### From source
-
-Build wheels for one or more Python versions using isolated `uv`-managed
-venvs. See [BUILD_WHEELS.md](BUILD_WHEELS.md) for the full procedure.
-
-```bash
-cd dx_rt/python_package
-./build_all_wheels.sh              # 3.8 – 3.14
-./build_all_wheels.sh 3.12         # single version
-```
-
-Produced wheels are written to `./wheelhouse/`.
 
 ## Quick Start
 
@@ -113,6 +101,6 @@ python -c "import dx_engine; print(dx_engine.__version__)"
 Proprietary — Copyright (C) 2018- DEEPX Ltd. All rights reserved.
 
 This software is provided exclusively to customers supplied with a DEEPX
-NPU. Unauthorized sharing or use is prohibited. See [LICENSE](LICENSE)
+NPU. Unauthorized sharing or use is prohibited. See LICENSE
 for the full terms; each wheel embeds the same file under
 `dx_engine-<ver>.dist-info/licenses/LICENSE`.

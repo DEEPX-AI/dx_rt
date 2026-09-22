@@ -289,7 +289,10 @@ void DeviceCore::Identify(int id_, uint32_t subCmd)
         << ", mem_addr " << _info.mem_addr
         << ", mem_size " << _info.mem_size
         << std::dec << ", num_dma_ch " << _info.num_dma_ch << endl;
-    DXRT_ASSERT(_info.mem_size > 0, "invalid device memory size");
+    if (_info.mem_size == 0)
+    {
+        throw DeviceIOException(EXCEPTION_MESSAGE("invalid device memory size"));
+    }
 
 
 
@@ -380,6 +383,15 @@ void DeviceCore::DoCustomCommand(void *data, uint32_t subCmd, uint32_t size)
             uint32_t ledVal = *static_cast<uint32_t *>(data);
             Process(dxrt::dxrt_cmd_t::DXRT_CMD_CUSTOM,
                     &ledVal,
+                    sizeof(uint32_t),
+                    sCmd);
+            break;
+        }
+        case DX_SET_FAN:
+        {
+            uint32_t fanVal = *static_cast<uint32_t *>(data);
+            Process(dxrt::dxrt_cmd_t::DXRT_CMD_CUSTOM,
+                    &fanVal,
                     sizeof(uint32_t),
                     sCmd);
             break;

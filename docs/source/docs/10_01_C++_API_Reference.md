@@ -380,6 +380,12 @@ This class specifies inference options applied to an `InferenceEngine`, allowing
     option.bufferCount = 8;  // Allocate 8 buffers for higher throughput
     dxrt::InferenceEngine ie("model.dxnn", option);
     ```
+-   **`showModelInfo`**: `bool`. Controls whether the model information banner (model file, input/output tensors, task graph) is printed when this engine is created. Default is `true`. Set it to `false` to keep engine creation silent, which is useful when engines are created and destroyed repeatedly. This is an instance-level switch that is combined with the global `Configuration::ITEM::SHOW_MODEL_INFO` setting: the banner is printed only when both are enabled, so disabling the global setting still suppresses the banner for every engine.
+    ```cpp
+    dxrt::InferenceOption option;
+    option.showModelInfo = false;  // Do not print the model info banner
+    dxrt::InferenceEngine ie("model.dxnn", option);
+    ```
   
   
 

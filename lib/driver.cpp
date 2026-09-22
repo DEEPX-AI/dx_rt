@@ -317,6 +317,12 @@ std::ostream& operator<<(std::ostream& os, const dxrt_fct_result_t& info)
         << left << setw(20) << "I2C Fail:" << (info.i2c_fail == 1 ? "FAIL" : "PASS") << "\n"
         << left << setw(20) << "Test Done:" << static_cast<int>(info.test_done) << "\n";
 
+    const char *otp_auth_str = (info.otp_auth == 1) ? "PASS"
+                             : (info.otp_auth == 2) ? "FAIL"
+                             : (info.otp_auth == 3) ? "N/A (non-Hexa)"
+                             : "N/A";
+    os << left << setw(20) << "OTP Auth:" << otp_auth_str << "\n";
+
     for (int i = 0; i < 4; ++i) {
         const uint8_t raw = info.memtest[i];
         os << left << setw(20) << ("MEM Test[CH" + std::to_string(i) + "]:")

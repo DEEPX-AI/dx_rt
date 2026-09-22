@@ -395,6 +395,18 @@ This class provides a Pythonic interface to configure inference options such as 
     option.buffer_count = 8  # Allocate 8 buffers for higher throughput
     engine = InferenceEngine("model.dxnn", option)
     ```
+
+***`show_model_info`***  
+-   **Description**: Gets or sets whether the model information banner (model file, input/output tensors, task graph) is printed when the engine is created. Default is `True`. Set it to `False` to keep engine creation silent, which is useful when engines are created and destroyed repeatedly. This instance-level switch is combined with the global `SHOW_MODEL_INFO` configuration item, so the banner appears only when both are enabled.
+-   **Type**: `bool`.
+-   **Example**:
+    ```python
+    from dx_engine import InferenceEngine, InferenceOption
+    
+    option = InferenceOption()
+    option.show_model_info = False  # Do not print the model info banner
+    engine = InferenceEngine("model.dxnn", option)
+    ```
   
   
 #### Member Functions  
@@ -419,6 +431,11 @@ This class provides a Pythonic interface to configure inference options such as 
 -   **Description**: Returns the current buffer count configuration.  
 -   **Returns**: An integer representing the number of buffers.  
   
+***`get_show_model_info(self)`***  
+-   **Signature**: `def get_show_model_info(self) -> bool`  
+-   **Description**: Returns whether the model information banner is printed on engine creation.  
+-   **Returns**: A boolean value.  
+  
 ***`set_bound_option(self, boundOption: BOUND_OPTION)`***  
 -   **Signature**: `def set_bound_option(self, boundOption: BOUND_OPTION)`  
 -   **Description**: Sets the NPU core binding option.  
@@ -442,6 +459,12 @@ This class provides a Pythonic interface to configure inference options such as 
 -   **Description**: Sets the number of internal buffers for inference.  
 -   **Parameters**:  
     -   `buffer_count`: An integer value specifying the number of buffers (valid range: 1-100).  
+  
+***`set_show_model_info(self, show_model_info: bool)`***  
+-   **Signature**: `def set_show_model_info(self, show_model_info: bool)`  
+-   **Description**: Enables or disables printing of the model information banner on engine creation.  
+-   **Parameters**:  
+    -   `show_model_info`: A boolean value.  
   
   
 #### Nested Classes  

@@ -375,7 +375,7 @@ if __name__ == "__main__":
     # NPU bound option (NPU_ALL or NPU_0 or NPU_1 or NPU_2)
     option.bound_option = InferenceOption.BOUND_OPTION.NPU_ALL
 
-    # use ONNX Runtime (True or False)
+    # ONNX Runtime enabled (True or False)
     option.use_ort = False
    
     # create inference engine instance with model
@@ -719,7 +719,7 @@ Asynchronous APIs allow you to submit inference requests without blocking the ca
 The `AsyncInferenceHandler` class in the example demonstrates how to manage state across multiple asynchronous calls.  
 
   - **Register a Callback**: Provide a function that the engine will call upon completion of each async request. The callback receives the output arrays and a `user_arg` for context.
-  - **Submit Requests**: Call an `run_async` variant. This call returns immediately with a job ID.
+  - **Submit Requests**: Call a `run_async` variant. This call returns immediately with a job ID.
   - **Process in Callback**: The callback function is executed in a separate worker thread. Here, you can process the results. It's crucial to ensure thread safety (e.g., using a `threading.Lock`) if you modify shared data.
 
 <!-- end list -->

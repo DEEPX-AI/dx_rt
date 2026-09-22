@@ -421,6 +421,11 @@ class DXRT_API InferenceEngine // NOSONAR: Too many fields - stable as-is, refac
      */
     uint32_t GetNpuInferenceTime();
 
+    /** @brief Gets the queue wait time for the most recent inference in microseconds.
+     * @return The queue wait time.
+     */
+    int64_t GetQueueWaitTime();
+
     /** @brief Gets a vector of recent latency measurements.
      * @return A vector of latencies in microseconds.
      */
@@ -430,6 +435,11 @@ class DXRT_API InferenceEngine // NOSONAR: Too many fields - stable as-is, refac
      * @return A vector of NPU inference times in microseconds.
      */
     std::vector<uint32_t> GetNpuInferenceTimeVector();
+
+    /** @brief Gets a vector of recent queue wait time measurements.
+     * @return A vector of queue wait times in microseconds.
+     */
+    std::vector<int64_t> GetQueueWaitTimeVector();
 
     /** @brief Gets the mean (average) of all collected latency values.
      * @return The mean latency in microseconds.
@@ -441,6 +451,11 @@ class DXRT_API InferenceEngine // NOSONAR: Too many fields - stable as-is, refac
      */
     double GetNpuInferenceTimeMean() const;
 
+    /** @brief Gets the mean (average) of all collected queue wait times.
+     * @return The mean queue wait time in microseconds.
+     */
+    double GetQueueWaitTimeMean() const;
+
     /** @brief Gets the standard deviation of all collected latency values.
      * @return The standard deviation of latency.
      */
@@ -451,6 +466,11 @@ class DXRT_API InferenceEngine // NOSONAR: Too many fields - stable as-is, refac
      */
     double GetNpuInferenceTimeStdDev() const;
 
+    /** @brief Gets the standard deviation of all collected queue wait times.
+     * @return The standard deviation of queue wait time.
+     */
+    double GetQueueWaitTimeStdDev() const;
+
     /** @brief Gets the total count of latency measurements recorded.
      * @return The number of latency measurements.
      */
@@ -460,6 +480,11 @@ class DXRT_API InferenceEngine // NOSONAR: Too many fields - stable as-is, refac
      * @return The number of measurements.
      */
     int GetNpuInferenceTimeCnt() const;
+
+    /** @brief Gets the total count of queue wait time measurements recorded.
+     * @return The number of measurements.
+     */
+    int GetQueueWaitTimeCnt() const;
 
     /**
      *  @deprecated Use GetAllTaskOutputs() instead.

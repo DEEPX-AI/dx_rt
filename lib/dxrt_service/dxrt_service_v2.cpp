@@ -8,6 +8,7 @@
  */
 
 #include "dxrt_service_v2.hpp"
+#include "dxrt_service_v2_main_logic.hpp"
 #include "../device_shm/shared_memory_writing_thread.hpp"
 
 
@@ -115,6 +116,11 @@ bool IsProcessRunning(pid_t pid)
 }  // namespace
 
 namespace dxrt {
+
+bool IsLikelyDisconnectedSendErrorForTest(int rc)
+{
+    return isLikelyDisconnectedSendError(rc);
+}
 
 struct DxrtServiceV2::IpcServerContext
 {
@@ -726,6 +732,10 @@ int DxrtServiceV2::RunIpcServer(int timeoutMs)
         if (rc < 0)
         {
             return rc;
+        }
+        if (dxrt::IsDxrtServiceV2TerminationRequested())
+        {
+            break;
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(sleepMs));
@@ -2029,37 +2039,49 @@ bool DxrtServiceV2::TaskInit(pid_t pid, int deviceId, int taskId, int bound, uin
 {
     if (deviceId < 0 || deviceId >= static_cast<int>(_devices.size()))
     {
+        LOG_DXRT_S_ERR("TaskInit: invalid deviceId=" + std::to_string(deviceId));
         return false;
     }
 
     auto memService = GetMemoryService(deviceId);
     if (memService == nullptr)
     {
+        LOG_DXRT_S_ERR("TaskInit: memory service not available for deviceId=" + std::to_string(deviceId));
         return false;
     }
 
+    /*
     if (memService->free_size() < modelMemorySize)
     {
         memService->OptimizeMemory();
         if (memService->free_size() < modelMemorySize)
         {
+            LOG_DXRT_S_ERR("TaskInit: insufficient memory for taskId=" + std::to_string(taskId) +
+                ", required=" + std::to_string(modelMemorySize) +
+                ", free=" + std::to_string(memService->free_size()));
             return false;
         }
     }
+    */
 
     const auto boundOp = static_cast<dxrt::npu_bound_op>(bound);
     {
         std::lock_guard<std::mutex> lock(_deviceMutex);
         if (_devices[deviceId]->isBlocked())
         {
+            LOG_DXRT_S_ERR("TaskInit: deviceId=" + std::to_string(deviceId) + " is blocked");
             return false;
         }
         if (_devices[deviceId]->CanAcceptBound(boundOp) == false)
         {
+            LOG_DXRT_S_ERR("TaskInit: deviceId=" + std::to_string(deviceId) +
+                " cannot accept boundOp=" + std::to_string(bound));
             return false;
         }
         if (_devices[deviceId]->AddBound(boundOp) != 0)
         {
+            LOG_DXRT_S_ERR("TaskInit: failed to add boundOp=" + std::to_string(bound) +
+                " for deviceId=" + std::to_string(deviceId));
             return false;
         }
     }
@@ -2072,6 +2094,9 @@ bool DxrtServiceV2::TaskInit(pid_t pid, int deviceId, int taskId, int bound, uin
             modelMemorySize,
             dxrt::InferenceContext{config}))
     {
+        LOG_DXRT_S_ERR("TaskInit: failed to add taskId=" + std::to_string(taskId) +
+            " for pid=" + std::to_string(pid) +
+            ", deviceId=" + std::to_string(deviceId));
         std::lock_guard<std::mutex> lock(_deviceMutex);
         (void)_devices[deviceId]->DeleteBound(boundOp);
         return false;

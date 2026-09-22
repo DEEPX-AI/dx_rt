@@ -112,8 +112,17 @@ typedef struct {
     int      device_id;         /**< target device ID (-1 = auto) */
     uint32_t bound_option;      /**< NPU core binding (0 = all) */
     int      use_ort;           /**< 1 = enable ORT tasks, 0 = NPU only, -1 = default */
-    uint32_t reserved[6];       /**< zero-initialised, reserved for future use */
+    int      show_model_info;   /**< 1 = print model info banner, 0 = silent, -1 = default */
+    uint32_t reserved[5];       /**< zero-initialised, reserved for future use */
 } dxrt_options_t;
+
+/* New fields are carved out of `reserved`, so the total size must never change;
+   growing it would silently break already-compiled callers. */
+#if defined(__cplusplus)
+static_assert(sizeof(dxrt_options_t) == 44, "dxrt_options_t ABI size must stay 44 bytes");
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+_Static_assert(sizeof(dxrt_options_t) == 44, "dxrt_options_t ABI size must stay 44 bytes");
+#endif
 
 /** Helper: initialise options with safe defaults. */
 static inline void dxrt_options_init(dxrt_options_t* opts)
@@ -125,6 +134,7 @@ static inline void dxrt_options_init(dxrt_options_t* opts)
     opts->device_id     = -1;     /* -1 = auto */
     opts->bound_option  = 0;      /* 0 = NPU_ALL */
     opts->use_ort       = -1;     /* -1 = library default */
+    opts->show_model_info = -1;   /* -1 = library default */
 }
 
 #ifdef __cplusplus
@@ -880,6 +890,15 @@ DXRT_CAPI dxrt_status_t dxrt_config_load_file(const char* file_path);
 /** Get last NPU inference time in microseconds. */
 DXRT_CAPI dxrt_status_t dxrt_engine_get_npu_inference_time(dxrt_engine_t engine, uint32_t* out_us);
 
+/**
+ * Get the last queue wait time in microseconds.
+ *
+ * The signed type is kept for ABI consistency with the internal timing API;
+ * valid queue wait values are always non-negative. Negative internal values
+ * are normalized to zero before they are published.
+ */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_queue_wait_time(dxrt_engine_t engine, int64_t* out_us);
+
 /** Get latency mean across accumulated samples (microseconds). */
 DXRT_CAPI dxrt_status_t dxrt_engine_get_latency_mean(dxrt_engine_t engine, double* out_us);
 
@@ -889,14 +908,23 @@ DXRT_CAPI dxrt_status_t dxrt_engine_get_latency_stddev(dxrt_engine_t engine, dou
 /** Get NPU inference time mean (microseconds). */
 DXRT_CAPI dxrt_status_t dxrt_engine_get_npu_time_mean(dxrt_engine_t engine, double* out_us);
 
+/** Get queue wait time mean (microseconds). */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_queue_wait_time_mean(dxrt_engine_t engine, double* out_us);
+
 /** Get NPU inference time standard deviation (microseconds). */
 DXRT_CAPI dxrt_status_t dxrt_engine_get_npu_time_stddev(dxrt_engine_t engine, double* out_us);
+
+/** Get queue wait time standard deviation (microseconds). */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_queue_wait_time_stddev(dxrt_engine_t engine, double* out_us);
 
 /** Get count of accumulated latency samples. */
 DXRT_CAPI dxrt_status_t dxrt_engine_get_latency_count(dxrt_engine_t engine, int* out_count);
 
 /** Get count of accumulated NPU inference time samples. */
 DXRT_CAPI dxrt_status_t dxrt_engine_get_npu_time_count(dxrt_engine_t engine, int* out_count);
+
+/** Get count of accumulated queue wait time samples. */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_queue_wait_time_count(dxrt_engine_t engine, int* out_count);
 
 /**
  * Get per-tensor output sizes.

@@ -34,6 +34,8 @@
 
 namespace dxrt {
 
+DXRT_INTERNAL_API bool IsLikelyDisconnectedSendErrorForTest(int rc);
+
 class SharedMemoryWritingThread;
 
 enum class DxrtServiceV2IpcPollDecision

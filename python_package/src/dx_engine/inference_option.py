@@ -98,11 +98,23 @@ class InferenceOption:
             raise TypeError("buffer_count must be an integer value.")
         self.instance.bufferCount = value
 
+    @property
+    def show_model_info(self) -> bool:
+        """Gets or sets whether the model information banner is printed when the engine is created."""
+        return self.instance.showModelInfo
+
+    @show_model_info.setter
+    def show_model_info(self, value: bool) -> None:
+        if not isinstance(value, bool):
+            raise TypeError("show_model_info must be a boolean value.")
+        self.instance.showModelInfo = value
+
     def __repr__(self) -> str:
         return (f"InferenceOption(use_ort={self.use_ort}, "
                 f"bound_option={self.bound_option.name if self.bound_option else 'None'}, "
                 f"devices={self.devices}, "
-                f"buffer_count={self.buffer_count})")
+                f"buffer_count={self.buffer_count}, "
+                f"show_model_info={self.show_model_info})")
 
     def set_use_ort(self, use_ort):
         if not isinstance(use_ort, bool):
@@ -135,3 +147,11 @@ class InferenceOption:
 
     def get_buffer_count(self):
         return self.instance.bufferCount
+
+    def set_show_model_info(self, show_model_info):
+        if not isinstance(show_model_info, bool):
+            raise TypeError("show_model_info must be a boolean value.")
+        self.instance.showModelInfo = show_model_info
+
+    def get_show_model_info(self):
+        return self.instance.showModelInfo

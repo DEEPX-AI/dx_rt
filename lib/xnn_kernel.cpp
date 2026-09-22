@@ -1,14 +1,23 @@
-// XNNPACK NEON Transpose Kernels
-// Supports uint8_t (16x16 vzipq) and float (4x4 vqtbl4q)
+// XNNPACK Transpose & Quantize Kernels
+// Supports: ARM NEON, x86 SSE4.1, scalar fallback
 //
 // Based on XNNPACK (https://github.com/google/XNNPACK)
 // License: BSD 3-Clause
 
 #include "dxrt/xnn_kernel.h"
 #include "dxrt/common.h"
-#include <arm_neon.h>
 #include <assert.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <cmath>
+#include <cstring>
+#include <algorithm>
+
+// ============================================================================
+// ARM NEON Transpose Kernels
+// ============================================================================
+#ifdef USE_NEON
+#include <arm_neon.h>
 
 // Branch prediction hint for unlikely conditions
 #define XNN_UNPREDICTABLE(x) __builtin_expect(!!(x), 0)
@@ -559,3 +568,257 @@ void xnnpack_transpose(
 // Explicit instantiations
 template void xnnpack_transpose<uint8_t>(const uint8_t*, uint8_t*, size_t, size_t);
 template void xnnpack_transpose<float>(const float*, float*, size_t, size_t);
+
+#else // !USE_NEON
+
+// Scalar fallback transpose (x86_64 or other non-NEON architectures)
+template<typename T>
+void xnnpack_transpose(const T* input, T* output, size_t rows, size_t cols)
+{
+    for (size_t r = 0; r < rows; r++)
+        for (size_t c = 0; c < cols; c++)
+            output[c * rows + r] = input[r * cols + c];
+}
+
+template void xnnpack_transpose<uint8_t>(const uint8_t*, uint8_t*, size_t, size_t);
+template void xnnpack_transpose<float>(const float*, float*, size_t, size_t);
+
+#endif // USE_NEON
+
+// ============================================================================
+// Quantize float32 → int8 kernels
+// Formula: output[i] = clamp(round(input[i] * scale + bias), -128, 127)
+// ============================================================================
+
+#ifdef USE_NEON
+static void neon_quantize_f32_to_s8(
+    const float* input, int8_t* output, size_t count,
+    float scale, float bias)
+{
+    const float32x4_t vscale = vdupq_n_f32(scale);
+    const float32x4_t vbias = vdupq_n_f32(bias);
+
+    size_t i = 0;
+
+    // Main loop: 16 floats → 16 int8
+    for (; i + 16 <= count; i += 16)
+    {
+        float32x4_t vin0 = vld1q_f32(input + i);
+        float32x4_t vin1 = vld1q_f32(input + i + 4);
+        float32x4_t vin2 = vld1q_f32(input + i + 8);
+        float32x4_t vin3 = vld1q_f32(input + i + 12);
+
+        vin0 = vaddq_f32(vmulq_f32(vin0, vscale), vbias);
+        vin1 = vaddq_f32(vmulq_f32(vin1, vscale), vbias);
+        vin2 = vaddq_f32(vmulq_f32(vin2, vscale), vbias);
+        vin3 = vaddq_f32(vmulq_f32(vin3, vscale), vbias);
+
+        // Round to nearest integer (banker's rounding)
+        int32x4_t vacc0 = vcvtnq_s32_f32(vin0);
+        int32x4_t vacc1 = vcvtnq_s32_f32(vin1);
+        int32x4_t vacc2 = vcvtnq_s32_f32(vin2);
+        int32x4_t vacc3 = vcvtnq_s32_f32(vin3);
+
+        // Saturating narrow: s32 → s16
+        int16x8_t vacc01 = vcombine_s16(vqmovn_s32(vacc0), vqmovn_s32(vacc1));
+        int16x8_t vacc23 = vcombine_s16(vqmovn_s32(vacc2), vqmovn_s32(vacc3));
+
+        // Saturating narrow: s16 → s8 (clamps to [-128, 127])
+        int8x16_t vout = vcombine_s8(vqmovn_s16(vacc01), vqmovn_s16(vacc23));
+        vst1q_s8(output + i, vout);
+    }
+
+    // Secondary loop: 8 floats → 8 int8
+    for (; i + 8 <= count; i += 8)
+    {
+        float32x4_t vin0 = vld1q_f32(input + i);
+        float32x4_t vin1 = vld1q_f32(input + i + 4);
+
+        vin0 = vaddq_f32(vmulq_f32(vin0, vscale), vbias);
+        vin1 = vaddq_f32(vmulq_f32(vin1, vscale), vbias);
+
+        int32x4_t vacc0 = vcvtnq_s32_f32(vin0);
+        int32x4_t vacc1 = vcvtnq_s32_f32(vin1);
+
+        int16x8_t vacc01 = vcombine_s16(vqmovn_s32(vacc0), vqmovn_s32(vacc1));
+        int8x8_t vout = vqmovn_s16(vacc01);
+        vst1_s8(output + i, vout);
+    }
+
+    // Remainder: 1-7 floats (NEON with partial store to keep banker's rounding)
+    if (i < count)
+    {
+        float32x4_t vx_lo = vld1q_f32(input + i);
+        const float* x_hi = (const float*)((uintptr_t)(input + i) + ((count - i) & 4) * sizeof(float));
+        float32x4_t vx_hi = vld1q_f32(x_hi);
+
+        vx_lo = vaddq_f32(vmulq_f32(vx_lo, vscale), vbias);
+        vx_hi = vaddq_f32(vmulq_f32(vx_hi, vscale), vbias);
+
+        const int32x4_t vacc_lo = vcvtnq_s32_f32(vx_lo);
+        const int32x4_t vacc_hi = vcvtnq_s32_f32(vx_hi);
+
+        int16x8_t vacc = vcombine_s16(vqmovn_s32(vacc_lo), vqmovn_s32(vacc_hi));
+        int8x8_t vy = vqmovn_s16(vacc);
+
+        size_t remaining = count - i;
+        if (remaining & 4)
+        {
+            vst1_lane_u32(reinterpret_cast<uint32_t*>(output + i), vreinterpret_u32_s8(vy), 0);
+            i += 4;
+            vy = vext_s8(vy, vy, 4);
+        }
+        if (remaining & 2)
+        {
+            vst1_lane_u16(reinterpret_cast<uint16_t*>(output + i), vreinterpret_u16_s8(vy), 0);
+            i += 2;
+            vy = vext_s8(vy, vy, 2);
+        }
+        if (remaining & 1)
+        {
+            vst1_lane_s8(reinterpret_cast<int8_t*>(output + i), vy, 0);
+        }
+    }
+}
+#endif // USE_NEON
+
+#if defined(__SSE4_1__)
+#include <smmintrin.h>
+static void sse41_quantize_f32_to_s8(
+    const float* input, int8_t* output, size_t count,
+    float scale, float bias)
+{
+    const __m128 vscale = _mm_set1_ps(scale);
+    const __m128 vbias = _mm_set1_ps(bias);
+    const __m128 vclamp_max = _mm_set1_ps(32767.0f);
+    const __m128 vclamp_min = _mm_set1_ps(-32768.0f);
+
+    size_t i = 0;
+
+    // Main loop: 16 floats → 16 int8
+    for (; i + 16 <= count; i += 16)
+    {
+        __m128 vin0 = _mm_loadu_ps(input + i);
+        __m128 vin1 = _mm_loadu_ps(input + i + 4);
+        __m128 vin2 = _mm_loadu_ps(input + i + 8);
+        __m128 vin3 = _mm_loadu_ps(input + i + 12);
+
+        vin0 = _mm_add_ps(_mm_mul_ps(vin0, vscale), vbias);
+        vin1 = _mm_add_ps(_mm_mul_ps(vin1, vscale), vbias);
+        vin2 = _mm_add_ps(_mm_mul_ps(vin2, vscale), vbias);
+        vin3 = _mm_add_ps(_mm_mul_ps(vin3, vscale), vbias);
+
+        // Clamp to safe range before int conversion
+        vin0 = _mm_max_ps(_mm_min_ps(vin0, vclamp_max), vclamp_min);
+        vin1 = _mm_max_ps(_mm_min_ps(vin1, vclamp_max), vclamp_min);
+        vin2 = _mm_max_ps(_mm_min_ps(vin2, vclamp_max), vclamp_min);
+        vin3 = _mm_max_ps(_mm_min_ps(vin3, vclamp_max), vclamp_min);
+
+        // Round to nearest integer (banker's rounding)
+        __m128i vacc0 = _mm_cvtps_epi32(vin0);
+        __m128i vacc1 = _mm_cvtps_epi32(vin1);
+        __m128i vacc2 = _mm_cvtps_epi32(vin2);
+        __m128i vacc3 = _mm_cvtps_epi32(vin3);
+
+        // Pack s32 → s16 (saturating)
+        __m128i vacc01 = _mm_packs_epi32(vacc0, vacc1);
+        __m128i vacc23 = _mm_packs_epi32(vacc2, vacc3);
+
+        // Pack s16 → s8 (saturating, clamps to [-128, 127])
+        __m128i vout = _mm_packs_epi16(vacc01, vacc23);
+        _mm_storeu_si128((__m128i*)(output + i), vout);
+    }
+
+    // Secondary loop: 8 floats → 8 int8
+    for (; i + 8 <= count; i += 8)
+    {
+        __m128 vin0 = _mm_loadu_ps(input + i);
+        __m128 vin1 = _mm_loadu_ps(input + i + 4);
+
+        vin0 = _mm_add_ps(_mm_mul_ps(vin0, vscale), vbias);
+        vin1 = _mm_add_ps(_mm_mul_ps(vin1, vscale), vbias);
+
+        vin0 = _mm_max_ps(_mm_min_ps(vin0, vclamp_max), vclamp_min);
+        vin1 = _mm_max_ps(_mm_min_ps(vin1, vclamp_max), vclamp_min);
+
+        __m128i vacc0 = _mm_cvtps_epi32(vin0);
+        __m128i vacc1 = _mm_cvtps_epi32(vin1);
+
+        __m128i vacc01 = _mm_packs_epi32(vacc0, vacc1);
+        __m128i vout = _mm_packs_epi16(vacc01, vacc01);
+        _mm_storel_epi64((__m128i*)(output + i), vout);
+    }
+
+    // Remainder: 1-7 floats (SSE4.1 with partial store to keep banker's rounding)
+    if (i < count)
+    {
+        __m128 vx_lo = _mm_loadu_ps(input + i);
+        const float* x_hi = (const float*)((uintptr_t)(input + i) + ((count - i) & 4) * sizeof(float));
+        __m128 vx_hi = _mm_loadu_ps(x_hi);
+
+        vx_lo = _mm_add_ps(_mm_mul_ps(vx_lo, vscale), vbias);
+        vx_hi = _mm_add_ps(_mm_mul_ps(vx_hi, vscale), vbias);
+
+        vx_lo = _mm_max_ps(_mm_min_ps(vx_lo, vclamp_max), vclamp_min);
+        vx_hi = _mm_max_ps(_mm_min_ps(vx_hi, vclamp_max), vclamp_min);
+
+        const __m128i vy_lo = _mm_cvtps_epi32(vx_lo);
+        const __m128i vy_hi = _mm_cvtps_epi32(vx_hi);
+
+        __m128i vy = _mm_packs_epi32(vy_lo, vy_hi);
+        vy = _mm_packs_epi16(vy, vy);
+
+        size_t remaining = count - i;
+        if (remaining & 4)
+        {
+            memcpy(output + i, &vy, 4);
+            i += 4;
+            vy = _mm_srli_epi64(vy, 32);
+        }
+        if (remaining & 2)
+        {
+            uint16_t tmp = (uint16_t)_mm_extract_epi16(vy, 0);
+            memcpy(output + i, &tmp, 2);
+            i += 2;
+            vy = _mm_srli_epi32(vy, 16);
+        }
+        if (remaining & 1)
+        {
+            output[i] = (int8_t)_mm_extract_epi8(vy, 0);
+        }
+    }
+}
+#endif // __SSE4_1__
+
+#if !defined(USE_NEON) && !defined(__SSE4_1__)
+static void scalar_quantize_f32_to_s8(
+    const float* input, int8_t* output, size_t count,
+    float scale, float bias)
+{
+    for (size_t i = 0; i < count; i++)
+    {
+        float val = input[i] * scale + bias;
+        int32_t ival = static_cast<int32_t>(std::nearbyintf(val));
+        ival = ival < -128 ? -128 : (ival > 127 ? 127 : ival);
+        output[i] = static_cast<int8_t>(ival);
+    }
+}
+#endif
+
+// Public API: dispatches to architecture-specific kernel
+void xnnpack_quantize_f32_to_s8(
+    const float* input,
+    int8_t* output,
+    size_t count,
+    float scale,
+    float bias)
+{
+    if (count == 0) return;
+#ifdef USE_NEON
+    neon_quantize_f32_to_s8(input, output, count, scale, bias);
+#elif defined(__SSE4_1__)
+    sse41_quantize_f32_to_s8(input, output, count, scale, bias);
+#else
+    scalar_quantize_f32_to_s8(input, output, count, scale, bias);
+#endif
+}

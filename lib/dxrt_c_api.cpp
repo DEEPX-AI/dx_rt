@@ -191,6 +191,14 @@ static dxrt::InferenceOption make_option(const dxrt_options_t* opts)
         /* -1 = keep default */
     }
 
+    if (FIELD_ACCESSIBLE(show_model_info)) {
+        if (opts->show_model_info == 0)
+            option.showModelInfo = false;
+        else if (opts->show_model_info == 1)
+            option.showModelInfo = true;
+        /* -1 = keep default */
+    }
+
 #undef FIELD_ACCESSIBLE
 
     return option;
@@ -1649,6 +1657,15 @@ DXRT_CAPI dxrt_status_t dxrt_engine_get_npu_inference_time(dxrt_engine_t engine,
     DXRT_C_CATCH
 }
 
+DXRT_CAPI dxrt_status_t dxrt_engine_get_queue_wait_time(dxrt_engine_t engine, int64_t* out_us)
+{
+    if (!engine || !out_us) return DXRT_ERR_INVALID_ARG;
+    DXRT_C_TRY
+    *out_us = engine->engine->GetQueueWaitTime();
+    return DXRT_OK;
+    DXRT_C_CATCH
+}
+
 DXRT_CAPI dxrt_status_t dxrt_engine_get_latency_mean(dxrt_engine_t engine, double* out_us)
 {
     if (!engine || !out_us) return DXRT_ERR_INVALID_ARG;
@@ -1676,11 +1693,29 @@ DXRT_CAPI dxrt_status_t dxrt_engine_get_npu_time_mean(dxrt_engine_t engine, doub
     DXRT_C_CATCH
 }
 
+DXRT_CAPI dxrt_status_t dxrt_engine_get_queue_wait_time_mean(dxrt_engine_t engine, double* out_us)
+{
+    if (!engine || !out_us) return DXRT_ERR_INVALID_ARG;
+    DXRT_C_TRY
+    *out_us = engine->engine->GetQueueWaitTimeMean();
+    return DXRT_OK;
+    DXRT_C_CATCH
+}
+
 DXRT_CAPI dxrt_status_t dxrt_engine_get_npu_time_stddev(dxrt_engine_t engine, double* out_us)
 {
     if (!engine || !out_us) return DXRT_ERR_INVALID_ARG;
     DXRT_C_TRY
     *out_us = engine->engine->GetNpuInferenceTimeStdDev();
+    return DXRT_OK;
+    DXRT_C_CATCH
+}
+
+DXRT_CAPI dxrt_status_t dxrt_engine_get_queue_wait_time_stddev(dxrt_engine_t engine, double* out_us)
+{
+    if (!engine || !out_us) return DXRT_ERR_INVALID_ARG;
+    DXRT_C_TRY
+    *out_us = engine->engine->GetQueueWaitTimeStdDev();
     return DXRT_OK;
     DXRT_C_CATCH
 }
@@ -1699,6 +1734,15 @@ DXRT_CAPI dxrt_status_t dxrt_engine_get_npu_time_count(dxrt_engine_t engine, int
     if (!engine || !out_count) return DXRT_ERR_INVALID_ARG;
     DXRT_C_TRY
     *out_count = engine->engine->GetNpuInferenceTimeCnt();
+    return DXRT_OK;
+    DXRT_C_CATCH
+}
+
+DXRT_CAPI dxrt_status_t dxrt_engine_get_queue_wait_time_count(dxrt_engine_t engine, int* out_count)
+{
+    if (!engine || !out_count) return DXRT_ERR_INVALID_ARG;
+    DXRT_C_TRY
+    *out_count = engine->engine->GetQueueWaitTimeCnt();
     return DXRT_OK;
     DXRT_C_CATCH
 }

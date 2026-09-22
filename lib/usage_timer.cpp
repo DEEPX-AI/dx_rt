@@ -28,7 +28,8 @@ void UsageTimer::onTick()
     auto interval = nowTime - _prevTickTime;
     _prevTickTime = nowTime;
 
-    _usage = _usageDuration / static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(interval).count());
+    const auto intervalUs = std::chrono::duration_cast<std::chrono::microseconds>(interval).count();
+    _usage = intervalUs > 0 ? _usageDuration / static_cast<double>(intervalUs) : 0.0;
 
     _usageDuration = 0;
     _prevUsage = _usageCount;

@@ -282,7 +282,7 @@ DeviceViewModel NpuMonitor::createDeviceViewModel(const NpuDevice& device)
     // Device Variant
     view_models.fields.emplace_back(Field{
         "Variant",
-        NpuDeviceFormatter::FormatDeviceVariant(device.GetDeviceVariant()),
+        NpuDeviceFormatter::FormatDeviceVariant(device.GetDeviceVariant(), device.GetDDRType()),
         10,
         Field::Align::CENTER,
         1,

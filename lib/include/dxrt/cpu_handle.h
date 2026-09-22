@@ -64,6 +64,19 @@ class DXRT_API CpuHandle // NOSONAR: Too many fields - stable as-is, refactoring
     std::shared_ptr<Ort::Session> CreateWorkerSession();
     void RunWithSession(RequestPtr req, std::shared_ptr<Ort::Session> session);
 
+    // One-time warm-up run of `session` with zero-filled dummy inputs. Intended
+    // to be called a few times (e.g. 3x) by a CpuHandleWorker thread right
+    // after it starts, before it begins servicing real requests from the
+    // queue. This pre-pays ONNX Runtime's CPU memory arena growth (which, per
+    // measurement, ramps up over the first ~2 real Run() calls before
+    // stabilizing) and intra/inter-op thread pool spin-up cost during worker
+    // start-up instead of on real jobs. Safe to call multiple times and safe
+    // to call with a session shared across multiple worker threads. Skips
+    // itself (no-op) if any input has a dynamic (non-fixed) shape. Never
+    // throws: any failure is logged and swallowed so it can never prevent a
+    // worker thread from servicing real requests.
+    void WarmupSession(std::shared_ptr<Ort::Session> session);
+
 #endif
 
 

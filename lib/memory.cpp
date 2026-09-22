@@ -397,7 +397,7 @@ void Memory::PrintMemoryMap() const
                  << "] Size: " << dec << node.size << " bytes, Status: " << status_str << endl;
     }
 
-    auto fragInfo = GetFragmentationInfo();
+    auto fragInfo = GetFragmentationInfoNoLock();
     LOG_DXRT << "Fragmentation Info:" << endl;
     LOG_DXRT << "  Total Free: " << fragInfo.total_free_size << " bytes" << endl;
     LOG_DXRT << "  Largest Free Block: " << fragInfo.largest_free_block << " bytes" << endl;

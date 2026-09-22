@@ -11,6 +11,7 @@
 #include "dxrt/task.h"
 
 #include <algorithm>
+#include <cstring>
 #include <future>
 #include "dxrt/device.h"
 #include "dxrt/request.h"
@@ -30,6 +31,35 @@
 using std::endl;
 
 namespace dxrt {
+
+namespace {
+// Touches every slot of a FixedSizeBuffer pool once (acquire -> memset -> release) right
+// after the pool is allocated, so the first-touch page-fault cost (physical page mapping
+// for freshly posix_memalign'd memory) is paid here instead of landing on the first few
+// real requests. Called at Task construction time, before any request exists, so this only
+// ever touches the pool's own internal memory -- even for the decoded output buffer, which
+// a later request may bypass with its own user-supplied buffer (zero-copy path, see
+// RequestResponse::PickDevice's `output_buffer_base == nullptr` check): in that case the
+// pool slot we pre-touched here simply stays unused in the free list.
+void WarmupBufferPool(const std::shared_ptr<FixedSizeBuffer>& pool, int slotCount, int64_t byteSize)
+{
+    if (!pool || slotCount <= 0 || byteSize <= 0) return;
+
+    std::vector<void*> acquired;
+    acquired.reserve(static_cast<size_t>(slotCount));
+    for (int i = 0; i < slotCount; i++)
+    {
+        void* p = pool->getBuffer();
+        if (p == nullptr) break;  // defensive: pool smaller than expected
+        std::memset(p, 0, static_cast<size_t>(byteSize));
+        acquired.push_back(p);
+    }
+    for (void* p : acquired)
+    {
+        pool->releaseBuffer(p);
+    }
+}
+}  // namespace
 
 int Task::nextId = 0;
 std::mutex Task::_nextIdLock;
@@ -500,6 +530,7 @@ void Task::SetEncodedInputBuffer(int size)
         LOG_DXRT_DBG << "Task "<< id() <<" Encoded Input Buffer Count : " << size << std::endl;
 #ifndef USE_VNPU
         _taskEncodedInputBuffer = std::make_shared<FixedSizeBuffer>(_taskData.encoded_input_size(), size);
+        WarmupBufferPool(_taskEncodedInputBuffer, size, _taskData.encoded_input_size());
 #else
         _taskEncodedInputBuffer = std::make_shared<FixedSizeBuffer>(
 
@@ -571,7 +602,14 @@ void Task::SetOutputBuffer(int size)
     {
 #ifndef USE_VNPU
         _taskOutputBuffer = std::make_shared<FixedSizeBuffer>(_taskData.output_size(), size);
+        // Safe to warm up even though a user-supplied output buffer (zero-copy path) can
+        // bypass this pool for a given request: at this point (Task construction) no
+        // request exists yet, so we only ever touch the pool's own internal memory here.
+        // If a later request supplies its own buffer, the pool slot we pre-touched simply
+        // stays unused in the free list -- no aliasing with user memory occurs either way.
+        WarmupBufferPool(_taskOutputBuffer, size, _taskData.output_size());
         _taskEncodedOutputBuffer = std::make_shared<FixedSizeBuffer>(_taskData.encoded_output_size(), size);
+        WarmupBufferPool(_taskEncodedOutputBuffer, size, _taskData.encoded_output_size());
 #else
         _taskOutputBuffer = std::make_shared<FixedSizeBuffer>(
             _taskData.output_size(), size, BufferAllocType::CMA_DMA, BufferDirection::OUTPUT);

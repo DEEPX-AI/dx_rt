@@ -18,6 +18,8 @@ if(WIN32)
 endif()
 
 project(dxrt DESCRIPTION "DEEPX Runtime SDK")
+include(CheckCCompilerFlag)
+include(CheckCXXCompilerFlag)
 
 set(CMAKE_CXX_STANDARD_REQUIRED "ON")
 if (MSVC)
@@ -53,6 +55,18 @@ endif()
 
 # functions
 include(dxrt.function)
+
+option(ENABLE_RELEASE_STRIP "Enable strip/unstripped generation for Release builds" OFF)
+
+# The strip step only runs for Release; make the no-op explicit instead of silent.
+if(ENABLE_RELEASE_STRIP)
+    string(TOLOWER "${CMAKE_BUILD_TYPE}" _dxrt_strip_build_type)
+    if(NOT _dxrt_strip_build_type STREQUAL "release")
+        message(WARNING
+            "ENABLE_RELEASE_STRIP is ON but CMAKE_BUILD_TYPE is '${CMAKE_BUILD_TYPE}'; "
+            "the strip step is skipped (Release only).")
+    endif()
+endif()
 
 set(CMAKE_CXX_STANDARD_REQUIRED "ON")
 
@@ -119,11 +133,46 @@ if (MSVC)
     )
 else()
     add_compile_options(-W -Wall -pthread)
-    if (NOT (${USE_CLANG}))
+    if ((NOT (${USE_CLANG})) AND (NOT (CMAKE_CXX_COMPILER_ID MATCHES "Clang")))
         add_compile_options(-fstrict-volatile-bitfields)
     endif()
     if (USE_SHARED_DXRT_LIB)
         add_compile_options(-fPIC)
+    endif()
+
+    # Reproducible path mapping (Release-like builds only):
+    # trim absolute source/build prefixes in DWARF and __FILE__.
+    # Independent of ENABLE_RELEASE_STRIP: applies whenever the build type is
+    # Release-like, regardless of whether stripping is enabled.
+    #
+    # Never applied to coverage builds: the prefix map also rewrites the
+    # compilation directory recorded in the coverage mapping, after which
+    # llvm-cov/gcov can no longer locate the sources ("No such file or
+    # directory") and emits an empty report.
+    # ENABLE_COVERAGE appends its flags later (see below), so the option is
+    # checked directly in addition to flags injected via CFLAGS/CXXFLAGS.
+    string(TOLOWER "${CMAKE_BUILD_TYPE}" _dxrt_build_type)
+    set(_dxrt_coverage_build FALSE)
+    if(ENABLE_COVERAGE OR "${CMAKE_C_FLAGS} ${CMAKE_CXX_FLAGS}" MATCHES
+            "-fcoverage-mapping|-fprofile-instr-generate|--coverage|-fprofile-arcs")
+        set(_dxrt_coverage_build TRUE)
+    endif()
+    if(NOT _dxrt_coverage_build AND
+       (_dxrt_build_type STREQUAL "release" OR _dxrt_build_type STREQUAL "relwithdebinfo"))
+        set(_DXRT_FILE_PREFIX_MAP_SRC "-ffile-prefix-map=${CMAKE_SOURCE_DIR}/=")
+        set(_DXRT_FILE_PREFIX_MAP_BIN "-ffile-prefix-map=${CMAKE_BINARY_DIR}=.")
+        check_c_compiler_flag("${_DXRT_FILE_PREFIX_MAP_SRC}" _DXRT_C_HAS_FILE_PREFIX_MAP)
+        check_cxx_compiler_flag("${_DXRT_FILE_PREFIX_MAP_SRC}" _DXRT_CXX_HAS_FILE_PREFIX_MAP)
+        if(_DXRT_C_HAS_FILE_PREFIX_MAP AND _DXRT_CXX_HAS_FILE_PREFIX_MAP)
+            add_compile_options(
+                ${_DXRT_FILE_PREFIX_MAP_SRC}
+                ${_DXRT_FILE_PREFIX_MAP_BIN}
+            )
+        else()
+            message(STATUS "Skipping -ffile-prefix-map (unsupported by current C/C++ compiler)")
+        endif()
+    elseif(_dxrt_coverage_build)
+        message(STATUS "Skipping -ffile-prefix-map (coverage build: keeps source paths resolvable for llvm-cov/gcov)")
     endif()
 endif()
 
@@ -148,6 +197,13 @@ endif()
 set(DXRT_RESOURCE_VERSION "${CMAKE_MATCH_1}.${CMAKE_MATCH_2}.${CMAKE_MATCH_3}")
 # release.ver has no build number, so VERSIONINFO uses a zero fourth field.
 set(DXRT_RESOURCE_VERSION_COMMAS "${CMAKE_MATCH_1},${CMAKE_MATCH_2},${CMAKE_MATCH_3},0")
+# build.ver carries the public-release build id (<round>.<source hash>);
+# it is tracked like release.ver but only holds a value once a public release has stamped it.
+set(DXRT_BUILD_ID "")
+if(EXISTS "${CMAKE_SOURCE_DIR}/build.ver")
+    file(STRINGS "${CMAKE_SOURCE_DIR}/build.ver" DXRT_BUILD_ID LIMIT_COUNT 1)
+    string(STRIP "${DXRT_BUILD_ID}" DXRT_BUILD_ID)
+endif()
 foreach(cfg ${build_cfg_contents})
     add_compile_definitions(${cfg})
 endforeach()
@@ -167,10 +223,11 @@ if(ENABLE_COVERAGE)
 
     # Coverage flags for different compilers
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-        # Clang coverage flags
-        set(COVERAGE_CXX_FLAGS "-fprofile-instr-generate -fcoverage-mapping --coverage -g")
-        set(COVERAGE_C_FLAGS "-fprofile-instr-generate -fcoverage-mapping --coverage -g")
-        set(COVERAGE_LINKER_FLAGS "--coverage")
+        # Clang source-based coverage flags. Do not mix gcov-compatible
+        # --coverage instrumentation with LLVM .profraw/.profdata coverage.
+        set(COVERAGE_CXX_FLAGS "-fprofile-instr-generate -fcoverage-mapping -g")
+        set(COVERAGE_C_FLAGS "-fprofile-instr-generate -fcoverage-mapping -g")
+        set(COVERAGE_LINKER_FLAGS "")
     elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
         # GCC coverage flags
         set(COVERAGE_CXX_FLAGS "-fprofile-arcs -ftest-coverage --coverage -g -O0")

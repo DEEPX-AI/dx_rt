@@ -75,6 +75,7 @@
 
 namespace dxrt {
 
+DXRT_API std::ostream& operator<<(std::ostream& os, dxrt_sche_sub_cmd_t subCmd);
 
 class Worker;
 class Memory;
@@ -201,4 +202,3 @@ class DXRT_API ServiceDevice  // NOSONAR:S1820
 };
 
 }  // namespace dxrt
-

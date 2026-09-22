@@ -80,7 +80,7 @@ namespace dxrt {
 }
 
 const int DXRT_TASK_MAX_LOAD_DEFAULT = 6;
-const int DXRT_TASK_MAX_LOAD_VALUE = dxrt::GetTaskMaxLoad();
+#define DXRT_TASK_MAX_LOAD_VALUE dxrt::GetTaskMaxLoad()
 const int DXRT_TASK_MAX_LOAD_LIMIT = 100;
 const int DXRT_NPU_FULL_MAX_LOAD = 10;
 

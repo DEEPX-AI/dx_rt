@@ -480,6 +480,12 @@ namespace dxrt {
         return DXRT_GIT_HASH;
     }
 
+    std::string Configuration::GetBuildId() const
+    {
+        // DXRT_BUILD_ID is always defined by gen.h (defaults to "" when build.ver is empty).
+        return DXRT_BUILD_ID;
+    }
+
     std::string Configuration::GetDriverVersion() const
     {
         uint32_t rt_driver_version = 0;
@@ -567,30 +573,20 @@ namespace dxrt {
 
 int DXRT_API GetTaskMaxLoad()
 {
-    static int cached_value = -1;
-    if (cached_value == -1)
+    const char *env_value = std::getenv("DXRT_TASK_MAX_LOAD");
+    if (env_value != nullptr)
     {
-        const char *env_value = std::getenv("DXRT_TASK_MAX_LOAD");
-        if (env_value != nullptr)
+        const int env_int = std::atoi(env_value);
+        if (env_int > 0 && env_int <= DXRT_TASK_MAX_LOAD_LIMIT)
         {
-            int env_int = std::atoi(env_value);
-            if (env_int > 0 && env_int <= DXRT_TASK_MAX_LOAD_LIMIT)
-            {
-                cached_value = env_int;
-                LOG << "Using DXRT_TASK_MAX_LOAD (I/O buffer-count)=" << cached_value << " from environment" << std::endl;
-            }
-            else
-            {
-                cached_value = DXRT_TASK_MAX_LOAD_DEFAULT; // default value
-                LOG << "Invalid DXRT_TASK_MAX_LOAD (I/O buffer-count) value, using default=" << cached_value << std::endl;
-            }
+            LOG << "Using DXRT_TASK_MAX_LOAD (I/O buffer-count)=" << env_int << " from environment" << std::endl;
+            return env_int;
         }
-        else
-        {
-            cached_value = DXRT_TASK_MAX_LOAD_DEFAULT; // default value
-        }
+
+        LOG << "Invalid DXRT_TASK_MAX_LOAD (I/O buffer-count) value, using default=" << DXRT_TASK_MAX_LOAD_DEFAULT << std::endl;
     }
-    return cached_value;
+
+    return DXRT_TASK_MAX_LOAD_DEFAULT;
 }
 
 #if defined(__x86_64__) || defined(_M_X64)

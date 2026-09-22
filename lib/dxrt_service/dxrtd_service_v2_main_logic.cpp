@@ -8,11 +8,20 @@
  */
 
 #include "dxrt_service_v2_main_logic.hpp"
+#ifdef __linux__
+#include <csignal>
+#endif
 #include <vector>
 #include <string>
 #include "dxrt/dynamic_ipc_endpoint.h"
 
 namespace dxrt {
+
+#ifdef __linux__
+namespace {
+volatile std::sig_atomic_t gTerminationSignal = 0;
+}
+#endif
 
 std::vector<std::string> BuildDxrtServiceV2Endpoints(bool endpointOptionProvided,
     const std::string &cliEndpoint, const std::string &envEndpoint, const std::string &defaultEndpoint)
@@ -31,6 +40,41 @@ std::vector<std::string> BuildDxrtServiceV2Endpoints(bool endpointOptionProvided
     }
 
     return dxrt::GetDynamicIpcEndpointCandidates(defaultEndpoint);
+}
+
+bool IsDxrtServiceV2TerminationSignal(int signalNumber)
+{
+#ifdef __linux__
+    return signalNumber == SIGINT || signalNumber == SIGTERM;
+#else
+    (void)signalNumber;
+    return false;
+#endif
+}
+
+void ResetDxrtServiceV2TerminationSignal()
+{
+#ifdef __linux__
+    gTerminationSignal = 0;
+#endif
+}
+
+void HandleDxrtServiceV2TerminationSignal(int signalNumber)
+{
+#ifdef __linux__
+    gTerminationSignal = signalNumber;
+#else
+    (void)signalNumber;
+#endif
+}
+
+bool IsDxrtServiceV2TerminationRequested()
+{
+#ifdef __linux__
+    return IsDxrtServiceV2TerminationSignal(gTerminationSignal);
+#else
+    return false;
+#endif
 }
 
 }  // namespace dxrt
