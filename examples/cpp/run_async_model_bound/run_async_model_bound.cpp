@@ -71,7 +71,7 @@ void RunInferenceThread(const std::string& modelPath, int loopCount, int threadI
 
 int main(int argc, char* argv[])
 {
-    const int THREAD_COUNT = 2;
+    const int THREAD_COUNT = 3;
 
     std::string model_path;
     int loop_count;
@@ -116,14 +116,16 @@ int main(int argc, char* argv[])
 
         std::vector<std::thread> threads;
 
-        // Create two threads with different bound options
+        // Create three threads with different bound options
         threads.emplace_back(RunInferenceThread, model_path, loop_count, 0, dxrt::InferenceOption::BOUND_OPTION::NPU_0);
-        threads.emplace_back(RunInferenceThread, model_path, loop_count, 1, dxrt::InferenceOption::BOUND_OPTION::NPU_12);
+        threads.emplace_back(RunInferenceThread, model_path, loop_count, 1, dxrt::InferenceOption::BOUND_OPTION::NPU_1);
+        threads.emplace_back(RunInferenceThread, model_path, loop_count, 2, dxrt::InferenceOption::BOUND_OPTION::NPU_ALL);
 
         log.Info("Created " + std::to_string(THREAD_COUNT) + " threads with bound options:");
         log.Info("  Thread 0: NPU_0 (Bound " + std::to_string(static_cast<int>(dxrt::InferenceOption::BOUND_OPTION::NPU_0)) + ")");
-        log.Info("  Thread 1: NPU_12 (Bound " + std::to_string(static_cast<int>(dxrt::InferenceOption::BOUND_OPTION::NPU_12)) + ")");
-        log.Info("  Total different bound types: 2 (within 3-type limit)");
+        log.Info("  Thread 1: NPU_1 (Bound " + std::to_string(static_cast<int>(dxrt::InferenceOption::BOUND_OPTION::NPU_1)) + ")");
+        log.Info("  Thread 2: NPU_ALL (Bound " + std::to_string(static_cast<int>(dxrt::InferenceOption::BOUND_OPTION::NPU_ALL)) + ")");
+        log.Info("  Total different bound options: 3");
 
         // wait for all threads to complete
         for (auto& th: threads) {
@@ -134,12 +136,13 @@ int main(int argc, char* argv[])
         std::chrono::duration<double, std::milli> duration = end - start;
 
         double total_time = duration.count();
-        double avg_latency = total_time / static_cast<double>(loop_count);
-        double fps = 1000.0 / avg_latency;
+        double total_requests = static_cast<double>(THREAD_COUNT * loop_count);
+        double avg_latency = total_time / total_requests;
+        double fps = (1000.0 * total_requests) / total_time;
 
         log.Info("-----------------------------------");
         log.Info("Total Time: " + std::to_string(total_time) + " ms");
-        log.Info("Average Latency: " + std::to_string(avg_latency) + " ms");
+        log.Info("Average Latency per Inference: " + std::to_string(avg_latency) + " ms");
         log.Info("FPS: " + std::to_string(fps) + " frames/sec");
         log.Info("-----------------------------------");
     }

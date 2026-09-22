@@ -103,6 +103,7 @@ template <typename T>
 CircularBuffer<T>::~CircularBuffer() = default;
 
 template class CircularBuffer<int>;
+template class CircularBuffer<int64_t>;
 template class CircularBuffer<uint32_t>;
 
 } // namespace dxrt

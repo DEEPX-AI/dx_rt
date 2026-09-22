@@ -8,11 +8,13 @@
  */
 
  #include <stdlib.h>
+ #include <cstdlib>
  #include <stdio.h>
  #include <stdint.h>
  #include <fcntl.h>
  #ifdef __linux__
  #include <cxxabi.h>
+ #include <unistd.h>
  #endif
  #ifdef _WIN32
  #include <windows.h>
@@ -26,6 +28,7 @@
  #include <set>
  #include <iomanip>
  #include <sstream>
+ #include <utility>
 
  #include "dxrt/common.h"
  #include "dxrt/model.h"
@@ -45,87 +48,233 @@
  namespace dxrt
  {
 
+#if defined(_WIN32)
+#define OS_WINDOWS
+#define ISATTY _isatty
+#define FILENO _fileno
+#else
+#define ISATTY isatty
+#define FILENO fileno
+#endif
+
  // Forward declarations
  int ParseModelJSONExtract(const std::string& file);
  int ParseModelDetailed(const std::string& file, const ParseOptions& options);
 
+// Shared color output toggles used by ANSI/WinAPI output paths.
 
- // ANSI escape codes for terminal text colors
+
+enum class ColorName {
+    Reset,
+    Bold,
+    Yellow,
+    Green,
+    Blue,
+    Red,
+    Purple,
+    Cyan,
+    Gray
+};
+
+struct ColoredText;
+
+// ANSI escape codes for terminal text colors
 class Color {
  public:
+    enum class Mode {
+        PlainText,
+        Ansi,
+        WinApi
+    };
+
+    static Mode DetectMode()
+    {
+        // [Check 1] Non-TTY output should not emit color sequences.
+        if (!ISATTY(FILENO(stdout)))
+        {
+            return Mode::PlainText;
+        }
+
+        // [Check 2] Respect NO_COLOR standard environment variable.
+        if (std::getenv("NO_COLOR") != nullptr)
+        {
+            return Mode::PlainText;
+        }
+
+#if defined(OS_WINDOWS)
+        // Windows detection logic.
+        HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (hOut == INVALID_HANDLE_VALUE) return Mode::PlainText;
+
+        DWORD dwMode = 0;
+        if (!GetConsoleMode(hOut, &dwMode)) return Mode::PlainText;
+
+        // Windows 10+: try enabling ANSI VT mode.
+        if (SetConsoleMode(hOut, dwMode | ENABLE_VIRTUAL_TERMINAL_PROCESSING))
+        {
+            return Mode::Ansi;
+        }
+
+        // ANSI enable failed: fallback to WinApi color path.
+        return Mode::WinApi;
+#else
+        // Linux/macOS detection logic.
+        const char* term = std::getenv("TERM");
+        if (term && std::string(term) == "dumb")
+        {
+            return Mode::PlainText;
+        }
+        return Mode::Ansi;
+#endif
+    }
+
+    static void Configure(bool no_color)
+    {
+        // Keep existing no_color option as an explicit override.
+        if (no_color)
+        {
+            color_enabled = false;
+            use_color_literal = false;
+            use_windows_color_api = false;
+            return;
+        }
+
+        const Mode mode = DetectMode();
+        switch (mode)
+        {
+            case Mode::Ansi:
+                color_enabled = true;
+                use_color_literal = true;
+                use_windows_color_api = false;
+                break;
+            case Mode::WinApi:
+                // Text-only color output path is handled by coutColorText(...).
+                // Keep ANSI literals off and enable WinAPI path.
+                color_enabled = true;
+                use_color_literal = false;
+                use_windows_color_api = true;
+                break;
+            case Mode::PlainText:
+            default:
+                color_enabled = false;
+                use_color_literal = false;
+                use_windows_color_api = false;
+                break;
+        }
+    }
+
     static bool get_color_enabled()
     {
         return color_enabled;
     }
-    static void enable_color(bool enable)
+    friend std::ostream &operator<<(std::ostream &os, const ColoredText &value);
+
+private:
+    static bool color_enabled;
+    static bool use_color_literal;
+    static bool use_windows_color_api;
+};
+
+bool Color::color_enabled = false;
+bool Color::use_color_literal = true;
+bool Color::use_windows_color_api = false;
+
+static const char* ansi_code(ColorName color)
+{
+    switch (color)
     {
-        color_enabled = enable;  // temporary disable color on windows
+        case ColorName::Reset:  return "\033[0m";
+        case ColorName::Bold:   return "\033[1m";
+        case ColorName::Yellow: return "\033[1;33m";
+        case ColorName::Green:  return "\033[1;32m";
+        case ColorName::Blue:   return "\033[1;34m";
+        case ColorName::Red:    return "\033[1;31m";
+        case ColorName::Purple: return "\033[1;35m";
+        case ColorName::Cyan:   return "\033[1;36m";
+        case ColorName::Gray:   return "\033[90m";
+        default:                return "";
+    }
+}
+
+#ifdef _WIN32
+static WORD winapi_color(ColorName color)
+{
+    switch (color)
+    {
+        case ColorName::Bold:
+            return FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY;
+        case ColorName::Yellow:
+            return FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY;
+        case ColorName::Green:
+            return FOREGROUND_GREEN | FOREGROUND_INTENSITY;
+        case ColorName::Blue:
+            return FOREGROUND_BLUE | FOREGROUND_INTENSITY;
+        case ColorName::Red:
+            return FOREGROUND_RED | FOREGROUND_INTENSITY;
+        case ColorName::Purple:
+            return FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_INTENSITY;
+        case ColorName::Cyan:
+            return FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY;
+        case ColorName::Gray:
+        case ColorName::Reset:
+        default:
+            return FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE;
+    }
+}
+#endif
+
+struct ColoredText {
+    ColorName color;
+    std::string text;
+};
+
+inline ColoredText coutColorText(ColorName color, std::string text)
+{
+    return ColoredText{color, std::move(text)};
+}
+
+std::ostream& operator<<(std::ostream& os, const ColoredText& value)
+{
+    if (!Color::get_color_enabled())
+    {
+        os << value.text;
+        return os;
+    }
+
+    if (Color::use_color_literal)
+    {
+        os << ansi_code(value.color) << value.text << ansi_code(ColorName::Reset);
+        return os;
     }
 
 #ifdef _WIN32
-    static bool& get_windows_color_initialized()
+    if (Color::use_windows_color_api)
     {
-        static bool windows_color_initialized = false;
-        return windows_color_initialized;
+        HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (hConsole != INVALID_HANDLE_VALUE)
+        {
+            CONSOLE_SCREEN_BUFFER_INFO current_info;
+            const bool has_info = GetConsoleScreenBufferInfo(hConsole, &current_info) != 0;
+            SetConsoleTextAttribute(hConsole, winapi_color(value.color));
+            os << value.text;
+            SetConsoleTextAttribute(
+                hConsole,
+                has_info ? current_info.wAttributes : winapi_color(ColorName::Reset));
+            return os;
+        }
     }
-
-     // Initialize Windows console for ANSI color support
-    static void init_windows_console()
-    {
-         if (!get_windows_color_initialized())
-         {
-             HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
-             if (hOut != INVALID_HANDLE_VALUE)
-             {
-                 DWORD dwMode = 0;
-                 if (GetConsoleMode(hOut, &dwMode))
-                 {
-                     dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-                     SetConsoleMode(hOut, dwMode);
-                 }
-             }
-             get_windows_color_initialized() = true;
-         }
-     }
 #endif
 
-    static std::string reset() { return get_color(RESET); }
-    static std::string bold() { return get_color(BOLD); }
-    static std::string yellow() { return get_color(YELLOW); }
-    static std::string green() { return get_color(GREEN); }
-    static std::string blue() { return get_color(BLUE); }
-    static std::string red() { return get_color(RED); }
-    static std::string purple() { return get_color(PURPLE); }
-    static std::string cyan() { return get_color(CYAN); }
-    static std::string gray() { return get_color(GRAY); }
+    os << value.text;
+    return os;
+}
 
- private:
-     static bool color_enabled;
-     static std::string get_color(const char *color_code)
-     {
-         if (!get_color_enabled())
-         {
-             return "";
-         }
-         else
-         {
-             return color_code;
-         }
-    }
-
-     static constexpr const char* RESET       = "\033[0m";
-     static constexpr const char* BOLD        = "\033[1m";
-     static constexpr const char* YELLOW      = "\033[1;33m";
-     static constexpr const char* GREEN       = "\033[1;32m";
-     static constexpr const char* BLUE        = "\033[1;34m";
-     static constexpr const char* RED         = "\033[1;31m";
-     static constexpr const char* PURPLE      = "\033[1;35m";
-     static constexpr const char* CYAN        = "\033[1;36m";
-     static constexpr const char* GRAY        = "\033[90m";
-
-};
-
-bool Color::color_enabled = true;
+inline std::string colorText(ColorName color, const std::string& text)
+{
+    std::ostringstream oss;
+    oss << coutColorText(color, text);
+    return oss.str();
+}
 
  // Helper to add thousand separators to a number string
  static string add_commas(const string& s)
@@ -299,7 +448,7 @@ bool Color::color_enabled = true;
      bool verbose)
  {
      bool is_outputs = (title == "Outputs");
-     cout << "  +- " << Color::bold() << title << ":" << Color::reset() << endl;
+     cout << "  +- " << coutColorText(ColorName::Bold, title + ":") << endl;
      if (tensors.empty())
      {
          cout << (is_outputs ? "     " : "  |  ") << "+- (None)" << endl;
@@ -310,14 +459,16 @@ bool Color::color_enabled = true;
          const auto& tensor = tensors[i];
          const char* prefix = is_outputs ? "     +- " : "  |  +- ";
 
-         cout << prefix << Color::cyan() << tensor.name() << Color::reset();
+         cout << prefix << coutColorText(ColorName::Cyan, tensor.name());
 
          // Show detailed info in verbose mode
          if (verbose)
          {
-             cout << Color::gray() << " {shape: " << format_tensor_shape(tensor)
-                  << ", dtype: " << get_tensor_dtype_string(tensor)
-                  << ", size: " << format_bytes(calculate_tensor_bytes(tensor)) << "}" << Color::reset();
+                const std::string detail = " {shape: " + format_tensor_shape(tensor)
+                                    + ", dtype: " + get_tensor_dtype_string(tensor)
+                                    + ", size: " + format_bytes(calculate_tensor_bytes(tensor))
+                                    + "}";
+                cout << coutColorText(ColorName::Gray, detail);
          }
 
          // Show layout/transpose info only in verbose mode
@@ -325,14 +476,15 @@ bool Color::color_enabled = true;
          {
              auto layout = static_cast<deepx_rmapinfo::Layout>((*tensorInfos)[i]._layout);
              std::string layout_str = deepx_rmapinfo::LayoutToString(layout);
-             cout << Color::gray() << " [layout: " << layout_str;
+             std::string layout_detail = " [layout: " + layout_str;
              if (layout == deepx_rmapinfo::ALIGNED)
              {
                  auto transpose = static_cast<deepx_rmapinfo::Transpose>((*tensorInfos)[i]._transpose);
                  std::string transpose_str = deepx_rmapinfo::TransposeToString(transpose);
-                 cout << ", transpose: " << transpose_str;
+                 layout_detail += ", transpose: " + transpose_str;
              }
-             cout << "]" << Color::reset();
+             layout_detail += "]";
+             cout << coutColorText(ColorName::Gray, layout_detail);
          }
          cout << endl;
      }
@@ -346,12 +498,9 @@ bool Color::color_enabled = true;
 
  int ParseModel(const string& file, const ParseOptions& options)
  {
-     // Set color mode
-#ifdef __linux__
-     Color::enable_color(!options.no_color);
-#else
-     Color::enable_color(false);  // Disable color on Windows for now
-#endif
+    // Force plain text when writing parse output to a file.
+    const bool no_color_effective = options.no_color || !options.output_file.empty();
+    Color::Configure(no_color_effective);
 
 
      // Redirect output if file is specified
@@ -432,21 +581,24 @@ bool Color::color_enabled = true;
     dxrt::ModelDataBase modelData;
     LoadModelParam(modelData, file);
 
-    cout << "\n" << Color::bold() << "===================== Model Information ======================" << Color::reset() << endl;
-    cout << Color::bold() << " Model File Path        : " << Color::cyan() << file << Color::reset() << endl;
-    cout << Color::bold() << " .dxnn Format Version   : " << Color::green() <<"v"<< modelData.deepx_binary._dxnnFileFormatVersion << Color::reset() << endl;
-    cout << Color::bold() << " DX-COM Version         : " << Color::green() <<"v"<< modelData.deepx_binary._compilerVersion << Color::reset() << endl;
+    cout << "\n" << coutColorText(ColorName::Bold, "===================== Model Information ======================") << endl;
+    cout << coutColorText(ColorName::Bold, " Model File Path        : ")
+         << coutColorText(ColorName::Cyan, file) << endl;
+    cout << coutColorText(ColorName::Bold, " .dxnn Format Version   : ")
+         << coutColorText(ColorName::Green, "v" + std::to_string(modelData.deepx_binary._dxnnFileFormatVersion)) << endl;
+    cout << coutColorText(ColorName::Bold, " DX-COM Version         : ")
+            << coutColorText(ColorName::Green, "v" + modelData.deepx_binary._compilerVersion) << endl;
     cout << endl;
-    cout << Color::bold() << " Model Input Tensors:" << Color::reset() << endl;
+    cout << coutColorText(ColorName::Bold, " Model Input Tensors:") << endl;
     for (const auto& input : modelData.deepx_graph.inputs())
     {
-        cout << "  - " << Color::cyan() << input << Color::reset() << endl;
+        cout << "  - " << coutColorText(ColorName::Cyan, input) << endl;
     }
     cout << endl;
-    cout << Color::bold() << " Model Output Tensors:" << Color::reset() << endl;
+    cout << coutColorText(ColorName::Bold, " Model Output Tensors:") << endl;
     for (const auto& output : modelData.deepx_graph.outputs())
     {
-        cout << "  - " << Color::cyan() << output << Color::reset() << endl;
+        cout << "  - " << coutColorText(ColorName::Cyan, output) << endl;
     }
 
     // Calculate Model Memory Usage for Model Information section
@@ -474,7 +626,7 @@ bool Color::color_enabled = true;
         bool has_ppu_binary = false;
 
         const size_t rmap_count = modelData.deepx_binary.rmap_info().size();
-        const bool is_v8_format = (modelData.deepx_binary._dxnnFileFormatVersion == 8);
+        const bool is_v8_format = (modelData.deepx_binary._dxnnFileFormatVersion >= 8);
 
         found = load_task_binary_data(order, modelData, rmap_count, is_v8_format,
                                        rmap_info, data, has_ppu_binary);
@@ -534,11 +686,15 @@ bool Color::color_enabled = true;
     }
 
     cout << endl;
-    cout << Color::bold() << " Model Memory Usage:" << Color::reset() << endl;
-    cout << "  - " << Color::bold() << "Total             : " << Color::purple() << format_bytes(totalModelMemory) << Color::reset() << endl;
-    cout << "  - " << Color::bold() << "Buffers           : " << Color::purple() << format_bytes(totalBufferMemory) << Color::reset() << endl;
-    cout << "  - " << Color::bold() << "NPU Tasks Count   : " << Color::purple() << npuTaskCount << Color::reset() << endl;
-    cout << "  - " << Color::bold() << "Buffer Pool Size  : " << Color::purple() << "x" << npu_buffer_count << Color::reset() << endl;
+        cout << coutColorText(ColorName::Bold, " Model Memory Usage:") << endl;
+        cout << "  - " << coutColorText(ColorName::Bold, "Total             : ")
+            << coutColorText(ColorName::Purple, format_bytes(totalModelMemory)) << endl;
+        cout << "  - " << coutColorText(ColorName::Bold, "Buffers           : ")
+            << coutColorText(ColorName::Purple, format_bytes(totalBufferMemory)) << endl;
+        cout << "  - " << coutColorText(ColorName::Bold, "NPU Tasks Count   : ")
+            << coutColorText(ColorName::Purple, std::to_string(npuTaskCount)) << endl;
+        cout << "  - " << coutColorText(ColorName::Bold, "Buffer Pool Size  : ")
+            << coutColorText(ColorName::Purple, "x" + std::to_string(npu_buffer_count)) << endl;
 
 // Someone wants to use parse_model without NPU, So, NPU related code is commented out.
 #if 0
@@ -561,21 +717,24 @@ bool Color::color_enabled = true;
 
            if (canFitWithPoolReduction)
            {
-               cout << Color::bold() << Color::yellow()
-                    << " ⚠ Warning: Model size exceeds Device " << i << " memory (" << format_bytes(deviceMemSizes[i]) << "), but can fit by reducing buffer pool size to x" << recommendedPoolSize << " or less."
-                    << Color::reset() << endl;
+               cout << coutColorText(ColorName::Yellow,
+                        " ⚠ Warning: Model size exceeds Device " + std::to_string(i) +
+                        " memory (" + format_bytes(deviceMemSizes[i]) +
+                        "), but can fit by reducing buffer pool size to x" +
+                        std::to_string(recommendedPoolSize) + " or less.") << endl;
            }
            else
            {
-               cout << Color::bold() << Color::red()
-                    << " ✗ Error: Model size exceeds Device " << i << " memory (" << format_bytes(deviceMemSizes[i]) << ") - cannot fit even with minimum buffer pool size."
-                    << Color::reset() << endl;
+               cout << coutColorText(ColorName::Red,
+                        " ✗ Error: Model size exceeds Device " + std::to_string(i) +
+                        " memory (" + format_bytes(deviceMemSizes[i]) +
+                        ") - cannot fit even with minimum buffer pool size.") << endl;
            }
        }
     }
 #endif
 
-    cout << "\n" << Color::bold() << "================== Task Graph Information ====================" << Color::reset() << endl;
+    cout << "\n" << coutColorText(ColorName::Bold, "================== Task Graph Information ====================") << endl;
 
      std::vector<std::string> taskOrder = modelData.deepx_graph.topoSort_order();
 
@@ -680,9 +839,9 @@ bool Color::color_enabled = true;
         {
             if (it != predecessors.begin())
             {
-                cout << Color::gray() << ", ";
+                cout << coutColorText(ColorName::Gray, ", ");
             }
-            cout << Color::gray() << *it;
+            cout << coutColorText(ColorName::Gray, *it);
         }
     };
 
@@ -690,7 +849,7 @@ bool Color::color_enabled = true;
     auto print_dependency_list = [](const set<string>& items) {
         for (auto it = items.begin(); it != items.end(); ++it)
         {
-            cout << Color::cyan() << *it << Color::reset() << (std::next(it) == items.end() ? "" : ", ");
+            cout << coutColorText(ColorName::Cyan, *it) << (std::next(it) == items.end() ? "" : ", ");
         }
     };
 
@@ -702,13 +861,13 @@ bool Color::color_enabled = true;
         uint64_t output_device_mem = static_cast<uint64_t>(taskData._outputMemSize) * taskData.get_buffer_count();
 
         cout << "  +- Memory Usage (NPU Device)" << endl;
-        cout << "  |  +- Total        : " << Color::bold() << format_bytes(taskData._memUsage) << Color::reset() << endl;
+        cout << "  |  +- Total        : " << coutColorText(ColorName::Bold, format_bytes(taskData._memUsage)) << endl;
         cout << "  |  +- Model        : " << format_bytes(model_bytes) << endl;
         cout << "  |  +- Buffers (x" << taskData.get_buffer_count() << ") : " << format_bytes(buffers_total) << endl;
         cout << "  |     +- Input buffers  : " << format_bytes(input_device_mem)
-             << " " << Color::gray() << "(" << format_bytes(taskData._encodedInputSize) << " x " << taskData.get_buffer_count() << ")" << Color::reset() << endl;
+               << " " << coutColorText(ColorName::Gray, "(" + format_bytes(taskData._encodedInputSize) + " x " + std::to_string(taskData.get_buffer_count()) + ")") << endl;
         cout << "  |     +- Output buffers : " << format_bytes(output_device_mem)
-             << " " << Color::gray() << "(" << format_bytes(taskData._outputMemSize) << " x " << taskData.get_buffer_count() << ")" << Color::reset() << endl;
+               << " " << coutColorText(ColorName::Gray, "(" + format_bytes(taskData._outputMemSize) + " x " + std::to_string(taskData.get_buffer_count()) + ")") << endl;
     };
 
     // Helper lambda to print logical vs device memory differences
@@ -718,13 +877,13 @@ bool Color::color_enabled = true;
         if (!has_difference) return;
 
         cout << "  |" << endl;
-        cout << "  |  " << Color::gray() << "Logical tensor size vs Device footprint:" << Color::reset() << endl;
+        cout << "  |  " << coutColorText(ColorName::Gray, "Logical tensor size vs Device footprint:") << endl;
 
         if (taskData._encodedInputSize != taskData._inputSize)
         {
             cout << "  |     +- Input  (logical) : " << format_bytes(taskData._inputSize) << endl;
             cout << "  |     +- Input  (device)  : " << format_bytes(taskData._encodedInputSize)
-                 << " " << Color::yellow() << "(NPU format conversion)" << Color::reset() << endl;
+                  << " " << coutColorText(ColorName::Yellow, "(NPU format conversion)") << endl;
         }
         else
         {
@@ -735,7 +894,7 @@ bool Color::color_enabled = true;
         {
             cout << "  |     +- Output (logical) : " << format_bytes(taskData._outputSize) << endl;
             cout << "  |     +- Output (device)  : " << format_bytes(taskData._outputMemSize)
-                 << " " << Color::yellow() << "(includes scratch memory)" << Color::reset() << endl;
+                  << " " << coutColorText(ColorName::Yellow, "(includes scratch memory)") << endl;
         }
         else
         {
@@ -781,7 +940,7 @@ bool Color::color_enabled = true;
         taskSuccessors[taskName] = successors;
     }
 
-    cout << "\n" << Color::bold() << "-------------------- Task Dependencies -----------------------\n" << Color::reset() << endl;
+    cout << "\n" << coutColorText(ColorName::Bold, "-------------------- Task Dependencies -----------------------\n") << endl;
 
     // Create map for fast lookup
     std::map<std::string, TaskData*, std::less<>> taskDataMapForDeps;
@@ -799,34 +958,35 @@ bool Color::color_enabled = true;
         if (task_it == taskDataMapForDeps.end()) continue;
         const TaskData& taskData = *task_it->second;
 
-        string procType = (taskData._processor == dxrt::Processor::NPU) ?
-                          Color::green() + "[NPU]" + Color::reset() :
-                          Color::blue() + "[CPU]" + Color::reset();
+        const std::string procType = (taskData._processor == dxrt::Processor::NPU)
+                                   ? colorText(ColorName::Green, "[NPU]")
+                                   : colorText(ColorName::Blue, "[CPU]");
 
-        string tag = "";
+        std::string tag = "";
         if (entryTasks.count(taskName))
         {
-            tag += Color::yellow() + " (model input)" + Color::reset();
+            tag += colorText(ColorName::Yellow, " (model input)");
         }
         if (outputTasks.count(taskName))
         {
-            tag += Color::yellow() + " (model output)" + Color::reset();
+            tag += colorText(ColorName::Yellow, " (model output)");
         }
 
         const auto& predecessors = taskPredecessors[taskName];
         if (predecessors.empty())
         {
-            cout << "  " << Color::cyan() << taskName << Color::reset() << " " << procType << tag << endl;
+            cout << "  " << coutColorText(ColorName::Cyan, taskName) << " " << procType << tag << endl;
         }
         else
         {
             cout << "  ";
             print_predecessors(predecessors);
-            cout << Color::gray() << " -> " << Color::cyan() << taskName << Color::reset() << " " << procType << tag << endl;
+            cout << coutColorText(ColorName::Gray, " -> ")
+                 << coutColorText(ColorName::Cyan, taskName) << " " << procType << tag << endl;
         }
     }
 
-    cout << "\n" << Color::bold() << "---------------------- Task Details --------------------------" << Color::reset() << endl;
+    cout << "\n" << coutColorText(ColorName::Bold, "---------------------- Task Details --------------------------") << endl;
 
     // Create map for fast lookup
     std::map<std::string, TaskData*, std::less<>> taskDataMapForDetails;
@@ -848,24 +1008,26 @@ bool Color::color_enabled = true;
         // Dependencies are prepared above in taskPredecessors/taskSuccessors
 
         // Task header with complete dependency info
-        string procType = (taskData._processor == dxrt::Processor::NPU) ?
-                          Color::green() + "[NPU]" + Color::reset() :
-                          Color::blue() + "[CPU]" + Color::reset();
-        string taskColor = (taskData._processor == dxrt::Processor::NPU) ? Color::green() : Color::blue();
+        const std::string procType = (taskData._processor == dxrt::Processor::NPU)
+                                   ? colorText(ColorName::Green, "[NPU]")
+                                   : colorText(ColorName::Blue, "[CPU]");
+        const ColorName taskColor = (taskData._processor == dxrt::Processor::NPU)
+                                  ? ColorName::Green
+                                  : ColorName::Blue;
 
-        string tag = "";
+        std::string tag = "";
         if (entryTasks.count(taskName))
         {
-            tag += Color::yellow() + " (model input)" + Color::reset();
+            tag += colorText(ColorName::Yellow, " (model input)");
         }
         if (outputTasks.count(taskName))
         {
-            tag += Color::yellow() + " (model output)" + Color::reset();
+            tag += colorText(ColorName::Yellow, " (model output)");
         }
 
         cout << "\n"
-             << Color::bold() << taskColor << "Task[" << task_idx << "]" << Color::reset() << ": "
-             << Color::cyan() << taskName << Color::reset() << " " << procType << tag << endl;
+             << coutColorText(ColorName::Bold, "Task[" + std::to_string(task_idx) + "]") << ": "
+             << coutColorText(taskColor, taskName) << " " << procType << tag << endl;
         task_idx++;
 
         // Dependencies
@@ -877,9 +1039,9 @@ bool Color::color_enabled = true;
         {
             cout << "  +- Dependencies: [";
             print_dependency_list(predecessors);
-            cout << "] " << Color::gray() << "->" << Color::reset() << " "
-                 << Color::cyan() << taskName << Color::reset() << " "
-                 << Color::gray() << "->" << Color::reset() << " [";
+              cout << "] " << coutColorText(ColorName::Gray, "->") << " "
+                  << coutColorText(ColorName::Cyan, taskName) << " "
+                  << coutColorText(ColorName::Gray, "->") << " [";
             print_dependency_list(successors);
             cout << "]" << endl;
         }
@@ -949,8 +1111,8 @@ bool Color::color_enabled = true;
      std::string baseName = getBaseName(file);
      int extractedFiles = 0;
 
-     cout << Color::bold() << "JSON Binary Data Extraction" << Color::reset() << endl;
-     cout << Color::cyan() << "Model: " << file << Color::reset() << endl;
+    cout << coutColorText(ColorName::Bold, "JSON Binary Data Extraction") << endl;
+    cout << coutColorText(ColorName::Cyan, "Model: ") << file << endl;
      cout << endl;
 
      // Extract graph_info JSON
@@ -963,14 +1125,14 @@ bool Color::color_enabled = true;
          {
              graphFile.write(graphInfo.str().data(), graphInfo.str().size());
              graphFile.close();
-             cout << Color::green() << "[OK] " << Color::reset()
-                  << "Extracted graph info: " << Color::cyan() << graphFilename << Color::reset()
+               cout << coutColorText(ColorName::Green, "[OK] ")
+                   << "Extracted graph info: " << coutColorText(ColorName::Cyan, graphFilename)
                   << " (" << format_bytes(graphInfo.str().size()) << ")" << endl;
              extractedFiles++;
          }
          else
          {
-             cout << Color::red() << "[FAIL] " << Color::reset()
+               cout << coutColorText(ColorName::Red, "[FAIL] ")
                   << "Failed to create: " << graphFilename << endl;
          }
      }
@@ -994,14 +1156,14 @@ bool Color::color_enabled = true;
              {
                  rmapFile.write(rmapInfo.str().data(), rmapInfo.str().size());
                  rmapFile.close();
-                 cout << Color::green() << "[OK] " << Color::reset()
-                      << "Extracted rmap info [" << i << "]: " << Color::cyan() << rmapFilename << Color::reset()
+                  cout << coutColorText(ColorName::Green, "[OK] ")
+                      << "Extracted rmap info [" << i << "]: " << coutColorText(ColorName::Cyan, rmapFilename)
                       << " (" << format_bytes(rmapInfo.str().size()) << ")" << endl;
                  extractedFiles++;
              }
              else
              {
-                 cout << Color::red() << "[FAIL] " << Color::reset()
+                  cout << coutColorText(ColorName::Red, "[FAIL] ")
                       << "Failed to create: " << rmapFilename << endl;
              }
          }
@@ -1010,12 +1172,11 @@ bool Color::color_enabled = true;
      cout << endl;
      if (extractedFiles > 0)
      {
-         cout << Color::bold() << Color::green() << "Successfully extracted "
-              << extractedFiles << " JSON files." << Color::reset() << endl;
+         cout << coutColorText(ColorName::Green, "Successfully extracted " + std::to_string(extractedFiles) + " JSON files.") << endl;
      }
      else
      {
-         cout << Color::yellow() << "No JSON string data found in the model." << Color::reset() << endl;
+         cout << coutColorText(ColorName::Yellow, "No JSON string data found in the model.") << endl;
      }
 
      return 0;

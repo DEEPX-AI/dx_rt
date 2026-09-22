@@ -329,15 +329,17 @@ void RequestResponse::ProcessByDataPPU(RequestPtr req, const dxrt_response_t& re
     std::ignore = deviceId;
     LOG_DXRT_DBG << "response.ppu_filter_num : " << response.ppu_filter_num << std::endl;
     RequestData* req_data = req->getData();
-    if (!req_data->outputs.empty())
+    if (req_data->outputs.empty())
     {
-        memcpy(req_data->outputs[0].data(),
-                static_cast<const void*>(req_data->encoded_output_ptrs[0]),
-                128 * 1024);
-        req_data->outputs[0].shape() = {1, response.ppu_filter_num};
+        return;
     }
 
-    DXRT_ASSERT(req_data->outputs.front().shape()[1] == response.ppu_filter_num, "PPU MODEL OUTPUT NOT VALID SET");
+    memcpy(req_data->outputs[0].data(),
+            static_cast<const void*>(req_data->encoded_output_ptrs[0]),
+            128 * 1024);
+    req_data->outputs[0].shape() = {1, response.ppu_filter_num};
+
+    DXRT_ASSERT(req_data->outputs[0].shape()[1] == response.ppu_filter_num, "PPU MODEL OUTPUT NOT VALID SET");
 
     if (DEBUG_DATA > 0)
         DataDumpBin(req->taskData()->name() + "_output.ppu.bin", req->outputs());

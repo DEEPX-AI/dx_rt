@@ -90,10 +90,22 @@ ServiceDevice::~ServiceDevice(void)
 {
     _stop.store(true);
 
-    Terminate();
+    // Three-phase teardown, and the order is load-bearing (BUG-011).
+    // The dispatcher threads park inside a blocking ioctl, so they cannot observe the
+    // stop flag until the descriptor is closed:
+    //   1. raise the stop flag first, so a woken thread leaves its loop immediately
+    //      instead of spinning on EBADF and flooding the allocator with log strings,
+    //   2. close the device to unblock the parked ioctl,
+    //   3. join, which now completes because the threads are awake and stopping.
+    // Joining before Terminate() deadlocks; closing before RequestStop() lets the
+    // threads keep running against a destroyed object and corrupts the heap.
     if (_dispatcher)
     {
         _dispatcher->RequestStop();
+    }
+    Terminate();
+    if (_dispatcher)
+    {
         _dispatcher->Join();
     }
 }
@@ -284,7 +296,7 @@ int ServiceDevice::InferenceRequest(dxrt_request_acc_t* req)
 
 
 
-std::ostream& operator<< (dxrt_sche_sub_cmd_t subCmd, std::ostream& os)
+std::ostream& operator<< (std::ostream& os, dxrt_sche_sub_cmd_t subCmd)
 {
     switch(subCmd)
     {
@@ -530,4 +542,3 @@ void ServiceDevice::HandleDMAWrite(const DMAItem& item, int ch)
 
 
 }  // namespace dxrt
-

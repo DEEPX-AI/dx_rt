@@ -386,6 +386,7 @@ public:
     uint32_t boundOption = BOUND_OPTION::NPU_ALL;
     std::vector<int> devices;
     bool useORT = ort_available_();
+    bool showModelInfo = true;     // false = suppress the model info banner on engine creation
 
 private:
     static bool ort_available_()
@@ -423,6 +424,7 @@ public:
         opts.bound_option = static_cast<int>(option.boundOption);
         opts.buffer_count = option.bufferCount;
         opts.use_ort = option.useORT ? 1 : 0;
+        opts.show_model_info = option.showModelInfo ? 1 : 0;
         if (option.devices.size() > 1)
         {
             detail::check(dxrt_engine_create_with_devices(
@@ -449,6 +451,7 @@ public:
         opts.bound_option = static_cast<int>(option.boundOption);
         opts.buffer_count = option.bufferCount;
         opts.use_ort = option.useORT ? 1 : 0;
+        opts.show_model_info = option.showModelInfo ? 1 : 0;
         if (option.devices.size() > 1)
         {
             detail::check(dxrt_engine_create_from_memory_with_devices(
@@ -1021,6 +1024,13 @@ public:
         return us;
     }
 
+    int64_t GetQueueWaitTime() const
+    {
+        int64_t us = 0;
+        detail::check(dxrt_engine_get_queue_wait_time(h_, &us));
+        return us;
+    }
+
     int GetNpuInferenceTimeCnt() const
     {
         int cnt = 0;
@@ -1035,11 +1045,32 @@ public:
         return us;
     }
 
+    double GetQueueWaitTimeMean() const
+    {
+        double us = 0.0;
+        detail::check(dxrt_engine_get_queue_wait_time_mean(h_, &us));
+        return us;
+    }
+
     double GetNpuInferenceTimeStdDev() const
     {
         double us = 0.0;
         detail::check(dxrt_engine_get_npu_time_stddev(h_, &us));
         return us;
+    }
+
+    double GetQueueWaitTimeStdDev() const
+    {
+        double us = 0.0;
+        detail::check(dxrt_engine_get_queue_wait_time_stddev(h_, &us));
+        return us;
+    }
+
+    int GetQueueWaitTimeCnt() const
+    {
+        int cnt = 0;
+        detail::check(dxrt_engine_get_queue_wait_time_count(h_, &cnt));
+        return cnt;
     }
 
     /* ── Performance Data Vectors ──────────────────────────── */
@@ -1453,6 +1484,7 @@ typedef enum {
     DX_SET_LED              = 4,
     DX_ADD_WEIGHT_INFO      = 5,
     DX_DEL_WEIGHT_INFO      = 6,
+    DX_SET_FAN              = 7,
 } dxrt_custom_sub_cmt_t;
 
 /* ================================================================

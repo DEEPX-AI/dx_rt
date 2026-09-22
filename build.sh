@@ -21,6 +21,7 @@ help() {
     echo -e "  ${COLOR_GREEN}--uninstall${COLOR_RESET}       Remove previously installed dx-rt files."
     echo -e "  ${COLOR_GREEN}--docker${COLOR_RESET}          Build the project within a Docker environment."
     echo -e "  ${COLOR_GREEN}--clang${COLOR_RESET}           Use Clang as the compiler for the build."
+    echo -e "  ${COLOR_GREEN}--strip-install${COLOR_RESET}   Enable strip/unstripped generation for Release builds only."
     echo -e ""
     echo -e "  ${COLOR_GREEN}--python-exec <PATH>${COLOR_RESET} Specify the Python executable to use for the build."
     echo -e "                            If omitted, the default system 'python3' will be used."
@@ -90,6 +91,7 @@ setup_env() {
     python_exec="python3"
     venv_path=""
     python_break_system_packages=false
+    strip_install=false
 
 
     # parsing dxrt.cfg.cmake
@@ -214,16 +216,26 @@ build_dxrt() {
     fi
 
     cmd+=(-DCMAKE_VERBOSE_MAKEFILE=$verbose)
-    if [ $build_type == "release" ] || [ $build_type == "debug" ] || [ $build_type == "relwithdebinfo" ]; then
+    if [ "$build_type" == "release" ] || [ "$build_type" == "debug" ] || [ "$build_type" == "relwithdebinfo" ]; then
         cmd+=(-DCMAKE_BUILD_TYPE=$build_type);
     else
         cmd+=(-DCMAKE_BUILD_TYPE=release);
     fi
 
+    if [ "$strip_install" == "true" ] && [ "$build_type" != "release" ]; then
+        help "error" "--strip-install is supported only with --type Release"
+    fi
+
+    if [ "$strip_install" == "true" ]; then
+        cmd+=(-DENABLE_RELEASE_STRIP=ON)
+    else
+        cmd+=(-DENABLE_RELEASE_STRIP=OFF)
+    fi
+
     cmd+=(-DCMAKE_GENERATOR=Ninja)
     cmd+=(-DCMAKE_EXPORT_COMPILE_COMMANDS=ON)
 
-    if [ ! -z $install ]; then
+    if [ -n "$install" ]; then
         cmd+=(-DCMAKE_INSTALL_PREFIX=$install)
     fi
     
@@ -824,6 +836,7 @@ while (( $# )); do
             shift;;
         --uninstall) uninstall=true; shift;;
         --clang) clang=true; shift;;
+        --strip-install) strip_install=true; shift;;
         --docker) build_in_docker=true; shift;;
         --use_service_on) CMAKE_USE_SERVICE=true; shift;;
         --use_service_off) CMAKE_USE_SERVICE=false; shift;;

@@ -492,12 +492,15 @@ int AccDeviceTaskLayer::InputHandler(const int& reqId, int ch)
 
     inferenceAcc.dma_ch = channel;
     RequestPtr req = Request::GetById(reqId);
+    const TaskData* reqTaskData = (req != nullptr) ? req->taskData() : nullptr;
+    const int reqJobId = (req != nullptr) ? req->job_id() : reqId;
+    const std::string reqTaskName = (reqTaskData != nullptr) ? reqTaskData->name() : "unknown-task";
 #ifdef USE_PROFILER
     const std::string profileTagBase =
         "[Device_" + std::to_string(id())
-        + "][Job_" + std::to_string(req->job_id())
-        + "][" + req->taskData()->name()
-        + "][Req_" + std::to_string(req->id()) + "]";
+        + "][Job_" + std::to_string(reqJobId)
+        + "][" + reqTaskName
+        + "][Req_" + std::to_string(reqId) + "]";
 #endif
 
     // Debug: Log input DMA parameters
@@ -510,11 +513,11 @@ int AccDeviceTaskLayer::InputHandler(const int& reqId, int ch)
     if (SKIP_INFERENCE_IO != 1)
     {
         TASK_FLOW(
-            "[" + std::to_string(req->job_id()) + "]"
-            + req->taskData()->name() + " write input, load: " + std::to_string(load));
+            "[" + std::to_string(reqJobId) + "]"
+            + reqTaskName + " write input, load: " + std::to_string(load()));
         flushInputBeforeDma(req, inferenceAcc.input.size, reqId, id());
 #ifdef USE_PROFILER
-        profiler.Start(Profiler::EventType::H2D, req->task()->name(), id(), req->job_id());
+        profiler.Start(Profiler::EventType::H2D, reqTaskName, id(), reqJobId);
 #endif
 
         int ret;
@@ -579,21 +582,24 @@ int AccDeviceTaskLayer::InputHandler(const int& reqId, int ch)
             return ret;
         }
 #ifdef USE_PROFILER
-        profiler.End(Profiler::EventType::H2D, req->task()->name(), id(), req->job_id());
-        req->setDispatchTimestampNs(std::chrono::duration_cast<std::chrono::nanoseconds>(
-            ProfilerClock::now().time_since_epoch()).count());
+        profiler.End(Profiler::EventType::H2D, reqTaskName, id(), reqJobId);
+        if (req != nullptr)
+        {
+            req->setDispatchTimestampNs(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                ProfilerClock::now().time_since_epoch()).count());
+        }
 #endif
     }
 
-    if (dxrt::DEBUG_DATA > 0)
+    if (dxrt::DEBUG_DATA > 0 && req != nullptr && reqTaskData != nullptr)
     {
-        DataDumpBin(req->taskData()->name() + "_encoder_input.bin", req->inputs());
+        DataDumpBin(reqTaskName + "_encoder_input.bin", req->inputs());
         DataDumpBin(
-            req->taskData()->name() + "_input.bin",
+            reqTaskName + "_input.bin",
             req->encoded_inputs_ptr(),
-            req->taskData()->encoded_input_size());
+            reqTaskData->encoded_input_size());
     }
-    TASK_FLOW("["+std::to_string(req->job_id())+"]"+req->taskData()->name()+" signal to service input");
+    TASK_FLOW("["+std::to_string(reqJobId)+"]"+reqTaskName+" signal to service input");
 
     serviceLayer()->HandleInferenceAcc(inferenceAcc, id());
 
@@ -913,7 +919,7 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
     TASK_FLOW(
         "[" + std::to_string(req->job_id()) + "]"
         + req->taskData()->name() + " output is ready, load :"
-        + std::to_string(_device->load()));
+        + std::to_string(load()));
 
     // NOTE: The NPU memory-cache slice for this request is intentionally NOT released
     // here. The encoded output produced by the DMA read above still lives in that slice,

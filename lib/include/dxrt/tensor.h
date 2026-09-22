@@ -64,6 +64,8 @@ public:
      */
     void update_with_ort_value(const std::vector<int64_t>& new_shape, void* new_data, 
                               void* ortValuePtr);
+
+    void SetDataReleaseFlagForTest(bool flag);
 #endif
 
     uint64_t size_in_bytes() const {

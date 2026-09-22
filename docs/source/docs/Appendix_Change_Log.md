@@ -1,3 +1,32 @@
+## DX-RT v3.5.0 (October 2026)
+
+#### Changed
+- Change the `dxcli` version output format to `version (build: hash)`
+- Include the DDR type in the device variant string displayed by `dxtop`
+- Update `NOTICE.md` with detailed ncurses license terms and PDCurses information
+
+#### Fixed
+- Exit with an error when `dxrun` completes no successful inference, instead of reporting a result and exiting successfully
+- Fail the `--max-throughput` sweep when no round succeeds, instead of recommending an untested buffer count
+- Reject non-positive `--loops` and negative `--time` values in `dxrun`
+- Guard against a segfault when PPU outputs are empty
+- Restore the device-dispatcher exception guard around device `Identify` failures and the error-loop backoff to prevent busy-spin during teardown
+- Reorder the `ServiceDevice` teardown sequence to avoid deadlock/heap corruption on shutdown, and fix the swapped stream-operator argument order for sub-command logging
+- Guard the usage timer against divide-by-zero when the tick interval is 0
+- Clear the pending IPC client response state on `sendMessageSync` timeout
+
+#### Added
+- Add support for the V9 `.dxnn` file format (V9 model parser, including PPU data transfer)
+- Verify `dxrt_driver` (>= 2.5.0) and `dx_dma` (>= 2.4.0) in the `libdxrt-bin` `preinst` script and abort the installation with a descriptive error when a driver is missing or below the minimum version
+- Verify at `import dx_engine` that the loaded `libdxrt.so` major.minor version matches the Python package version, raising `RuntimeError` on mismatch; bypass with `DX_ENGINE_SKIP_VERSION_CHECK=1`
+- Add `dxrun --max-throughput` mode that auto-tunes the I/O buffer count by sweeping counts with a dedicated engine per round and reporting the peak-throughput count, with accompanying CLI documentation
+- Add `InferenceOption::showModelInfo` (C++) and `dxrt_options_t::show_model_info` (C API) to suppress the model information banner per engine instance; ABI size unchanged
+- Add support for input quantization (float32 → int8) using NEON/SSE4.1 SIMD quantization kernels, enabling Input NFH processing and reducing DMA write time
+- Add fan control logic (forced on / forced off / auto)
+- Add FCT test results with OTP authentication (H1M only)
+- Add `SLT` and `VNPU` board types to device information and CLI output
+- Windows DX-RT binaries now include release version metadata, with documented Authenticode signing steps
+
 
 ## DX-RT v3.4.2 (August 2026)
 
@@ -8,6 +37,7 @@
 
 #### Fixed
 - Staged the generated `gen.h` into the public include path (with a copy fallback when symlinks are unavailable on Windows), fixing downstream "cannot open include file" errors.
+- Documentation improvements: unified OS requirements (Ubuntu 20.04+, Debian 12+), corrected typos, added missing CLI examples, fixed grammar errors across installation and tutorial guides
 
 #### Added
 - Added `release.ver` based version information to the Windows DXRT executable and DLLs

@@ -480,8 +480,20 @@ function Build-PythonPackage {
             & py "-$($pythonInfo.Version)" -m pip install --no-deps --force-reinstall .
 
             if ($LASTEXITCODE -ne 0) {
-                Write-Status WARNING "dx-engine install failed for Python $($pythonInfo.Version)."
-                continue
+                # --force-reinstall uninstalls the existing dx-engine first, which aborts
+                # when a previous interrupted install left a dist-info without a RECORD
+                # file ("Cannot uninstall ..., RECORD file not found"). Retry without the
+                # uninstall step: --ignore-installed overwrites in place and rewrites
+                # RECORD/METADATA, repairing the tree so later runs take the normal path
+                # again. Keep --force-reinstall as the default so stale modules from a
+                # previous version are still removed on a healthy environment.
+                Write-Status WARNING "dx-engine reinstall failed for Python $($pythonInfo.Version); retrying with --ignore-installed."
+                & py "-$($pythonInfo.Version)" -m pip install --no-deps --ignore-installed .
+
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Status WARNING "dx-engine install failed for Python $($pythonInfo.Version)."
+                    continue
+                }
             }
 
             Write-Status OK "dx-engine installed for Python $($pythonInfo.Version)."

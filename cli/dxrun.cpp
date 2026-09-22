@@ -22,6 +22,7 @@
 #include <atomic>
 #include <thread>
 #include <stdexcept>
+#include <iomanip>
 
 #include "dxrt/dxrt_cxx_api.h"
 #include "dxrt/extern/cxxopts.hpp"
@@ -32,6 +33,18 @@
 static constexpr int kBoundInfMax = 7;       // == dxrt::N_BOUND_INF_MAX (driver.h)
 static constexpr int kTaskMaxLoadLimit = 100; // == DXRT_TASK_MAX_LOAD_LIMIT (common.h)
 static int getTaskMaxLoadValue() { return dxrt::get_task_max_load(); }
+
+// --max-throughput sweep defaults
+// kMtDefaultStart=3: below 3 in-flight requests at least one NPU core sits idle on a
+// 3-core device, so 1-2 can never be optimal; measured optima go as low as 3-4 regardless
+// of device core count, but the sweep only moves upward, so starting at 6 could never reach them.
+static constexpr int    kMtDefaultStart     = 3;                  // starting buffer count
+static constexpr int    kMtDefaultStep      = 1;                  // buffer count increment per round
+static constexpr double kMtDefaultThreshold = 3.0;                // stop once FPS falls this far below the peak (%)
+static constexpr int    kMtDefaultCap       = kTaskMaxLoadLimit;  // maximum buffer count
+static constexpr int    kMtDefaultRoundSec  = 5;                  // measurement seconds per round
+static constexpr int    kMtDefaultPatience  = 2;                  // consecutive below-peak rounds before stop
+static constexpr int    kMtDefaultStall     = 3;                  // consecutive rounds without a new peak before stop
 
 // Local file-I/O helpers (replace internal filesys_support)
 static int64_t localGetFileSize(const std::string& filename) {
@@ -70,9 +83,10 @@ using std::shared_ptr;
 using std::string;
 
 enum RunModelMode {
-    BENCHMARK_MODE  = 0,
-    SINGLE_MODE     = 1,
-    TARGET_FPS_MODE = 2,
+    BENCHMARK_MODE      = 0,
+    SINGLE_MODE         = 1,
+    TARGET_FPS_MODE     = 2,
+    MAX_THROUGHPUT_MODE = 3,
 };
 static RunModelMode mode;
 static int bounding = 0;
@@ -194,10 +208,11 @@ void printMemoryInfo() {
 
 std::ostream& operator<<(std::ostream& os, RunModelMode mode) {
     switch (mode) {
-        case BENCHMARK_MODE:  os << "Benchmark Mode"; break;
-        case SINGLE_MODE:     os << "Single Mode"; break;
-        case TARGET_FPS_MODE: os << "Target FPS Mode"; break;
-        default:              os << "Unknown Mode"; break;
+        case BENCHMARK_MODE:      os << "Benchmark Mode"; break;
+        case SINGLE_MODE:         os << "Single Mode"; break;
+        case TARGET_FPS_MODE:     os << "Target FPS Mode"; break;
+        case MAX_THROUGHPUT_MODE: os << "Max-Throughput Mode"; break;
+        default:                  os << "Unknown Mode"; break;
     }
     return os;
 }
@@ -218,7 +233,7 @@ std::string float_to_string_fixed(float value, int precision) {
 }
 
 void PrintInfResult(const std::string& inputFile, const std::string& outputFile, const std::string& modelFile,
-                    float latencyMs, float infTimeMs, float fps_val, int64_t loops, RunModelMode current_mode, bool verbose) {
+                    float latencyMs, float infTimeMs, float queueWaitMs, float fps_val, int64_t loops, RunModelMode current_mode, bool verbose) {
     std::vector<std::string> lines;
     (void)modelFile;
 
@@ -227,6 +242,7 @@ void PrintInfResult(const std::string& inputFile, const std::string& outputFile,
 
     const std::string desc_npu_time = "Actual NPU core computation time for a single request";
     const std::string desc_latency = "End-to-end time per request including data transfer and overheads";
+    const std::string desc_queue_wait = "Time spent waiting before execution; included in end-to-end latency";
     const std::string desc_fps = "Overall user-observed inference throughput (inputs/second), reflecting perceived speed";
 
     const int description_parenthesis_start_column = 45;
@@ -255,6 +271,7 @@ void PrintInfResult(const std::string& inputFile, const std::string& outputFile,
 
     std::string infTimeStr = float_to_string_fixed(infTimeMs, 3);
     std::string latencyStr = float_to_string_fixed(latencyMs, 3);
+    std::string queueWaitStr = float_to_string_fixed(queueWaitMs, 3);
     std::string fpsStr     = float_to_string_fixed(fps_val, 2);
 
     if (!inputFile.empty()) {
@@ -267,6 +284,7 @@ void PrintInfResult(const std::string& inputFile, const std::string& outputFile,
         lines.push_back("* Benchmark Result (single input)");
         if (verbose) {
             lines.push_back(build_formatted_line("  - NPU Processing Time  : ", infTimeStr, "ms", desc_npu_time));
+            lines.push_back(build_formatted_line("  - Queue Wait Time      : ", queueWaitStr, "ms", desc_queue_wait));
             lines.push_back(build_formatted_line("  - Latency              : ", latencyStr, "ms", desc_latency));
             lines.push_back(build_formatted_line("  - FPS                  : ", fpsStr, "", desc_fps));
         }
@@ -278,6 +296,7 @@ void PrintInfResult(const std::string& inputFile, const std::string& outputFile,
         lines.push_back("* Benchmark Result (" + std::to_string(loops) + " inputs)");
         if (verbose) {
             lines.push_back(build_formatted_line("  - NPU Processing Time Average : ", infTimeStr, "ms", desc_npu_time));
+            lines.push_back(build_formatted_line("  - Queue Wait Time Average     : ", queueWaitStr, "ms", desc_queue_wait));
             lines.push_back(build_formatted_line("  - Latency Average             : ", latencyStr, "ms", desc_latency));
             lines.push_back(build_formatted_line("  - FPS                         : ", fpsStr, "", desc_fps));
         }
@@ -362,12 +381,13 @@ private:
             float fps = (elapsed_us > 0 && count > 0) ? static_cast<float>(1e6 * count / elapsed_us) : 0.0f;
             float latency_ms = static_cast<float>(_ie.GetLatencyMean() / 1000.0);
             float npu_ms = static_cast<float>(_ie.GetNpuInferenceTimeMean() / 1000.0);
+            float queue_wait_ms = static_cast<float>(_ie.GetQueueWaitTimeMean() / 1000.0);
 
             std::cout << "\n[Periodic Report #" << seq << "] cumulative elapsed="
                       << float_to_string_fixed(static_cast<float>(elapsed_us / 1e6), 3)
                       << "s, completions=" << count << std::endl;
             PrintInfResult(_cfg.input_file, _cfg.output_file, _cfg.model_file,
-                           latency_ms, npu_ms, fps, count, _mode, _cfg.verbose);
+                           latency_ms, npu_ms, queue_wait_ms, fps, count, _mode, _cfg.verbose);
             std::cout << std::endl;
         }
     }
@@ -385,10 +405,12 @@ private:
 };
 
 
-void SetRunModelMode(bool single, int targetFps)
+void SetRunModelMode(bool single, int targetFps, bool maxThroughput)
 {
     if (single) {
         mode = SINGLE_MODE;
+    } else if (maxThroughput) {
+        mode = MAX_THROUGHPUT_MODE;
     } else if (targetFps) {
         mode = TARGET_FPS_MODE;
     } else {
@@ -628,6 +650,202 @@ static float runAsyncTargetFPS(int64_t& outLoops, dxrt::InferenceEngine& ie, int
 
 }
 
+// Guards the "nothing ran" case: a measurement that exited without a single
+// successful inference must not be reported as a result.
+static bool ensureInferenceRan(float fps, int64_t completed)
+{
+    if (completed > 0 && fps > 0.0f) return true;
+    std::cerr << "[ERR] No inference completed successfully (completions=" << completed
+              << ", fps=" << float_to_string_fixed(fps, 2) << ")." << std::endl;
+    return false;
+}
+
+struct MaxThroughputOption
+{
+    int start_count = kMtDefaultStart;
+    int step = kMtDefaultStep;
+    double threshold_pct = kMtDefaultThreshold;
+    int cap = kMtDefaultCap;
+    int round_sec = kMtDefaultRoundSec;
+    int patience = kMtDefaultPatience;
+    int stall = kMtDefaultStall;
+};
+
+struct MaxThroughputRound
+{
+    int buffer_count;
+    float fps;
+};
+
+// Sweep buffer counts to find the count that maximizes throughput.
+// Each round builds a dedicated InferenceEngine for the buffer count under test and
+// releases it before the next round, so no state carries over between measurements.
+// The sweep stops on whichever comes first: throughput falling threshold_pct below the
+// peak, no new peak for `stall` rounds, or the buffer-count cap.
+// Returns the buffer count that achieved peak throughput.
+static int runMaxThroughput(const std::string& modelFile, const dxrt::InferenceOption& baseOption,
+                            void* inputBuffer, const MaxThroughputOption& mtOption)
+{
+    std::vector<MaxThroughputRound> history;
+
+    int current = mtOption.start_count;
+    float prev_fps = 0.0f;
+    float best_fps = 0.0f;
+    int best_buffer = mtOption.start_count;
+    int64_t best_loops = 0;
+    int drop_streak = 0;
+    int stall_streak = 0;
+    std::string stop_reason;
+
+    for (;;)
+    {
+        std::cout << "\n[max-throughput] Measuring buffer-count=" << current
+                  << " for " << mtOption.round_sec << "s ..." << std::endl;
+
+        int64_t loops = 0;
+        float fps = 0.0f;
+        try
+        {
+            dxrt::InferenceOption round_option = baseOption;
+            round_option.bufferCount = current;
+            round_option.showModelInfo = false;  // the probe engine already printed it
+            dxrt::InferenceEngine round_ie(modelFile, round_option);
+            fps = runBenchmarkByTime(loops, round_ie, inputBuffer, mtOption.round_sec);
+        }
+        catch (const dxrt::Exception& e)
+        {
+            stop_reason = "engine creation/run failed at buffer-count " + std::to_string(current)
+                + " (" + e.what() + ")";
+            break;
+        }
+
+        history.push_back(MaxThroughputRound{current, fps});
+
+        bool has_prev = history.size() > 1;
+        double improvement = 0.0;
+        if (has_prev && prev_fps > 0.0f)
+            improvement = (static_cast<double>(fps) - prev_fps) / prev_fps * 100.0;
+
+        if (fps > best_fps)
+        {
+            best_fps = fps;
+            best_buffer = current;
+            best_loops = loops;
+            stall_streak = 0;
+        }
+        else
+        {
+            ++stall_streak;
+        }
+
+        double drop_from_peak = (best_fps > 0.0f)
+            ? (static_cast<double>(best_fps) - fps) / best_fps * 100.0 : 0.0;
+
+        std::cout << "[max-throughput] buffer-count=" << current
+                  << " fps=" << float_to_string_fixed(fps, 2)
+                  << " loops=" << loops;
+        if (has_prev)
+        {
+            std::cout << " improvement=" << float_to_string_fixed(static_cast<float>(improvement), 2) << "%"
+                      << " peak-drop=" << float_to_string_fixed(static_cast<float>(drop_from_peak), 2) << "%"
+                      << " stall=" << stall_streak;
+        }
+        std::cout << std::endl;
+
+        // The first round establishes the peak, so it can never be a drop.
+        if (has_prev && drop_from_peak >= mtOption.threshold_pct)
+            ++drop_streak;
+        else
+            drop_streak = 0;
+
+        if (drop_streak >= mtOption.patience)
+        {
+            stop_reason = "throughput fell "
+                + float_to_string_fixed(static_cast<float>(mtOption.threshold_pct), 2)
+                + "% or more below the peak (" + float_to_string_fixed(best_fps, 2)
+                + " fps at buffer-count " + std::to_string(best_buffer) + ") for "
+                + std::to_string(mtOption.patience) + " consecutive rounds";
+            break;
+        }
+
+        if (stall_streak >= mtOption.stall)
+        {
+            stop_reason = "no new peak for " + std::to_string(mtOption.stall)
+                + " consecutive rounds (peak " + float_to_string_fixed(best_fps, 2)
+                + " fps at buffer-count " + std::to_string(best_buffer) + ")";
+            break;
+        }
+
+        prev_fps = fps;
+
+        int next = (std::min)(current + mtOption.step, mtOption.cap);
+        if (next <= current)
+        {
+            stop_reason = "reached buffer-count cap (" + std::to_string(mtOption.cap) + ")";
+            break;
+        }
+        current = next;
+    }
+
+    // No round completed, so there is no peak to report and best_buffer is still the
+    // untested start value. Signal failure instead of recommending it.
+    if (history.empty())
+    {
+        std::cerr << "\n[ERR] Max-throughput sweep produced no successful round";
+        if (!stop_reason.empty()) std::cerr << ": " << stop_reason;
+        std::cerr << std::endl;
+        return -1;
+    }
+    if (best_fps <= 0.0f)
+    {
+        std::cerr << "\n[ERR] Max-throughput sweep completed but every round measured 0 fps; "
+                      "no buffer count can be recommended." << std::endl;
+        return -1;
+    }
+
+    // Result summary
+    std::vector<std::string> lines;
+    lines.push_back("* Max-Throughput Sweep Result");
+    lines.push_back("  Stop reason : " + stop_reason);
+    lines.push_back("");
+    lines.push_back("   buffer-count |        FPS |  improvement");
+    lines.push_back("  --------------+------------+-------------");
+    float table_prev = 0.0f;
+    for (size_t i = 0; i < history.size(); ++i)
+    {
+        const auto& r = history[i];
+        std::ostringstream row;
+        row << "  " << std::setw(13) << r.buffer_count << " | "
+            << std::setw(10) << float_to_string_fixed(r.fps, 2) << " | ";
+        if (i == 0 || table_prev <= 0.0f)
+        {
+            row << std::setw(11) << "--";
+        }
+        else
+        {
+            double imp = (static_cast<double>(r.fps) - table_prev) / table_prev * 100.0;
+            std::string s = float_to_string_fixed(static_cast<float>(imp), 2) + "%";
+            if (imp >= 0.0) s = "+" + s;
+            row << std::setw(11) << s;
+        }
+        std::string marker = (r.buffer_count == best_buffer) ? "  <== best" : "";
+        lines.push_back(row.str() + marker);
+        table_prev = r.fps;
+    }
+    lines.push_back("");
+    lines.push_back("  => Recommended buffer-count : " + std::to_string(best_buffer));
+    lines.push_back("     Max FPS                  : " + float_to_string_fixed(best_fps, 2)
+                    + "  (loops=" + std::to_string(best_loops) + ")");
+
+    size_t maxLength = 0;
+    for (const auto& l : lines) maxLength = (std::max)(maxLength, l.length());
+    std::cout << "\n" << std::string(maxLength, '=') << std::endl;
+    for (const auto& l : lines) std::cout << l << std::endl;
+    std::cout << std::string(maxLength, '=') << std::endl;
+
+    return best_buffer;
+}
+
 int main(int argc, char *argv[])
 {
     string modelFile = "";
@@ -645,7 +863,15 @@ int main(int argc, char *argv[])
     int num_devices = 0;
     int64_t warmup_runs = 0;  // Added warmup runs
     int64_t report_interval = 0;  // Hidden: periodic cumulative report interval (sec)
+    std::string buffer_count_str = std::to_string(getTaskMaxLoadValue());
     int buffer_count = getTaskMaxLoadValue();
+    bool buffer_count_is_range = false;
+    int buffer_count_range_lo = kMtDefaultStart;
+    int buffer_count_range_hi = kMtDefaultCap;
+    bool loops_explicit = false;
+    bool duration_explicit = false;
+    bool max_throughput = false;
+    int probe_time = kMtDefaultRoundSec;
     bool profiler_enable = false;
     bool throttling_info = false;
 #ifdef DXRT_NFH_ACCELERATION_AVAILABLE
@@ -697,7 +923,16 @@ int main(int argc, char *argv[])
 #ifdef DXRT_CPU_OP_ACCELERATION_AVAILABLE
         ("accel-cpu", "Enable CPU op acceleration (OpenVINO/XNNPACK)", cxxopts::value<bool>(accel_cpu)->default_value("false"))
 #endif
-        ("buffer-count", "Number of input/output buffers, count's range is 1~" + std::to_string(kTaskMaxLoadLimit), cxxopts::value<int>(buffer_count)->default_value(std::to_string(getTaskMaxLoadValue())))
+        ("buffer-count",
+            "I/O buffer count: a single number, or a range such as\n"
+            "3-16 when used with --max-throughput\n"
+            "(range defaults to " + std::to_string(kMtDefaultStart) + "-" + std::to_string(kMtDefaultCap) + ")", cxxopts::value<std::string>(buffer_count_str)->default_value(std::to_string(getTaskMaxLoadValue())))
+        ("max-throughput",
+            "Search buffer counts for peak throughput, then benchmark at\n"
+            "the best one. Give --buffer-count a range (e.g. 3-16) to set\n"
+            "the search bounds; defaults to " + std::to_string(kMtDefaultStart) + "-" + std::to_string(kMtDefaultCap) + ".\n"
+            "Mutually exclusive with --single and --fps.", cxxopts::value<bool>(max_throughput)->default_value("false"))
+        ("probe-time", "Seconds to measure each candidate (default " + std::to_string(kMtDefaultRoundSec) + ")", cxxopts::value<int>(probe_time)->default_value(std::to_string(kMtDefaultRoundSec)))
         ("h, help", "Print usage" );
 
     options.add_options("internal")
@@ -723,16 +958,91 @@ int main(int argc, char *argv[])
 
         if ( cmd.count("buffer-count") )
         {
-            if ( buffer_count <= 0 || buffer_count > kTaskMaxLoadLimit )
+            auto dash = buffer_count_str.find('-', 1);  // start at 1: a leading '-' is a sign, not a range separator
+            if ( dash != std::string::npos )
             {
-                std::cout << "Please check --buffer-count option value. Must be between 1 and " << kTaskMaxLoadLimit << endl;
-                exit(1);
+                buffer_count_is_range = true;
+                std::string lo_str = buffer_count_str.substr(0, dash);
+                std::string hi_str = buffer_count_str.substr(dash + 1);
+                try
+                {
+                    size_t lo_pos = 0, hi_pos = 0;
+                    buffer_count_range_lo = std::stoi(lo_str, &lo_pos);
+                    buffer_count_range_hi = std::stoi(hi_str, &hi_pos);
+                    if ( lo_pos != lo_str.size() || hi_pos != hi_str.size() )
+                        throw std::invalid_argument("trailing characters");
+                }
+                catch (const std::exception&)
+                {
+                    std::cerr << "[ERR] Invalid --buffer-count range: " << buffer_count_str << std::endl;
+                    exit(1);
+                }
+                if ( buffer_count_range_lo < 1 || buffer_count_range_hi > kTaskMaxLoadLimit
+                     || buffer_count_range_lo > buffer_count_range_hi )
+                {
+                    std::cerr << "[ERR] --buffer-count range must satisfy 1 <= low <= high <= "
+                               << kTaskMaxLoadLimit << " (got " << buffer_count_str << ")." << std::endl;
+                    exit(1);
+                }
             }
             else
             {
-                std::cout << "Using I/O Buffer Count=" << buffer_count << std::endl;
-                std::cout << std::endl;
+                try
+                {
+                    size_t pos = 0;
+                    buffer_count = std::stoi(buffer_count_str, &pos);
+                    if ( pos != buffer_count_str.size() ) throw std::invalid_argument("trailing characters");
+                }
+                catch (const std::exception&)
+                {
+                    std::cerr << "[ERR] Invalid --buffer-count value: " << buffer_count_str << std::endl;
+                    exit(1);
+                }
+                if ( buffer_count <= 0 || buffer_count > kTaskMaxLoadLimit )
+                {
+                    std::cerr << "Please check --buffer-count option value. Must be between 1 and " << kTaskMaxLoadLimit << std::endl;
+                    exit(1);
+                }
             }
+            if ( buffer_count_is_range && !max_throughput )
+            {
+                std::cerr << "[ERR] --buffer-count range (e.g. 3-16) is only valid together with --max-throughput." << std::endl;
+                exit(1);
+            }
+            if ( !buffer_count_is_range && max_throughput )
+            {
+                std::cerr << "[ERR] --max-throughput requires a buffer-count RANGE (e.g. 3-16), not a single value.\n"
+                              "      Use \"--buffer-count 6\" alone to benchmark at a fixed count." << std::endl;
+                exit(1);
+            }
+        }
+        else if ( max_throughput )
+        {
+            // --max-throughput searches a range, so its default is a range too; the
+            // single-count default used by the other modes would be meaningless here.
+            buffer_count_is_range = true;
+            buffer_count_range_lo = kMtDefaultStart;
+            buffer_count_range_hi = kMtDefaultCap;
+            buffer_count_str = std::to_string(buffer_count_range_lo) + "-" + std::to_string(buffer_count_range_hi);
+        }
+        // Always logged (default, env-derived, or explicit) so the measured count is reproducible.
+        if ( buffer_count_is_range )
+            std::cout << "Searching I/O Buffer Count range=" << buffer_count_str << std::endl << std::endl;
+        else
+            std::cout << "Using I/O Buffer Count=" << buffer_count << std::endl << std::endl;
+
+        loops_explicit = cmd.count("loops") > 0;
+        duration_explicit = cmd.count("time") > 0;
+
+        if ( loops < 1 )
+        {
+            std::cerr << "[ERR] --loops must be >= 1." << std::endl;
+            exit(1);
+        }
+        if ( duration_explicit && duration < 0 )
+        {
+            std::cerr << "[ERR] --time must be >= 0 (seconds)." << std::endl;
+            exit(1);
         }
     }
     catch (std::exception& e)
@@ -740,6 +1050,32 @@ int main(int argc, char *argv[])
         std::cerr << "Error: " << e.what() << std::endl;
         cout << options.help({""}) << endl;
         exit(1);
+    }
+
+    MaxThroughputOption mt_option;
+    if ( max_throughput )
+    {
+        if ( single || targetFps > 0 )
+        {
+            std::cerr << "[ERR] --max-throughput cannot be combined with --single or --fps." << std::endl;
+            exit(1);
+        }
+        if ( probe_time < 1 )
+        {
+            std::cerr << "[ERR] --probe-time must be >= 1 (seconds)." << std::endl;
+            exit(1);
+        }
+        // Guaranteed a range here: parsing either validated an explicit one or filled in the default.
+        int sweep_start = buffer_count_range_lo;
+        int sweep_cap   = buffer_count_range_hi;
+        mt_option.start_count = sweep_start;
+        mt_option.step = kMtDefaultStep;
+        mt_option.threshold_pct = kMtDefaultThreshold;
+        mt_option.cap = sweep_cap;
+        mt_option.round_sec = probe_time;
+        mt_option.patience = kMtDefaultPatience;
+        mt_option.stall = kMtDefaultStall;
+        buffer_count = sweep_start;  // probe engine starts at the sweep start count
     }
 
     std::atomic<bool> critical_error{false};
@@ -799,7 +1135,7 @@ int main(int argc, char *argv[])
 
     if ( modelFile.length() == 0)
     {
-        cout << options.help() << endl;
+        cout << options.help({""}) << endl;
         exit(0);
     }
 
@@ -986,10 +1322,17 @@ int main(int argc, char *argv[])
 
         //dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::PROFILER, false);
 
-        SetRunModelMode(single, targetFps);
+        SetRunModelMode(single, targetFps, max_throughput);
 
         // duration
-        if ( duration > 0 && mode != SINGLE_MODE)
+        if ( mode == MAX_THROUGHPUT_MODE )
+        {
+            std::cout << "Max-throughput sweep: start=" << mt_option.start_count << " step=" << mt_option.step
+                      << " cap=" << mt_option.cap << " round-time=" << mt_option.round_sec << "s"
+                      << " peak-drop-threshold=" << mt_option.threshold_pct << "% (patience "
+                      << mt_option.patience << ", stall " << mt_option.stall << ")" << std::endl;
+        }
+        else if ( duration > 0 && mode != SINGLE_MODE)
         {
             std::cout << "Inference by time: duration=" << duration << "(s)" << std::endl;
         }
@@ -998,7 +1341,8 @@ int main(int argc, char *argv[])
             std::cout << "Inference by loops: count=" << loops << std::endl;
         }
 
-        dxrt::InferenceEngine ie(modelFile, op);
+        auto ie_owner = std::unique_ptr<dxrt::InferenceEngine>(new dxrt::InferenceEngine(modelFile, op));
+        dxrt::InferenceEngine& ie = *ie_owner;
         vector<uint8_t> inputBuf(ie.GetInputSize(), 0);
         if (!inputFile.empty())
         {
@@ -1064,25 +1408,85 @@ int main(int argc, char *argv[])
                     fps = static_cast<float>(1000000.0 / infTime);
                     if (!inputFile.empty())
                         localDataDumpBin(outputFile, outputs);
-                    PrintInfResult(inputFile, outputFile, modelFile, static_cast<float>(ie.GetLatency()/1000.0), static_cast<float>(ie.GetNpuInferenceTime()/1000.0), fps, 1, mode, verbose);
+                    PrintInfResult(inputFile, outputFile, modelFile,
+                                   static_cast<float>(ie.GetLatency()/1000.0),
+                                   static_cast<float>(ie.GetNpuInferenceTime()/1000.0),
+                                   static_cast<float>(ie.GetQueueWaitTime()/1000.0),
+                                   fps, 1, mode, verbose);
                 }
                 break;
             }
             case TARGET_FPS_MODE: {
 
                 float fps = runAsyncTargetFPS(loops, ie, targetFps, inputBuf.data(), duration);
-                PrintInfResult(inputFile, outputFile, modelFile, static_cast<float>(ie.GetLatencyMean()/1000.0), static_cast<float>(ie.GetNpuInferenceTimeMean()/1000.0), fps, loops, mode, verbose);
+                if (!ensureInferenceRan(fps, loops)) return -1;
+                PrintInfResult(inputFile, outputFile, modelFile,
+                               static_cast<float>(ie.GetLatencyMean()/1000.0),
+                               static_cast<float>(ie.GetNpuInferenceTimeMean()/1000.0),
+                               static_cast<float>(ie.GetQueueWaitTimeMean()/1000.0),
+                               fps, loops, mode, verbose);
+                break;
+            }
+            case MAX_THROUGHPUT_MODE: {
+                // Destroy the probe engine first: each sweep round must own the only
+                // live engine, and `ie` must not be touched again in this branch.
+                ie_owner.reset();
+
+                int best_buffer = runMaxThroughput(modelFile, op, inputBuf.data(), mt_option);
+                if (best_buffer <= 0) return -1; // runMaxThroughput already reported the specific reason
+
+                // Final measurement run only when the user asked for one via -l or -t;
+                // in that case behave exactly like the normal benchmark mode.
+                if ( loops_explicit || duration_explicit )
+                {
+                    dxrt::InferenceOption final_op = op;
+                    final_op.bufferCount = best_buffer;
+                    final_op.showModelInfo = false;
+                    dxrt::InferenceEngine final_ie(modelFile, final_op);
+
+                    std::cout << "\n[max-throughput] Final run with buffer-count=" << best_buffer << " ..." << std::endl;
+                    float fps = 0;
+                    if ( duration > 0 )
+                    {
+                        fps = runBenchmarkByTime(loops, final_ie, inputBuf.data(), duration, report_cfg);
+                    }
+                    else
+                    {
+                        fps = final_ie.RunBenchmark(static_cast<int>(loops), inputBuf.data());
+                        if (!inputFile.empty())
+                        {
+                            auto bench_mi = prepareMultiInputBuffers(final_ie, inputBuf.data());
+                            dxrt::TensorPtrs outputs;
+                            if (bench_mi.is_multi_input)
+                            {
+                                outputs = final_ie.RunMultiInput(bench_mi.ptrs);
+                            }
+                            else
+                            {
+                                outputs = final_ie.Run(inputBuf.data());
+                            }
+
+                            localDataDumpBin(outputFile, outputs);  /* TODO: sparse tensor */
+                        }
+                    }
+                    if (!ensureInferenceRan(fps, loops)) return -1;
+                    PrintInfResult(inputFile, outputFile, modelFile,
+                                   static_cast<float>(final_ie.GetLatencyMean()/1000.0),
+                                   static_cast<float>(final_ie.GetNpuInferenceTimeMean()/1000.0),
+                                   static_cast<float>(final_ie.GetQueueWaitTimeMean()/1000.0),
+                                   fps, loops, mode, verbose);
+                }
                 break;
             }
             case BENCHMARK_MODE: {
                 float fps = 0;
                 if ( duration > 0 )
                 {
-                    fps = static_cast<float>(runBenchmarkByTime(loops, ie, inputBuf.data(), duration, report_cfg));
+                    fps = runBenchmarkByTime(loops, ie, inputBuf.data(), duration, report_cfg);
                 }
                 else
                 {
-                    fps = static_cast<float>(ie.RunBenchmark(static_cast<int>(loops), inputBuf.data()));
+                    fps = ie.RunBenchmark(static_cast<int>(loops), inputBuf.data());
                     if (!inputFile.empty())
                     {
                         auto bench_mi = prepareMultiInputBuffers(ie, inputBuf.data());
@@ -1099,7 +1503,12 @@ int main(int argc, char *argv[])
                         localDataDumpBin(outputFile, outputs);  /* TODO: sparse tensor */
                     }
                 }
-                PrintInfResult(inputFile, outputFile, modelFile, static_cast<float>(ie.GetLatencyMean()/1000.), static_cast<float>(ie.GetNpuInferenceTimeMean()/1000.0), fps, loops, mode, verbose);
+                if (!ensureInferenceRan(fps, loops)) return -1;
+                PrintInfResult(inputFile, outputFile, modelFile,
+                               static_cast<float>(ie.GetLatencyMean()/1000.),
+                               static_cast<float>(ie.GetNpuInferenceTimeMean()/1000.0),
+                               static_cast<float>(ie.GetQueueWaitTimeMean()/1000.0),
+                               fps, loops, mode, verbose);
 
                 break;
             }

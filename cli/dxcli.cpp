@@ -26,9 +26,12 @@ using std::string;
 int main(int argc, char *argv[])
 {
     {
-        const std::string gitHash = dxrt::Configuration::GetInstance().GetGitHash();
-        std::cout << "DXRT v" << dxrt::Configuration::GetInstance().GetVersion()
-                  << (gitHash.empty() ? "" : "+" + gitHash) << std::endl;
+        // Released builds carry a build id (build.ver); dev builds fall back to the git hash.
+        const auto& cfg = dxrt::Configuration::GetInstance();
+        const std::string buildId = cfg.GetBuildId();
+        const std::string buildInfo = buildId.empty() ? cfg.GetGitHash() : buildId;
+        std::cout << "DXRT v" << cfg.GetVersion()
+                  << (buildInfo.empty() ? "" : " (build: " + buildInfo + ")") << std::endl;
     }
 
     std::string prog_name(argv[0]);
@@ -48,6 +51,11 @@ int main(int argc, char *argv[])
 
         ("g, fwversion", "Get firmware version with deepx firmware file", cxxopts::value<string>())
         ("C, fwconfig_json", "Update firmware settings from [JSON]", cxxopts::value<string>())
+        ("fan-ctrl", "Control cooling fan (on / off / auto)\n"
+            "  on  : force fan on regardless of temperature\n"
+            "  off : force fan off regardless of temperature\n"
+            "  auto: temperature-based automatic control",
+            cxxopts::value<string>())
         ("v, version", "Print minimum versions")
 
 
@@ -138,6 +146,11 @@ int main(int argc, char *argv[])
         else if (cmd.count("fwconfig_json"))
         {
             dxrt::FWConfigCommandJson cli(cmd);
+            cli.Run();
+        }
+        else if (cmd.count("fan-ctrl"))
+        {
+            dxrt::FanCtrlCommand cli(cmd);
             cli.Run();
         }
         else if (cmd.count("fwlog"))

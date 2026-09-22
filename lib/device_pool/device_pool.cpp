@@ -222,7 +222,7 @@ int DevicePool::pickDeviceIndex(const std::vector<int> &device_ids)
 std::shared_ptr<DeviceTaskLayer> DevicePool::GetDeviceTaskLayer(int deviceId)
 {
     InitTaskLayers();
-    if (deviceId >= static_cast<int>(_taskLayers.size()))
+    if (deviceId < 0 || deviceId >= static_cast<int>(_taskLayers.size()))
     {
         throw DeviceIOException(EXCEPTION_MESSAGE("invalid device id "+ std::to_string(deviceId)));
     }

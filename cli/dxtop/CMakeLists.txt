@@ -32,6 +32,8 @@ else()
     target_link_libraries(${target} dxrt_static pthread rt ${link_libs} ${CURSES_LIBRARIES})
 endif()
 
+dxrt_enable_release_strip_keep_unstripped(${target})
+
 install( TARGETS ${target} DESTINATION bin )
 install( TARGETS ${target} DESTINATION ${CMAKE_SOURCE_DIR}/bin )
 

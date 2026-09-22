@@ -1133,6 +1133,7 @@ PYBIND11_MODULE(_pydxrt, m) {
         .def(py::init<>())
         .def_readwrite("useORT", &InferenceOption::useORT)
         .def_readwrite("bufferCount", &InferenceOption::bufferCount)
+        .def_readwrite("showModelInfo", &InferenceOption::showModelInfo)
         .def_property("boundOption",
             [](const InferenceOption &opt) { return static_cast<int>(opt.boundOption); },
             [](InferenceOption &opt, int val) {

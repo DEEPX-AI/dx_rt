@@ -554,7 +554,7 @@ The following inference options allow you to specify an NPU core for performing 
 Inference Engine Run, Inference Option  
 
 - Select devices  
-    : default devices is `{}`  
+    : default devices are `{}`  
     : Choose devices to utilize  
 - Select bound option per device  
     : `dxrt::InferenceOption::BOUND_OPTION::NPU_ALL`  
@@ -1286,7 +1286,7 @@ Asynchronous APIs allow you to submit inference requests without blocking the ca
 The `AsyncInferenceHandler` class demonstrates how to manage state across multiple asynchronous calls.
 
   - **Register a Callback**: Provide a function that the engine will call upon completion of each async request. The callback receives the output tensors and a `userArg` pointer for context.
-  - **Submit Requests**: Call an `RunAsync` variant. This call returns immediately with a job ID.
+  - **Submit Requests**: Call a `RunAsync` variant. This call returns immediately with a job ID.
   - **Process in Callback**: The callback function is executed in a separate worker thread. Here, you can process the results. It's crucial to ensure thread safety if you modify shared data.
 
 <!-- end list -->

@@ -27,6 +27,7 @@
 #include <cstring>
 #include <iostream>
 #include <fstream>
+#include <limits>
 
 using std::endl;
 using std::to_string;
@@ -108,7 +109,9 @@ void InferenceJob::onRequestComplete(RequestPtr req)
         LOG_DBG("[Job_" + std::to_string(_jobId) + "] Task '" + thisTask->name() +
                 "' done. Progress: " + std::to_string(_doneCount.load()) + "/" + std::to_string(_outputCount.load()));
 
-        _latency += (std::max)(static_cast<int64_t>(0), static_cast<int64_t>(req->latency()) - req->queueWaitTime());
+        // Queue wait is reported separately from job latency. It is clamped
+        // here because clock anomalies must not contaminate the job metric.
+        _queueWaitTime += (std::max)(static_cast<int64_t>(0), req->queueWaitTime());
         if (req->task()->processor() == Processor::NPU)
         {
             _infTime += req->inference_time();
@@ -152,12 +155,34 @@ void InferenceJob::onAllRequestComplete()
 {
     LOG_DXRT_DBG << "onAllRequestComplete(job=" << _jobId << ")" << std::endl;
 
-#ifdef USE_PROFILER
+    // Latency is measured across the entire job lifetime, from the first
+    // start call to completion of all requests. This intentionally replaces
+    // the previous request-latency calculation, so a multi-task job can have
+    // a larger latency than any individual request.
+    if (_jobStartValid)
+    {
+        const auto elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - _jobStartTime).count();
+        // _latency is an int for API compatibility, so durations above INT_MAX
+        // microseconds are intentionally saturated rather than overflowing.
+        const int64_t clamped_us = (std::min)(elapsed_us, static_cast<int64_t>(((std::numeric_limits<int>::max)())));
+        _latency = static_cast<int>((std::max)(static_cast<int64_t>(0), clamped_us));
+    }
+    else
+    {
+        _latency = 0;
+    }
+
+    // Profiler timing samples are published only when profiling is enabled;
+    // the job's own queue-wait accumulator remains valid in either mode.
+    const int64_t nonNegativeQueueWaitTime =
+        (std::max)(static_cast<int64_t>(0), queue_wait_time());
     _inferenceEnginePtr->getTimer()->UpdateLatencyStatistics(latency());
+    _inferenceEnginePtr->getTimer()->UpdateQueueWaitTimeStatistics(nonNegativeQueueWaitTime);
     _inferenceEnginePtr->getTimer()->UpdateInferenceTimeStatistics(inference_time());
     _inferenceEnginePtr->getTimer()->PushLatency(latency());
+    _inferenceEnginePtr->getTimer()->PushQueueWaitTime(nonNegativeQueueWaitTime);
     _inferenceEnginePtr->getTimer()->PushInferenceTime(inference_time());
-#endif
 
     // Dynamic output processing is now handled immediately in onRequestComplete()
     // No special processing needed here as _tensors already contains correct dynamic tensors
@@ -237,7 +262,9 @@ void InferenceJob::SetInferenceJob(std::vector<std::shared_ptr<Task>>& tasks_, s
     _headTask = head_;
     _doneCount.store(0);
     _latency = 0;
+    _queueWaitTime = 0;
     _infTime = 0;
+    _jobStartValid = false;
 
     _tasks = tasks_;  // Store tasks for multi-input support
     _outputs.clear();
@@ -263,7 +290,9 @@ void InferenceJob::SetInferenceJobMultiHead(std::vector<std::shared_ptr<Task>>& 
     _inputTasks = inputTasks_;
     _doneCount.store(0);
     _latency = 0;
+    _queueWaitTime = 0;
     _infTime = 0;
+    _jobStartValid = false;
 
     _tasks = tasks_;  // Store tasks for multi-input support
     _outputs.clear();
@@ -290,6 +319,8 @@ int InferenceJob::startJob(void *inputPtr, void *userArg, void *outputPtr)
     }
 
     setStatus(Request::Status::REQ_BUSY);
+    _jobStartTime = std::chrono::steady_clock::now();
+    _jobStartValid = true;
     _userArg = userArg;
     _outputPtr = outputPtr;
 
@@ -396,6 +427,8 @@ int InferenceJob::startJob(void *inputPtr, void *userArg, void *outputPtr)
 int InferenceJob::startMultiInputJob(const std::map<std::string, void*>& inputTensors, void *userArg, void *outputPtr)
 {
     setStatus(Request::Status::REQ_BUSY);
+    _jobStartTime = std::chrono::steady_clock::now();
+    _jobStartValid = true;
     _userArg = userArg;
     _outputPtr = outputPtr;
 
@@ -658,7 +691,9 @@ void InferenceJob::Clear()
 
     _userArg = nullptr;
     _latency = 0;
+    _queueWaitTime = 0;
     _infTime = 0;
+    _jobStartValid = false;
     _inferenceEnginePtr = nullptr;
     _infEngCallback = nullptr;
     _outputPtr = nullptr;

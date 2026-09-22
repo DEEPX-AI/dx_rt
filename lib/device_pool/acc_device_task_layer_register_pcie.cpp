@@ -40,6 +40,24 @@ SharedMemoryInfo MakeDMAMemoryView(const SharedMemoryInfo &deviceMemory, const v
     return info;
 }
 
+// Releases _taskDataLock for the lifetime of this guard (e.g. across a slow DMA
+// transfer) and re-acquires it on scope exit -- including on the exception path,
+// so any subsequent rollback/cleanup code always runs under the lock again.
+// _taskDataLock only needs to protect shared bookkeeping (allocator/maps); the
+// DMA transfers themselves operate on memory already exclusively reserved for
+// this task, so releasing the lock here doesn't need to block other tasks'
+// concurrent InferenceRequestACC (SharedLock) calls.
+class ScopedUnlock
+{
+public:
+    explicit ScopedUnlock(UniqueLock& lock) : _lock(lock) { _lock.unlock(); }
+    ~ScopedUnlock() { _lock.lock(); }
+    ScopedUnlock(const ScopedUnlock&) = delete;
+    ScopedUnlock& operator=(const ScopedUnlock&) = delete;
+private:
+    UniqueLock& _lock;
+};
+
 }  // namespace
 
 int AccDeviceTaskLayer::RegisterTask(TaskData* task)
@@ -158,41 +176,48 @@ int AccDeviceTaskLayer::RegisterTask(TaskData* task)
 
     try
     {
-        // Service mode: copy source data into the SHM block (ptr), then ask the service to DMA it
-        //   to device memory. The service identifies the SHM block via block_id/fd.
-        // NoService mode: AllocateInfo returns ptr=nullptr (no host mapping). Use MakeDMAMemoryView
-        //   to pass (ptr=source data, phys_addr=NPU destination) directly to core->Write().
-        if (serviceLayer()->isRunOnService())
+        // Offsets/memInfos above are already reserved exclusively for this task, so the
+        // slow DMA transfers themselves don't need to hold _taskDataLock and block other
+        // tasks' concurrent InferenceRequestACC (SharedLock) calls.
         {
-            std::memcpy(memInfos.rmapMemInfo.ptr,
-                SafeCast::IntegerToPointer<const void *>(model.rmap.data),
-                model.rmap.size);
-            ret = serviceLayer()->DMAWrite(SharedMemoryView::ofWhole(memInfos.rmapMemInfo));
-        }
-        else
-        {
-            ret = serviceLayer()->DMAWrite(SharedMemoryView::ofWhole(
-                MakeDMAMemoryView(memInfos.rmapMemInfo,
-                    SafeCast::IntegerToPointer<const void *>(model.rmap.data),
-                    model.rmap.size)));
-        }
-        DXRT_ASSERT(ret == 0, "failed to write model rmap parameters" + std::to_string(ret));
+            ScopedUnlock unlockGuard(lock);
 
-        if (serviceLayer()->isRunOnService())
-        {
-            std::memcpy(memInfos.weightMemInfo.ptr,
-                SafeCast::IntegerToPointer<const void *>(model.weight.data),
-                model.weight.size);
-            ret = serviceLayer()->DMAWrite(SharedMemoryView::ofWhole(memInfos.weightMemInfo));
-        }
-        else
-        {
-            ret = serviceLayer()->DMAWrite(SharedMemoryView::ofWhole(
-                MakeDMAMemoryView(memInfos.weightMemInfo,
+            // Service mode: copy source data into the SHM block (ptr), then ask the service to DMA it
+            //   to device memory. The service identifies the SHM block via block_id/fd.
+            // NoService mode: AllocateInfo returns ptr=nullptr (no host mapping). Use MakeDMAMemoryView
+            //   to pass (ptr=source data, phys_addr=NPU destination) directly to core->Write().
+            if (serviceLayer()->isRunOnService())
+            {
+                std::memcpy(memInfos.rmapMemInfo.ptr,
+                    SafeCast::IntegerToPointer<const void *>(model.rmap.data),
+                    model.rmap.size);
+                ret = serviceLayer()->DMAWrite(SharedMemoryView::ofWhole(memInfos.rmapMemInfo));
+            }
+            else
+            {
+                ret = serviceLayer()->DMAWrite(SharedMemoryView::ofWhole(
+                    MakeDMAMemoryView(memInfos.rmapMemInfo,
+                        SafeCast::IntegerToPointer<const void *>(model.rmap.data),
+                        model.rmap.size)));
+            }
+            DXRT_ASSERT(ret == 0, "failed to write model rmap parameters" + std::to_string(ret));
+
+            if (serviceLayer()->isRunOnService())
+            {
+                std::memcpy(memInfos.weightMemInfo.ptr,
                     SafeCast::IntegerToPointer<const void *>(model.weight.data),
-                    model.weight.size)));
+                    model.weight.size);
+                ret = serviceLayer()->DMAWrite(SharedMemoryView::ofWhole(memInfos.weightMemInfo));
+            }
+            else
+            {
+                ret = serviceLayer()->DMAWrite(SharedMemoryView::ofWhole(
+                    MakeDMAMemoryView(memInfos.weightMemInfo,
+                        SafeCast::IntegerToPointer<const void *>(model.weight.data),
+                        model.weight.size)));
+            }
+            DXRT_ASSERT(ret == 0, "failed to write model weight parameters" + std::to_string(ret));
         }
-        DXRT_ASSERT(ret == 0, "failed to write model weight parameters" + std::to_string(ret));
 
         // v8 PPCPU: Write PPU binary if exists
         if (task->_isPPCPU && task->_data && task->_data->size() >= 3)
@@ -219,17 +244,20 @@ int AccDeviceTaskLayer::RegisterTask(TaskData* task)
                 ppu_mem.offset = static_cast<uint32_t>(ppu_memory.phys_addr_offset);
                 ppu_mem.size = static_cast<uint32_t>(ppu_binary_copy.size());
                 ppu_mem.data = SafeCast::PointerToInteger<const uint8_t*>(ppu_binary_copy.data());
-                if (serviceLayer()->isRunOnService())
                 {
-                    std::memcpy(ppu_memory.ptr, ppu_binary_copy.data(), ppu_binary_copy.size());
-                    ret = serviceLayer()->DMAWrite(SharedMemoryView::ofWhole(ppu_memory));
+                    ScopedUnlock unlockGuard(lock);
+                    if (serviceLayer()->isRunOnService())
+                    {
+                        std::memcpy(ppu_memory.ptr, ppu_binary_copy.data(), ppu_binary_copy.size());
+                        ret = serviceLayer()->DMAWrite(SharedMemoryView::ofWhole(ppu_memory));
+                    }
+                    else
+                    {
+                        ret = serviceLayer()->DMAWrite(SharedMemoryView::ofWhole(
+                            MakeDMAMemoryView(ppu_memory, ppu_binary_copy.data(), ppu_binary_copy.size())));
+                    }
+                    DXRT_ASSERT(ret == 0, "failed to write PPU binary parameters" + std::to_string(ret));
                 }
-                else
-                {
-                    ret = serviceLayer()->DMAWrite(SharedMemoryView::ofWhole(
-                        MakeDMAMemoryView(ppu_memory, ppu_binary_copy.data(), ppu_binary_copy.size())));
-                }
-                DXRT_ASSERT(ret == 0, "failed to write PPU binary parameters" + std::to_string(ret));
 
                 // Store PPU binary offset in device-specific map (not in TaskData to avoid conflicts)
                 _ppuBinaryOffsets[tId] = ppu_mem.offset;
@@ -247,6 +275,7 @@ int AccDeviceTaskLayer::RegisterTask(TaskData* task)
         // Verify (skip if size is 0)
         if (model.rmap.size > 0 && model.weight.size > 0)
         {
+            ScopedUnlock unlockGuard(lock);
             auto verify = [this](const dxrt_meminfo_t& info, const SharedMemoryInfo &deviceInfo, const std::string& name) {
                 if (info.size == 0)
                 {

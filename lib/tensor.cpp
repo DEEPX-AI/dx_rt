@@ -309,6 +309,11 @@ void Tensor::update_with_ort_value(const std::vector<int64_t>& new_shape, void* 
     // ORT manages memory, so don't set release flag
     _dataReleaseFlag = false;
 }
+
+void Tensor::SetDataReleaseFlagForTest(bool flag)
+{
+    setDataReleaseFlag(flag);
+}
 #endif
 
 

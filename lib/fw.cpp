@@ -194,6 +194,8 @@ std::string Fw::GetBoardTypeString() const
             return "M.2";
         case 3:
             return "H1";
+        case 6:
+            return "VNPU";
         default:
             return std::to_string(fwHeader.board_type);
     }

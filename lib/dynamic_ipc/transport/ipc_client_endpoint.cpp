@@ -189,6 +189,10 @@ int IPCClientEndpoint::sendMessageSync(
         const auto waitResult = responseFuture.wait_for(std::chrono::milliseconds(timeoutMs));
         if (waitResult != std::future_status::ready)
         {
+            {
+                std::lock_guard<std::mutex> lock(_pendingMutex);
+                _pendingResponses.erase(sequenceId);
+            }
             errno = ETIMEDOUT;
             LOG_DXRT_I_DBG << "sendMessageSync timed out seqId=" << sequenceId << std::endl;
             return -1;

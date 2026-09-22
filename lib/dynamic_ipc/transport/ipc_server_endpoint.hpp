@@ -28,6 +28,8 @@
 
 namespace dxrt {
 
+DXRT_INTERNAL_API bool IsTransientAcceptErrorForTest(int err);
+
 class IPCPacketHandlerRegistry;
 
 class DXRT_INTERNAL_API IPCServerEndpoint

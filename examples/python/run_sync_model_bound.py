@@ -2,8 +2,8 @@
 # Copyright (C) 2018- DEEPX Ltd.
 # All rights reserved.
 #
-# This software is the property of DEEPX and is provided exclusively to customers 
-# who are supplied with DEEPX NPU (Neural Processing Unit). 
+# This software is the property of DEEPX and is provided exclusively to customers
+# who are supplied with DEEPX NPU (Neural Processing Unit).
 # Unauthorized sharing or usage is strictly prohibited by law.
 #
 
@@ -11,6 +11,7 @@ import numpy as np
 import os
 import argparse
 import time
+from contextlib import ExitStack
 from dx_engine import InferenceEngine, InferenceOption
 from logger import Logger, LogLevel
 
@@ -24,74 +25,78 @@ def parse_args():
 
     if not os.path.exists(args.model):
         parser.error(f"Model path '{args.model}' does not exist.")
-    
+
     if args.verbose:
         logger = Logger()
         logger.set_level(LogLevel.DEBUG)
-    
+
     return args
 
 
 if __name__ == "__main__":
     args = parse_args()
     logger = Logger()
-    
+
+    if args.verbose:
+        logger.set_level(LogLevel.DEBUG)
+
     logger.info(f"Start run_sync_model_bound test for model: {args.model}")
-    
-    # inference option
-    option = InferenceOption()
 
-    logger.debug("Inference Options:")
+    bound_configs = [
+        ("NPU_0", InferenceOption.BOUND_OPTION.NPU_0),
+        ("NPU_1", InferenceOption.BOUND_OPTION.NPU_1),
+        ("NPU_012", InferenceOption.BOUND_OPTION.NPU_ALL),
+    ]
 
-    # select devices
-    option.devices = [0]
-    logger.debug(f"   Devices = {option.devices}")
+    logger.debug("Inference Options for 3 IEs:")
 
-    # NPU bound opion (NPU_ALL or NPU_0 or NPU_1 or NPU_2)
-    option.bound_option = InferenceOption.BOUND_OPTION.NPU_ALL
-    logger.debug(f"   Option  =  {option.bound_option}")
-
-    # use ONNX Runtime (True or False)
-    option.use_ort = False
-    logger.debug(f"   Use ORT = {option.use_ort}")
-   
     try:
-        # create inference engine instance with model
-        with InferenceEngine(args.model, option) as ie:
+        with ExitStack() as stack:
+            engines = []
+            inputs_per_engine = []
 
-            # NOTE: np.zeros() uses COW zero pages — all virtual pages share one
-            # physical page. PCIe DMA driver's get_user_pages() then sees duplicate
-            # physical pages in the SG list and fails with EFAULT.
-            # np.empty() + explicit fill forces unique physical page allocation.
-            _buf = np.empty(ie.get_input_size(), dtype=np.uint8)
-            _buf.fill(0)
-            input = [_buf]
+            for name, bound_option in bound_configs:
+                option = InferenceOption()
+                option.devices = [0]
+                option.bound_option = bound_option
+                option.use_ort = False
+
+                logger.debug(f"   [{name}] Devices = {option.devices}")
+                logger.debug(f"   [{name}] Option  = {option.bound_option}")
+                logger.debug(f"   [{name}] Use ORT = {option.use_ort}")
+
+                ie = stack.enter_context(InferenceEngine(args.model, option))
+                engines.append((name, ie))
+
+                # NOTE: np.zeros() uses COW zero pages — all virtual pages share one
+                # physical page. PCIe DMA driver's get_user_pages() then sees duplicate
+                # physical pages in the SG list and fails with EFAULT.
+                # np.empty() + explicit fill forces unique physical page allocation.
+                _buf = np.empty(ie.get_input_size(), dtype=np.uint8)
+                _buf.fill(0)
+                inputs_per_engine.append([_buf])
 
             start = time.perf_counter()
-            # inference loop
+
             for i in range(args.loops):
+                for idx, (name, ie) in enumerate(engines):
+                    ie.run(inputs_per_engine[idx])
+                    logger.debug(f"Inference outputs loop={i}, engine={name}")
 
-                # inference synchronously 
-                # use only one npu core 
-                # ownership of the outputs is transferred to the user 
-                outputs = ie.run(input)
-
-                # post processing 
-                #postProcessing(outputs)
-                logger.debug(f"Inference outputs {i}")
-                
             end = time.perf_counter()
-            total_time_ms = (end -start) * 1000
-            avg_latency = total_time_ms / args.loops
-            fps = 1000.0/ avg_latency if avg_latency > 0 else 0.0
-            
+            total_time_ms = (end - start) * 1000
+            total_requests = args.loops * len(engines)
+            avg_latency = total_time_ms / total_requests if total_requests > 0 else 0.0
+            fps = (1000.0 * total_requests / total_time_ms) if total_time_ms > 0 else 0.0
+
             logger.info("-----------------------------------")
             logger.info(f"Total Time: {total_time_ms:.3f} ms")
-            logger.info(f"Average Latency: {avg_latency:.3f} ms")
+            logger.info(f"Total Inference Requests: {total_requests}")
+            logger.info(f"Average Latency per Inference: {avg_latency:.3f} ms")
             logger.info(f"FPS: {fps:.2f} frame/sec")
-            logger.info("Success")
+            logger.info("Success: 3 InferenceEngines with different bound options completed")
             logger.info("-----------------------------------")
-            
+
     except Exception as e:
         logger.error(f"Exception: {str(e)}")
         exit(-1)

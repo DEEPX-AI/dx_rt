@@ -119,6 +119,7 @@ int GetDataSize_Datatype(DataType dType)
 {
     int size = 0;
     switch (dType) {
+        case DataType::NONE_TYPE:
         case DataType::UINT8  :
         case DataType::INT8   :
             size = 1;
@@ -146,8 +147,9 @@ int GetDataSize_Datatype(DataType dType)
             size = 256;
             break;
         default:
-            cout << "Unwanted Data Type is inserted in GetDataSize_Datatype." << dType << endl;
-            exit(0);
+            LOG_DXRT_ERR("Unwanted Data Type is inserted in GetDataSize_Datatype." << dType);
+            size = 1;
+            break;
     }
     return size;
 }

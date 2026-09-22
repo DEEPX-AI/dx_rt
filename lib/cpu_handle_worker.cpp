@@ -240,6 +240,22 @@ void CpuHandleWorker::ThreadWorkImpl(int id)
     bool isDynamic = (static_cast<size_t>(id) >= _numThreads);
     LOG_DXRT_DBG << threadName << " : Entry ( dynamic : " << isDynamic << ")" << endl;
 
+#ifdef USE_ORT
+    // Warm up before servicing real requests: pays ORT's CPU memory arena
+    // growth (measured to span the first ~2 real Run() calls) and thread pool
+    // spin-up cost here, on worker start-up, instead of on the first couple
+    // of real jobs. Runs on this same OS thread that will process real
+    // requests.
+    {
+        CpuHandle* handle = getCpuHandle();
+        std::shared_ptr<Ort::Session> workerSession = handle ? handle->_session : nullptr;
+        if (handle && workerSession)
+        {
+            handle->WarmupSession(workerSession);
+        }
+    }
+#endif
+
     bool dynamicStop = false;
     while (getStopFlag().load(memory_order_acquire) == false)
     {

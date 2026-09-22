@@ -26,6 +26,8 @@
 
 namespace dxrt {
 
+DXRT_INTERNAL_API bool IsRecoverableDispatcherErrorForTest(uint32_t errCode);
+
 // DeviceDispatcher
 //   Owns the NPU response polling threads (one per DMA channel, fixed at 3)
 //   and the event polling thread (one per device).  Both groups talk to the

@@ -13,6 +13,7 @@
 #include "dxrt/cli.h"
 
 #include <string>
+#include <cctype>
 
 #include "dxrt/device.h"
 #include "dxrt/fw.h"
@@ -42,6 +43,12 @@ namespace dxrt {
 static DevicePool* poolForTest = nullptr;  // NOSONAR
 void DXRT_API SetTestDevicePool(DevicePool* p) {
     poolForTest = p;
+}
+
+// Returns the injected test pool when present, otherwise the real singleton.
+static DevicePool* ResolveDevicePool()
+{
+    return (poolForTest != nullptr) ? poolForTest : &DevicePool::GetInstance();
 }
 
 static string ParseFwUpdateSubCmd(const string& cmd, uint32_t* subCmd)
@@ -327,6 +334,21 @@ void FWUpdateCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
         }
 
     }
+    else if ( fw.GetBoardType() == BOARD_TYPE_SLT
+        && deviceInfo.bd_type == BOARD_TYPE_SLT )
+    {
+        // VNPU board type
+        if ((fw.GetDdrType() == M1_DDR_TYPE_LPDDR5 || fw.GetDdrType() == M1_DDR_TYPE_LPDDR5X)
+            && (deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR5 || deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR5X) )
+        {
+            isCompatible = true; // VNPU
+        }
+        else if(fw.GetDdrType() == M1_DDR_TYPE_LPDDR4
+            && deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR4 )
+        {
+            isCompatible = true; // VNPU with LPDDR4
+        }
+    }
     //else isCompatible is false;
     // compatibility check
 
@@ -372,7 +394,7 @@ void FWUpdateCommand::finish()
     {
         std::cout << LogMessages::CLI_NoUpdateDeviceFound() << std::endl;
     }
-    else
+    else if (poolForTest == nullptr)
     {
         // sleep for a while to wait for device reset after firmware update
         std::this_thread::sleep_for(std::chrono::seconds(4));
@@ -539,6 +561,37 @@ void DDRErrorCLICommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
     cout << "Device " << devicePtr->id() << ": " << DeviceStatus::GetCurrentStatus(devicePtr).DdrBitErrStr() << endl;
 }
 
+FanCtrlCommand::FanCtrlCommand(cxxopts::ParseResult &cmd)
+: CLICommand(cmd)
+{
+    withDevice() = true;
+}
+void FanCtrlCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
+{
+    std::string mode = cmdResult()["fan-ctrl"].as<std::string>();
+    for (auto& c : mode) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+
+    uint32_t fanVal;
+    if (mode == "off")
+    {
+        fanVal = 0;
+    }
+    else if (mode == "on")
+    {
+        fanVal = 1;
+    }
+    else if (mode == "auto")
+    {
+        fanVal = 2;
+    }
+    else
+    {
+        std::cout << "Invalid fan-ctrl value: " << mode << " (use on / off / auto)" << std::endl;
+        return;
+    }
+    devicePtr->DoCustomCommand(&fanVal, dxrt::DX_SET_FAN);
+}
+
 bool CheckH1Devices()
 {
     constexpr int kH1ChipsPerDevice = 4;   // H1 = m1x4
@@ -547,8 +600,8 @@ bool CheckH1Devices()
 
     bool foundH1 = false;
     bool foundH1M = false;
-    auto& pool = DevicePool::GetInstance();
-    auto device_total_count = static_cast<int>(pool.GetDeviceCount());
+    DevicePool* pool = ResolveDevicePool();
+    auto device_total_count = static_cast<int>(pool->GetDeviceCount());
 
     int h1_count = 0;
     int h1m_count = 0;
@@ -560,7 +613,7 @@ bool CheckH1Devices()
     //       or identification field for H1M.
     for (int i = 0; i < device_total_count; i++)
     {
-        auto devicePtr = pool.GetDeviceCores(i);
+        auto devicePtr = pool->GetDeviceCores(i);
         auto deviceInfo = devicePtr->info();
 
         if (deviceInfo.bd_type == BOARD_TYPE_H1 && deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR4)
@@ -658,14 +711,14 @@ bool CheckH1Devices()
 bool CheckM1Devices(int deviceType)
 {
     bool foundM1 = false;
-    auto& pool = DevicePool::GetInstance();
-    auto device_total_count = static_cast<int>(pool.GetDeviceCount());
+    DevicePool* pool = ResolveDevicePool();
+    auto device_total_count = static_cast<int>(pool->GetDeviceCount());
 
     int m1_count = 0;
 
     for (int i = 0; i < device_total_count; i++)
     {
-        auto devicePtr = pool.GetDeviceCores(i);
+        auto devicePtr = pool->GetDeviceCores(i);
         auto deviceInfo = devicePtr->info();
 
         // M1 M.2 board type (2)
@@ -717,4 +770,3 @@ bool CheckM1Devices(int deviceType)
 }
 
 }  // namespace dxrt
-

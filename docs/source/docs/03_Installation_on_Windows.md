@@ -464,7 +464,7 @@ A-5. Start the service
    ```
 
 A-6. Verify service is running  
-     : Check DeepX runtime service in Windows Services list (`services.msc`)  
+     : Check DEEPX runtime service in Windows Services list (`services.msc`)  
      : Or verify `dxrtd.exe` process in Task Manager  
 
 To remove the service

@@ -82,6 +82,12 @@ Create a `dxrt::InferenceOption` object to configure runtime settings for the in
   option.bufferCount = 4;  // Allocate 4 inference buffers
   ```
 
+- **`showModelInfo`** (default: `true`)  
+  Controls whether the model information banner is printed when this engine is created. Combined with the global `SHOW_MODEL_INFO` configuration, so the banner appears only when both are enabled.  
+  ```cpp
+  option.showModelInfo = false;  // Keep engine creation silent
+  ```
+
 **Example Usage**
 
 ```cpp
@@ -90,6 +96,7 @@ option.devices = {0};                              // Use only device 0
 option.boundOption = dxrt::InferenceOption::NPU_ALL;  // Use all cores
 option.useORT = true;                              // Enable CPU tasks
 option.bufferCount = 4;                            // Use 4 buffers
+option.showModelInfo = false;                      // Suppress the model info banner
 
 auto ie = dxrt::InferenceEngine("model.dxnn", &option);
 ```
@@ -199,7 +206,7 @@ As noted earlier, using callbacks allows for more efficient and real-time post-p
 
 ## Multiple Device Inference
 
-This feature is **not** applicable to single-NPU devices. Basically, the inference engine schedules and manages multiple devices in real time.  
+This feature is **not** applicable to single-NPU devices. The inference engine schedules and manages multiple devices in real time.  
 If the inference option is explicitly set, the inference engine may **only** use specific devices during real-time inference for the model.  
 
 ---
@@ -259,7 +266,7 @@ As a result, applications no longer need to manually attach input dummy bytes or
 When you run a model with the `--profiler` option using `dxrun`, a `profiler.json` file is automatically generated in the working directory.
 
 ```
-dxrun -m model.dxnn --profiler
+dxrun -m model.dxnn -i input.bin --profiler
 # Check the generated profiler.json file
 ```
 
@@ -412,7 +419,7 @@ Optional Arguments
 - `-t, --show_text`: Show duration text labels on bars  
 
 !!! note "NOTE" 
-    The `-a, --auto-select` option automatically selects 200 jobs from the stable centre region, which can be useful for filtering out warm-up and tail effects.  
+    The `-a, --auto-select` option automatically selects 200 jobs from the stable center region, which can be useful for filtering out warm-up and tail effects.  
 
 ---
 
@@ -659,7 +666,7 @@ After a successful build, run the generated executable.
 ./HelloWorld
 ```
 
-You now successfully create and build a CMake project using the **DX-RT** library. 
+You have now successfully created and built a CMake project using the **DX-RT** library. 
 
 ---
 
@@ -710,7 +717,7 @@ You can use the profiler (see *Profile Application* section) to identify whether
 | NPU | DEEPX DX-M1 with PCIe Gen3 x4 |
 | OS | Ubuntu 22.04 |
 | DX-RT Version | v3.3.0 |
-| Model | Q-PRO variants from DEEPX ModelZoo |
+| Model | Q-PRO variants from DX ModelZoo |
 | Measurement Tool | `dxrun` (no pre/post-processing) |
 | Iterations | 2000 |
 | Build Option | `USE_ORT=ON` |
@@ -795,7 +802,7 @@ config.set_enable(Configuration.ITEM.CPU_OP_ACCELERATION, True)
 ---
 
 ### Improving CPU Capacity with Dynamic Threading 
-When executing CPU task via ONNX Runtime, performance bottlenecks may arise depending on the Host CPU performance and symbol load. To address this, **DX-RT** provides an optional dynamic multi-threading feature that can improve throughput in high-load scenarios.  
+When executing CPU task via ONNX Runtime, performance bottlenecks may arise depending on the Host CPU performance and system load. To address this, **DX-RT** provides an optional dynamic multi-threading feature that can improve throughput in high-load scenarios.  
 
 **Feature Overview**  
 

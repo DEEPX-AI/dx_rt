@@ -11,6 +11,7 @@
 #include "dxrt/parsers/v6_model_parser.h"
 #include "dxrt/parsers/v7_model_parser.h"
 #include "dxrt/parsers/v8_model_parser.h"
+#include "dxrt/parsers/v9_model_parser.h"
 #include "dxrt/exception/exception.h"
 #include "dxrt/filesys_support.h"
 #include "resource/log_messages.h"
@@ -37,6 +38,8 @@ std::unique_ptr<IModelParser> ModelParserFactory::CreateParser(int version) {
             return std::make_unique<V7ModelParser>();
         case 8:
             return std::make_unique<V8ModelParser>();
+        case 9:
+            return std::make_unique<V9ModelParser>();
         default:
             throw InvalidModelException(EXCEPTION_MESSAGE(
                 LogMessages::NotSupported_ModelFileFormatVersion(version, MIN_SINGLEFILE_VERSION, MAX_SINGLEFILE_VERSION)
@@ -102,7 +105,7 @@ bool ModelParserFactory::IsVersionSupported(int version) {
 }
 
 std::vector<int> ModelParserFactory::GetSupportedVersions() {
-    return {6, 7, 8}; // Currently supported versions
+    return {6, 7, 8, 9}; // Currently supported versions
 }
 
 } // namespace dxrt

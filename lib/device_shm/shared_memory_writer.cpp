@@ -90,8 +90,28 @@ bool SharedMemoryWriter::Initialize()
 #ifdef __linux__
     const char* shm_name = GetMonitorShmName();
 
-    // Open-or-create shared memory (reader-first/writer-first both supported).
-    _shm_fd = shm_open(shm_name, O_CREAT | O_RDWR, MONITOR_SHM_PERMS);
+    // Preferred path: attach to existing shared memory without O_CREAT.
+    // Some kernels enforce fs.protected_regular, which rejects O_CREAT opens
+    // on a file that already exists but is owned by a different uid, inside
+    // world-writable sticky directories like /dev/shm -- even for root. If a
+    // reader (e.g. dxtop) started first and bootstrapped the SHM under its
+    // own uid, an O_CREAT-only open here would fail with EACCES even though
+    // the file itself is 0666. Avoiding O_CREAT on the common "already
+    // exists" path sidesteps that restriction entirely (mirrors
+    // SharedMemoryReader::Open()).
+    _shm_fd = shm_open(shm_name, O_RDWR, 0);
+
+    // Writer-first bootstrap: create it only if it doesn't exist yet.
+    if (_shm_fd == -1 && errno == ENOENT)
+    {
+        _shm_fd = shm_open(shm_name, O_CREAT | O_EXCL | O_RDWR, MONITOR_SHM_PERMS);
+        if (_shm_fd == -1 && errno == EEXIST)
+        {
+            // Lost the creation race to another process; attach to it instead.
+            _shm_fd = shm_open(shm_name, O_RDWR, 0);
+        }
+    }
+
     if (_shm_fd != -1)
     {
         // Best effort: enforce permissions regardless of process umask.

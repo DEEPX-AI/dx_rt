@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "dxrt/common.h"
+#include "dxrt/exception/exception.h"
 #include "dxrt/util.h"
 
 using std::endl;
@@ -29,6 +30,13 @@ using std::cout;
 using std::to_string;
 
 namespace dxrt {
+
+bool IsRecoverableDispatcherErrorForTest(uint32_t errCode)
+{
+    return (errCode >= 100 && errCode < 200)
+        || (errCode == 300)
+        || (errCode >= 400 && errCode < 500);
+}
 
 namespace {
 
@@ -159,6 +167,10 @@ int DeviceDispatcher::ResponseLoop(int ids)
                 + std::to_string(ids) + ", wait_ch=" + std::to_string(ids)
                 + ", ret=" + std::to_string(ret));
             loopCnt++;
+            // Back off like the -ENODATA branch above. Without this, a persistent error
+            // (EBADF after the device is closed, ECANCELED on a revoked wait) spins this
+            // thread at full speed and floods the allocator with log strings (BUG-011).
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
             continue;
         }
 
@@ -196,9 +208,7 @@ int DeviceDispatcher::ResponseLoop(int ids)
                 //   100-103: DMA timeout + soft reset failure
                 //   300:     FW timeout
                 //   400-403: DMA HW abort (Abort MSI)
-                bool isRecoverable = (errCode >= 100 && errCode < 200)
-                                  || (errCode == 300)
-                                  || (errCode >= 400 && errCode < 500);
+                bool isRecoverable = IsRecoverableDispatcherErrorForTest(errCode);
 
                 if (isRecoverable)
                 {
@@ -551,7 +561,14 @@ bool DeviceDispatcher::FillDeviceSpec(dxrt_device_info_t* spec, dxrt_dev_info_t*
     }
 
     // Fallback: try reading device identify info directly.
-    _core->Identify(_deviceId);
+    try
+    {
+        _core->Identify(_deviceId);
+    }
+    catch (const DeviceIOException&)
+    {
+        return false;
+    }
 
     const auto refreshedSpec = _core->info();
     if (refreshedSpec.mem_size == 0)

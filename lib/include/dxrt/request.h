@@ -143,7 +143,7 @@ class DXRT_API Request // NOSONAR
     bool _validateDevice = false;
     int16_t _modelType;
     uint32_t _infTime;
-    InferenceJob*  _job;
+    InferenceJob*  _job = nullptr;
     std::atomic<bool> _use_flag = {false};
     std::mutex _reqLock;
 
