@@ -122,6 +122,10 @@ int main(int argc, char *argv[])
         {
             dxrt::FWUpdateCommand cli(cmd);
             cli.Run();
+            if (cli.IsFailed())
+            {
+                return 1;
+            }
         }
         else if (cmd.count("fwupload"))
         {

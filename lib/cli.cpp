@@ -380,6 +380,7 @@ void FWUpdateCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
     if (ret == 0) {
         cout << " : SUCCESS" << endl;
     } else {
+        _updateFailed = true;
         cout << " : FAIL (" << ret << ")" << endl;
         cout << " === firmware update fail reason === " << endl;
         cout << fw.GetFwUpdateResult(ret) << endl;

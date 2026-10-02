@@ -96,6 +96,7 @@ class DXRT_API FWUpdateCommand : public CLICommand
 {
  public:
     explicit FWUpdateCommand(cxxopts::ParseResult &);
+    bool IsFailed() const { return _updateFailed; }
  private:
     void doCommand(std::shared_ptr<DeviceCore> devicePtr) override;
     void finish() override;
@@ -105,6 +106,7 @@ class DXRT_API FWUpdateCommand : public CLICommand
     std::string _fwUpdateFile;
     bool _showLogOnce = false;
     bool _showDonotTunrOff = false;
+    bool _updateFailed = false;
     int _updateDeviceCount = 0;
 };
 
