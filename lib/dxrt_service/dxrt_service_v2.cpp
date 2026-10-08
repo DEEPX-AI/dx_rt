@@ -113,6 +113,10 @@ bool IsProcessRunning(pid_t pid)
 }
 #endif
 
+// Must stay above the driver's DMA drain timeout (RECOVERY_DMA_DRAIN_TIMEOUT_MS = 5000).
+constexpr std::chrono::seconds kPendingTaskFreeGrace{30};
+constexpr std::chrono::seconds kPendingTaskFreeScanInterval{1};
+
 }  // namespace
 
 namespace dxrt {
@@ -143,6 +147,7 @@ struct DxrtServiceV2::IpcServerWorkItem
 
 DxrtServiceV2::~DxrtServiceV2()
 {
+    StopPendingTaskFreeReaper();
     if (_sharedMemoryWritingThread)
     {
         _sharedMemoryWritingThread->Stop();
@@ -996,6 +1001,8 @@ DxrtServiceV2::DxrtServiceV2(
             }
         }
     }
+
+    StartPendingTaskFreeReaper();
 }
 
 DxrtServiceV2::DxrtServiceV2(DXRTScheduleV2 schedulerOption)
@@ -1412,22 +1419,6 @@ int DxrtServiceV2::HandleProcessDeInit(pid_t pid, int deviceId)
 {
 
     LOG_DXRT_S << "HandleProcessDeInit: pid=" << pid << ", deviceId=" << deviceId << std::endl;
-    // Identify tasks with in-flight (RUNNING) requests *before* stopping them.
-    // Their RMAP/Weight memory must not be freed until the NPU delivers the
-    // completion response; register them for deferred cleanup via _onTaskDrained.
-    const std::vector<int> runningTaskIds = _scheduler->GetRunningTaskIds(pid);
-    const std::set<int> runningTaskIdSet(runningTaskIds.begin(), runningTaskIds.end());
-    {
-        std::lock_guard<std::mutex> lock(_pendingTaskFreeMutex);
-        for (int taskId : runningTaskIds)
-        {
-            _pendingTaskFree[{pid, taskId}] = deviceId;
-        }
-
-        LOG_DXRT_S << "HandleProcessDeInit: pid=" << pid
-                   << ", deviceId=" << deviceId
-                   << ", runningTaskIds count=" << runningTaskIds.size() << std::endl;
-    }
 
     _scheduler->StopAllInferenceForProcess(pid, deviceId);
 
@@ -1440,27 +1431,32 @@ int DxrtServiceV2::HandleProcessDeInit(pid_t pid, int deviceId)
     }
     _scheduler->ClearRunningRequests(pid, deviceId);
 
+    // Only past the stops above is it known which tasks the NPU still owes a completion for.
     auto *memService = GetMemoryService(deviceId);
     for (const auto &entry : taskEntries)
     {
         const int taskId = entry.first;
         const dxrt::npu_bound_op bound = entry.second;
 
-        if (memService != nullptr)
+        // Registered before re-checking so a completion landing in between is claimed by onTaskDrained.
         {
-            LOG_DXRT_S << "HandleProcessDeInit mem clear: pid=" << pid
-                       << ", deviceId=" << deviceId
-                       << ", taskId=" << taskId << std::endl;
-            // Do not deallocate tasks that still have in-flight requests.
-            // Those are deferred and reclaimed in onTaskDrained().
-            if (runningTaskIdSet.count(taskId) == 0)
-            {
-                // No in-flight request: RMAP/Weight is safe to free now.
-                (void)memService->DeallocateTask(pid, taskId);
-            }
+            std::lock_guard<std::mutex> lock(_pendingTaskFreeMutex);
+            _pendingTaskFree[{pid, taskId}][deviceId] = std::chrono::steady_clock::now();
         }
 
-        // Running tasks: DeallocateTask deferred to _onTaskDrained.
+        const bool freeNow =
+            !_scheduler->HasAnyRequestForTask(pid, taskId) && ClaimPendingTaskFree(pid, taskId, deviceId);
+
+        LOG_DXRT_S << "HandleProcessDeInit mem clear: pid=" << pid
+                   << ", deviceId=" << deviceId
+                   << ", taskId=" << taskId
+                   << ", deferred=" << (freeNow ? 0 : 1) << std::endl;
+
+        if (freeNow && memService != nullptr)
+        {
+            (void)memService->DeallocateTask(pid, taskId);
+        }
+
         std::lock_guard<std::mutex> lock(_deviceMutex);
         if (deviceId >= 0 && deviceId < static_cast<int>(_devices.size()))
         {
@@ -1741,18 +1737,120 @@ bool DxrtServiceV2::validateTask(pid_t pid, int deviceId, int taskId)
 
 void DxrtServiceV2::onTaskDrained(pid_t pid, int taskId)
 {
-    int deviceId = -1;
+    std::map<int, std::chrono::steady_clock::time_point> deferredDevices;
     {
         std::lock_guard<std::mutex> lock(_pendingTaskFreeMutex);
         auto it = _pendingTaskFree.find({pid, taskId});
         if (it == _pendingTaskFree.end()) { return; }  // normal idle — nothing to free
-        deviceId = it->second;
+        deferredDevices = std::move(it->second);
         _pendingTaskFree.erase(it);
     }
-    auto *memService = GetMemoryService(deviceId);
-    if (memService != nullptr)
+    for (const auto &device : deferredDevices)
     {
-        (void)memService->DeallocateTask(pid, taskId);
+        auto *memService = GetMemoryService(device.first);
+        if (memService != nullptr)
+        {
+            (void)memService->DeallocateTask(pid, taskId);
+        }
+    }
+}
+
+bool DxrtServiceV2::ClaimPendingTaskFree(pid_t pid, int taskId, int deviceId)
+{
+    std::lock_guard<std::mutex> lock(_pendingTaskFreeMutex);
+    auto it = _pendingTaskFree.find({pid, taskId});
+    if (it == _pendingTaskFree.end() || it->second.erase(deviceId) == 0) { return false; }
+    if (it->second.empty())
+    {
+        _pendingTaskFree.erase(it);
+    }
+    return true;
+}
+
+void DxrtServiceV2::StartPendingTaskFreeReaper()
+{
+    if (_pendingFreeReaperRunning.exchange(true)) { return; }
+    _pendingFreeReaper = std::thread([this]() {
+        while (_pendingFreeReaperRunning.load())
+        {
+            {
+                std::unique_lock<std::mutex> lock(_pendingFreeReaperMutex);
+                _pendingFreeReaperCv.wait_for(
+                    lock,
+                    kPendingTaskFreeScanInterval,
+                    [this]() { return !_pendingFreeReaperRunning.load(); });
+            }
+            if (!_pendingFreeReaperRunning.load()) { break; }
+            ReclaimStrandedTaskMemory();
+        }
+    });
+}
+
+void DxrtServiceV2::StopPendingTaskFreeReaper()
+{
+    {
+        std::lock_guard<std::mutex> lock(_pendingFreeReaperMutex);
+        if (!_pendingFreeReaperRunning.exchange(false)) { return; }
+    }
+    _pendingFreeReaperCv.notify_all();
+    if (_pendingFreeReaper.joinable())
+    {
+        _pendingFreeReaper.join();
+    }
+}
+
+void DxrtServiceV2::ReclaimStrandedTaskMemory()
+{
+    struct Candidate {
+        pid_t pid;
+        int taskId;
+        int deviceId;
+        bool expired;
+    };
+
+    std::vector<Candidate> candidates;
+    {
+        const auto now = std::chrono::steady_clock::now();
+        std::lock_guard<std::mutex> lock(_pendingTaskFreeMutex);
+        for (const auto &task : _pendingTaskFree)
+        {
+            for (const auto &device : task.second)
+            {
+                candidates.push_back(Candidate{
+                    task.first.first,
+                    task.first.second,
+                    device.first,
+                    (now - device.second) >= kPendingTaskFreeGrace});
+            }
+        }
+    }
+
+    // Lock order forbids taking scheduler/memory locks under _pendingTaskFreeMutex.
+    for (const auto &candidate : candidates)
+    {
+        if (IsProcessRunning(candidate.pid)) { continue; }
+
+        // A tracked request means a completion may still arrive; wait out the grace period.
+        if (_scheduler->HasAnyRequestForTask(candidate.pid, candidate.taskId) && !candidate.expired)
+        {
+            continue;
+        }
+
+        if (!ClaimPendingTaskFree(candidate.pid, candidate.taskId, candidate.deviceId))
+        {
+            continue;  // onTaskDrained reclaimed it in the meantime
+        }
+
+        LOG_DXRT_S_ERR("Reclaiming stranded task memory: pid=" + std::to_string(candidate.pid)
+            + ", deviceId=" + std::to_string(candidate.deviceId)
+            + ", taskId=" + std::to_string(candidate.taskId)
+            + ", expired=" + std::to_string(static_cast<int>(candidate.expired)));
+
+        auto *memService = GetMemoryService(candidate.deviceId);
+        if (memService != nullptr)
+        {
+            (void)memService->DeallocateTask(candidate.pid, candidate.taskId);
+        }
     }
 }
 
