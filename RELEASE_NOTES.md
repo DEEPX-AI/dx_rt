@@ -19,7 +19,6 @@
 
 ### 3. Added
 - Add support for the V9 `.dxnn` file format (V9 model parser, including PPU data transfer)
-- Verify `dxrt_driver` (>= 2.5.0) and `dx_dma` (>= 2.4.0) in the `libdxrt-bin` `preinst` script and abort the installation with a descriptive error when a driver is missing or below the minimum version
 - Verify at `import dx_engine` that the loaded `libdxrt.so` major.minor version matches the Python package version, raising `RuntimeError` on mismatch; bypass with `DX_ENGINE_SKIP_VERSION_CHECK=1`
 - Add `dxrun --max-throughput` mode that auto-tunes the I/O buffer count by sweeping counts with a dedicated engine per round and reporting the peak-throughput count, with accompanying CLI documentation
 - Add `InferenceOption::showModelInfo` (C++) and `dxrt_options_t::show_model_info` (C API) to suppress the model information banner per engine instance; ABI size unchanged

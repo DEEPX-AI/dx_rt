@@ -84,8 +84,9 @@ class SchedulerService
 
     int GetRunningRequestCount(pid_t pid, int deviceId);
     // Returns task IDs that have at least one RUNNING entry for this pid.
-    // Used by HandleProcessDeInit to identify tasks needing deferred memory free.
     std::vector<int> GetRunningTaskIds(pid_t pid);
+    // True while any entry of any state for (pid, taskId) is still tracked.
+    bool HasAnyRequestForTask(pid_t pid, int taskId);
     bool IsRequestRunning(pid_t pid, int deviceId, int reqId);
     bool HasPendingRequest(pid_t pid, int reqId);
     void AddRunningRequest(pid_t pid, int deviceId, int reqId);

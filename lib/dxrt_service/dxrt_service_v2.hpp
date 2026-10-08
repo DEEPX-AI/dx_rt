@@ -10,12 +10,15 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <set>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -111,6 +114,8 @@ class DXRT_INTERNAL_API DxrtServiceV2 : public ISchedulerListener
 
     bool IsTaskValid(pid_t pid, int deviceId, int taskId);
     void Dispose();
+    // Public: MSVC mangles access into symbol names, so tests using `#define private public` can't link private members.
+    void StopPendingTaskFreeReaper();
 
     // ISchedulerListener
     void onInferenceComplete(const dxrt::dxrt_response_t& response, int deviceId) override;
@@ -154,6 +159,10 @@ class DXRT_INTERNAL_API DxrtServiceV2 : public ISchedulerListener
     bool TaskInit(pid_t pid, int deviceId, int taskId, int bound, uint64_t modelMemorySize, const TaskStaticConfig &config);
     void TaskDeInit(int deviceId, int taskId, int pid);
 
+    void StartPendingTaskFreeReaper();
+    void ReclaimStrandedTaskMemory();
+    bool ClaimPendingTaskFree(pid_t pid, int taskId, int deviceId);
+
     struct SharedMemHandle {
         int fd{-1};
         void *ptr{nullptr};
@@ -193,11 +202,18 @@ class DXRT_INTERNAL_API DxrtServiceV2 : public ISchedulerListener
     ProcessTaskInfoStore _taskInfoStore;
 
     // Tracks tasks whose memory deallocation is deferred until NPU completes
-    // the in-flight request (CANCELLED state).  Key = {pid, taskId}, value = deviceId.
+    // the in-flight request (CANCELLED state).  Key = {pid, taskId}, value =
+    // deviceId -> time the free was deferred (a task may span several devices).
     // Protected by _pendingTaskFreeMutex; accessed from both IPC handler thread
     // (HandleProcessDeInit) and OutputReceiverThread (_onTaskDrained callback).
     std::mutex _pendingTaskFreeMutex;
-    std::map<std::pair<pid_t, int>, int> _pendingTaskFree;
+    std::map<std::pair<pid_t, int>, std::map<int, std::chrono::steady_clock::time_point>> _pendingTaskFree;
+
+    // Reclaims deferred frees that onTaskDrained never claims.
+    std::thread _pendingFreeReaper;
+    std::atomic<bool> _pendingFreeReaperRunning{false};
+    std::mutex _pendingFreeReaperMutex;
+    std::condition_variable _pendingFreeReaperCv;
     std::map<int, std::map<pid_t, std::map<uint64_t, SharedMemHandle>>> _sharedMemoryHandles;
 
     std::map<int, dxrt::MemoryService *> _memoryServices;
@@ -216,4 +232,5 @@ class DXRT_INTERNAL_API DxrtServiceV2 : public ISchedulerListener
 
     std::atomic<bool> _recoveryInProgress{false};
 };
+
 }  // namespace dxrt
