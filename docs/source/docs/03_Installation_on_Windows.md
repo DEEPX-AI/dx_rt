@@ -30,7 +30,7 @@ After you check the system requirements, follow these instructions.
 The built libraries are used by [dx_app](https://github.com/DEEPX-AI/dx_app), and users can also develop their own applications by referencing the dx_app code.
 
 !!! note "NOTE. Legacy Names"  
-    Legacy executable names `dxrt-cli.exe`, `run_model.exe`, and `parse_model.exe` are preserved as backward-compatible copies and continue to work.
+    Legacy executable names `dxrt-cli.exe`, `run_model.exe`, and `parse_model.exe` are preserved as backward-compatible aliases and continue to work.
 
 !!! note "NOTE. Installer Package"  
     To install the pre-built DEEPX software package, including the driver, firmware binaries, Python wheel, and DX-RT runtime files, download and run the installer from the [DEEPX Software Download](https://developer.deepx.ai/sw-download/) page.  
@@ -62,8 +62,9 @@ The built libraries are used by [dx_app](https://github.com/DEEPX-AI/dx_app), an
 | **CMake** | Included with Visual Studio 2022 |
 | **VCPKG** | Included with Visual Studio 2022 |
 | **Driver** | v1.8.0 or later |
-| **PCIe Driver** | v1.6.1 or later |
-| **Firmware** | v2.7.0 or later |
+| **PCIe Driver** | v2.0.1 or later |
+| **Firmware** | v2.7.6 or later |
+
 
 !!! warning "IMPORTANT"  
     **The NPU device driver must be installed before using DX-RT.** The DEEPX SDK installer installs the driver as part of the SDK installation process described below.  
@@ -175,7 +176,7 @@ If you installed the **Python SDK** component, verify Python integration:
 python -c "import dx_engine"
 ```
 
-You can also start DEEPX Launcher, the firmware downloader, or DX Top Monitor from the **DEEPX** Start menu group or desktop shortcuts.  
+You can also start DEEPX Launcher, the firmware downloader, or `dxtop` from the **DEEPX** Start menu group or desktop shortcuts.  
 
 ### Visual Studio 2022 Setup
 
@@ -498,7 +499,7 @@ dxrtd.exe --start
 Do not run `dxrtd.exe --uninstall` for manual testing because the installer service remains registered.  
 
 !!! warning "IMPORTANT"  
-    When running manually, closing the terminal window will terminate the service. For production environments, **Method A (Windows Service registration)** is recommended.  
+    When running manually, closing the terminal window will terminate the service. For production environments, **Option A (Windows Service registration)** is recommended.  
 
 !!! note "NOTE"  
     `dxrtd.exe --run` (or `-r`) is for Windows SCM (Service Control Manager) and should not be used for regular interactive execution.  

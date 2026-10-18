@@ -166,6 +166,10 @@ void ServiceDevice::Identify(int id_, uint32_t subCmd )
         return;
     }
     _core = std::make_shared<DeviceCore>(_id, std::move(adapter));
+    if (_removalHandler)
+    {
+        _core->SetRemovalHandler(_removalHandler);
+    }
 #endif
 
     _core->Identify(_id, subCmd);
@@ -361,6 +365,45 @@ void ServiceDevice::SetRecoveryAdapter(const std::shared_ptr<RecoveryAdapter>& a
     }
 }
 
+#ifdef _WIN32
+void ServiceDevice::SetRemovalHandler(const DeviceRemovalHandler& handler)
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    _removalHandler = handler;
+    if (_core)
+    {
+        _core->SetRemovalHandler(handler);
+    }
+}
+
+bool ServiceDevice::ReopenDevice()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    if (_core == nullptr || !_core->Reopen())
+    {
+        return false;
+    }
+    try
+    {
+        _core->Identify(_id, 0);
+    }
+    catch (const DeviceIOException& e)
+    {
+        LOG_DXRT_S_ERR("Device " + std::to_string(_id) + " reopened but identify failed: " + e.what());
+        _core->Close();
+        return false;
+    }
+    _info = _core->info();
+    if (_boundManager && _boundManager->RestoreBounds() != 0)
+    {
+        // Without the bounds NPU_RUN_REQ fails; close and let the caller retry.
+        _core->Close();
+        return false;
+    }
+    return true;
+}
+#endif
+
 
 static vector<shared_ptr<ServiceDevice>> serviceDevices;  // NOSONAR:S5421
 
@@ -518,7 +561,12 @@ void ServiceDevice::HandleDMARead(const DMAItem& item, int ch)
 
     LOG_DXRT_S_DBG << "HandleDMARead: pid=" << pid << ", seqId=" << seqId <<
         ", memInfo={addr=" << std::hex << memInfo.data << std::dec << ", size=" << memInfo.size << "}" << std::endl;
+#ifdef _WIN32
+    // An output read after removal was accepted would return stale data as a result.
+    const int ret = _removing ? static_cast<int>(ERROR_DEVICE_REMOVED) : _core->Read(memInfo, ch);
+#else
     const int ret = _core->Read(memInfo, ch);
+#endif
     if (_dmaCompletionCallback)
     {
         _dmaCompletionCallback(true, pid, _core->id(), seqId, ret);
@@ -533,7 +581,11 @@ void ServiceDevice::HandleDMAWrite(const DMAItem& item, int ch)
 
     LOG_DXRT_S_DBG << "HandleDMAWrite: pid=" << pid << ", seqId=" << seqId <<
         ", memInfo={addr=" << std::hex << memInfo.data << std::dec << ", size=" << memInfo.size << "}" << std::endl;
+#ifdef _WIN32
+    const int ret = _removing ? static_cast<int>(ERROR_DEVICE_REMOVED) : _core->Write(memInfo, ch);
+#else
     const int ret = _core->Write(memInfo, ch);
+#endif
     if (_dmaCompletionCallback)
     {
         _dmaCompletionCallback(false, pid, _core->id(), seqId, ret);

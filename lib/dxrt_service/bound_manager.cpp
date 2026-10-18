@@ -73,12 +73,41 @@ int BoundManager::DeleteBound(npu_bound_op boundOp)
         return 0;
     }
     int ret = BoundOption(dxrt_sche_sub_cmd_t::DX_SCHED_DELETE, boundOp);
+#ifdef _WIN32
+    if (ret == ERROR_DEVICE_REMOVED)
+    {
+        // The driver state went away with the device; keep the count consistent with it.
+        ret = 0;
+    }
+#endif
     if (ret == 0)
         _bound_count[static_cast<int>(boundOp)]--;
     else
         LOG_DXRT_S_ERR("Failed to delete bound option: " << ret);
     return ret;
 }
+
+#ifdef _WIN32
+int BoundManager::RestoreBounds()
+{
+    UniqueLock lk(_lock);
+    int result = 0;
+    for (size_t i = 0; i < _bound_count.size(); i++)
+    {
+        if (_bound_count[i] <= 0)
+        {
+            continue;
+        }
+        const int ret = BoundOption(dxrt_sche_sub_cmd_t::DX_SCHED_ADD, static_cast<npu_bound_op>(i));
+        if (ret != 0)
+        {
+            LOG_DXRT_S_ERR("Failed to restore bound option " << i << ": " << ret);
+            result = ret;
+        }
+    }
+    return result;
+}
+#endif
 
 int BoundManager::GetBoundCount(npu_bound_op boundOp)
 {

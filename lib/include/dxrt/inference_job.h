@@ -83,6 +83,7 @@ class InferenceJob // NOSONAR: Too many fields - stable as-is, refactoring defer
     int getId() const;  
     int latency() const {return _latency;}
     int64_t queue_wait_time() const { return _queueWaitTime; }
+    int64_t buffer_pool_wait_time() const { return _bufferPoolWaitTime; }
     uint32_t inference_time() const {return _infTime;}
     void setInferenceEngineInterface(InferenceEngine* ptr);
     void setCallBack(std::function<int(const TensorPtrs &outputs, void *userArg, int jobIc)> func);
@@ -117,6 +118,7 @@ class InferenceJob // NOSONAR: Too many fields - stable as-is, refactoring defer
     void* _userArg = nullptr;
     int _latency = 0;
     int64_t _queueWaitTime = 0;
+    int64_t _bufferPoolWaitTime = 0;
     uint32_t _infTime = 0;
     int _jobId;
     std::chrono::steady_clock::time_point _jobStartTime{};

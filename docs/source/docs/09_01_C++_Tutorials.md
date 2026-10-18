@@ -1,4 +1,4 @@
-This section provides C++ tutorials covering core DXRT SDK features, including synchronous/asynchronous inference, batch processing, and runtime configuration. The examples help developers quickly integrate DXRT into real-time and embedded applications.
+This section provides C++ tutorials covering core DX-RT SDK features, including synchronous/asynchronous inference, batch processing, and runtime configuration. The examples help developers quickly integrate DX-RT into real-time and embedded applications.
 
 ---
 
@@ -483,7 +483,7 @@ int main(int argc, char* argv[])
         // batch inference loop
         for(int i = 0; i < loop_count; ++i)
         {
-            // inference asynchronously, use all npu core
+            // batch inference (blocking), use all npu core
             auto outputPtrs = ie.Run(inputBuffers, output_buffers);
 
             // postProcessing(outputs);
@@ -583,7 +583,7 @@ int main()
         // select bound option NPU_0 to NPU_2 per device  
         dxrt::InferenceOption op;
 
-        // first device only, default null
+        // devices to use (default: empty)
         op.devices.push_back(0); // use device 0 
         op.devices.push_back(3); // use device 3 
 
@@ -648,7 +648,7 @@ dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::SHOW_PRO
 ```
 
   - **`Configuration::GetInstance()`**: Accesses the single, global instance of the configuration manager.
-  - **`.SetEnable(...)`**: Enables engine features. Here, it's configured to print detailed model information and performance profiling data when the `InferenceEngine` is initialized.
+  - **`.SetEnable(...)`**: Enables engine features. Here, `SHOW_MODEL_INFO` prints detailed model information when the `InferenceEngine` is created, and `SHOW_PROFILE` prints the CPU task profile summary (average input queue load) when the engine's CPU worker threads stop.
 
 
 #### Querying Device Status
@@ -683,7 +683,7 @@ for(int i = 0; i < device_count; ++i)
 
 ### Profiler Configuration
 
-This guide provides a simple, code-focused manual on how to configure the profiler using the DXRT SDK. The profiler is a powerful tool for analyzing the performance of each layer within your model.
+This guide provides a simple, code-focused manual on how to configure the profiler using the DX-RT SDK. The profiler is a powerful tool for analyzing per-job inference timing and user-defined events.
 
 Configuration is managed through the `dxrt::Configuration` singleton instance.
 
@@ -696,7 +696,7 @@ Before you can use any profiler features, you **must** first enable it. This is 
 dxrt::Configuration::GetInstance().SetEnable(dxrt::Configuration::ITEM::PROFILER, true);
 ```
 
-  - **`SetEnable`**: This function activates or deactivates a specific DXRT feature.
+  - **`SetEnable`**: This function activates or deactivates a specific DX-RT feature.
   - **`dxrt::Configuration::ITEM::PROFILER`**: Specifies that the target feature is the profiler.
   - **`true`**: Enables the profiler. Set to `false` to disable it.
 
@@ -714,7 +714,7 @@ dxrt::Configuration::GetInstance().SetAttribute(dxrt::Configuration::ITEM::PROFI
                                                  dxrt::Configuration::ATTRIBUTE::PROFILER_SHOW_DATA, "ON");
 ```
 
-  - **`SetAttribute`**: Sets a specific property for a DXRT feature.
+  - **`SetAttribute`**: Sets a specific property for a DX-RT feature.
   - **`PROFILER_SHOW_DATA`**: The attribute to control console output.
   - **`"ON"`**: A string value to enable this attribute. Use `"OFF"` to disable it.
 
@@ -1085,34 +1085,59 @@ int main(int argc, char* argv[])
 
 ### Exception
 
-The error codes and types of exceptions for error handling are as follows.
+All APIs in this chapter are provided by `<dxrt/dxrt_cxx_api.h>`. The runtime reports errors by throwing `dxrt::Exception`, which derives from `std::runtime_error`.
 
-```
-enum ERROR_CODE {
-        DEFAULT = 0x0100,
-        FILE_NOT_FOUND,
-        NULL_POINTER,
-        FILE_IO,
-        INVALID_ARGUMENT,
-        INVALID_OPERATION,
-        INVALID_MODEL,
-        MODEL_PARSING,
-        SERVICE_IO,
-        DEVICE_IO
-    };
+```cpp
+class Exception : public std::runtime_error
+{
+public:
+    explicit Exception(const char* msg, dxrt_status_t st = DXRT_ERR_INTERNAL);
+    explicit Exception(const std::string& msg, dxrt_status_t st = DXRT_ERR_INTERNAL);
+
+    dxrt_status_t status() const noexcept;  // Underlying C API status
+    ERROR_CODE    code() const noexcept;    // Mapped error category
+};
 ```
 
-- FileNotFoundException  
-- NullPointerException  
-- FileIOException  
-- InvalidArgumentException  
-- InvalidOperationException  
-- InvalidModelException  
-- ModelParsingException  
-- ServiceIOException  
-- DeviceIOException  
+- `what()` returns the error message, inherited from `std::runtime_error`.
+- `status()` returns the raw `dxrt_status_t` value from the C API.
+- `code()` returns the `ERROR_CODE` category derived from that status.
 
+The error codes are as follows.
+
+```cpp
+enum class ERROR_CODE {
+    DEFAULT = 0x0100,
+    FILE_NOT_FOUND,
+    NULL_POINTER,
+    FILE_IO,
+    INVALID_ARGUMENT,
+    INVALID_OPERATION,
+    INVALID_MODEL,
+    MODEL_PARSING,
+    SERVICE_IO,
+    DEVICE_IO,
+    INSUFFICIENT_MEMORY,
+    DEVICE_REMOVED
+};
 ```
+
+`DEVICE_REMOVED` (0x010B, C API `DXRT_ERR_DEVICE_REMOVED` = -10) is reported on Windows when the NPU device is disabled, removed, or its driver is updated while the application is running. The application must be restarted to use the device again.
+
+`ERROR_CODE` is a scoped enumeration. Streaming it prints the code name, and `to_string()` returns the same text.
+
+```cpp
+std::cout << dxrt::ERROR_CODE::DEVICE_IO;              // prints "DEVICE_IO"
+const char* name = dxrt::to_string(e.code());          // "DEVICE_IO"
+```
+
+Comparison operators against `int` are provided, so a code can also be compared with its numeric value.
+
+```cpp
+if (e.code() == 0x0109) { /* DEVICE_IO */ }
+```
+
+```cpp
     // try/catch prototype
 
     try
@@ -1130,6 +1155,9 @@ enum ERROR_CODE {
         return -1;  // or std::exit(-1);
     }
 ```
+
+!!! note "NOTE"
+    Because `dxrt::Exception` derives from `std::runtime_error`, the `dxrt::Exception` handler **must** come before the `std::exception` handler. Reversing the order makes the `dxrt::Exception` block unreachable.
 
 -----
 
@@ -1331,6 +1359,9 @@ The DX-RT SDK provides comprehensive C++ examples in the `examples/cpp/` directo
 - **`run_async_model_wait`**  
   Asynchronous inference using the `Wait()` method instead of callbacks, providing more control over output retrieval timing.
 
+- **`run_async_model_thread`**  
+  Asynchronous inference where one `InferenceEngine` is shared by multiple threads and a single callback processes the outputs.
+
 - **`run_batch_model`**  
   Shows how to perform batch inference to process multiple inputs simultaneously, improving throughput for batch-oriented workloads.
 
@@ -1351,6 +1382,12 @@ The DX-RT SDK provides comprehensive C++ examples in the `examples/cpp/` directo
 - **`run_async_model_conf`**  
   Comprehensive example of using `dxrt::Configuration` to set runtime parameters and monitor device status.
 
+- **`check_versions`**  
+  Prints the runtime, device driver, PCIe driver, firmware and ONNX Runtime versions using `dxrt::Configuration`.
+
+- **`device_monitoring`**  
+  Demonstrates the `dxrt::DeviceStatus` API to query device specifications, status, core utilization and memory, optionally while running inference with a background monitoring thread.
+
 #### Memory Management Examples
 
 - **`run_sync_model_memory`**  
@@ -1361,6 +1398,9 @@ The DX-RT SDK provides comprehensive C++ examples in the `examples/cpp/` directo
 
 - **`run_async_model_output`**  
   Asynchronous inference with user-managed output buffers, demonstrating zero-copy output handling.
+
+- **`run_async_input_release`**  
+  Uses the input release callback (`RegisterUserInputReleaseCallback`) to release input buffers as soon as NFH encoding completes, with a producer thread calling `RunAsync()` and a consumer thread calling `Wait()`. This example is built only when `USE_VNPU` is enabled.
 
 #### Profiling Examples
 
@@ -1374,22 +1414,22 @@ The DX-RT SDK provides comprehensive C++ examples in the `examples/cpp/` directo
 
 #### Advanced Pipeline Examples
 
-- **`display_async_pipe`**  
-  Pipeline pattern: `[CPU_1 → {NPU_1 + NPU_2} → CPU_2]`  
+- **`display_async_wait`**  
+  Parallel pattern: `[CPU_1 → {NPU_1 + NPU_2} → CPU_2]`  
   Demonstrates preprocessing on CPU, parallel NPU execution, and postprocessing.
 
-- **`display_async_wait`**  
-  Sequential pattern: `[CPU_1 → NPU_1 → CPU_2 → NPU_2 → CPU_3]`  
+- **`display_async_pipe`**  
+  Sequential pipeline pattern: `[CPU_1 → NPU_1 → CPU_2 → NPU_2 → CPU_3]`  
   Shows how to chain multiple processing stages with intermediate CPU tasks.
 
 - **`display_async_thread`**  
   Single model with multiple threads, demonstrating concurrent inference requests to the same model.
 
-- **`display_async_models_1`**  
-  Multi-model multi-thread example where each thread creates its own `InferenceEngine` instance.
+- **`display_async_thread_local_engines`**  
+  Multi-thread example where each thread creates its own `InferenceEngine` instance.
 
-- **`display_async_models_2`**  
-  Multi-model multi-thread example where `InferenceEngine` instances are created in the main thread and shared.
+- **`display_async_precreated_engines`**  
+  Multi-thread example where `InferenceEngine` instances are created in the main thread and shared.
 
 #### Building and Running Examples
 

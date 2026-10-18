@@ -211,6 +211,11 @@ vector<string> GetFileList(const std::string& dir)
     vector<string> v;
 #ifdef __linux__
     DIR* p = opendir(dir.c_str());
+    if (p == nullptr)
+    {
+        LOG_DXRT << "Failed to open directory: " << dir << endl;
+        return v;
+    }
     struct dirent* dp;
     while ((dp = readdir(p)) != nullptr)
     {

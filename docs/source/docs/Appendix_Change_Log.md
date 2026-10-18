@@ -1,36 +1,53 @@
 ## DX-RT v3.5.0 (October 2026)
 
 #### Changed
-- Change the `dxcli` version output format to `version (build: hash)`
-- Include the DDR type in the device variant string displayed by `dxtop`
-- Update `NOTICE.md` with detailed ncurses license terms and PDCurses information
+- Changed the `dxcli` version output to `version (build: hash)`
+- Showed the DDR type in the `dxtop` device variant string
+- Added detailed ncurses and PDCurses license information to `NOTICE.md`
+- Changed Latency (`GetLatency*`) to equal E2E Response Time; use Core Latency for the value excluding buffer pool and queue wait times
+- Changed the `dxrun` latency description to "Core latency per request excluding buffer pool and queue wait times"
+- Updated minimum versions
+   - Driver : 2.5.0 -> 2.7.0
+   - PCIe Driver : 2.4.0 -> 2.7.0
+   - Firmware : 2.7.0 -> 2.7.6
+- Reported Windows driver requests that fail after pending as errors
+- Rejected remote clients on the Windows `dxrtd` named pipe
+- Removed the C++/CLI `csharp_package` and its build step (no .NET SDK/msbuild needed); C# now uses the C API via P/Invoke
 
 #### Fixed
-- Exit with an error when `dxrun` completes no successful inference, instead of reporting a result and exiting successfully
-- Fail the `--max-throughput` sweep when no round succeeds, instead of recommending an untested buffer count
-- Reject non-positive `--loops` and negative `--time` values in `dxrun`
-- Guard against a segfault when PPU outputs are empty
-- Restore the device-dispatcher exception guard around device `Identify` failures and the error-loop backoff to prevent busy-spin during teardown
-- Reorder the `ServiceDevice` teardown sequence to avoid deadlock/heap corruption on shutdown, and fix the swapped stream-operator argument order for sub-command logging
-- Guard the usage timer against divide-by-zero when the tick interval is 0
-- Clear the pending IPC client response state on `sendMessageSync` timeout
+- Exited `dxrun` with an error when no inference succeeds
+- Failed `--max-throughput` when no round succeeds, instead of recommending an untested buffer count
+- Rejected non-positive `--loops` and negative `--time` values in `dxrun`
+- Fixed a segfault when PPU outputs are empty
+- Fixed busy-spin during teardown after device `Identify` failures
+- Fixed deadlock/heap corruption on `ServiceDevice` shutdown and swapped arguments in sub-command logging
+- Fixed divide-by-zero in the usage timer when the tick interval is 0
+- Cleared stale IPC client response state on `sendMessageSync` timeout
+- Fixed `dxrtd` stability issues (NPU memory leak on abnormal exit, Windows service crashes/stalls, device re-enable) and `find_package(dxrt)` failure on Windows
+- Prevented latency statistics overflow in long-running sessions (updates stop at `INT_MAX` samples)
 
 #### Added
-- Add support for the V9 `.dxnn` file format (V9 model parser, including PPU data transfer)
-- Verify at `import dx_engine` that the loaded `libdxrt.so` major.minor version matches the Python package version, raising `RuntimeError` on mismatch; bypass with `DX_ENGINE_SKIP_VERSION_CHECK=1`
-- Add `dxrun --max-throughput` mode that auto-tunes the I/O buffer count by sweeping counts with a dedicated engine per round and reporting the peak-throughput count, with accompanying CLI documentation
-- Add `InferenceOption::showModelInfo` (C++) and `dxrt_options_t::show_model_info` (C API) to suppress the model information banner per engine instance; ABI size unchanged
-- Add support for input quantization (float32 → int8) using NEON/SSE4.1 SIMD quantization kernels, enabling Input NFH processing and reducing DMA write time
-- Add fan control logic (forced on / forced off / auto)
-- Add FCT test results with OTP authentication (H1M only)
-- Add `SLT` and `VNPU` board types to device information and CLI output
-- Windows DX-RT binaries now include release version metadata, with documented Authenticode signing steps
+- Added V9 `.dxnn` format support, including PPU data transfer
+- Raised `RuntimeError` at `import dx_engine` if the `libdxrt.so` major.minor version differs (bypass: `DX_ENGINE_SKIP_VERSION_CHECK=1`)
+- Added `dxrun --max-throughput` to auto-tune the I/O buffer count for peak throughput
+- Added `InferenceOption::showModelInfo` (C++) / `dxrt_options_t::show_model_info` (C) to hide the model info banner per engine; ABI size unchanged
+- Added float32 → int8 input quantization with NEON/SSE4.1 kernels, reducing DMA write time
+- Added fan control (forced on / forced off / auto)
+- Added FCT test results with OTP authentication (H1M only)
+- Added `SLT` and `VNPU` board types to device information and CLI output
+- Added version metadata to Windows binaries, with an Authenticode signing guide
+- Added `GetE2EResponseTime()` and related APIs, including data transfer and overhead
+- Added E2E Response Time and Queue Wait Time to `dxrun --verbose`, and E2E Response Time to the profiler summary (with Latency Average)
+- Added Core Latency APIs: `GetCoreLatency*` (C++), `dxrt_engine_get_core_latency*` (C), `get_core_latency*` (Python)
+- Added C API `DXRT_ERR_DEVICE_REMOVED` (-10), C++ `ERROR_CODE::DEVICE_REMOVED`, and `DeviceRemovedException`
+- Added a C# usage guide for the C API (`examples/csharp/README.md`)
 
+---
 
 ## DX-RT v3.4.2 (August 2026)
 
 #### Changed
-- Improve the MSVC build log by resolving Windows build warnings in the C++ CLI code
+- Improved the MSVC build log by resolving Windows build warnings in the C++ CLI code
 - Made external (vendored) header staging on Windows idempotent regardless of Developer Mode state, preventing "existing path cannot be removed" errors and stale empty-directory failures on reconfigure.
 - Forced the Ninja generator for Python wheel builds on Windows to avoid Visual Studio generator compiler auto-detection failures (`No CMAKE_C_COMPILER could be found`) inside an activated vcvars shell.
 
@@ -44,7 +61,7 @@
 
 ---
 
-## DX-RT v3.4.1 (July 2026)
+## DX-RT v3.4.1 (August 2026)
 
 This is a documentation-only hotfix. The `libdxrt` and `libdxrt-bin` Debian packages and `dx_engine` Python wheels are unchanged and remain at v3.4.0.
 
@@ -65,30 +82,30 @@ This is a documentation-only hotfix. The `libdxrt` and `libdxrt-bin` Debian pack
 ## DX-RT v3.4.0 (July 2026)
 
 #### Changed
-- Debian package bundles `dx_engine` Python wheels for Python 3.8 – 3.14.
+- Debian package bundled `dx_engine` Python wheels for Python 3.8 – 3.14.
 - CLI binary names updated for consistency: `dxrt-cli` → `dxcli`, `parse_model` → `dxparse`, `run_model` → `dxrun`
 - Old names (`dxrt-cli`, `parse_model`, `run_model`) remain functional as backward-compatible aliases (symlinks on Linux/macOS, hard links on Windows)
 - Python bindings now use dxrt_cxx_api.h (header-only) instead of direct C++ linkage
 - libdxrt.so exports C symbols only (dxrt_*); internal C++ symbols hidden via version script
-- Update minimum versions
+- Updated minimum versions
    - Driver : 2.4.0 -> 2.5.0
    - PCIe Driver : 2.2.0 -> 2.4.0
    - Firmware : 2.5.2 -> 2.7.0
 - Code style cleanup across Python package (`inference_option.py`, `runtime_event_dispatcher.py`, `utils.py`, etc.)
-- Upgrade extern/include/dxrt/extern/cxxopts.hpp from v3.1.1 to v3.3.1
-- Increase firmware update sequence wait time from 2s to 4s.
-- Replace top-level matplotlib imports with lazy loading via `ensure_dependencies()` in `plot.py` to provide install guidance instead of ImportError
+- Upgraded extern/include/dxrt/extern/cxxopts.hpp from v3.1.1 to v3.3.1
+- Increased firmware update sequence wait time from 2s to 4s.
+- Replaced top-level matplotlib imports with lazy loading via `ensure_dependencies()` in `plot.py` to provide install guidance instead of ImportError
 
 #### Fixed
 - Improved shared-memory performance.
-- Fix SEGV in NFHLayer caused by dereferencing uninitialized `Request::_task` in profiler instrumentation
-- Return `INT16_MIN` instead of `0` from `DeviceStatus::GetTemperature()` when channel index is out of range
-- Improve dxrtd error messages when manually executed
-- Fix missing separator between `devices` and `buffer_count` fields in `InferenceOption.__repr__` output
-- Update ppcpu logic for hardness
+- Fixed SEGV in NFHLayer caused by dereferencing uninitialized `Request::_task` in profiler instrumentation
+- Returned `INT16_MIN` instead of `0` from `DeviceStatus::GetTemperature()` when channel index is out of range
+- Improved dxrtd error messages when manually executed
+- Fixed missing separator between `devices` and `buffer_count` fields in `InferenceOption.__repr__` output
+- Updated ppcpu logic for hardness
 - Fixed a critical crash (nullptr) in pyRunBenchmark by ensuring the memory lifetime of input buffers.
-- Improve temperature range validation in dxtop.
-- Fix multi-input dictionary handling issue.
+- Improved temperature range validation in dxtop.
+- Fixed multi-input dictionary handling issue.
 
 #### Added
 - Script to build `dx_engine` wheels per Python version.
@@ -99,16 +116,16 @@ This is a documentation-only hotfix. The `libdxrt` and `libdxrt-bin` Debian pack
 - SDK-compat bridge headers (legacy/) for backward compatibility with existing dxrt_api.h code
 - H1M firmware compatibility check: distinguish H1M (LPDDR4) from H1 (LPDDR5/LPDDR5X) in firmware update and device detection; support mixed 4-pack / 6-pack H1M configurations
 - Deprecated Python API migration guide added to Python API Reference documentation
-- Add shared memory-based inter-process communication using memfd
-- Add dynamic IPC infrastructure with packet-based protocol layer
-- Add cross-platform support for Linux and Windows IPC transport
-- Add new device monitoring APIs (memory usage, per-core temperature, and utilization)
-- Add a tool (plot_html.py) to generate HTML visualization reports for profiling data (profiler.json)
+- Added shared memory-based inter-process communication using memfd
+- Added dynamic IPC infrastructure with packet-based protocol layer
+- Added cross-platform support for Linux and Windows IPC transport
+- Added new device monitoring APIs (memory usage, per-core temperature, and utilization)
+- Added a tool (plot_html.py) to generate HTML visualization reports for profiling data (profiler.json)
 - Profiler
-  - Add GetJobMetrics() API for comprehensive per-job profiling
-  - Enhance performance statistics with Coefficient of Variation (CoV) metric
-- Add input dtype validation to prevent undefined behavior caused by mismatching NumPy array types.
-- Add `libdxrt-bin` Debian packaging for pre-built binaries with amd64/arm64 auto-detection.
+  - Added GetJobMetrics() API for comprehensive per-job profiling
+  - Enhanced performance statistics with Coefficient of Variation (CoV) metric
+- Added input dtype validation to prevent undefined behavior caused by mismatching NumPy array types.
+- Added `libdxrt-bin` Debian packaging for pre-built binaries with amd64/arm64 auto-detection.
  
 ---
 
@@ -118,76 +135,76 @@ This is a documentation-only hotfix. The `libdxrt` and `libdxrt-bin` Debian pack
 - Removed redundant build artifacts and temporary directories from the Debian package.
 
 #### Fixed
-- Improve Python extension module linking for _pydxrt build.
+- Improved Python extension module linking for _pydxrt build.
 
 #### Added
 - Added conditional pip upgrade (v21.3+) to ensure build stability on legacy OS environments.
 
 ---
 
-## DX-RT v3.3.1 (April 2026)
+## DX-RT v3.3.1 (May 2026)
 
 #### Changed
-- Change the version of pre-built onnxruntime(1.23.2 -> 1.22.0) and openvino(25.4 -> 25.1)
-- Enhance uninstall script to remove debian packages, legacy binaries, and test files from previous versions
+- Changed the version of pre-built onnxruntime(1.23.2 -> 1.22.0) and openvino(25.4 -> 25.1)
+- Enhanced uninstall script to remove debian packages, legacy binaries, and test files from previous versions
 
 #### Fixed
-- Fix typos in the document
-- Fix error in uninstall logic
+- Fixed typos in the document
+- Fixed error in uninstall logic
 
 #### Added
-- Add libdxrt 3.3.1 debian package with updated build and install pipeline
+- Added libdxrt 3.3.1 debian package with updated build and install pipeline
 
 ---
 
 ## DX-RT v3.3.0 (April 2026)
 
 #### Changed
-- Update minimum versions
+- Updated minimum versions
    - Driver : 1.8.0 -> 2.4.0
    - PCIe Driver : 1.5.1 -> 2.2.0
    - Firmware : 2.4.0 -> 2.5.2
-- Update the Python module version to match the C++ Runtime version.
+- Updated the Python module version to match the C++ Runtime version.
 
 #### Fixed
-- Fix PPU data transfer error during multi-process execution in H1 and Multiple M1 M.2 environments.
-- Fix input data lifecycle issues in the Python Runtime Module.
-- Fix intermittent interrupt exceptions in IPC Message Queue.
+- Fixed PPU data transfer error during multi-process execution in H1 and Multiple M1 M.2 environments.
+- Fixed input data lifecycle issues in the Python Runtime Module.
+- Fixed intermittent interrupt exceptions in IPC Message Queue.
 
 #### Added
-- Add dxtop for No Service Mode
-- Add an example that loads an entire model file into a memory buffer and performs inference directly using this memory buffer.
-- Add python InferenceEngine from numpy array
-- Add acceleration features for CPU operations (Requires separate option configuration and build)
+- Added dxtop for No Service Mode
+- Added an example that loads an entire model file into a memory buffer and performs inference directly using this memory buffer.
+- Added python InferenceEngine from numpy array
+- Added acceleration features for CPU operations (Requires separate option configuration and build)
 
 ---
 
-## DX-RT v3.2.0 (December 2025)
+## DX-RT v3.2.0 (January 2026)
 
 #### Changed
-- Optimize PCIe DMA sequence for better performance.
-- Update OS requirements in installation guide for debian
+- Optimized PCIe DMA sequence for better performance.
+- Updated OS requirements in installation guide for debian
 
 #### Fixed
-- Optimize device memory footprint of PPU models
+- Optimized device memory footprint of PPU models
 
 #### Added
-- Add RuntimeEventDispatcher class for C++
+- Added RuntimeEventDispatcher class for C++
    - RuntimeEventDispatcher is a singleton class that provides centralized event dispatching and handling for runtime events from the DX-RT system, such as device errors, warnings, and notifications.
-- Add Python wrapper for RuntimeEventDispatcher class -> dx_engine 1.1.4
-- Add `--profiler` option to enable profiling mode in run_model.py
-- Add `--buffer-count` option to configure inference buffer count in run_model.py
-- Add build.sh options
+- Added Python wrapper for RuntimeEventDispatcher class -> dx_engine 1.1.4
+- Added `--profiler` option to enable profiling mode in run_model.py
+- Added `--buffer-count` option to configure inference buffer count in run_model.py
+- Added build.sh options
 ```
   --use_service_on  Enable the use of the service in the build.
   --use_service_off Disable the use of the service in the build.
   --use_ort_on      Enable the use of the ORT component in the build.
   --use_ort_off     Disable the use of the ORT component in the build.
 ```
-- Add `__version__` import to the main `dx_engine` module namespace
-- Implement per-instance configuration of Input and Output buffer counts for the Inference Engine.
-- Enable direct loading of the .dxnn model format from a memory buffer within the Inference Engine.
-- Add RuntimeEventDispatcher for centralized event handling and logging.
+- Added `__version__` import to the main `dx_engine` module namespace
+- Implemented per-instance configuration of Input and Output buffer counts for the Inference Engine.
+- Enabled direct loading of the .dxnn model format from a memory buffer within the Inference Engine.
+- Added RuntimeEventDispatcher for centralized event handling and logging.
 
 ---
 
@@ -364,7 +381,7 @@ This is a documentation-only hotfix. The `libdxrt` and `libdxrt-bin` Debian pack
  
 ---
 
-## DX-RT v2.9.5 (May 2025)
+## DX-RT v2.9.5 (July 2025)
 - Added full support for Python run_model.  
 - Updated the run_model option and its description  
 - Improve the Python API  
@@ -408,7 +425,7 @@ This is a documentation-only hotfix. The `libdxrt` and `libdxrt-bin` Debian pack
 
 ---
 
-## DX-RT v2.8.2 (April 2025)
+## DX-RT v2.8.2 (March 2025)
 
 - Modify Inference Engine to be used with 'with' statements, and update relevant examples.  
 - Add Python inference option interface with the following configurations  

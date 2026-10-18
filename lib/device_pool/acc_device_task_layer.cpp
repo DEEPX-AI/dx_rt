@@ -1044,6 +1044,17 @@ void AccDeviceTaskLayer::OutputReceiverThread(int id)
             continue;
         }
 #endif
+#ifdef _WIN32
+        if (ret == ERROR_DEVICE_REMOVED)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            continue;
+        }
+        if (ret == ERROR_NO_DATA_DETECTED)
+        {
+            continue;
+        }
+#endif
         if (ret != 0)
         {
             std::cout << "ERROR RET: " << ret << std::endl;
@@ -1172,6 +1183,11 @@ bool AccDeviceTaskLayer::CatchEvent(dxrt_cmd_t cmd, dxrt::dx_pcie_dev_event_t* e
     if (ret == -ECANCELED)
     {
         return false;
+    }
+#elif _WIN32
+    if (ret == ERROR_DEVICE_REMOVED)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 #endif
 

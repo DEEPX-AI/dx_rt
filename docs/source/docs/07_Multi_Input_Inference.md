@@ -107,7 +107,7 @@ outputs = ie.run(input_list)
 
 #### Auto-Split Format
 
-This method automatically splits a single concatenated buffer into multiple inputs. It is applied automatically when the total size of the provided buffer matches the model's total input size.
+This method automatically splits a single concatenated buffer into multiple inputs. In Python, it is applied when the total size of the provided array matches the model's total input size. In C++, a single pointer passed to `Run()` on a multi-input model is always treated as a concatenated buffer, so it must contain all inputs (`GetInputSize()` bytes).
 
 **C++**
 
@@ -236,7 +236,7 @@ This section explains how to perform batch inference on multi-input models. The 
 
 ### Explicit Batch Format
 
-This method requires grouping input tensors per sample, allowing the inference engine to clearly distinguish each item in the batch. 
+This method requires grouping input tensors per sample, allowing the inference engine to clearly distinguish each item in the batch. In C++, pass one concatenated buffer per sample (all inputs of the sample joined in the order of `GetInputTensorNames()`).
 
 **C++**
 
@@ -274,7 +274,7 @@ results = ie.run(batch_inputs, output_buffers=batch_outputs)
 
 ### Flattened Batch Format
 
-This method provides all input tensors as a single flattened list, with inputs from all batch samples arranged sequentially.
+This method provides all input tensors as a single flattened list, with inputs from all batch samples arranged sequentially. This format is supported by the Python API only. In C++, use the concatenated per-sample buffers shown in the Explicit Batch Format.
 
 **Python**
 
@@ -286,8 +286,11 @@ flattened_inputs = [
     sample3_input1, sample3_input2   # Third sample
 ]
 
+# One output buffer per sample (List[np.ndarray])
+flattened_outputs = [np.zeros(ie.get_output_size(), dtype=np.uint8) for _ in range(3)]
+
 # Automatically recognized as a batch (input count is a multiple of the model's input count)
-results = ie.run(flattened_inputs, output_buffers=batch_outputs)
+results = ie.run(flattened_inputs, output_buffers=flattened_outputs)
 ```
 
 ---

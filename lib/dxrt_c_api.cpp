@@ -225,6 +225,8 @@ static dxrt::InferenceOption make_option(const dxrt_options_t* opts)
                                      return DXRT_ERR_DEVICE;                 \
                                  case dxrt::ERROR_CODE::INSUFFICIENT_MEMORY: \
                                      return DXRT_ERR_OUT_OF_MEMORY;          \
+                                 case dxrt::ERROR_CODE::DEVICE_REMOVED:      \
+                                     return DXRT_ERR_DEVICE_REMOVED;         \
                                  case dxrt::ERROR_CODE::INVALID_OPERATION:   \
                                  case dxrt::ERROR_CODE::DEFAULT:             \
                                  default:                                    \
@@ -683,6 +685,40 @@ DXRT_CAPI dxrt_status_t dxrt_engine_get_latency(
     DXRT_C_TRY
 
     *latency_us = engine->engine->GetLatency();
+    return DXRT_OK;
+
+    DXRT_C_CATCH
+}
+
+DXRT_CAPI dxrt_status_t dxrt_engine_get_core_latency(
+    dxrt_engine_t  engine,
+    int*           core_latency_us)
+{
+    if (!engine || !core_latency_us) {
+        set_error("engine and core_latency_us must not be NULL");
+        return DXRT_ERR_INVALID_ARG;
+    }
+
+    DXRT_C_TRY
+
+    *core_latency_us = engine->engine->GetCoreLatency();
+    return DXRT_OK;
+
+    DXRT_C_CATCH
+}
+
+DXRT_CAPI dxrt_status_t dxrt_engine_get_e2e_response_time(
+    dxrt_engine_t  engine,
+    int*           e2e_us)
+{
+    if (!engine || !e2e_us) {
+        set_error("engine and e2e_us must not be NULL");
+        return DXRT_ERR_INVALID_ARG;
+    }
+
+    DXRT_C_TRY
+
+    *e2e_us = engine->engine->GetE2EResponseTime();
     return DXRT_OK;
 
     DXRT_C_CATCH
@@ -1684,6 +1720,51 @@ DXRT_CAPI dxrt_status_t dxrt_engine_get_latency_stddev(dxrt_engine_t engine, dou
     DXRT_C_CATCH
 }
 
+DXRT_CAPI dxrt_status_t dxrt_engine_get_core_latency_mean(dxrt_engine_t engine, double* out_us)
+{
+    if (!engine || !out_us) return DXRT_ERR_INVALID_ARG;
+    DXRT_C_TRY
+    *out_us = engine->engine->GetCoreLatencyMean();
+    return DXRT_OK;
+    DXRT_C_CATCH
+}
+
+DXRT_CAPI dxrt_status_t dxrt_engine_get_core_latency_stddev(dxrt_engine_t engine, double* out_us)
+{
+    if (!engine || !out_us) return DXRT_ERR_INVALID_ARG;
+    DXRT_C_TRY
+    *out_us = engine->engine->GetCoreLatencyStdDev();
+    return DXRT_OK;
+    DXRT_C_CATCH
+}
+
+DXRT_CAPI dxrt_status_t dxrt_engine_get_e2e_response_time_mean(dxrt_engine_t engine, double* out_us)
+{
+    if (!engine || !out_us) return DXRT_ERR_INVALID_ARG;
+    DXRT_C_TRY
+    *out_us = engine->engine->GetE2EResponseTimeMean();
+    return DXRT_OK;
+    DXRT_C_CATCH
+}
+
+DXRT_CAPI dxrt_status_t dxrt_engine_get_e2e_response_time_stddev(dxrt_engine_t engine, double* out_us)
+{
+    if (!engine || !out_us) return DXRT_ERR_INVALID_ARG;
+    DXRT_C_TRY
+    *out_us = engine->engine->GetE2EResponseTimeStdDev();
+    return DXRT_OK;
+    DXRT_C_CATCH
+}
+
+DXRT_CAPI dxrt_status_t dxrt_engine_get_e2e_response_time_count(dxrt_engine_t engine, int* out_count)
+{
+    if (!engine || !out_count) return DXRT_ERR_INVALID_ARG;
+    DXRT_C_TRY
+    *out_count = engine->engine->GetE2EResponseTimeCnt();
+    return DXRT_OK;
+    DXRT_C_CATCH
+}
+
 DXRT_CAPI dxrt_status_t dxrt_engine_get_npu_time_mean(dxrt_engine_t engine, double* out_us)
 {
     if (!engine || !out_us) return DXRT_ERR_INVALID_ARG;
@@ -1725,6 +1806,15 @@ DXRT_CAPI dxrt_status_t dxrt_engine_get_latency_count(dxrt_engine_t engine, int*
     if (!engine || !out_count) return DXRT_ERR_INVALID_ARG;
     DXRT_C_TRY
     *out_count = engine->engine->GetLatencyCnt();
+    return DXRT_OK;
+    DXRT_C_CATCH
+}
+
+DXRT_CAPI dxrt_status_t dxrt_engine_get_core_latency_count(dxrt_engine_t engine, int* out_count)
+{
+    if (!engine || !out_count) return DXRT_ERR_INVALID_ARG;
+    DXRT_C_TRY
+    *out_count = engine->engine->GetCoreLatencyCnt();
     return DXRT_OK;
     DXRT_C_CATCH
 }
@@ -1858,6 +1948,40 @@ DXRT_CAPI dxrt_status_t dxrt_engine_get_latency_list(
     if (!engine || !inout_count) return DXRT_ERR_INVALID_ARG;
     DXRT_C_TRY
     auto vec = engine->engine->GetLatencyVector();
+    if (!out_values) {
+        *inout_count = vec.size();
+        return DXRT_OK;
+    }
+    size_t n = (std::min)(*inout_count, vec.size());
+    std::memcpy(out_values, vec.data(), n * sizeof(int));
+    *inout_count = vec.size();
+    return DXRT_OK;
+    DXRT_C_CATCH
+}
+
+DXRT_CAPI dxrt_status_t dxrt_engine_get_core_latency_list(
+    dxrt_engine_t engine, int* out_values, size_t* inout_count)
+{
+    if (!engine || !inout_count) return DXRT_ERR_INVALID_ARG;
+    DXRT_C_TRY
+    auto vec = engine->engine->GetCoreLatencyVector();
+    if (!out_values) {
+        *inout_count = vec.size();
+        return DXRT_OK;
+    }
+    size_t n = (std::min)(*inout_count, vec.size());
+    std::memcpy(out_values, vec.data(), n * sizeof(int));
+    *inout_count = vec.size();
+    return DXRT_OK;
+    DXRT_C_CATCH
+}
+
+DXRT_CAPI dxrt_status_t dxrt_engine_get_e2e_response_time_list(
+    dxrt_engine_t engine, int* out_values, size_t* inout_count)
+{
+    if (!engine || !inout_count) return DXRT_ERR_INVALID_ARG;
+    DXRT_C_TRY
+    auto vec = engine->engine->GetE2EResponseTimeVector();
     if (!out_values) {
         *inout_count = vec.size();
         return DXRT_OK;
@@ -2612,11 +2736,11 @@ DXRT_CAPI dxrt_status_t dxrt_engine_register_release_callback(
         [callback, user_data](void* userArg, int jobId) {
             callback(user_data, userArg, jobId);
         });
+    return DXRT_OK;
 #else
     (void)callback; (void)user_data;
     return DXRT_ERR_NOT_SUPPORTED;
 #endif
-    return DXRT_OK;
     DXRT_C_CATCH
 }
 

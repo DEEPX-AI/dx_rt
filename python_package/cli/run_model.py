@@ -50,13 +50,14 @@ callback_sync_lock = threading.Lock()
 
 # Renamed fps to fps_val, mode to current_mode 
 def print_inf_result(input_file: str, output_file: str, # NOSONAR
-                     latency_ms: float, inf_time_ms: float, fps_val: float,
+                     e2e_ms: float, latency_ms: float, inf_time_ms: float, fps_val: float,
                      loops: int, current_mode: RunModelMode, verbose: bool):
     lines = []
     if os.environ.get("DXRT_SHOW_PROFILE")=='1':
         verbose=True
     desc_npu_time = "Actual NPU core computation time for a single request"
-    desc_latency = ("End-to-end time per request including data transfer and overheads")
+    desc_e2e = "End-to-end time per request including data transfer and overheads"
+    desc_latency = "Core latency per request excluding buffer pool and queue wait times"
     desc_fps = ("Overall user-observed inference throughput (inputs/second), "
                 "reflecting perceived speed")
 
@@ -84,6 +85,7 @@ def print_inf_result(input_file: str, output_file: str, # NOSONAR
         return line
 
     inf_time_str = f"{inf_time_ms:.3f}" # 3 decimal places for ms
+    e2e_str = f"{e2e_ms:.3f}"
     latency_str = f"{latency_ms:.3f}" # 3 decimal places for ms
     fps_str = f"{fps_val:.2f}"        # 2 decimal places for FPS
 
@@ -96,6 +98,7 @@ def print_inf_result(input_file: str, output_file: str, # NOSONAR
         lines.append("* Benchmark Result (single input)")
         if verbose:
             lines.append(build_formatted_line("  - NPU Processing Time  : ", inf_time_str, "ms", desc_npu_time, True))
+            lines.append(build_formatted_line("  - E2E Response Time    : ", e2e_str,     "ms", desc_e2e, True))
             lines.append(build_formatted_line("  - Latency              : ", latency_str, "ms", desc_latency, True))
             lines.append(build_formatted_line("  - FPS                  : ", fps_str,     "",   desc_fps, True))
         else:
@@ -104,6 +107,7 @@ def print_inf_result(input_file: str, output_file: str, # NOSONAR
         lines.append(f"* Benchmark Result ({loops} inputs)")
         if verbose:
             lines.append(build_formatted_line("  - NPU Processing Time Average : ", inf_time_str, "ms", desc_npu_time, True))
+            lines.append(build_formatted_line("  - E2E Response Time Average   : ", e2e_str,     "ms", desc_e2e, True))
             lines.append(build_formatted_line("  - Latency Average             : ", latency_str, "ms", desc_latency, True))
             lines.append(build_formatted_line("  - FPS                         : ", fps_str,     "",   desc_fps, True))
         else:
@@ -135,9 +139,9 @@ def parse_arguments():
     parser.add_argument("-m", "--model", type=str, required=True, help="Model file (.dxnn)")
     parser.add_argument("-i", "--input", type=str, default="", help=argparse.SUPPRESS)
     parser.add_argument("-o", "--output", type=str, default=OUTPUT_BIN, help=argparse.SUPPRESS)
-    parser.add_argument("-b", "--benchmark", action="store_true", default=False, help="Perform a benchmark test (Maximum throughput)\n(This is the default mode,\n if --single or --fps > 0 are not specified)")
+    parser.add_argument("-b", "--benchmark", action="store_true", default=False, help="Perform a benchmark test at a fixed --buffer-count\n(This is the default mode,\n if --single or --fps > 0 are not specified)")
     parser.add_argument("-s", "--single", action="store_true", default=False, help="Perform a single run test\n(Sequential single-input inference on a single-core)")
-    parser.add_argument("-v", "--verbose", action="store_true", default=False, help="Shows NPU Processing Time and Latency")
+    parser.add_argument("-v", "--verbose", action="store_true", default=False, help="Shows NPU Processing Time, E2E Response Time, and Latency")
     parser.add_argument("-n", "--npu", type=int, default=0,
                         help="NPU bounding option (default: 0 for NPU_ALL)\n"
                              "  0: NPU_ALL\n  1: NPU_0\n  2: NPU_1\n  3: NPU_2\n"
@@ -359,6 +363,7 @@ def main(): # NOSONAR
             print("Warmup completed.")
 
         if current_run_mode == RunModelMode.SINGLE_MODE:
+            total_e2e_us_accumulator = 0.0
             total_latency_us_accumulator = 0.0
             total_npu_time_us_accumulator = 0.0
             total_wall_time_us_accumulator = 0.0
@@ -371,9 +376,11 @@ def main(): # NOSONAR
                 loop_wall_time_us = (end_time_wall - start_time_wall) * 1_000_000
                 total_wall_time_us_accumulator += loop_wall_time_us
                 
-                current_latency_us = float(ie.get_latency())
+                current_e2e_us = float(ie.get_e2e_response_time())
+                current_latency_us = float(ie.get_core_latency())
                 current_npu_time_us = float(ie.get_npu_inference_time())
                 
+                total_e2e_us_accumulator += current_e2e_us
                 total_latency_us_accumulator += current_latency_us
                 total_npu_time_us_accumulator += current_npu_time_us
                 loop_fps = 1_000_000.0 / loop_wall_time_us if loop_wall_time_us > 0 else 0
@@ -386,18 +393,21 @@ def main(): # NOSONAR
                 
 
                 print_inf_result(args.input if args.input else "", args.output,
+                                 current_e2e_us / 1000.0,
                                  current_latency_us / 1000.0,
                                  current_npu_time_us / 1000.0,
                                  loop_fps,
                                  1, 
                                  current_run_mode, args.verbose)
             if args.loops > 1:
+                 avg_e2e_ms = (total_e2e_us_accumulator / args.loops) / 1000.0
                  avg_latency_ms = (total_latency_us_accumulator / args.loops) / 1000.0
                  avg_npu_ms = (total_npu_time_us_accumulator / args.loops) / 1000.0
                  avg_fps = (args.loops * 1_000_000.0) / total_wall_time_us_accumulator if total_wall_time_us_accumulator > 0 else 0
                  avg_summary_title = f"--- Average over {args.loops} loops (Single Mode) ---"
                  print(f"\n{avg_summary_title}")
                  print(f"  - Avg NPU Processing Time: {avg_npu_ms:.3f} ms")
+                 print(f"  - Avg E2E Response Time: {avg_e2e_ms:.3f} ms")
                  print(f"  - Avg Latency          : {avg_latency_ms:.3f} ms")
                  print(f"  - Avg FPS              : {avg_fps:.2f}")
                  print("=" * len(avg_summary_title))
@@ -447,12 +457,13 @@ def main(): # NOSONAR
             total_wall_time_us = (overall_end_time - overall_start_time) * 1_000_000
             actual_fps = (args.loops * 1_000_000.0) / total_wall_time_us if total_wall_time_us > 0 else 0
             
-            latency_mean_ms = ie.get_latency_mean() / 1000.0
+            e2e_mean_ms = ie.get_e2e_response_time_mean() / 1000.0
+            latency_mean_ms = ie.get_core_latency_mean() / 1000.0
             npu_time_mean_ms = ie.get_npu_inference_time_mean() / 1000.0
 
             # Disable until DX_SIM is supported
             print_inf_result(args.input if args.input else "", args.output,
-                             latency_mean_ms, npu_time_mean_ms, actual_fps,
+                             e2e_mean_ms, latency_mean_ms, npu_time_mean_ms, actual_fps,
                              args.loops, current_run_mode, args.verbose)
 
         elif current_run_mode == RunModelMode.BENCHMARK_MODE:
@@ -464,11 +475,12 @@ def main(): # NOSONAR
                 with open(args.output, "wb") as f:
                     f.write(outputs[0].tobytes())
             
-            latency_mean_ms = ie.get_latency_mean() / 1000.0
+            e2e_mean_ms = ie.get_e2e_response_time_mean() / 1000.0
+            latency_mean_ms = ie.get_core_latency_mean() / 1000.0
             npu_time_mean_ms = ie.get_npu_inference_time_mean() / 1000.0
 
             print_inf_result(args.input if args.input else "", args.output,
-                             latency_mean_ms, npu_time_mean_ms, measured_fps,
+                             e2e_mean_ms, latency_mean_ms, npu_time_mean_ms, measured_fps,
                              args.loops, current_run_mode, args.verbose)
 
             sys.exit(-1 if critical_error else 0)

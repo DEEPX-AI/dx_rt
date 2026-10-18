@@ -872,8 +872,9 @@ inline std::string colorText(ColorName color, const std::string& text)
 
     // Helper lambda to print logical vs device memory differences
     auto print_memory_differences = [](const TaskData& taskData) {
-        const bool has_difference = (taskData._outputMemSize != taskData._outputSize ||
-                                   taskData._encodedInputSize != taskData._inputSize);
+        const bool has_difference = (taskData._encodedInputSize != taskData._inputSize ||
+                                     taskData._encodedOutputSize != taskData._outputSize ||
+                                     taskData._outputMemSize != taskData._outputSize);
         if (!has_difference) return;
 
         cout << "  |" << endl;
@@ -890,16 +891,17 @@ inline std::string colorText(ColorName color, const std::string& text)
             cout << "  |     +- Input  (logical) : " << format_bytes(taskData._inputSize) << endl;
         }
 
-        if (taskData._outputMemSize != taskData._outputSize)
+        if (taskData._encodedOutputSize != taskData._outputSize)
         {
             cout << "  |     +- Output (logical) : " << format_bytes(taskData._outputSize) << endl;
-            cout << "  |     +- Output (device)  : " << format_bytes(taskData._outputMemSize)
-                  << " " << coutColorText(ColorName::Yellow, "(includes scratch memory)") << endl;
+            cout << "  |     +- Output (device)  : " << format_bytes(taskData._encodedOutputSize) << endl;
         }
         else
         {
             cout << "  |     +- Output (logical) : " << format_bytes(taskData._outputSize) << endl;
         }
+        cout << "  |     +- Output (total)   : " << format_bytes(taskData._outputMemSize)
+             << " " << coutColorText(ColorName::Yellow, "(includes scratch memory)") << endl;
     };
 
     for (const auto& taskName : taskOrder)

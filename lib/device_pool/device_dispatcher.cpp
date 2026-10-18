@@ -151,6 +151,20 @@ int DeviceDispatcher::ResponseLoop(int ids)
 
         ret = Process(cmd, &response);
 
+#ifdef _WIN32
+        if (ret == ERROR_DEVICE_REMOVED)
+        {
+            // Handle closed for removal; waits are resumed once the device is reopened.
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            continue;
+        }
+        if (ret == ERROR_NO_DATA_DETECTED)
+        {
+            // Woken without a queued response; this was reported as success before pending results were checked.
+            continue;
+        }
+#endif
+
         if (ret == -ENODATA)
         {
             LOG_DXRT_S << "DeviceDispatcher::ResponseLoop NPU_RUN_RESP no data: thread_ch=" << ids
@@ -312,6 +326,14 @@ int DeviceDispatcher::EventLoop()  // NOSONAR
         dxrt::dx_pcie_dev_event_t eventInfo{};
 
         ret = Process(cmd, &eventInfo);
+
+#ifdef _WIN32
+        if (ret == ERROR_DEVICE_REMOVED)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            continue;
+        }
+#endif
 
         if (ret != 0)
         {

@@ -16,6 +16,7 @@
 #include "dxrt/profiler.h"
 #include "dxrt/user_event_store.h"
 #include "dxrt/device_info_status.h"
+#include "dxrt/device_core.h"
 #include "dxrt/device_pool.h"
 #include "dxrt/device_version.h"
 #include <memory>
@@ -486,14 +487,26 @@ namespace dxrt {
         return DXRT_BUILD_ID;
     }
 
-    std::string Configuration::GetDriverVersion() const
+    namespace {
+    // Use the versions cached by DeviceCore::Identify(). DeviceStatus::GetCurrentStatus(int)
+    // reads the dxrtd monitoring shared memory, which can be empty or stale.
+    dxrt_dev_info_t GetFirstDeviceDevInfo()
     {
-        uint32_t rt_driver_version = 0;
         if ( DevicePool::GetInstance().GetDeviceCount() > 0 )
         {
-            dxrt_dev_info_t dev_info = DeviceStatus::GetCurrentStatus(0).getDevInfo();
-            rt_driver_version = dev_info.rt_drv_ver.driver_version;
+            auto core = DevicePool::GetInstance().GetDeviceCores(0);
+            if ( core )
+            {
+                return core->devInfo();
+            }
         }
+        return dxrt_dev_info_t{};
+    }
+    }  // namespace
+
+    std::string Configuration::GetDriverVersion() const
+    {
+        uint32_t rt_driver_version = GetFirstDeviceDevInfo().rt_drv_ver.driver_version;
 
         uint32_t major = rt_driver_version / 1000;
         uint32_t minor = (rt_driver_version / 100) % 10;
@@ -506,14 +519,7 @@ namespace dxrt {
 
     std::string Configuration::GetPCIeDriverVersion() const
     {
-        uint32_t pcie_driver_version = 0;
-
-        if ( DevicePool::GetInstance().GetDeviceCount() > 0 )
-        {
-            dxrt_dev_info_t dev_info = DeviceStatus::GetCurrentStatus(0).getDevInfo();
-            pcie_driver_version = dev_info.pcie.driver_version;
-        }
-
+        uint32_t pcie_driver_version = GetFirstDeviceDevInfo().pcie.driver_version;
 
         uint32_t major = pcie_driver_version / 1000;
         uint32_t minor = (pcie_driver_version / 100) % 10;

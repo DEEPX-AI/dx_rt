@@ -13,26 +13,62 @@
 #include "dxrt/driver.h"
 #include "dxrt/device_struct.h"
 #include "dxrt/driver_adapter/windows_driver_adapter.h"
+#include <algorithm>
+#include <chrono>
 #include <iostream>
 
 namespace dxrt {
 
-WindowsDriverAdapter::WindowsDriverAdapter(const char* fileName)
-: _name(fileName)
+namespace {
+
+constexpr uint32_t kCloseDrainTimeoutMs = 3000;
+constexpr uint32_t kLivenessPollMs = 50;
+
+HANDLE openDevice(const std::string& fileName)
 {
-    _fd = CreateFile(fileName,
+    return CreateFile(fileName.c_str(),
         GENERIC_READ | GENERIC_WRITE,
         FILE_SHARE_READ | FILE_SHARE_WRITE,
         NULL,
         OPEN_EXISTING,
         FILE_FLAG_OVERLAPPED,
-	NULL);
-#if 0
-    if (_fd == INVALID_HANDLE_VALUE)	{
-        cout << "Error: Can't open " << _file << endl;
+        NULL);
+}
+
+// Threads terminated at process exit never leave the gate; do not wait for them.
+bool isThreadAlive(DWORD threadId)
+{
+    HANDLE thread = OpenThread(SYNCHRONIZE, FALSE, threadId);
+    if (thread == NULL) {
+        return false;
+    }
+    const bool alive = (WaitForSingleObject(thread, 0) == WAIT_TIMEOUT);
+    CloseHandle(thread);
+    return alive;
+}
+
+}  // namespace
+
+struct WindowsDriverAdapter::NotifyContext : std::enable_shared_from_this<NotifyContext> {
+    std::mutex lock;
+    WindowsDriverAdapter* adapter = nullptr;
+    HCMNOTIFICATION handle = nullptr;
+    bool released = false;
+};
+
+WindowsDriverAdapter::WindowsDriverAdapter(const char* fileName)
+: _name(fileName)
+{
+    _stopEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+    if (_stopEvent == NULL) {
+        LOG_DXRT_ERR("CreateEvent failed. GLE=" << GetLastError() << ", device: " << _name);
         return;
     }
-#endif
+    _fd = openDevice(_name);
+    if (_fd != INVALID_HANDLE_VALUE) {
+        _state = GateState::Open;
+        registerNotification();
+    }
 }
 
 size_t g_eventPoolAllocCount = 0;
@@ -87,12 +123,75 @@ void WindowsDriverAdapter::ReleaseEvent(HANDLE hEvent)
     }
 }
 
+int32_t WindowsDriverAdapter::enterIo(HANDLE* fd)
+{
+    std::lock_guard<std::mutex> lock(_gateMutex);
+    if (_state == GateState::Open) {
+        *fd = _fd;
+        _ioThreads.push_back(GetCurrentThreadId());
+        return ERROR_SUCCESS;
+    }
+    return (_state == GateState::NotOpen) ? ERROR_INVALID_HANDLE : ERROR_DEVICE_REMOVED;
+}
+
+void WindowsDriverAdapter::leaveIo()
+{
+    std::lock_guard<std::mutex> lock(_gateMutex);
+    auto it = std::find(_ioThreads.begin(), _ioThreads.end(), GetCurrentThreadId());
+    if (it != _ioThreads.end()) {
+        _ioThreads.erase(it);
+    }
+    if (_ioThreads.empty()) {
+        _idleCv.notify_all();
+    }
+}
+
+bool WindowsDriverAdapter::waitForIdle(std::unique_lock<std::mutex>& lock, uint32_t timeoutMs)
+{
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
+    while (_state == GateState::Closing && !_ioThreads.empty()) {
+        _ioThreads.erase(std::remove_if(_ioThreads.begin(), _ioThreads.end(),
+            [](DWORD threadId) { return !isThreadAlive(threadId); }), _ioThreads.end());
+        if (_ioThreads.empty()) {
+            break;
+        }
+        const auto now = std::chrono::steady_clock::now();
+        if (now >= deadline) {
+            return false;
+        }
+        _idleCv.wait_for(lock, std::min<std::chrono::steady_clock::duration>(
+            deadline - now, std::chrono::milliseconds(kLivenessPollMs)));
+    }
+    return true;
+}
+
+BOOL WindowsDriverAdapter::startIo(HANDLE fd, dxrt_message_t* msg, DWORD* bytesReturned, OVERLAPPED* overlapped)
+{
+    return DeviceIoControl(
+        fd,
+        static_cast<DWORD>(dxrt::dxrt_ioctl_t::DXRT_IOCTL_MESSAGE),
+        msg,
+        sizeof(*msg),
+        NULL,
+        0,
+        bytesReturned,
+        overlapped);
+}
+
 int32_t WindowsDriverAdapter::IOControl(dxrt_cmd_t request, void* data, uint32_t size, uint32_t sub_cmd)
 {
-    if (_fd == INVALID_HANDLE_VALUE) {
+    HANDLE fd = INVALID_HANDLE_VALUE;
+    const int32_t gateError = enterIo(&fd);
+    if (gateError == ERROR_INVALID_HANDLE) {
         LOG_DXRT_ERR("IOControl called with invalid handle. Device: " << _name);
-        return ERROR_INVALID_HANDLE;
     }
+    if (gateError != ERROR_SUCCESS) {
+        return gateError;
+    }
+    struct IoScope {
+        WindowsDriverAdapter* self;
+        ~IoScope() { self->leaveIo(); }
+    } ioScope{this};
 
     HANDLE hEvent = AcquireEvent();
     if (hEvent == NULL) {
@@ -110,42 +209,38 @@ int32_t WindowsDriverAdapter::IOControl(dxrt_cmd_t request, void* data, uint32_t
     msg.data = data;
     msg.size = size;
 
-    DWORD bytesReturned;
-    BOOL success = DeviceIoControl(
-        _fd,
-        static_cast<DWORD>(dxrt::dxrt_ioctl_t::DXRT_IOCTL_MESSAGE),
-        &msg,
-        sizeof(msg),
-        NULL,
-        0,
-        &bytesReturned,
-        &overlapped);
+    DWORD bytesReturned = 0;
+    BOOL success = startIo(fd, &msg, &bytesReturned, &overlapped);
 
     DWORD lastError = GetLastError();
+    const bool pended = (!success && lastError == ERROR_IO_PENDING);
 
-    if (!success)
+    if (pended)
     {
-        if (lastError == ERROR_IO_PENDING)
-        {
-            DWORD e = WaitForSingleObject(hEvent, INFINITE);
-            if (e == WAIT_OBJECT_0) {
-                GetOverlappedResult(_fd, &overlapped, &bytesReturned, FALSE);
-                success = true;
-            }
-            else if (e == WAIT_TIMEOUT) {
-                ReleaseEvent(hEvent);
-                return -1;
-            }
+        const HANDLE waits[2] = { hEvent, _stopEvent };
+        if (WaitForMultipleObjects(2, waits, FALSE, INFINITE) != WAIT_OBJECT_0) {
+            CancelIoEx(fd, &overlapped);
         }
-        else
-        {
-            LOG_DXRT_ERR("DeviceIoControl failed. GLE=" << lastError
-                << ", cmd=" << static_cast<int>(request)
-                << ", handle=" << reinterpret_cast<uint64_t>(_fd));
+        // The driver owns overlapped and the caller's buffers until the request completes.
+        success = GetOverlappedResult(fd, &overlapped, &bytesReturned, TRUE);
+        lastError = success ? ERROR_SUCCESS : GetLastError();
+    }
 
-            if (lastError == ERROR_INVALID_HANDLE) {
-                LOG_DXRT_ERR("Handle appears to be invalid or closed. Device: " << _name);
-            }
+    if (!success && (lastError == ERROR_OPERATION_ABORTED || lastError == ERROR_DEVICE_REMOVED))
+    {
+        ReleaseEvent(hEvent);
+        return ERROR_DEVICE_REMOVED;
+    }
+
+    // Failures after pending were silent before their result was checked; callers handle the code.
+    if (!success && !pended)
+    {
+        LOG_DXRT_ERR("DeviceIoControl failed. GLE=" << lastError
+            << ", cmd=" << static_cast<int>(request)
+            << ", handle=" << reinterpret_cast<uint64_t>(fd));
+
+        if (lastError == ERROR_INVALID_HANDLE) {
+            LOG_DXRT_ERR("Handle appears to be invalid or closed. Device: " << _name);
         }
     }
 
@@ -157,7 +252,9 @@ int32_t WindowsDriverAdapter::IOControl(dxrt_cmd_t request, void* data, uint32_t
     default:
         if (!success) {
             ret = lastError;
-            std::cout << "GetLastError() = " << ret << std::endl;
+            if (!pended) {
+                std::cout << "GetLastError() = " << ret << std::endl;
+            }
         }
         else {
             ret = 0;
@@ -174,9 +271,14 @@ int32_t WindowsDriverAdapter::Write(const void* buffer, uint32_t size)
     // int ret = write(_fd, buffer, size);
     // if (ret < 0) return ret;
     // return 0;
+    HANDLE fd = INVALID_HANDLE_VALUE;
+    if (enterIo(&fd) != ERROR_SUCCESS) {
+        return -1;
+    }
     int ret;
     DWORD bytesWritten;
-    BOOL success = WriteFile(_fd, buffer, size, &bytesWritten, NULL);
+    BOOL success = WriteFile(fd, buffer, size, &bytesWritten, NULL);
+    leaveIo();
     if (!success) {
         ret = -1;
     }
@@ -194,7 +296,12 @@ int32_t WindowsDriverAdapter::Read(void* buffer, uint32_t size)
     // if (ret < 0) return ret;
     // return 0;
     DWORD bytesRead;
-    BOOL success = ReadFile(_fd, buffer, size, &bytesRead, NULL);
+    HANDLE fd = INVALID_HANDLE_VALUE;
+    if (enterIo(&fd) != ERROR_SUCCESS) {
+        return -1;
+    }
+    BOOL success = ReadFile(fd, buffer, size, &bytesRead, NULL);
+    leaveIo();
     if (!success || bytesRead != size)
     {
         return -1;
@@ -246,18 +353,250 @@ int32_t WindowsDriverAdapter::Poll()
 
 WindowsDriverAdapter::~WindowsDriverAdapter()
 {
+    releaseNotification();
+    Close();
+
     for (HANDLE hEvent : _eventPool) {
         CloseHandle(hEvent);
     }
     _eventPool.clear();
 
-    Close();
+    if (_stopEvent != NULL) {
+        CloseHandle(_stopEvent);
+    }
 }
+
+int WindowsDriverAdapter::GetFd() const
+{
+    std::lock_guard<std::mutex> lock(_gateMutex);
+    return reinterpret_cast<uint64_t>(_fd);
+}
+
+bool WindowsDriverAdapter::Quiesce(uint32_t timeoutMs)
+{
+    std::unique_lock<std::mutex> lock(_gateMutex);
+    if (_state != GateState::Open && _state != GateState::Closing) {
+        return true;
+    }
+    _state = GateState::Closing;
+    SetEvent(_stopEvent);
+    CancelIoEx(_fd, NULL);
+    const bool idle = waitForIdle(lock, timeoutMs);
+    if (_state == GateState::Closed) {
+        return true;
+    }
+    if (!idle || _state != GateState::Closing) {
+        return false;
+    }
+    CloseHandle(_fd);
+    _fd = INVALID_HANDLE_VALUE;
+    _state = GateState::Closed;
+    return true;
+}
+
+void WindowsDriverAdapter::Resume()
+{
+    std::lock_guard<std::mutex> lock(_gateMutex);
+    if (_state == GateState::Closing) {
+        ResetEvent(_stopEvent);
+        _state = GateState::Open;
+    }
+}
+
+bool WindowsDriverAdapter::Reopen()
+{
+    if (!reopenHandle()) {
+        return false;
+    }
+    registerNotification();
+    return true;
+}
+
+bool WindowsDriverAdapter::reopenHandle()
+{
+    std::lock_guard<std::mutex> lock(_gateMutex);
+    if (_state == GateState::Open) {
+        return true;
+    }
+    if (_state == GateState::Closing || _stopEvent == NULL) {
+        return false;
+    }
+    HANDLE fd = openDevice(_name);
+    if (fd == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+    _fd = fd;
+    ResetEvent(_stopEvent);
+    _state = GateState::Open;
+    return true;
+}
+
 void WindowsDriverAdapter::Close()
 {
+    if (Quiesce(kCloseDrainTimeoutMs)) {
+        return;
+    }
+    LOG_DXRT_ERR("Closing " << _name << " with requests still in flight");
+    std::lock_guard<std::mutex> lock(_gateMutex);
     if (_fd != INVALID_HANDLE_VALUE) {
         CloseHandle(_fd);
-        _fd = INVALID_HANDLE_VALUE;
+    }
+    _fd = INVALID_HANDLE_VALUE;
+    _state = GateState::Closed;
+}
+
+void WindowsDriverAdapter::SetRemovalHandler(DeviceRemovalHandler handler)
+{
+    std::lock_guard<std::mutex> lock(_removalMutex);
+    _removalHandler = std::move(handler);
+}
+
+void WindowsDriverAdapter::registerNotification()
+{
+    {
+        std::lock_guard<std::mutex> lock(_removalMutex);
+        if (_notify) {
+            return;
+        }
+    }
+    HANDLE fd = INVALID_HANDLE_VALUE;
+    {
+        std::lock_guard<std::mutex> gate(_gateMutex);
+        fd = _fd;
+    }
+    if (fd == INVALID_HANDLE_VALUE) {
+        return;
+    }
+    auto ctx = std::make_shared<NotifyContext>();
+    ctx->adapter = this;
+    CM_NOTIFY_FILTER filter = {};
+    filter.cbSize = sizeof(filter);
+    filter.FilterType = CM_NOTIFY_FILTER_TYPE_DEVICEHANDLE;
+    filter.u.DeviceHandle.hTarget = fd;
+    {
+        std::lock_guard<std::mutex> ctxLock(ctx->lock);
+        const CONFIGRET cr = CM_Register_Notification(&filter, ctx.get(), notifyCallback, &ctx->handle);
+        if (cr != CR_SUCCESS) {
+            LOG_DXRT_DBG << _name << ": CM_Register_Notification failed, cr=" << cr << std::endl;
+            return;
+        }
+    }
+    {
+        std::lock_guard<std::mutex> lock(_removalMutex);
+        if (!_notify) {
+            _notify = ctx;
+            return;
+        }
+    }
+    std::lock_guard<std::mutex> ctxLock(ctx->lock);
+    releaseContext(ctx);
+}
+
+void WindowsDriverAdapter::releaseNotification()
+{
+    std::shared_ptr<NotifyContext> ctx;
+    {
+        std::lock_guard<std::mutex> lock(_removalMutex);
+        ctx = std::move(_notify);
+    }
+    if (!ctx) {
+        return;
+    }
+    // Destruction may run during process exit, where the thread pool cannot take work. Detach the
+    // callback and keep the registration and its context alive instead of unregistering.
+    std::lock_guard<std::mutex> lock(ctx->lock);
+    if (!ctx->released) {
+        ctx->released = true;
+        ctx->adapter = nullptr;
+        new std::shared_ptr<NotifyContext>(ctx);  // NOSONAR: intentional leak, see above
+    }
+}
+
+// Caller holds ctx->lock. CM_Unregister_Notification waits for running callbacks, so it runs on a pool thread.
+void WindowsDriverAdapter::releaseContext(const std::shared_ptr<NotifyContext>& ctx)
+{
+    if (ctx->released) {
+        return;
+    }
+    ctx->released = true;
+    ctx->adapter = nullptr;
+    auto* keep = new std::shared_ptr<NotifyContext>(ctx);
+    const BOOL submitted = TrySubmitThreadpoolCallback(
+        [](PTP_CALLBACK_INSTANCE, PVOID context) {
+            auto* owned = static_cast<std::shared_ptr<NotifyContext>*>(context);
+            CM_Unregister_Notification((*owned)->handle);
+            delete owned;
+        },
+        keep, nullptr);
+    if (!submitted) {
+        // The registration may still call back into ctx, so it is kept alive.
+        LOG_DXRT_ERR("TrySubmitThreadpoolCallback failed. GLE=" << GetLastError());
+    }
+}
+
+DWORD CALLBACK WindowsDriverAdapter::notifyCallback(HCMNOTIFICATION notify, PVOID context, CM_NOTIFY_ACTION action,
+    PCM_NOTIFY_EVENT_DATA eventData, DWORD eventDataSize)
+{
+    (void)notify;
+    (void)eventData;
+    (void)eventDataSize;
+    auto* raw = static_cast<NotifyContext*>(context);
+    std::lock_guard<std::mutex> lock(raw->lock);
+    if (raw->released || raw->adapter == nullptr) {
+        return ERROR_SUCCESS;
+    }
+    std::shared_ptr<NotifyContext> self = raw->shared_from_this();
+    WindowsDriverAdapter* adapter = raw->adapter;
+    const DWORD result = adapter->onDeviceNotify(action);
+    if (action == CM_NOTIFY_ACTION_DEVICEREMOVEPENDING || action == CM_NOTIFY_ACTION_DEVICEREMOVECOMPLETE) {
+        releaseContext(self);
+    }
+    return result;
+}
+
+DWORD WindowsDriverAdapter::onDeviceNotify(int action)
+{
+    std::lock_guard<std::mutex> lock(_removalMutex);
+    switch (action)
+    {
+    case CM_NOTIFY_ACTION_DEVICEQUERYREMOVE:
+        if (_removalHandler && !_removalHandler(DeviceRemovalEvent::QueryRemove, kRemovalDrainTimeoutMs)) {
+            LOG_DXRT_INFO(_name << ": removal refused, submitted jobs did not finish");
+            return ERROR_CANCELLED;
+        }
+        if (!Quiesce(kRemovalQuiesceTimeoutMs)) {
+            Resume();
+            if (_removalHandler) {
+                _removalHandler(DeviceRemovalEvent::RemoveCancelled, 0);
+            }
+            LOG_DXRT_INFO(_name << ": removal refused, device requests did not finish");
+            return ERROR_CANCELLED;
+        }
+        LOG_DXRT_INFO(_name << ": handle closed for device removal");
+        return ERROR_SUCCESS;
+
+    case CM_NOTIFY_ACTION_DEVICEQUERYREMOVEFAILED:
+        if (!reopenHandle()) {
+            LOG_DXRT_ERR(_name << ": reopen after cancelled removal failed. GLE=" << GetLastError());
+            return ERROR_SUCCESS;
+        }
+        if (_removalHandler) {
+            _removalHandler(DeviceRemovalEvent::RemoveCancelled, 0);
+        }
+        return ERROR_SUCCESS;
+
+    case CM_NOTIFY_ACTION_DEVICEREMOVEPENDING:
+    case CM_NOTIFY_ACTION_DEVICEREMOVECOMPLETE:
+        Close();
+        // The callback releases this registration; a later Reopen registers a new one.
+        _notify.reset();
+        if (_removalHandler) {
+            _removalHandler(DeviceRemovalEvent::Removed, 0);
+        }
+        return ERROR_SUCCESS;
+
+    default:
+        return ERROR_SUCCESS;
     }
 }
 

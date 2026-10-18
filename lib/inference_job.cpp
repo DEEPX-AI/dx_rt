@@ -19,6 +19,7 @@
 #include "dxrt/cpu_handle.h"
 #include "dxrt/request_response_class.h"
 #include "dxrt/safe_cast.h"
+#include "dxrt/profiler.h"
 
 #include <future>
 #include <memory>
@@ -115,6 +116,7 @@ void InferenceJob::onRequestComplete(RequestPtr req)
         if (req->task()->processor() == Processor::NPU)
         {
             _infTime += req->inference_time();
+            _bufferPoolWaitTime += (std::max)(static_cast<int64_t>(0), req->bufferPoolWaitTime());
         }
     }
 
@@ -183,6 +185,17 @@ void InferenceJob::onAllRequestComplete()
     _inferenceEnginePtr->getTimer()->PushLatency(latency());
     _inferenceEnginePtr->getTimer()->PushQueueWaitTime(nonNegativeQueueWaitTime);
     _inferenceEnginePtr->getTimer()->PushInferenceTime(inference_time());
+
+    const int latencyExcludingWait = static_cast<int>(
+        (std::max)(static_cast<int64_t>(0),
+                   static_cast<int64_t>(latency()) - _bufferPoolWaitTime - nonNegativeQueueWaitTime));
+    _inferenceEnginePtr->recordLatency(latencyExcludingWait);
+#ifdef USE_PROFILER
+    if (_jobStartValid)
+    {
+        Profiler::GetInstance().AddJobTiming(latency(), latencyExcludingWait);
+    }
+#endif
 
     // Dynamic output processing is now handled immediately in onRequestComplete()
     // No special processing needed here as _tensors already contains correct dynamic tensors
@@ -263,6 +276,7 @@ void InferenceJob::SetInferenceJob(std::vector<std::shared_ptr<Task>>& tasks_, s
     _doneCount.store(0);
     _latency = 0;
     _queueWaitTime = 0;
+    _bufferPoolWaitTime = 0;
     _infTime = 0;
     _jobStartValid = false;
 
@@ -291,6 +305,7 @@ void InferenceJob::SetInferenceJobMultiHead(std::vector<std::shared_ptr<Task>>& 
     _doneCount.store(0);
     _latency = 0;
     _queueWaitTime = 0;
+    _bufferPoolWaitTime = 0;
     _infTime = 0;
     _jobStartValid = false;
 
@@ -692,6 +707,7 @@ void InferenceJob::Clear()
     _userArg = nullptr;
     _latency = 0;
     _queueWaitTime = 0;
+    _bufferPoolWaitTime = 0;
     _infTime = 0;
     _jobStartValid = false;
     _inferenceEnginePtr = nullptr;

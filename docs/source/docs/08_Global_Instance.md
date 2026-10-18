@@ -23,7 +23,7 @@ The method of accessing the global Configuration object differs slightly between
 In C++, the global configuration instance is accessed via the static method `GetInstance()`. Always use `GetInstance()` to obtain the shared singleton — constructing a local `Configuration` object would create a separate instance that does not reflect the global runtime state.  
 
 ```cpp
-#include "dxrt/common.h"
+#include <dxrt/dxrt_cxx_api.h>
 
 // Recommended: Get the shared, global instance
 dxrt::Configuration& config = dxrt::Configuration::GetInstance();
@@ -63,6 +63,9 @@ An `ITEM` represents a high-level feature or module within the **DX-RT** that ca
 | `SHOW_MODEL_INFO` | Enables the display of detailed model information. |
 | `CUSTOM_INTRA_OP_THREADS` | Enables custom ONNX Runtime intra-operator thread count configuration. |
 | `CUSTOM_INTER_OP_THREADS` | Enables custom ONNX Runtime inter-operator thread count configuration. |
+| `NFH_ASYNC` | Handles NPU Format Handling (NFH) asynchronously. Enabled by default. |
+| `NFH_ACCELERATION` | Enables NFH (transpose) acceleration via SIMD libraries. Available only when the runtime is built with NFH acceleration support. |
+| `CPU_OP_ACCELERATION` | Enables CPU task acceleration via optimized ONNX Runtime execution providers. Available only when the runtime is built with CPU op acceleration support. |
 
 
 ***ATTRIBUTE***  
@@ -71,7 +74,7 @@ An `ATTRIBUTE` defines a property associated with a specific ITEM. It is typical
 | Attribute | Associated `ITEM` | Description |
 | :--- | :--- | :--- |
 | `PROFILER_SHOW_DATA` | `PROFILER` | Attribute for showing profiler data. |
-| `PROFILER_SAVE_DATA` | `PROFILER` | Attribute for saving profiler data to a file. |
+| `PROFILER_SAVE_DATA` | `PROFILER` | Attribute for saving profiler data to a file. Set to `"ON"` to save `profiler.json` in the working directory when the application exits. |
 | `CUSTOM_INTRA_OP_THREADS_NUM` | `CUSTOM_INTRA_OP_THREADS` | Number of threads for ONNX Runtime intra-operator parallelism (integer string, 1-hardware_concurrency). |
 | `CUSTOM_INTER_OP_THREADS_NUM` | `CUSTOM_INTER_OP_THREADS` | Number of threads for ONNX Runtime inter-operator parallelism (integer string, 1-hardware_concurrency). |
 
@@ -83,7 +86,7 @@ This section outlines the primary operations supported by the Configuration clas
 
 #### Enabling and Disabling Features
 
-Enable or disable specific runtime modules using the `ITEM` enumeration. This allows dynamic control over major DXRT features at runtime.
+Enable or disable specific runtime modules using the `ITEM` enumeration. This allows dynamic control over major DX-RT features at runtime.
 
 **C++**
 ```cpp
@@ -115,15 +118,14 @@ Configure detailed runtime behavior by setting or retrieving string-based values
 // First, ensure the parent item is enabled
 config.SetEnable(dxrt::Configuration::ITEM::PROFILER, true);
 
-// Set the path where profiler data should be saved
-std::string profile_path = "/var/log/my_app_profile.json";
+// Save profiler data to profiler.json (working directory) when the application exits
 config.SetAttribute(dxrt::Configuration::ITEM::PROFILER,
                       dxrt::Configuration::ATTRIBUTE::PROFILER_SAVE_DATA,
-                      profile_path);
+                      "ON");
 
 // Retrieve the attribute value later
-std::string saved_path = config.GetAttribute(dxrt::Configuration::ITEM::PROFILER,
-                                              dxrt::Configuration::ATTRIBUTE::PROFILER_SAVE_DATA);
+std::string save_flag = config.GetAttribute(dxrt::Configuration::ITEM::PROFILER,
+                                             dxrt::Configuration::ATTRIBUTE::PROFILER_SAVE_DATA);
 ```
 
 **Python**
@@ -131,21 +133,20 @@ std::string saved_path = config.GetAttribute(dxrt::Configuration::ITEM::PROFILER
 # First, ensure the parent item is enabled
 config.set_enable(Configuration.ITEM.PROFILER, True)
 
-# Set the path for saving profiler data
-profile_log_path = "/var/log/dx_profile.json"
+# Save profiler data to profiler.json (working directory) when the application exits
 config.set_attribute(Configuration.ITEM.PROFILER,
                      Configuration.ATTRIBUTE.PROFILER_SAVE_DATA,
-                     profile_log_path)
+                     "ON")
 
-# Retrieve the path later
-saved_path = config.get_attribute(Configuration.ITEM.PROFILER,
-                                  Configuration.ATTRIBUTE.PROFILER_SAVE_DATA)
-print(f"Profiler data will be saved to: {saved_path}")
+# Retrieve the attribute value later
+save_flag = config.get_attribute(Configuration.ITEM.PROFILER,
+                                 Configuration.ATTRIBUTE.PROFILER_SAVE_DATA)
+print(f"PROFILER_SAVE_DATA: {save_flag}")
 ```
 
 #### Retrieving Version Information
 
-Query the current DXRT library and driver versions. These functions are essential for debugging, compatibility checks, and system diagnostics.  
+Query the current DX-RT library and driver versions. These functions are essential for debugging, compatibility checks, and system diagnostics.  
 
 **C++**
 ```cpp
@@ -156,6 +157,7 @@ Query the current DXRT library and driver versions. These functions are essentia
 try {
     std::cout << "DXRT Library Version: " << config.GetVersion() << std::endl;
     std::cout << "Driver Version: " << config.GetDriverVersion() << std::endl;
+    std::cout << "PCIe Driver Version: " << config.GetPCIeDriverVersion() << std::endl;
 
     // Get firmware versions for all detected devices
     std::vector<std::pair<int, std::string>> fw_versions = config.GetFirmwareVersions();
@@ -186,31 +188,41 @@ Configuration files use a simple key-value format with `KEY=VALUE` pairs. Here's
 
 ```properties
 # General debug and profiling settings
-ENABLE_DEBUG=0
-USE_PROFILER=1
-ENABLE_SHOW_PROFILER_DATA=1
-ENABLE_SAVE_PROFILER_DATA=1
+DEBUG_DXRT=0
+SHOW_TASK_FLOW=0
+USE_PROFILER=0
+SHOW_PROFILER_DATA=0
+SAVE_PROFILER_DATA=0
+DXRT_DYNAMIC_CPU_THREAD=0
 
-# ONNX Runtime thread settings (Opt-in Example)
-# Note: Default common.cfg sets these to 0 (disabled)
-USE_CUSTOM_INTRA_OP_THREADS=1
-USE_CUSTOM_INTER_OP_THREADS=1
-CUSTOM_INTRA_OP_THREADS_COUNT=4
-CUSTOM_INTER_OP_THREADS_COUNT=2
+# ONNX Runtime thread settings
+USE_CUSTOM_INTRA_OP_THREADS=0
+USE_CUSTOM_INTER_OP_THREADS=0
+CUSTOM_INTRA_OP_THREADS_COUNT=0
+CUSTOM_INTER_OP_THREADS_COUNT=0
+
+# Acceleration settings
+DXRT_NFH_ACCELERATION=0
+DXRT_CPU_OP_ACCELERATION=0
 ```
 
 !!! warning "IMPORTANT"  
 
-    The ONNX Runtime thread settings shown above are an **opt-in example**. The actual default `common.cfg` file sets `USE_CUSTOM_INTRA_OP_THREADS=0` and `USE_CUSTOM_INTER_OP_THREADS=0`, which means ONNX Runtime will use its automatic thread management by default.
+    The values above are the runtime settings and defaults shipped in `common.cfg`. A key takes effect only if it is present in the file; if a key is omitted, the compile-time default is kept. Because `USE_CUSTOM_INTRA_OP_THREADS` and `USE_CUSTOM_INTER_OP_THREADS` default to `0`, ONNX Runtime uses its automatic thread management unless you opt in by setting them to `1`.
 
 #### Configuration Parameters
 
 **General Settings:**
 
-* **`ENABLE_DEBUG`**: Enable/disable debug mode (0=disabled, 1=enabled)
+* **`DEBUG_DXRT`**: Enable/disable debug mode (0=disabled, 1=enabled)
+* **`SHOW_TASK_FLOW`**: Enable/disable task flow display (0=disabled, 1=enabled)
 * **`USE_PROFILER`**: Enable/disable profiler functionality (0=disabled, 1=enabled)
-* **`ENABLE_SHOW_PROFILER_DATA`**: Enable/disable showing profiler data in console (0=disabled, 1=enabled)
-* **`ENABLE_SAVE_PROFILER_DATA`**: Enable/disable saving profiler data to file (0=disabled, 1=enabled)
+* **`SHOW_PROFILER_DATA`**: Enable/disable showing profiler data in console (0=disabled, 1=enabled)
+* **`SAVE_PROFILER_DATA`**: Enable/disable saving profiler data to file (0=disabled, 1=enabled)
+* **`DXRT_DYNAMIC_CPU_THREAD`**: Enable/disable dynamic CPU thread management (0=disabled, 1=enabled)
+* **`DXRT_NFH_ACCELERATION`**: Enable/disable NFH acceleration (0=disabled, 1=enabled). Applied only when the runtime is built with NFH acceleration support.
+* **`DXRT_CPU_OP_ACCELERATION`**: Enable/disable CPU op acceleration (0=disabled, 1=enabled). Applied only when the runtime is built with CPU op acceleration support.
+* **`USE_SERVICE`**: Enable/disable the service (0=disabled, 1=enabled). Not included in the shipped `common.cfg`; add it to the file to override the default. Applied only when the runtime is built with service support.
 
 **Thread Configuration Parameters:**
 
@@ -225,7 +237,7 @@ The following parameters control ONNX Runtime thread behavior:
 
 * Values are automatically clamped to the range [1, `std::thread::hardware_concurrency()`]
 * Invalid values (non-numeric strings) default to 1
-* Empty values default to 1
+* A key with an empty value (`KEY=`) is ignored and the default is kept
 * Out-of-range values are clamped with debug logging
 
 **ONNX Runtime Behavior:**
@@ -234,11 +246,14 @@ The following parameters control ONNX Runtime thread behavior:
 * **Default behavior** (when `USE_CUSTOM_INTER_OP_THREADS=0`): Uses sequential execution mode with 1 thread
 * **Custom behavior** (when enabled=1): Uses the specified `CUSTOM_*_THREADS_COUNT` values with validation and clamping
 
+!!! note "NOTE. SHOW_MODEL_INFO"
+    `SHOW_MODEL_INFO` has no `common.cfg` key. Its default comes from the `ENABLE_SHOW_MODEL_INFO` build option, but you can override it at runtime with `SetEnable()` / `set_enable()`. The value is read when an `InferenceEngine` is created, so set it before creating the engine. `InferenceOption::showModelInfo` must also be `true`.
+
 #### Loading Configuration Files
 
 **C++**
 ```cpp
-#include "dxrt/common.h"
+#include <dxrt/dxrt_cxx_api.h>
 
 // Load configuration from file
 dxrt::Configuration& config = dxrt::Configuration::GetInstance();

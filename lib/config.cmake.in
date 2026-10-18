@@ -28,6 +28,7 @@ if(dxrt_FOUND AND NOT TARGET dxrt::dxrt)
     add_library(dxrt::dxrt SHARED IMPORTED)
     set_target_properties(dxrt::dxrt PROPERTIES
         IMPORTED_LOCATION "${DXRT_LIBRARY}"
+        IMPORTED_IMPLIB "${DXRT_LIBRARY}"
         INTERFACE_INCLUDE_DIRECTORIES "${DXRT_INCLUDE_DIR}"
         INTERFACE_LINK_LIBRARIES Threads::Threads
     )

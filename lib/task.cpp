@@ -790,8 +790,10 @@ std::ostream& operator<<(std::ostream& os, const Task& task)
 
         os << "  Inputs" << std::endl;
         for (const auto& tensor : task._taskData._inputTensors) os << "     -  " << tensor << std::endl;
+        os << "  Input DMA size: " << format_number_with_commas(task._taskData._encodedInputSize) << " bytes" << std::endl;
         os << "  Outputs" << std::endl;
         for (const auto& tensor : task._taskData._outputTensors) os << "    -  " << tensor << std::endl;
+        os << "  Output DMA size: " << format_number_with_commas(task._taskData._encodedOutputSize) << " bytes" << std::endl;
     }
     else if (task._taskData._processor == Processor::CPU)
     {

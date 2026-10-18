@@ -10,6 +10,7 @@
 
 #include "dxrt/request_response_class.h"
 
+#include <chrono>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -62,7 +63,10 @@ int RequestResponse::InferenceRequest(RequestPtr req)
                 auto& profiler = dxrt::Profiler::GetInstance();
                 profiler.Start(dxrt::Profiler::EventType::BUFFER_POOL_WAIT, req->task()->name(), device->id(), req->job_id());
 #endif
+                const auto bufferWaitStart = std::chrono::steady_clock::now();
                 BufferSet buffers = req->task()->AcquireAllBuffers();
+                req->setBufferPoolWaitTime(std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now() - bufferWaitStart).count());
 #ifdef USE_PROFILER
                 profiler.End(dxrt::Profiler::EventType::BUFFER_POOL_WAIT, req->task()->name(), device->id(), req->job_id());
                 req->CheckTimePoint(0);

@@ -1,4 +1,5 @@
 site_name: DXNN Runtime (DX-RT) User Manual
+site_url: 'https://developer.deepx.ai/'
 use_directory_urls: false
 docs_dir: source # markdown original file folder
 site_dir: html_docs # html target folder
@@ -33,7 +34,6 @@ theme:
      - navigation.tabs.sticky
      - content.tabs.link
      - content.code.copy
-  site_url: 'https://developer.deepx.ai/'
 nav:
   - DXNN Runtime Overview: docs/01_DXNN_Runtime_Overview.md
   - Installation on Linux: docs/02_Installation_on_Linux.md
@@ -41,7 +41,7 @@ nav:
   - Model Inference: docs/04_Model_Inference.md
   - Command Line Interface: docs/05_Command_Line_Interface.md
   - Inference API Guide: docs/06_Inference_API.md
-  - Multi-input Inference Guide: docs/07_Multi_Input_Inference.md
+  - Multi-Input Inference Guide: docs/07_Multi_Input_Inference.md
   - Configuration and DeviceStatus Guide: docs/08_Global_Instance.md
   - Tutorials:
       - C++ Tutorials: docs/09_01_C++_Tutorials.md
@@ -72,6 +72,7 @@ extra_css:
 markdown_extensions:
   - admonition
   - def_list
+  - attr_list
   - toc:
         permalink: "true"
         baselevel: 1
@@ -91,6 +92,5 @@ markdown_extensions:
   - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
-  - attr_list
   - md_in_html
 copyright: ⓒ Copyright 2026 <a href="http://deepx.ai">DEEPX</a>. All Rights Reserved.

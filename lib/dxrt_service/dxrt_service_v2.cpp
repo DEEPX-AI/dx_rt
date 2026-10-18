@@ -147,6 +147,17 @@ struct DxrtServiceV2::IpcServerWorkItem
 
 DxrtServiceV2::~DxrtServiceV2()
 {
+#ifdef _WIN32
+    // Devices outlive the service; detach handlers that capture this (waits for a running callback).
+    for (const auto &device : _devices)
+    {
+        if (device)
+        {
+            device->SetRemovalHandler(nullptr);
+        }
+    }
+    stopDeviceReopen();
+#endif
     StopPendingTaskFreeReaper();
     if (_sharedMemoryWritingThread)
     {
@@ -886,6 +897,11 @@ DxrtServiceV2::DxrtServiceV2(
         device->SetThrottleCallback([this](dxrt::dx_pcie_dev_ntfy_throt_t throtInfo, int deviceId) {
             BroadcastThrottlingEventToClient(throtInfo, deviceId);
         });
+#ifdef _WIN32
+        device->SetRemovalHandler([this, id](dxrt::DeviceRemovalEvent event, uint32_t timeoutMs) {
+            return HandleDeviceRemoval(id, event, timeoutMs);
+        });
+#endif
         device->SetDMACompletionCallback([this](bool isRead, pid_t pid, int deviceId, int seqId, int result) {
             // Decrement pending DMA counter when completion is delivered
             DecrementPendingDMA();
@@ -998,12 +1014,160 @@ DxrtServiceV2::DxrtServiceV2(
             {
                 uint64_t memOffset = memService->Allocate(ppuDataSize, getpid());
                 device->LoadPPCPUFirmware(memOffset);
+#ifdef _WIN32
+                std::lock_guard<std::mutex> lock(_reopenMutex);
+                _ppcpuOffsets[id] = memOffset;
+#endif
             }
         }
     }
 
     StartPendingTaskFreeReaper();
 }
+
+#ifdef _WIN32
+bool DxrtServiceV2::HandleDeviceRemoval(int deviceId, dxrt::DeviceRemovalEvent event, uint32_t timeoutMs)
+{
+    const std::shared_ptr<dxrt::ServiceDevice> device = _devices[deviceId];
+    std::lock_guard<std::mutex> stateLock(_removalStateMutex);
+    switch (event)
+    {
+    case dxrt::DeviceRemovalEvent::QueryRemove:
+    {
+        // Block only at an idle moment: requests dispatched to a blocked device fail.
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
+        while (true)
+        {
+            if (_scheduler->Load(deviceId) == 0)
+            {
+                const bool blockedHere = device->blockIfUnblocked();
+                if (_scheduler->Load(deviceId) == 0)
+                {
+                    _blockedForRemoval[deviceId] = _blockedForRemoval[deviceId] || blockedHere;
+                    _removalEpoch[deviceId]++;
+                    device->setRemoving(true);
+                    LOG_DXRT_S << "Device " << deviceId << ": accepting removal request" << std::endl;
+                    return true;
+                }
+                if (blockedHere)
+                {
+                    device->unblock();
+                }
+            }
+            if (std::chrono::steady_clock::now() >= deadline)
+            {
+                LOG_DXRT_S << "Device " << deviceId << ": removal refused, load="
+                           << _scheduler->Load(deviceId) << std::endl;
+                return false;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+    }
+    case dxrt::DeviceRemovalEvent::RemoveCancelled:
+        device->setRemoving(false);
+        if (_blockedForRemoval[deviceId])
+        {
+            device->unblock();
+            _blockedForRemoval[deviceId] = false;
+        }
+        LOG_DXRT_S << "Device " << deviceId << ": removal cancelled; device in use again" << std::endl;
+        return true;
+    case dxrt::DeviceRemovalEvent::Removed:
+        _removalEpoch[deviceId]++;
+        device->setRemoving(true);
+        device->block();
+        LOG_DXRT_S << "Device " << deviceId << ": removed; waiting for it to return" << std::endl;
+        startDeviceReopen(deviceId);
+        return true;
+    }
+    return true;
+}
+
+void DxrtServiceV2::startDeviceReopen(int deviceId)
+{
+    std::lock_guard<std::mutex> lock(_reopenMutex);
+    if (_reopenStop || _reopenRunning[deviceId])
+    {
+        return;
+    }
+    auto it = _reopenThreads.find(deviceId);
+    if (it != _reopenThreads.end() && it->second.joinable())
+    {
+        it->second.join();  // the previous loop has finished (_reopenRunning is false)
+    }
+    _reopenRunning[deviceId] = true;
+    _reopenThreads[deviceId] = std::thread(&DxrtServiceV2::reopenDeviceLoop, this, deviceId);
+}
+
+void DxrtServiceV2::reopenDeviceLoop(int deviceId)
+{
+    const std::shared_ptr<dxrt::ServiceDevice> device = _devices[deviceId];
+    std::unique_lock<std::mutex> lock(_reopenMutex);
+    while (!_reopenCv.wait_for(lock, std::chrono::seconds(1), [this] { return _reopenStop; }))
+    {
+        // Reopening blocks on the device; do it without _reopenMutex so stop and new events are not held up.
+        lock.unlock();
+        uint64_t epoch = 0;
+        {
+            std::lock_guard<std::mutex> stateLock(_removalStateMutex);
+            epoch = _removalEpoch[deviceId];
+        }
+        bool reopened = device->ReopenDevice();
+        if (reopened)
+        {
+            uint64_t ppcpuOffset = 0;
+            bool hasPpcpu = false;
+            {
+                std::lock_guard<std::mutex> offsetLock(_reopenMutex);
+                auto it = _ppcpuOffsets.find(deviceId);
+                hasPpcpu = (it != _ppcpuOffsets.end());
+                ppcpuOffset = hasPpcpu ? it->second : 0;
+            }
+            if (hasPpcpu)
+            {
+                device->LoadPPCPUFirmware(ppcpuOffset);
+            }
+            std::lock_guard<std::mutex> stateLock(_removalStateMutex);
+            if (_removalEpoch[deviceId] != epoch)
+            {
+                // Removed again while reopening; keep it blocked and try again.
+                reopened = false;
+            }
+            else
+            {
+                device->setRemoving(false);
+                device->unblock();
+                _blockedForRemoval[deviceId] = false;
+                LOG_DXRT_S << "Device " << deviceId << ": reopened after removal; available to new sessions" << std::endl;
+            }
+        }
+        lock.lock();
+        if (reopened)
+        {
+            break;
+        }
+    }
+    _reopenRunning[deviceId] = false;
+}
+
+void DxrtServiceV2::stopDeviceReopen()
+{
+    std::map<int, std::thread> threads;
+    {
+        std::lock_guard<std::mutex> lock(_reopenMutex);
+        _reopenStop = true;
+        threads.swap(_reopenThreads);
+    }
+    _reopenCv.notify_all();
+    for (auto& entry : threads)
+    {
+        if (entry.second.joinable())
+        {
+            entry.second.join();
+        }
+    }
+}
+#endif
 
 DxrtServiceV2::DxrtServiceV2(DXRTScheduleV2 schedulerOption)
     : DxrtServiceV2(dxrt::ServiceDevice::CheckServiceDevices(), schedulerOption)

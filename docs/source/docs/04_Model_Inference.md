@@ -20,7 +20,7 @@ This file is used directly for inference on DEEPX hardware.
 
 ## Inference Workflow
 
-Here is the inference workflow of the DXNN Runtime.  
+Here is the inference workflow of **DX-RT**.  
 
 <div class="center-text">
 <p align="center">
@@ -42,7 +42,7 @@ Figure. Inference Workflow
 
 Choose one of the following options.  
 
-- Use a pre-built model from **DX ModelZoo**  
+- Use a pre-built model from **DX-ModelZoo**  
 - Compile an ONNX model into the **DX-RT** format using **DX-COM** (Refer to the **DEEPX DX-COM User Manual** for details.)  
 
 ---
@@ -98,23 +98,23 @@ option.useORT = true;                              // Enable CPU tasks
 option.bufferCount = 4;                            // Use 4 buffers
 option.showModelInfo = false;                      // Suppress the model info banner
 
-auto ie = dxrt::InferenceEngine("model.dxnn", &option);
+dxrt::InferenceEngine ie("model.dxnn", option);
 ```
 
 ---
 
 ### Load the Model into the Inference Engine  
 
-Create a `dxrt::InferenceEngine` instance using the path to the compiled model directory. Hardware resources are automatically initialized during this step.  
+Create a `dxrt::InferenceEngine` instance using the path to the compiled model file (.dxnn). Hardware resources are automatically initialized during this step.  
 
 If `dxrt::InferenceOption` is **not** provided, a default option is applied.  
 
 ```
 // Option 1: Load from file path
-auto ie = dxrt::InferenceEngine("yolov5s.dxnn");
+dxrt::InferenceEngine ie("yolov5s.dxnn");
 
 // Option 2: Load from file path with options
-auto ie = dxrt::InferenceEngine("yolov5s.dxnn", &option);
+dxrt::InferenceEngine ie("yolov5s.dxnn", option);
 
 // Option 3: Load from memory buffer
 std::ifstream file("yolov5s.dxnn", std::ios::binary | std::ios::ate);
@@ -122,11 +122,11 @@ std::streamsize yolov5s_buffer_size = file.tellg();
 file.seekg(0, std::ios::beg);
 std::vector<uint8_t> yolov5s_buffer(yolov5s_buffer_size);
 if (file.read(reinterpret_cast<char*>(yolov5s_buffer.data()), yolov5s_buffer_size)) {
-    auto ie = dxrt::InferenceEngine(yolov5s_buffer.data(), yolov5s_buffer_size);
+    dxrt::InferenceEngine ie(yolov5s_buffer.data(), yolov5s_buffer_size);
 }
 
 // Option 4: Load from memory buffer with options
-auto ie = dxrt::InferenceEngine(yolov5s_buffer.data(), yolov5s_buffer_size, &option);
+dxrt::InferenceEngine ie(yolov5s_buffer.data(), yolov5s_buffer_size, option);
 ```
 
 ---
@@ -179,14 +179,14 @@ auto outputs = ie.Wait(jobId);
 Use a callback function to handle output as soon as inference completes. 
 
 ```
-std::function<int(vector<shared_ptr<dxrt::Tensor>>, void*)> postProcCallBack = \
-    [&](vector<shared_ptr<dxrt::Tensor>> outputs, void *arg)
+std::function<int(dxrt::TensorPtrs&, void*)> postProcCallBack = \
+    [&](dxrt::TensorPtrs& outputs, void *arg)
     {
         /* Process output tensors here */
         ... ...
         return 0;
     };
-ie.RegisterCallback(postProcCallBack)
+ie.RegisterCallback(postProcCallBack);
 ```
 
 - The callback is triggered by a background thread after inference.  
@@ -266,7 +266,7 @@ As a result, applications no longer need to manually attach input dummy bytes or
 When you run a model with the `--profiler` option using `dxrun`, a `profiler.json` file is automatically generated in the working directory.
 
 ```
-dxrun -m model.dxnn -i input.bin --profiler
+dxrun -m model.dxnn --profiler
 # Check the generated profiler.json file
 ```
 
@@ -376,8 +376,6 @@ profiler.Start("my_preprocess");
 profiler.End("my_preprocess");
 ```
 
-User events are included in `profiler.json` when saved via `Save(file, userEvents)`.
-
 ---
 
 ### Visualize Profiler Data  
@@ -421,6 +419,28 @@ Optional Arguments
 !!! note "NOTE" 
     The `-a, --auto-select` option automatically selects 200 jobs from the stable center region, which can be useful for filtering out warm-up and tail effects.  
 
+**Script Usage:** `tool/profiler/plot_html.py`  
+
+Use this script to generate an interactive HTML report instead of static images. Unlike `plot.py`, it produces a single standalone HTML file that contains all devices and jobs, so you can zoom and pan through the timeline in a web browser without splitting the output.
+
+```
+usage: plot_html.py [-h] -i INPUT [-o OUTPUT]
+```
+
+Optional Arguments  
+
+- `-h, --help`: Show help message and exit  
+- `-i INPUT, --input INPUT`: Input `profiler.json` file path (required)  
+- `-o OUTPUT, --output OUTPUT`: Output HTML file path (default: the input filename with the `.html` extension)  
+
+```
+python3 tool/profiler/plot_html.py -i profiler.json                 # -> profiler.html
+python3 tool/profiler/plot_html.py -i profiler.json -o result.html  # custom output path
+```
+
+!!! note "NOTE" 
+    This script requires the `pandas` and `plotly` packages, which are listed in `tool/profiler/requirements.txt`. If they are missing, the script prints the `pip install` command and exits.  
+
 ---
 
 ### Profiler Events  
@@ -455,10 +475,10 @@ Runtime events include device status changes, memory operations, core errors, an
 
 Events are categorized by severity using `RuntimeEventDispatcher::LEVEL`:
 
-- **`LEVEL_INFO`** - Informational messages for normal operation events
-- **`LEVEL_WARNING`** - Warning messages for potential issues that don't stop execution  
-- **`LEVEL_ERROR`** - Error messages for recoverable failures
-- **`LEVEL_CRITICAL`** - Critical errors that may cause system instability
+- **`INFO`** - Informational messages for normal operation events
+- **`WARNING`** - Warning messages for potential issues that don't stop execution  
+- **`ERROR`** - Error messages for recoverable failures
+- **`CRITICAL`** - Critical errors that may cause system instability
 
 ### Event Types
 
@@ -499,7 +519,7 @@ int main()
     auto& dispatcher = dxrt::RuntimeEventDispatcher::GetInstance();
     
     // Set the minimum event level threshold
-    dispatcher.SetCurrentLevel(dxrt::RuntimeEventDispatcher::LEVEL::LEVEL_WARNING);
+    dispatcher.SetCurrentLevel(dxrt::RuntimeEventDispatcher::LEVEL::WARNING);
     
     // Register a custom event handler
     dispatcher.RegisterEventHandler(
@@ -513,16 +533,16 @@ int main()
             
             // Handle different severity levels
             switch (level) {
-                case dxrt::RuntimeEventDispatcher::LEVEL::LEVEL_INFO:
+                case dxrt::RuntimeEventDispatcher::LEVEL::INFO:
                     std::cout << "INFO: ";
                     break;
-                case dxrt::RuntimeEventDispatcher::LEVEL::LEVEL_WARNING:
+                case dxrt::RuntimeEventDispatcher::LEVEL::WARNING:
                     std::cout << "WARNING: ";
                     break;
-                case dxrt::RuntimeEventDispatcher::LEVEL::LEVEL_ERROR:
+                case dxrt::RuntimeEventDispatcher::LEVEL::ERROR:
                     std::cout << "ERROR: ";
                     break;
-                case dxrt::RuntimeEventDispatcher::LEVEL::LEVEL_CRITICAL:
+                case dxrt::RuntimeEventDispatcher::LEVEL::CRITICAL:
                     std::cout << "CRITICAL: ";
                     break;
             }
@@ -557,7 +577,7 @@ dispatcher.RegisterEventHandler(
        const std::string& timestamp)
     {
         // Only handle critical device core events
-        if (level == dxrt::RuntimeEventDispatcher::LEVEL::LEVEL_CRITICAL &&
+        if (level == dxrt::RuntimeEventDispatcher::LEVEL::CRITICAL &&
             type == dxrt::RuntimeEventDispatcher::TYPE::DEVICE_CORE)
         {
             std::cerr << "CRITICAL DEVICE ERROR: " << message << std::endl;
@@ -717,7 +737,7 @@ You can use the profiler (see *Profile Application* section) to identify whether
 | NPU | DEEPX DX-M1 with PCIe Gen3 x4 |
 | OS | Ubuntu 22.04 |
 | DX-RT Version | v3.3.0 |
-| Model | Q-PRO variants from DX ModelZoo |
+| Model | Q-PRO variants from DX-ModelZoo |
 | Measurement Tool | `dxrun` (no pre/post-processing) |
 | Iterations | 2000 |
 | Build Option | `USE_ORT=ON` |

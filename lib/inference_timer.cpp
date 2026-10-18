@@ -10,6 +10,8 @@
 #include "dxrt/common.h"
 #include "dxrt/inference_timer.h"
 
+#include <limits>
+
 namespace dxrt {
 
 InferenceTimer::InferenceTimer()
@@ -82,6 +84,9 @@ std::vector<uint32_t> InferenceTimer::GetNpuInferenceTimeVector()
 
 void InferenceTimer::UpdateLatencyStatistics(int latency) {
     std::unique_lock<std::mutex> lk(_lock);
+    // Freeze statistics at INT_MAX samples to avoid signed overflow of the count.
+    if (_latencyN == (std::numeric_limits<int>::max)())
+        return;
     _latencyN++;
     double delta = latency - _latencyMean;
     _latencyMean += delta / _latencyN;
@@ -92,6 +97,8 @@ void InferenceTimer::UpdateLatencyStatistics(int latency) {
 void InferenceTimer::UpdateQueueWaitTimeStatistics(int64_t queueWaitTime) {
     std::unique_lock<std::mutex> lk(_lock);
     queueWaitTime = (std::max)(static_cast<int64_t>(0), queueWaitTime);
+    if (_queueWaitTimeN == (std::numeric_limits<int>::max)())
+        return;
     _queueWaitTimeN++;
     double delta = static_cast<double>(queueWaitTime) - _queueWaitTimeMean;
     _queueWaitTimeMean += delta / _queueWaitTimeN;
@@ -101,6 +108,8 @@ void InferenceTimer::UpdateQueueWaitTimeStatistics(int64_t queueWaitTime) {
 
 void InferenceTimer::UpdateInferenceTimeStatistics(uint32_t inferenceTime) {
     std::unique_lock<std::mutex> lk(_lock);
+    if (_inferenceTimeN == (std::numeric_limits<int>::max)())
+        return;
     _inferenceTimeN++;
     double delta = inferenceTime - _inferenceTimeMean;
     _inferenceTimeMean += delta / _inferenceTimeN;
