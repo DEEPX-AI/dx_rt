@@ -235,160 +235,6 @@ Note: build.bat is a thin wrapper that calls build.ps1.
 "@
 }
 
-function Remove-CSharpBuildArtifacts {
-    Write-Status INFO "Cleaning csharp_package build artifacts..."
-    $csharpDirs = @(
-        "csharp_package\bin"
-        "csharp_package\packages"
-        "csharp_package\.vs"
-        "csharp_package\src\DxEngine\bin"
-        "csharp_package\src\DxEngine\obj"
-        "csharp_package\src\DxEngineNative\bin"
-        "csharp_package\src\DxEngineNative\Release"
-        "csharp_package\src\DxEngineNative\Debug"
-        "csharp_package\examples\.vs"
-        "csharp_package\examples\SimpleInference\bin"
-        "csharp_package\examples\SimpleInference\obj"
-        "csharp_package\examples\YoloV5\bin"
-        "csharp_package\examples\YoloV5\obj"
-    )
-    foreach ($dir in $csharpDirs) {
-        Remove-DirectoryQuietly (Join-Path $ScriptDir $dir)
-    }
-}
-
-function Build-CSharpPackage {
-    Write-Host ""
-    Write-Status INFO "Building C# package (csharp_package)..."
-    Write-Host ""
-
-    $csproj = Join-Path $ScriptDir "csharp_package\src\DxEngine\DxEngine.csproj"
-    if (-not (Test-Path $csproj)) {
-        Write-Status INFO "C# project not found, skipping csharp_package build."
-        return
-    }
-
-    # Detect .NET SDK
-    $dotnetPath = $null
-    $dotnetCmd = Get-Command dotnet -ErrorAction SilentlyContinue
-    if ($dotnetCmd) {
-        $dotnetPath = Split-Path $dotnetCmd.Source
-    } elseif (Test-Path "C:\Program Files\dotnet\dotnet.exe") {
-        $dotnetPath = "C:\Program Files\dotnet"
-    }
-
-    if (-not $dotnetPath) {
-        Write-Status WARNING ".NET SDK not found, skipping C# package build."
-        Write-Status WARNING "Install .NET 8 SDK from: https://dotnet.microsoft.com/download/dotnet/8.0"
-        Write-Status WARNING "  or run: winget install Microsoft.DotNet.SDK.8"
-        return
-    }
-
-    $env:PATH = "$dotnetPath;$env:PATH"
-    Write-Status INFO ".NET SDK found at: $dotnetPath"
-
-    # Set MSBuildSDKsPath for VS Build Tools MSBuild
-    $sdkDirs = Get-ChildItem -Path (Join-Path $dotnetPath "sdk") -Filter "8.*" -Directory -ErrorAction SilentlyContinue |
-        Sort-Object Name -Descending
-    if ($sdkDirs) {
-        $env:MSBuildSDKsPath = Join-Path $sdkDirs[0].FullName "Sdks"
-        Write-Status INFO "MSBuildSDKsPath set to: $env:MSBuildSDKsPath"
-    }
-
-    # Read version from release.ver
-    $csharpVersion = "0.0.0"
-    $verFile = Join-Path $ScriptDir "release.ver"
-    if (Test-Path $verFile) {
-        $csharpVersion = (Get-Content $verFile -First 1).Trim()
-    }
-    if ($csharpVersion.StartsWith("v")) {
-        $csharpVersion = $csharpVersion.Substring(1)
-    }
-    Write-Status INFO "Package version: $csharpVersion (from release.ver)"
-
-    Push-Location (Join-Path $ScriptDir "csharp_package")
-    try {
-        # Build DxEngineNative C++/CLI wrapper
-        Write-Status INFO "Building DxEngineNative C++/CLI wrapper..."
-        $nativeProj = Join-Path $ScriptDir "csharp_package\src\DxEngineNative\DxEngineNative.vcxproj"
-        if (Test-Path $nativeProj) {
-            Push-Location (Join-Path $ScriptDir "csharp_package\src\DxEngineNative")
-            try {
-                msbuild DxEngineNative.vcxproj "/p:Configuration=$script:BuildType" /p:Platform=x64 /p:VcpkgEnableManifest=false /v:minimal
-                if ($LASTEXITCODE -ne 0) {
-                    Write-Status WARNING "DxEngineNative build failed, native DLL will not be available."
-                } else {
-                    Write-Status OK "DxEngineNative.dll built successfully."
-                }
-            } finally {
-                Pop-Location
-            }
-        } else {
-            Write-Status INFO "DxEngineNative.vcxproj not found, skipping native build."
-        }
-
-        # Build DxEngine NuGet package
-        Write-Status INFO "Building DxEngine NuGet package..."
-        Push-Location (Join-Path $ScriptDir "csharp_package\src\DxEngine")
-        try {
-            dotnet restore
-            if ($LASTEXITCODE -ne 0) {
-                Write-Status WARNING "C# DxEngine restore failed, skipping C# build."
-                return
-            }
-            dotnet build -c $script:BuildType /p:Version=$csharpVersion
-            if ($LASTEXITCODE -ne 0) {
-                Write-Status WARNING "C# DxEngine build failed."
-                return
-            }
-            $packagesDir = Join-Path $ScriptDir "csharp_package\packages"
-            Get-ChildItem -Path $packagesDir -Filter "*.nupkg" -ErrorAction SilentlyContinue | Remove-Item -Force
-            dotnet pack -c $script:BuildType /p:Version=$csharpVersion -o "..\..\packages"
-            if ($LASTEXITCODE -ne 0) {
-                Write-Status WARNING "C# DxEngine pack failed."
-                return
-            }
-            Write-Status OK "DxEngine NuGet package created."
-        } finally {
-            Pop-Location
-        }
-
-        # Build C# examples
-        Write-Status INFO "Building C# examples..."
-        Push-Location (Join-Path $ScriptDir "csharp_package\examples")
-        try {
-            $examplesFailed = $false
-
-            $simpleInference = "SimpleInference\SimpleInference.csproj"
-            if (Test-Path $simpleInference) {
-                Write-Status INFO "  Building SimpleInference..."
-                dotnet build $simpleInference -c $script:BuildType
-                if ($LASTEXITCODE -ne 0) { Write-Status WARNING "SimpleInference build failed."; $examplesFailed = $true }
-            }
-
-            $yoloProj = "YoloV5\YoloV5Example.csproj"
-            if (Test-Path $yoloProj) {
-                Write-Status INFO "  Building YoloV5Example..."
-                dotnet build $yoloProj -c $script:BuildType
-                if ($LASTEXITCODE -ne 0) { Write-Status WARNING "YoloV5Example build failed."; $examplesFailed = $true }
-            }
-
-            if (-not $examplesFailed) {
-                Write-Status OK "C# examples build completed."
-            }
-        } finally {
-            Pop-Location
-        }
-    } finally {
-        Pop-Location
-    }
-
-    Write-Host ""
-    Write-Status OK "C# package build completed successfully!"
-    Write-Host "    - NuGet package: csharp_package\packages\"
-    Write-Host "    - Examples:      csharp_package\examples\"
-}
-
 function Get-InstalledPythonVersions {
     $pyLauncher = Get-Command py -ErrorAction SilentlyContinue
     if (-not $pyLauncher) {
@@ -1065,7 +911,6 @@ if ($DoDistclean) {
     Remove-DirectoryQuietly (Join-Path $ScriptDir "out")
     Remove-DirectoryQuietly (Join-Path $ScriptDir "build_vs")
     Remove-DirectoryQuietly (Join-Path $ScriptDir "vcpkg_installed")
-    Remove-CSharpBuildArtifacts
     Write-Report "Distclean" "OK" @("Workspace reset to source-only state.")
     exit 0
 }
@@ -1101,8 +946,6 @@ if ($DoClean) {
         }
     }
 
-    Write-Host ""
-    Remove-CSharpBuildArtifacts
     Write-Report "Clean" "OK" @("Removed: out\build\x64-$BuildType")
     exit 0
 }
@@ -1168,10 +1011,9 @@ if ($DoInstall) {
 }
 
 # ============================================================================
-# Build C# package (after install so dxrt.lib is available)
+# Build Python package
 # ============================================================================
 if ($DoBuild) {
-    Build-CSharpPackage
     Build-PythonPackage
 }
 
@@ -1198,9 +1040,6 @@ $reportDetails = @()
 $reportDetails += "Build Dir      : out\build\x64-$BuildType"
 if ($DoInstall) {
     $reportDetails += "Install Dir    : out\install\x64-$BuildType"
-}
-if ($DoBuild -and (Test-Path (Join-Path $ScriptDir "csharp_package\src\DxEngine\DxEngine.csproj"))) {
-    $reportDetails += "C# Package     : csharp_package\packages\"
 }
 if ($DoBuild -and (Test-Path (Join-Path $ScriptDir "python_package\pyproject.toml"))) {
     $reportDetails += "Python Package : python_package\"

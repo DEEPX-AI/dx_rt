@@ -404,9 +404,22 @@ class DXRT_API InferenceEngine // NOSONAR: Too many fields - stable as-is, refac
     int latency() { return GetLatency(); }
 
     /** @brief Gets the latency of the most recent inference in microseconds.
+     *  Latency is identical to the E2E response time (see GetE2EResponseTime()).
      * @return The latency value.
      */
     int GetLatency();
+
+    /** @brief Gets the core latency of the most recent inference in microseconds.
+     *  Core latency is the E2E response time excluding host NPU buffer pool wait
+     *  and queue wait time.
+     * @return The core latency value.
+     */
+    int GetCoreLatency();
+
+    /** @brief Gets the end-to-end response time of the most recent inference in microseconds.
+     * @return The E2E response time value.
+     */
+    int GetE2EResponseTime();
 
     /**
      * @deprecated Use GetNpuInferenceTime() instead.
@@ -426,10 +439,20 @@ class DXRT_API InferenceEngine // NOSONAR: Too many fields - stable as-is, refac
      */
     int64_t GetQueueWaitTime();
 
-    /** @brief Gets a vector of recent latency measurements.
+    /** @brief Gets a vector of recent latency measurements (identical to GetE2EResponseTimeVector()).
      * @return A vector of latencies in microseconds.
      */
     std::vector<int> GetLatencyVector();
+
+    /** @brief Gets a vector of recent core latency measurements.
+     * @return A vector of core latencies in microseconds.
+     */
+    std::vector<int> GetCoreLatencyVector();
+
+    /** @brief Gets a vector of recent E2E response time measurements.
+     * @return A vector of E2E response times in microseconds.
+     */
+    std::vector<int> GetE2EResponseTimeVector();
 
     /** @brief Gets a vector of recent NPU inference time measurements.
      * @return A vector of NPU inference times in microseconds.
@@ -441,10 +464,20 @@ class DXRT_API InferenceEngine // NOSONAR: Too many fields - stable as-is, refac
      */
     std::vector<int64_t> GetQueueWaitTimeVector();
 
-    /** @brief Gets the mean (average) of all collected latency values.
+    /** @brief Gets the mean (average) of all collected latency values (identical to GetE2EResponseTimeMean()).
      * @return The mean latency in microseconds.
      */
     double GetLatencyMean() const;
+
+    /** @brief Gets the mean (average) of all collected core latency values.
+     * @return The mean core latency in microseconds.
+     */
+    double GetCoreLatencyMean() const;
+
+    /** @brief Gets the mean (average) of all collected E2E response times.
+     * @return The mean E2E response time in microseconds.
+     */
+    double GetE2EResponseTimeMean() const;
 
     /** @brief Gets the mean (average) of all collected NPU inference times.
      * @return The mean NPU inference time in microseconds.
@@ -456,10 +489,20 @@ class DXRT_API InferenceEngine // NOSONAR: Too many fields - stable as-is, refac
      */
     double GetQueueWaitTimeMean() const;
 
-    /** @brief Gets the standard deviation of all collected latency values.
+    /** @brief Gets the standard deviation of all collected latency values (identical to GetE2EResponseTimeStdDev()).
      * @return The standard deviation of latency.
      */
     double GetLatencyStdDev() const;
+
+    /** @brief Gets the standard deviation of all collected core latency values.
+     * @return The standard deviation of core latency.
+     */
+    double GetCoreLatencyStdDev() const;
+
+    /** @brief Gets the standard deviation of all collected E2E response times.
+     * @return The standard deviation of E2E response time.
+     */
+    double GetE2EResponseTimeStdDev() const;
 
     /** @brief Gets the standard deviation of all collected NPU inference times.
      * @return The standard deviation of NPU inference time.
@@ -471,10 +514,20 @@ class DXRT_API InferenceEngine // NOSONAR: Too many fields - stable as-is, refac
      */
     double GetQueueWaitTimeStdDev() const;
 
-    /** @brief Gets the total count of latency measurements recorded.
+    /** @brief Gets the total count of latency measurements recorded (identical to GetE2EResponseTimeCnt()).
      * @return The number of latency measurements.
      */
     int GetLatencyCnt() const;
+
+    /** @brief Gets the total count of core latency measurements recorded.
+     * @return The number of core latency measurements.
+     */
+    int GetCoreLatencyCnt() const;
+
+    /** @brief Gets the total count of E2E response time measurements recorded.
+     * @return The number of measurements.
+     */
+    int GetE2EResponseTimeCnt() const;
 
     /** @brief Gets the total count of NPU inference time measurements recorded.
      * @return The number of measurements.
@@ -680,6 +733,7 @@ class DXRT_API InferenceEngine // NOSONAR: Too many fields - stable as-is, refac
 
     //for internal use only
     void onInferenceComplete(TensorPtrs &outputs, void *userArg, int jobId) const;
+    void recordLatency(int latency);
 
     std::string _modelFile;
     std::string _modelDir;
@@ -697,7 +751,8 @@ class DXRT_API InferenceEngine // NOSONAR: Too many fields - stable as-is, refac
     std::vector<std::shared_ptr<Task>> _tails;
     int _numTails;
     std::map<std::string, std::shared_ptr<Task>> _taskMap;
-    InferenceTimer _inferenceTimer;
+    InferenceTimer _inferenceTimer;  // its latency series is the E2E response time
+    InferenceTimer _latencyTimer;    // only the latency series is used
     std::vector<std::string> _taskOrder;
     std::vector<std::string> _lastOutputOrder;
 

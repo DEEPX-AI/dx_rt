@@ -25,6 +25,9 @@
 #include "../resource/log_messages.h"
 #include "../data/ppcpu.h"
 #include "dxrt/fixed_size_buffer.h"
+#ifdef _WIN32
+#include "dxrt/driver_adapter/windows_driver_adapter.h"
+#endif
 
 using std::endl;
 
@@ -678,5 +681,20 @@ void DeviceCore::Close()
 {
     _adapter->Close();
 }
+
+#ifdef _WIN32
+void DeviceCore::SetRemovalHandler(DeviceRemovalHandler handler)
+{
+    if (auto* adapter = dynamic_cast<WindowsDriverAdapter*>(_adapter.get())) {
+        adapter->SetRemovalHandler(std::move(handler));
+    }
+}
+
+bool DeviceCore::Reopen()
+{
+    auto* adapter = dynamic_cast<WindowsDriverAdapter*>(_adapter.get());
+    return adapter != nullptr && adapter->Reopen();
+}
+#endif
 
 } // namespace dxrt

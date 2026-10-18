@@ -1587,14 +1587,42 @@ std::vector<std::string> InferenceEngine::GetTaskOrder() const
 
 int InferenceEngine::GetLatency()
 {
+    return GetE2EResponseTime();
+}
+
+int InferenceEngine::GetCoreLatency()
+{
     LOG_DXRT_DBG << std::endl;
-    return _inferenceTimer.latency();
+    return _latencyTimer.latency();
 }
 
 std::vector<int> InferenceEngine::GetLatencyVector()
 {
+    return GetE2EResponseTimeVector();
+}
+
+std::vector<int> InferenceEngine::GetCoreLatencyVector()
+{
+    LOG_DXRT_DBG << std::endl;
+    return _latencyTimer.GetLatencyVector();
+}
+
+int InferenceEngine::GetE2EResponseTime()
+{
+    LOG_DXRT_DBG << std::endl;
+    return _inferenceTimer.latency();
+}
+
+std::vector<int> InferenceEngine::GetE2EResponseTimeVector()
+{
     LOG_DXRT_DBG << std::endl;
     return _inferenceTimer.GetLatencyVector();
+}
+
+void InferenceEngine::recordLatency(int latency)
+{
+    _latencyTimer.UpdateLatencyStatistics(latency);
+    _latencyTimer.PushLatency(latency);
 }
 
 uint32_t InferenceEngine::GetNpuInferenceTime()
@@ -1623,6 +1651,16 @@ std::vector<int64_t> InferenceEngine::GetQueueWaitTimeVector()
 
 double InferenceEngine::GetLatencyMean() const
 {
+    return GetE2EResponseTimeMean();
+}
+
+double InferenceEngine::GetCoreLatencyMean() const
+{
+    return _latencyTimer.GetLatencyMean();
+}
+
+double InferenceEngine::GetE2EResponseTimeMean() const
+{
     return _inferenceTimer.GetLatencyMean();
 }
 
@@ -1638,6 +1676,16 @@ double InferenceEngine::GetQueueWaitTimeMean() const
 
 double InferenceEngine::GetLatencyStdDev() const
 {
+    return GetE2EResponseTimeStdDev();
+}
+
+double InferenceEngine::GetCoreLatencyStdDev() const
+{
+    return _latencyTimer.GetLatencyStdDev();
+}
+
+double InferenceEngine::GetE2EResponseTimeStdDev() const
+{
     return _inferenceTimer.GetLatencyStdDev();
 }
 
@@ -1652,6 +1700,16 @@ double InferenceEngine::GetQueueWaitTimeStdDev() const
 }
 
 int InferenceEngine::GetLatencyCnt() const
+{
+    return GetE2EResponseTimeCnt();
+}
+
+int InferenceEngine::GetCoreLatencyCnt() const
+{
+    return _latencyTimer.GetLatencyCnt();
+}
+
+int InferenceEngine::GetE2EResponseTimeCnt() const
 {
     return _inferenceTimer.GetLatencyCnt();
 }

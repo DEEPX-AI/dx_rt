@@ -48,7 +48,7 @@ The `Run()` batch variant enables synchronous batched inference for both single-
 std::vector<TensorPtrs> Run(
     const std::vector<void*>& inputBuffers,
     const std::vector<void*>& outputBuffers,
-    const std::vector<void*>& userArgs
+    const std::vector<void*>& userArgs = {}
 )
 ```
 
@@ -76,6 +76,10 @@ auto batchOutputs = ie.Run(multiBatch, outputBuffers, userArgs);
 // Note: Flat N*M layout (e.g., {s1_i1, s1_i2, s2_i1, s2_i2}) is supported by the
 // Python binding only. Use RunMultiInput() or concatenated buffers in C++.
 ```
+
+!!! note "NOTE. outputBuffers Size"
+    In batch interpretation, `outputBuffers` **must** have the same number of elements as `inputBuffers`. Passing a vector of a different size, including an empty vector, raises `InvalidArgumentException`. To let the engine manage the output memory for a sample, pass `nullptr` for that element instead of omitting it.
+    An empty `outputBuffers` vector is accepted **only** in the multi-input single inference case (`vector<void*>` of size M), where it is treated as a single `nullptr` output.
 
 ***RunMultiInput (Dictionary)***
 
@@ -164,7 +168,7 @@ int RunAsyncMultiInput(
 |---|---|---|---|
 | `map<string, void*>` | For multi-input models only | `int` (jobId) | Most explicit method |
 
-This API is intended only for multi-input models. If used with single-input models, behavior is undefined.  
+This API is intended only for multi-input models. If used with a single-input model, an exception is thrown. Use `RunAsync()` instead.  
 
 ***RunAsyncMultiInput (Vector)***
 
@@ -254,9 +258,13 @@ Auto-split Special Cases
 - **Multi-input + first element is total_size** (e.g., `[concatenated_array]`)  
   : Interpretation: Auto-split single  
   : Output: `List[np.ndarray]`  
-- **Multi-input + all elements are total_size** (e.g., `[concat1, concat2, concat3]`)  
-  : Interpretation: Auto-split batch  
-  : Output: `List[List[np.ndarray]]`  
+
+!!! note "NOTE. Multiple Concatenated Buffers"
+    The first element is checked before the list length. If `input_data[0]` matches the total input size, the call is always treated as a single auto-split inference and **any remaining elements are ignored without an error**. Therefore, passing several concatenated buffers as a flat list (e.g., `[concat1, concat2, concat3]`) does **not** produce a batch.
+    To run a batch of concatenated buffers, use the explicit batch format instead: `[[concat1], [concat2], [concat3]]`.
+
+!!! note "NOTE. Batch Requires output_buffers"
+    For batch inference, `output_buffers` is **required**. Omitting it raises an error. Provide one output buffer per sample (`List[np.ndarray]` for flat-list input, `List[List[np.ndarray]]` for explicit batch input). Each sample's buffer can be a single concatenated buffer of size `ie.get_output_size()`.
 
 Example  
 ```python
@@ -270,15 +278,18 @@ outputs = ie.run(input_list)  # List[np.ndarray]
 
 # 3. Multi-input batch (flattened)
 flattened = [s1_i1, s1_i2, s2_i1, s2_i2]  # 2 samples, 2 inputs each
-outputs = ie.run(flattened)  # List[List[np.ndarray]], len=2
+flat_out = [np.zeros(ie.get_output_size(), dtype=np.uint8) for _ in range(2)]  # one buffer per sample
+outputs = ie.run(flattened, output_buffers=flat_out)  # List[List[np.ndarray]], len=2
 
 # 4. Multi-input batch (explicit)
 explicit_batch = [[s1_i1, s1_i2], [s2_i1, s2_i2]]
-outputs = ie.run(explicit_batch)  # List[List[np.ndarray]], len=2
+explicit_out = [[np.zeros(ie.get_output_size(), dtype=np.uint8)] for _ in range(2)]
+outputs = ie.run(explicit_batch, output_buffers=explicit_out)  # List[List[np.ndarray]], len=2
 
 # 5. Single-input batch
 single_batch = [sample1, sample2, sample3]
-outputs = ie.run(single_batch)  # List[List[np.ndarray]], len=3
+single_out = [np.zeros(ie.get_output_size(), dtype=np.uint8) for _ in range(3)]
+outputs = ie.run(single_batch, output_buffers=single_out)  # List[List[np.ndarray]], len=3
 ```
 
 ***run_multi_input (Dictionary)***
@@ -380,6 +391,10 @@ def _analyze_input_format(input_data):
 def analyze_list_ndarray(input_data):
     input_count = len(input_data)
 
+    # Checked first: a concatenated first element wins over any batch interpretation
+    if should_auto_split_input(input_data[0]):
+        return auto_split_single_inference()  # input_data[1:] is ignored
+
     if is_multi_input_model():
         expected_count = get_input_tensor_count()
 
@@ -388,8 +403,6 @@ def analyze_list_ndarray(input_data):
         elif input_count % expected_count == 0:
             batch_size = input_count // expected_count
             return batch_inference(batch_size)
-        elif all(should_auto_split_input(arr) for arr in input_data):
-            return auto_split_batch_inference()
         else:
             raise ValueError("Invalid input count")
     else:  # Single-input model
@@ -465,10 +478,10 @@ def _should_auto_split_input(input_data: np.ndarray) -> bool:
 
 | Condition | Error Type | Message |
 |---|---|---|
-| Multi-input + invalid size | `ValueError` | "Invalid input count for multi-input model" |
-| Async + batch | `ValueError` | "Batch inference not supported in async" |
-| Empty input | `ValueError` | "Input data cannot be empty" |
-| Type mismatch | `TypeError` | "Expected np.ndarray or List[np.ndarray]" |
+| Multi-input + invalid size | `ValueError` | "Multi-input model requires N input tensors [...] per sample. Got M inputs, which is not a valid multiple." |
+| Async + batch | `ValueError` | "Batch inference is not supported in run_async. Use multiple run_async calls or use run() for batch processing." |
+| Empty input | `ValueError` | "Input data list cannot be empty." |
+| Type mismatch | `TypeError` | "Input data must be np.ndarray, List[np.ndarray], or List[List[np.ndarray]]." |
 
 ### Custom Output Buffer Handling (Python)
 

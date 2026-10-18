@@ -114,6 +114,10 @@ class DXRT_INTERNAL_API DxrtServiceV2 : public ISchedulerListener
 
     bool IsTaskValid(pid_t pid, int deviceId, int taskId);
     void Dispose();
+#ifdef _WIN32
+    // Device removal (TASK0052): drain, close, and reopen the device after it returns.
+    bool HandleDeviceRemoval(int deviceId, dxrt::DeviceRemovalEvent event, uint32_t timeoutMs);
+#endif
     // Public: MSVC mangles access into symbol names, so tests using `#define private public` can't link private members.
     void StopPendingTaskFreeReaper();
 
@@ -162,6 +166,12 @@ class DXRT_INTERNAL_API DxrtServiceV2 : public ISchedulerListener
     void StartPendingTaskFreeReaper();
     void ReclaimStrandedTaskMemory();
     bool ClaimPendingTaskFree(pid_t pid, int taskId, int deviceId);
+
+#ifdef _WIN32
+    void startDeviceReopen(int deviceId);
+    void reopenDeviceLoop(int deviceId);
+    void stopDeviceReopen();
+#endif
 
     struct SharedMemHandle {
         int fd{-1};
@@ -231,6 +241,20 @@ class DXRT_INTERNAL_API DxrtServiceV2 : public ISchedulerListener
     std::atomic<int> _pendingDmaOperations{0};
 
     std::atomic<bool> _recoveryInProgress{false};
+
+#ifdef _WIN32
+    // Device reopen after removal; never nested with the locks above.
+    std::mutex _reopenMutex;
+    std::condition_variable _reopenCv;
+    bool _reopenStop = false;
+    std::map<int, std::thread> _reopenThreads;
+    std::map<int, bool> _reopenRunning;
+    std::map<int, uint64_t> _ppcpuOffsets;
+    // Serializes removal events with the reopen result; never held while calling into the device.
+    std::mutex _removalStateMutex;
+    std::map<int, uint64_t> _removalEpoch;   // bumped whenever a removal is accepted
+    std::map<int, bool> _blockedForRemoval;  // true if the removal path set the block
+#endif
 };
 
 }  // namespace dxrt

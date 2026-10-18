@@ -80,6 +80,7 @@ typedef enum {
     DXRT_ERR_IO             = -7,   /**< file/service I/O error */
     DXRT_ERR_INVALID_MODEL  = -8,   /**< invalid or corrupt model */
     DXRT_ERR_NOT_AVAILABLE  = -9,   /**< resource not available (e.g. monitoring inactive) */
+    DXRT_ERR_DEVICE_REMOVED = -10,  /**< NPU device was removed or disabled */
     DXRT_ERR_INTERNAL       = -99   /**< catch-all for unexpected errors */
 } dxrt_status_t;
 
@@ -358,10 +359,21 @@ DXRT_CAPI dxrt_status_t dxrt_engine_get_model_name(
     char*          buf,
     size_t         buf_len);
 
-/** Get latency of the last inference in microseconds. */
+/** Get latency of the last inference in microseconds (identical to E2E response time). */
 DXRT_CAPI dxrt_status_t dxrt_engine_get_latency(
     dxrt_engine_t  engine,
     int*           latency_us);
+
+/** Get core latency of the last inference in microseconds
+ *  (E2E response time excluding host NPU buffer pool wait and queue wait). */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_core_latency(
+    dxrt_engine_t  engine,
+    int*           core_latency_us);
+
+/** Get end-to-end response time of the last inference in microseconds. */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_e2e_response_time(
+    dxrt_engine_t  engine,
+    int*           e2e_us);
 
 /* ══════════════════════════════════════════════════════════════
  *  Tensor Name Queries
@@ -899,11 +911,26 @@ DXRT_CAPI dxrt_status_t dxrt_engine_get_npu_inference_time(dxrt_engine_t engine,
  */
 DXRT_CAPI dxrt_status_t dxrt_engine_get_queue_wait_time(dxrt_engine_t engine, int64_t* out_us);
 
-/** Get latency mean across accumulated samples (microseconds). */
+/** Get latency mean across accumulated samples (microseconds; identical to E2E response time mean). */
 DXRT_CAPI dxrt_status_t dxrt_engine_get_latency_mean(dxrt_engine_t engine, double* out_us);
 
-/** Get latency standard deviation (microseconds). */
+/** Get latency standard deviation (microseconds; identical to E2E response time stddev). */
 DXRT_CAPI dxrt_status_t dxrt_engine_get_latency_stddev(dxrt_engine_t engine, double* out_us);
+
+/** Get core latency mean across accumulated samples (microseconds). */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_core_latency_mean(dxrt_engine_t engine, double* out_us);
+
+/** Get core latency standard deviation (microseconds). */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_core_latency_stddev(dxrt_engine_t engine, double* out_us);
+
+/** Get E2E response time mean across accumulated samples (microseconds). */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_e2e_response_time_mean(dxrt_engine_t engine, double* out_us);
+
+/** Get E2E response time standard deviation (microseconds). */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_e2e_response_time_stddev(dxrt_engine_t engine, double* out_us);
+
+/** Get count of accumulated E2E response time samples. */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_e2e_response_time_count(dxrt_engine_t engine, int* out_count);
 
 /** Get NPU inference time mean (microseconds). */
 DXRT_CAPI dxrt_status_t dxrt_engine_get_npu_time_mean(dxrt_engine_t engine, double* out_us);
@@ -917,8 +944,11 @@ DXRT_CAPI dxrt_status_t dxrt_engine_get_npu_time_stddev(dxrt_engine_t engine, do
 /** Get queue wait time standard deviation (microseconds). */
 DXRT_CAPI dxrt_status_t dxrt_engine_get_queue_wait_time_stddev(dxrt_engine_t engine, double* out_us);
 
-/** Get count of accumulated latency samples. */
+/** Get count of accumulated latency samples (identical to E2E response time count). */
 DXRT_CAPI dxrt_status_t dxrt_engine_get_latency_count(dxrt_engine_t engine, int* out_count);
+
+/** Get count of accumulated core latency samples. */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_core_latency_count(dxrt_engine_t engine, int* out_count);
 
 /** Get count of accumulated NPU inference time samples. */
 DXRT_CAPI dxrt_status_t dxrt_engine_get_npu_time_count(dxrt_engine_t engine, int* out_count);
@@ -966,12 +996,26 @@ DXRT_CAPI dxrt_status_t dxrt_engine_dispose(dxrt_engine_t engine);
  * ══════════════════════════════════════════════════════════════ */
 
 /**
- * Get vector of recent latency measurements (microseconds).
+ * Get vector of recent latency measurements (microseconds; identical to E2E response time list).
  * Call with out_values=NULL to query count only.
  * @param out_values [out] Caller-allocated buffer, or NULL for size query.
  * @param inout_count [in/out] In: buffer capacity. Out: actual count.
  */
 DXRT_CAPI dxrt_status_t dxrt_engine_get_latency_list(
+    dxrt_engine_t engine, int* out_values, size_t* inout_count);
+
+/**
+ * Get vector of recent core latency measurements (microseconds).
+ * Call with out_values=NULL to query count only.
+ */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_core_latency_list(
+    dxrt_engine_t engine, int* out_values, size_t* inout_count);
+
+/**
+ * Get vector of recent E2E response time measurements (microseconds).
+ * Call with out_values=NULL to query count only.
+ */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_e2e_response_time_list(
     dxrt_engine_t engine, int* out_values, size_t* inout_count);
 
 /**

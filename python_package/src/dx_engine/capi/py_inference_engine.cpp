@@ -55,6 +55,7 @@ void translateException(const std::exception_ptr& p) {
             case DXRT_ERR_IO:
                 PyErr_SetString(PyExc_IOError, e.what()); break;
             case DXRT_ERR_DEVICE:
+            case DXRT_ERR_DEVICE_REMOVED:
                 PyErr_SetString(PyExc_IOError, e.what()); break;
             case DXRT_ERR_OUT_OF_MEMORY:
                 PyErr_SetString(PyExc_MemoryError, e.what()); break;
@@ -1175,14 +1176,24 @@ PYBIND11_MODULE(_pydxrt, m) {
         .def("get_output_size", &InferenceEngine::GetOutputSize)
         .def("get_output_tensor_sizes", &InferenceEngine::GetOutputTensorSizes)
         .def("get_latency", &InferenceEngine::GetLatency)
+        .def("get_core_latency", &InferenceEngine::GetCoreLatency)
+        .def("get_e2e_response_time", &InferenceEngine::GetE2EResponseTime)
         .def("get_npu_inference_time", &InferenceEngine::GetNpuInferenceTime)
         .def("get_latency_list", &InferenceEngine::GetLatencyVector)
+        .def("get_core_latency_list", &InferenceEngine::GetCoreLatencyVector)
+        .def("get_e2e_response_time_list", &InferenceEngine::GetE2EResponseTimeVector)
         .def("get_npu_inference_time_list", &InferenceEngine::GetNpuInferenceTimeVector)
         .def("get_latency_mean", &InferenceEngine::GetLatencyMean)
+        .def("get_core_latency_mean", &InferenceEngine::GetCoreLatencyMean)
+        .def("get_e2e_response_time_mean", &InferenceEngine::GetE2EResponseTimeMean)
         .def("get_npu_inference_time_mean", &InferenceEngine::GetNpuInferenceTimeMean)
         .def("get_latency_std", &InferenceEngine::GetLatencyStdDev)
+        .def("get_core_latency_std", &InferenceEngine::GetCoreLatencyStdDev)
+        .def("get_e2e_response_time_std", &InferenceEngine::GetE2EResponseTimeStdDev)
         .def("get_npu_inference_time_std", &InferenceEngine::GetNpuInferenceTimeStdDev)
         .def("get_latency_count", &InferenceEngine::GetLatencyCnt)
+        .def("get_core_latency_count", &InferenceEngine::GetCoreLatencyCnt)
+        .def("get_e2e_response_time_count", &InferenceEngine::GetE2EResponseTimeCnt)
         .def("get_npu_inference_time_count", &InferenceEngine::GetNpuInferenceTimeCnt)
         .def("get_bitmatch_mask", &InferenceEngine::GetBitmatchMask, py::arg("index") = 0)
         .def("get_num_tail_tasks", &InferenceEngine::GetNumTailTasks)

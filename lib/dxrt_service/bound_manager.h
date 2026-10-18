@@ -39,6 +39,10 @@ class BoundManager
     int  GetBoundCount(npu_bound_op boundOp);
     int  GetBoundTypeCount();
     bool CanAcceptBound(npu_bound_op boundOp);
+#ifdef _WIN32
+    // Re-registers every bound still in use, after the device was reopened with a fresh driver state.
+    int  RestoreBounds();
+#endif
 
  private:
     int  Process(dxrt_cmd_t cmd, void* data, uint32_t size = 0, uint32_t sub_cmd = 0) const;

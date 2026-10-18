@@ -29,10 +29,17 @@ This section describes the hardware and software requirements for running **DX-R
 - **Storage:** 4GB or higher available disk space
 - **OS**: Ubuntu 20.04 / 22.04 / 24.04 / 26.04 (x64)
           Debian 12 / Debian 13 (x64)
-- **Driver:** v2.5.0 or later
-- **PCIe Driver:** v2.4.0 or later
-- **Firmware:** v2.7.0 or later
-- **Hardware:** The system **must** support connection to an **M1 M.2** module with the **M.2 interface** on the host PC. 
+- **Driver:** v2.7.0 or later
+- **PCIe Driver:** v2.7.0 or later
+- **Firmware:** v2.7.6 or later
+- **Hardware:** A DEEPX NPU device (**DX-M1**, **DX-M1M**, or **DX-H1 Quattro**) connected to the host PC. The system **must** support one of the connection methods below.
+
+**Supported NPU Connection Methods**
+
+| Connection Method | Description |
+|-------------------|-------------|
+| M.2 Slot | Connection via M.2 interface |
+| PCIe Slot | Direct connection to PCIe slot |
 
 <div class="center-text">
 <p align="center">
@@ -263,7 +270,7 @@ The package contains precompiled shared libraries, headers, CLI tools, and the P
     | Ubuntu       | **20.04 LTS** (glibc 2.31) |
     | Debian       | **12 (bookworm)** (glibc 2.36) |
 
-    **Ubuntu 20.04 and older releases are not supported** — they ship glibc 2.27 with an older libstdc++ ABI and lack the `libgcc-s1` package (renamed from `libgcc1` starting Ubuntu 20.04). Attempting to install on these systems will fail with unmet dependency errors. Use the source-based build (`./build.sh`) if you must target older distributions.
+    **Releases older than Ubuntu 20.04 are not supported** — they ship glibc 2.27 with an older libstdc++ ABI and lack the `libgcc-s1` package (renamed from `libgcc1` starting Ubuntu 20.04). Attempting to install on these systems will fail with unmet dependency errors. Use the source-based build (`./build.sh`) if you must target older distributions.
 
 !!! note "NOTE"
     The source-based Debian package (`libdxrt_<version>_all.deb`) is **no longer distributed**. If you need to build from source, use `./build.sh` as described in the **Framework Build on Linux** section above.
@@ -959,8 +966,8 @@ For details on using **DX-RT** with Python, refer to **Section. Python Tutorials
 This chapter explains how to register and run the **DX-RT** background service (`dxrtd`) to enable multi-process inference. **DX-RT** uses a systemd-managed daemon to support concurrent access to the NPU by multiple applications.
 
 !!! note "NOTE"  
-    - **DX-RT** **must** be built with `USE_SERVICE=ON`. (default setting)  
-    - **DX-RT** **must** be registered and managed as a system service using `systemd`.  
+    - The service (`dxrtd`) is required for multi-process inference. It is enabled by default (`USE_SERVICE=ON`).  
+    - When the service is enabled, **DX-RT** **must** be registered and managed as a system service using `systemd`.  
 
 **Registering and Running the DX-RT Service**  
 

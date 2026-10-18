@@ -121,7 +121,7 @@ if (MSVC)
 
     # link windows lib
     link_libraries(
-        kernel32 user32 gdi32 winspool shell32 ole32 oleaut32 uuid comdlg32 advapi32
+        kernel32 user32 gdi32 winspool shell32 ole32 oleaut32 uuid comdlg32 advapi32 cfgmgr32
     )
 
     # link Visual C++ runtime lib

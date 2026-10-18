@@ -72,6 +72,8 @@ std::string Exception::codeStr() const noexcept {
             return "SERVICE_IO";
         case ERROR_CODE::DEVICE_IO:
             return "DEVICE_IO";
+        case ERROR_CODE::DEVICE_REMOVED:
+            return "DEVICE_REMOVED";
         default:
             return std::to_string(static_cast<int>(_errorCode));
     }
@@ -136,6 +138,12 @@ InsufficientMemoryException::InsufficientMemoryException(const std::string& msg)
 {
     setMessage("Insufficient memory exception {" + msg + "}");
     setCode(ERROR_CODE::INSUFFICIENT_MEMORY);
+}
+
+DeviceRemovedException::DeviceRemovedException(const std::string& msg)
+{
+    setMessage("Device removed exception {" + msg + "}");
+    setCode(ERROR_CODE::DEVICE_REMOVED);
 }
 
 

@@ -448,6 +448,33 @@ namespace dxrt
                 }
             }
         }
+
+        if (_jobTimingCount > 0)
+        {
+            const double count = static_cast<double>(_jobTimingCount);
+            const std::ios_base::fmtflags oldFlags = cout.flags();
+            const std::streamsize oldPrecision = cout.precision();
+            cout << std::fixed << std::setprecision(2);
+            cout << "E2E Response Time Average   : " << (_jobE2EResponseTimeSumUs / count)
+                 << " us (End-to-end time per request including data transfer and overheads)" << endl;
+            cout << "Latency Average             : " << (_jobLatencySumUs / count)
+                 << " us (Core latency per request excluding buffer pool and queue wait times)" << endl;
+            cout.flags(oldFlags);
+            cout.precision(oldPrecision);
+        }
+    }
+
+    void Profiler::AddJobTiming(int e2eResponseTimeUs, int latencyUs)
+    {
+        if (!_enabled)
+        {
+            return;  // @no_else: guard clause
+        }
+
+        std::unique_lock<std::mutex> lk(_lock);
+        _jobTimingCount++;
+        _jobE2EResponseTimeSumUs += static_cast<double>(e2eResponseTimeUs);
+        _jobLatencySumUs += static_cast<double>(latencyUs);
     }
 
     void Profiler::Save(const string &filename)
@@ -574,6 +601,9 @@ namespace dxrt
 
         std::unique_lock<std::mutex> lk(_lock);
         _deviceBuffers.clear();
+        _jobTimingCount = 0;
+        _jobE2EResponseTimeSumUs = 0.0;
+        _jobLatencySumUs = 0.0;
     }
 
     std::map<string, std::vector<int64_t>> Profiler::GetPerformanceData()

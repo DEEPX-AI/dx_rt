@@ -11,12 +11,21 @@
 
 #include <stdint.h>
 #include <cstdint>
+#ifdef _WIN32
+#include <functional>
+#endif
 
 #include "dxrt/common.h"
 #include "dxrt/driver.h"
 #include "dxrt/device_struct.h"
 
 namespace dxrt {
+
+#ifdef _WIN32
+enum class DeviceRemovalEvent { QueryRemove, RemoveCancelled, Removed };
+// Returning false for QueryRemove keeps the device (vetoes the removal).
+using DeviceRemovalHandler = std::function<bool(DeviceRemovalEvent event, uint32_t timeoutMs)>;
+#endif
 
 class DXRT_API DriverAdapter {
 

@@ -75,6 +75,7 @@ RequestPtr Request::Create(Task *task_, const Tensors &inputs_, const Tensors &o
     req->latency_valid() = true;
     req->latency() = 0;
     req->setQueueWaitTime(0);
+    req->setBufferPoolWaitTime(0);
     req->setDispatchTimestampNs(0);
     req->inference_time() = 0;
     req->_requestorName = "";
@@ -107,6 +108,7 @@ RequestPtr Request::Create(Task *task_, void *input, void *output, void *userArg
     req->latency_valid() = true;
     req->latency() = 0;
     req->setQueueWaitTime(0);
+    req->setBufferPoolWaitTime(0);
     req->setDispatchTimestampNs(0);
     req->inference_time() = 0;
     req->_requestorName = "";
@@ -523,6 +525,7 @@ RequestPtr Request::CreateValidateRequest(Task* task_, void* input, void* output
     req->latency_valid() = true;
     req->latency() = 0;
     req->setQueueWaitTime(0);
+    req->setBufferPoolWaitTime(0);
     req->setDispatchTimestampNs(0);
     req->inference_time() = 0;
     req->_requestorName = "";

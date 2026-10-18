@@ -95,6 +95,8 @@ class DXRT_API Request // NOSONAR
     int &latency();
     int64_t queueWaitTime() const { return _queueWaitTime; }
     void setQueueWaitTime(int64_t us) { _queueWaitTime = us; }
+    int64_t bufferPoolWaitTime() const { return _bufferPoolWaitTime; }
+    void setBufferPoolWaitTime(int64_t us) { _bufferPoolWaitTime = us; }
     void setDispatchTimestampNs(uint64_t ns) { _dispatchTimestampNs = ns; }
     uint64_t dispatchTimestampNs() const { return _dispatchTimestampNs; }
     bool &latency_valid();
@@ -138,6 +140,7 @@ class DXRT_API Request // NOSONAR
     std::shared_ptr<TimePoint> _timePoint;
     int _latency;
     int64_t _queueWaitTime = 0;
+    int64_t _bufferPoolWaitTime = 0;
     uint64_t _dispatchTimestampNs = 0;
     bool _latencyValid;
     bool _validateDevice = false;

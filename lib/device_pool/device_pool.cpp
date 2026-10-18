@@ -119,6 +119,12 @@ void DevicePool::InitTaskLayers_once()
 
         layer->RegisterCallback(std::bind(&DevicePool::AwakeDevice, this, core->id()));
         std::weak_ptr<DeviceTaskLayer> weakLayer = layer;
+#ifdef _WIN32
+        core->SetRemovalHandler([weakLayer](DeviceRemovalEvent event, uint32_t timeoutMs) {
+            std::shared_ptr<DeviceTaskLayer> lockedLayer = weakLayer.lock();
+            return lockedLayer ? lockedLayer->HandleDeviceRemoval(event, timeoutMs) : true;
+        });
+#endif
         _serviceLayer->RegisterInferenceResponseHandler(
             core->id(),
             [weakLayer](const dxrt_response_t &response) {
@@ -176,6 +182,10 @@ int DevicePool::pickDeviceIndex(const std::vector<int> &device_ids)
 
     // Round-robin starting index (don't increment here to avoid side effect in predicate)
     int startIdx = _curDevIdx % device_id_size;
+#ifdef _WIN32
+    bool anyRemoved = false;
+    bool anyRemovalPending = false;
+#endif
 
     for (int i = 0; i < device_id_size; i++)
     {
@@ -185,6 +195,10 @@ int DevicePool::pickDeviceIndex(const std::vector<int> &device_ids)
         if (_taskLayers[device_id]->isBlocked())
         {
             block_count++;
+#ifdef _WIN32
+            anyRemoved = anyRemoved || _taskLayers[device_id]->isRemoved();
+            anyRemovalPending = anyRemovalPending || _taskLayers[device_id]->isRemovalPending();
+#endif
             LOG_DXRT_DBG << "Device " << device_id << " is blocked" << std::endl;
             continue;
         }
@@ -206,6 +220,16 @@ int DevicePool::pickDeviceIndex(const std::vector<int> &device_ids)
 
     if (block_count >= device_id_size)
     {
+#ifdef _WIN32
+        if (anyRemovalPending)
+        {
+            return -1;  // woken again once the removal is accepted or cancelled
+        }
+        if (anyRemoved)
+        {
+            throw DeviceRemovedException(EXCEPTION_MESSAGE("no usable device; the device was removed or disabled"));
+        }
+#endif
         throw DeviceIOException(EXCEPTION_MESSAGE(LogMessages::AllDeviceBlocked()));
     }
 

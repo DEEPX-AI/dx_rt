@@ -1,4 +1,4 @@
-This section offers Python tutorials demonstrating inference, configuration, and multi-input handling using the DXRT SDK. These examples are ideal for quick prototyping and integration into Python-based AI workflows.
+This section offers Python tutorials demonstrating inference, configuration, and multi-input handling using the DX-RT SDK. These examples are ideal for quick prototyping and integration into Python-based AI workflows.
 
 ---
 
@@ -315,7 +315,10 @@ if __name__ == "__main__":
         output_buffers = []
         index = 0
         for b in range(batch_count):
-            input_buffers.append([np.array([np.random.randint(0, 255)], dtype=np.uint8)])
+            # same input preparation as examples/python/run_batch_model.py
+            input_buffer = np.empty(ie.get_input_size(), dtype=np.uint8)
+            input_buffer.fill(0)
+            input_buffers.append([input_buffer])
             output_buffers.append([np.zeros(ie.get_output_size(), dtype=np.uint8)])
             index = index + 1
 
@@ -425,7 +428,7 @@ logger.info('Device driver version: ' + config.get_driver_version())
 ```
 
   - **`Configuration()`**: Creates an object to manage engine settings.
-  - **`config.set_enable(...)`**: Turns specific engine features on or off. In this case, it enables printing model information and performance profiles upon loading.
+  - **`config.set_enable(...)`**: Turns specific engine features on or off. In this case, `SHOW_MODEL_INFO` prints model information when the `InferenceEngine` is created, and `SHOW_PROFILE` prints the CPU task profile summary (average input queue load) when the engine's CPU worker threads stop.
   - **`config.get_version()`**: Fetches read-only information, such as software and driver versions.
 
 
@@ -466,7 +469,7 @@ for i in range(device_count):
 
 ### Profiler Configuration
 
-This guide provides a simple, code-focused manual on how to configure the profiler using the DXRT Python wrapper. The profiler is a powerful tool for analyzing the performance of each layer within your model.  
+This guide provides a simple, code-focused manual on how to configure the profiler using the DX-RT Python wrapper. The profiler is a powerful tool for analyzing per-job inference timing and user-defined events.  
 
 Configuration is managed through an instance of the `Configuration` class.  
 
@@ -483,7 +486,7 @@ config.set_enable(Configuration.ITEM.PROFILER, True)
 ```
 
   - **`config = Configuration()`**: Creates the object that controls system-wide settings for the runtime.
-  - **`set_enable()`**: This method activates or deactivates a specific DXRT feature.
+  - **`set_enable()`**: This method activates or deactivates a specific DX-RT feature.
   - **`Configuration.ITEM.PROFILER`**: Specifies that the target feature is the profiler.
   - **`True`**: Enables the profiler. Set to `False` to disable it.
 
@@ -501,7 +504,7 @@ config.set_attribute(Configuration.ITEM.PROFILER,
                      Configuration.ATTRIBUTE.PROFILER_SHOW_DATA, "ON")
 ```
 
-  - **`set_attribute()`**: Sets a specific property for a DXRT feature.
+  - **`set_attribute()`**: Sets a specific property for a DX-RT feature.
   - **`PROFILER_SHOW_DATA`**: The attribute to control console output.
   - **`"ON"`**: A string value to enable this attribute. Use `"OFF"` to disable it.
 
@@ -542,6 +545,47 @@ if __name__ == "__main__":
     with InferenceEngine(modelPath) as ie:
         # ... register callback and run inference loop ...
 ```
+
+#### Reading Per-Job Metrics
+
+In addition to the console and file reports, you can read the timing breakdown of an individual inference job through the `Profiler` singleton. Call `get_job_metrics()` with the job ID returned by `run_async()` after the job has completed.
+
+```python
+from dx_engine import Configuration, InferenceEngine, Profiler
+
+config = Configuration()
+config.set_enable(Configuration.ITEM.PROFILER, True)
+
+profiler = Profiler.get_instance()
+
+with InferenceEngine(modelPath) as ie:
+    job_id = ie.run_async([input_data])
+    outputs = ie.wait(job_id)
+
+    jm = profiler.get_job_metrics(job_id)
+    if jm.valid:
+        # NPU task metrics (per device)
+        npu = jm.get_task("npu_0")
+        if npu.valid:
+            dev = npu.devices[0]                     # device 0 metrics
+            print(f"H2D        : {dev.h2d_us:.1f} us")
+            print(f"NPU compute: {dev.inference_core_all_us:.1f} us")
+            print(f"D2H        : {dev.d2h_us:.1f} us")
+            print(f"Total      : {dev.total_us:.1f} us")
+
+        # CPU task metrics
+        cpu = jm.get_task("cpu_0")
+        if cpu.valid:
+            print(f"CPU task   : {cpu.cpu_task_us:.1f} us")
+```
+
+  - **`Profiler.get_instance()`**: Returns the singleton profiler instance.
+  - **`get_job_metrics(job_id)`**: Returns a `JobMetrics` object for the job. `valid` is `False` if the job ID is not found.
+  - **`get_task(name)`**: Looks up one task by name. NPU tasks are named `npu_0`, `npu_1`, and so on; CPU tasks are named `cpu_0`, `cpu_1`, and so on. The returned object has `valid=False` when the task does not exist.
+  - **`devices`**: A `dict` mapping device ID to `NpuDeviceMetrics`. Available for NPU tasks only.
+
+!!! note "NOTE"
+    The profiler must be enabled before the `InferenceEngine` is created. Timing data is recorded only while the profiler is enabled, so `get_job_metrics()` returns an object with `valid=False` otherwise. For the full list of metric fields, see *Python API Reference*.
 
 ---
 
@@ -784,6 +828,9 @@ The DX-RT SDK provides comprehensive Python examples in the `examples/python/` d
 - **`run_async_model_conf.py`**  
   Comprehensive example of using `dx_engine.Configuration` to set runtime parameters, monitor device status, and control logging behavior.
 
+- **`device_monitoring.py`**  
+  Demonstrates the `DeviceStatus` API to query device status, core utilization and memory. Optionally runs inference while a background thread polls the device (`--no-inference` queries the status only).
+
 #### Memory Management Examples
 
 - **`run_sync_model_memory.py`**  
@@ -793,6 +840,9 @@ The DX-RT SDK provides comprehensive Python examples in the `examples/python/` d
 
 - **`run_async_model_profiler.py`**  
   Demonstrates how to enable and use the DX-RT profiler to collect detailed timing information for performance analysis and bottleneck identification.
+
+- **`run_benchmark_model.py`**  
+  Measures model performance in benchmark mode over a number of loops, with optional warmup runs.
 
 #### Multi-Input Model Examples
 
@@ -823,15 +873,15 @@ python examples/python/run_async_model_profiler.py -m /path/to/model.dxnn -l 500
 **Common Command-Line Options:**
 - `-m, --model`: Path to the model file (.dxnn) - **required**
 - `-l, --loops`: Number of inference iterations (default: 1)
-- `-b, --batch`: Batch count for batch inference (default: 1)
+- `-b, --batch`: Batch count for batch inference (default: 1). Available in `run_batch_model.py` only; in `run_async_model_callback.py`, `-b` is `--benchmark`.
 - `-v, --verbose`: Enable verbose/debug logging
 - `-h, --help`: Display usage information
 
 **Prerequisites:**
 
-Ensure the DX-RT Python package is installed:
+Ensure the DX-RT Python package (`dx_engine`) is installed. See the *Installation on Linux* or *Installation on Windows* chapter for the procedure (for example, the bundled wheel on Linux), then verify the installation:
 ```bash
-pip install dx_engine
+python -c "import dx_engine; print(dx_engine.__version__)"
 ```
 
 ---
