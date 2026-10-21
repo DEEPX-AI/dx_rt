@@ -52,7 +52,7 @@ This tool executes a compiled model to verify basic functionality, measure infer
 
 By default, `dxrun` measures performance in a **fixed buffer-count environment**: the I/O buffer count stays at a single value (the default `6`, or whatever is given to `--buffer-count <N>`) for the whole run, so the reported FPS/latency reflects only that one configuration.
 
-To find the **maximum throughput** across different buffer counts, use `--max-throughput`. In this mode `dxrun` sweeps buffer counts upward (default range `3-100`, or the range given to `--buffer-count <low>-<high>`), measures each candidate for `--probe-time` seconds, and recommends the smallest buffer count whose FPS is within `--sweep-tolerance` of the peak. Add `-l` or `-t` to benchmark at the recommended buffer count after the sweep.
+To find the **maximum throughput** across different buffer counts, use `--max-throughput`. In this mode `dxrun` sweeps buffer counts upward (default range `3-100`, or the range given to `--buffer-count <low>-<high>`), measures each candidate for `--probe-time` seconds (after waiting for the NPU to cool below `--cool-down-temp`), and recommends the smallest buffer count whose FPS is within `--sweep-tolerance` of the peak. Add `-l` or `-t` to benchmark at the recommended buffer count after the sweep.
 
 **Source**  
 ```
@@ -62,7 +62,7 @@ cli/dxrun.cpp
 **Usage**  
 ```
 dxrun -m <model.dxnn> [-l <number of loops>] [-t <seconds>] [-d <devices>] [--use-ort] [--profiler] [--buffer-count <N>]
-dxrun -m <model.dxnn> --max-throughput [--buffer-count <low>-<high>] [--probe-time <seconds>] [--sweep-tolerance <percent>] [-l <number of loops> | -t <seconds>]
+dxrun -m <model.dxnn> --max-throughput [--buffer-count <low>-<high>] [--probe-time <seconds>] [--sweep-tolerance <percent>] [--cool-down-temp <celsius>] [-l <number of loops> | -t <seconds>]
 ```
 
 **Option**  
@@ -123,6 +123,10 @@ dxrun -m <model.dxnn> --max-throughput [--buffer-count <low>-<high>] [--probe-ti
                              gains do not extend the sweep, and the smallest
                              buffer count within this of the peak is
                              recommended (default: 1.0)
+      --cool-down-temp arg   Before each max-throughput measurement, wait
+                             until the NPU temperature ('C) drops below
+                             this value; the sweep fails if it does not
+                             within 300 seconds (default: 45)
   -h, --help                 Print usage
 ```
 
@@ -168,6 +172,12 @@ dxrun -m model.dxnn --max-throughput --buffer-count 3-16 --probe-time 3
 ```
 With an explicit range, early stopping is disabled and every buffer count from 3 to 16 is measured.
 
+Wait for the NPU to cool down before each measurement:
+```
+dxrun -m model.dxnn --max-throughput --cool-down-temp 50
+```
+Before every measurement, `dxrun` reads the highest temperature across all NPU devices and channels once per second and waits until it drops below `--cool-down-temp` (default `45`'C), so thermal throttling from a previous round does not skew the result. Each wait is logged as `[INFO] NPU temperature ...`. If the temperature does not drop below the target within 300 seconds, the sweep is invalidated, no buffer count is recommended, and `dxrun` exits with an error.
+
 Benchmark at the recommended buffer count after the sweep:
 ```
 dxrun -m model.dxnn --max-throughput -t 30
@@ -178,7 +188,8 @@ Without `-l` or `-t`, `dxrun` only reports the recommendation and does not run a
     `--buffer-count` takes either a single value (e.g. `6`) or a range (e.g. `3-16`). A range is only
     valid together with `--max-throughput`; combining `--max-throughput` with a single value, or using
     a range without `--max-throughput`, is rejected with an error. `--max-throughput` cannot be
-    combined with `--single` or `--fps`.
+    combined with `--single` or `--fps`. `--cool-down-temp` is only valid together with
+    `--max-throughput`.
 
 !!! warning "WARNING"
     If a critical runtime event occurs during the sweep, no buffer count is recommended and `dxrun`
@@ -226,6 +237,8 @@ By default, `dxrun` prints only the FPS. With `-v`, it also prints the timing me
 | `--max-throughput` is used with `--single` or `--fps` | `[ERR] --max-throughput cannot be combined with --single or --fps.` |
 | `--probe-time` is less than 0.1 (with `--max-throughput`) | `[ERR] --probe-time must be >= 0.1 (seconds).` |
 | `--sweep-tolerance` is outside 0 to less than 100 (with `--max-throughput`) | `[ERR] --sweep-tolerance must be >= 0 and < 100 (%).` |
+| `--cool-down-temp` is used without `--max-throughput` | `[ERR] --cool-down-temp is only valid together with --max-throughput.` |
+| `--cool-down-temp` is outside 1-125 (with `--max-throughput`) | `[ERR] --cool-down-temp must be > 0 and <= 125 ('C).` |
 
 **Exit Codes**
 

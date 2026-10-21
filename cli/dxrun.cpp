@@ -47,6 +47,9 @@ static constexpr double kMtDefaultRoundSec  = 2.0;                // measurement
 static constexpr int    kMtDefaultRepeatCount = 3;                // measurements averaged per buffer count
 static constexpr int    kMtDefaultPatience  = 2;                  // consecutive below-peak rounds before stop
 static constexpr int    kMtDefaultStall     = 3;                  // consecutive rounds without a new peak before stop
+static constexpr int    kMtDefaultCoolDownTemp = 45;              // wait until NPU temperature is below this ('C) before each measurement
+static constexpr int    kMtMaxCoolDownTemp  = 125;                // upper bound accepted for --cool-down-temp ('C)
+static constexpr int    kMtCoolDownTimeoutSec = 300;              // give up (and fail the sweep) if not cooled within this
 
 // Local file-I/O helpers (replace internal filesys_support)
 static int64_t localGetFileSize(const std::string& filename) {
@@ -323,7 +326,6 @@ void PrintInfResult(const std::string& inputFile, const std::string& outputFile,
     }
     std::cout << std::string(maxLength, '=') << std::endl;
 }
-
 
 class PeriodicReporter
 {
@@ -687,6 +689,7 @@ struct MaxThroughputOption
     int patience = kMtDefaultPatience;
     int stall = kMtDefaultStall;
     double tolerance_pct = kMtDefaultTolerance;
+    int cool_down_temp = kMtDefaultCoolDownTemp;
     bool stop_on_peak = true;
 };
 
@@ -782,6 +785,52 @@ struct MaxThroughputTracker
     }
 };
 
+// Highest temperature across all devices and NPU channels; a failed read counts as 0.
+static int GetMaxNpuTemperature()
+{
+    static constexpr int kNpuChannelCount = 3;  // dxrt_device_get_temperature supports channels 0-2
+
+    int max_temp = 0;
+    const int device_count = dxrt::DeviceStatus::GetDeviceCount();
+    for (int dev = 0; dev < device_count; ++dev)
+    {
+        auto status = dxrt::DeviceStatus::GetCurrentStatus(dev);
+        for (int ch = 0; ch < kNpuChannelCount; ++ch)
+            max_temp = (std::max)(max_temp, status.Temperature(ch));
+    }
+    return max_temp;
+}
+
+// Returns false if the NPU is still at or above the target after kMtCoolDownTimeoutSec seconds.
+static bool WaitForTemperatureDown(int targetTemperature)
+{
+    int current = GetMaxNpuTemperature();
+    if (current < targetTemperature)
+    {
+        std::cout << "[INFO] NPU temperature " << current << "'C < " << targetTemperature
+                  << "'C, no cool-down needed." << std::endl;
+        return true;
+    }
+
+    for (int waited = 1; waited <= kMtCoolDownTimeoutSec; ++waited)
+    {
+        std::cout << "[INFO] NPU temperature " << current << "'C >= " << targetTemperature
+                  << "'C, waiting to cool down... (" << waited << "/" << kMtCoolDownTimeoutSec
+                  << "s)" << std::endl;
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        current = GetMaxNpuTemperature();
+        if (current < targetTemperature)
+        {
+            std::cout << "[INFO] Cool-down complete: NPU temperature " << current << "'C < "
+                      << targetTemperature << "'C." << std::endl;
+            return true;
+        }
+    }
+    std::cerr << "[ERR] NPU temperature " << current << "'C did not drop below " << targetTemperature
+              << "'C within " << kMtCoolDownTimeoutSec << "s." << std::endl;
+    return false;
+}
+
 // Sweep buffer counts to find the count that maximizes throughput.
 // Each repeat builds and releases a dedicated InferenceEngine for the buffer count
 // under test. Each round records the arithmetic mean FPS across all repeats.
@@ -841,6 +890,15 @@ static int runMaxThroughput(const std::string& modelFile, const dxrt::InferenceO
 
             int64_t repeat_loops = 0;
             float repeat_fps = 0.0f;
+            if (!WaitForTemperatureDown(mtOption.cool_down_temp))
+            {
+                stop_reason = "NPU did not cool below " + std::to_string(mtOption.cool_down_temp)
+                    + "'C within " + std::to_string(kMtCoolDownTimeoutSec) + "s before buffer-count "
+                    + std::to_string(current) + " repeat " + std::to_string(repeat + 1);
+                sweep_invalid = true;
+                round_failed = true;
+                break;
+            }
             try
             {
                 repeat_fps = runBenchmarkByTime(repeat_loops, *round_ie, inputBuffer, mtOption.round_sec);
@@ -1018,6 +1076,7 @@ int main(int argc, char *argv[])
     bool max_throughput = false;
     double probe_time = kMtDefaultRoundSec;
     double sweep_tolerance = kMtDefaultTolerance;
+    int cool_down_temp = kMtDefaultCoolDownTemp;
     bool profiler_enable = false;
     bool throttling_info = false;
 #ifdef DXRT_NFH_ACCELERATION_AVAILABLE
@@ -1086,6 +1145,11 @@ int main(int argc, char *argv[])
             "the sweep, and the smallest buffer count within this of the peak "
             "is recommended",
             cxxopts::value<double>(sweep_tolerance)->default_value(float_to_string_fixed(static_cast<float>(kMtDefaultTolerance), 1)))
+        ("cool-down-temp",
+            "Before each max-throughput measurement, wait until the NPU "
+            "temperature ('C) drops below this value; the sweep fails if it "
+            "does not within " + std::to_string(kMtCoolDownTimeoutSec) + " seconds",
+            cxxopts::value<int>(cool_down_temp)->default_value(std::to_string(kMtDefaultCoolDownTemp)))
         ("h, help", "Print usage" );
 
     options.add_options("internal")
@@ -1188,6 +1252,12 @@ int main(int argc, char *argv[])
         loops_explicit = cmd.count("loops") > 0;
         duration_explicit = cmd.count("time") > 0;
 
+        if ( cmd.count("cool-down-temp") && !max_throughput )
+        {
+            std::cerr << "[ERR] --cool-down-temp is only valid together with --max-throughput." << std::endl;
+            exit(1);
+        }
+
         if ( loops < 1 )
         {
             std::cerr << "[ERR] --loops must be >= 1." << std::endl;
@@ -1224,6 +1294,11 @@ int main(int argc, char *argv[])
             std::cerr << "[ERR] --sweep-tolerance must be >= 0 and < 100 (%)." << std::endl;
             exit(1);
         }
+        if ( cool_down_temp <= 0 || cool_down_temp > kMtMaxCoolDownTemp )
+        {
+            std::cerr << "[ERR] --cool-down-temp must be > 0 and <= " << kMtMaxCoolDownTemp << " ('C)." << std::endl;
+            exit(1);
+        }
         // Guaranteed a range here: parsing either validated an explicit one or filled in the default.
         int sweep_start = buffer_count_range_lo;
         int sweep_cap   = buffer_count_range_hi;
@@ -1235,6 +1310,7 @@ int main(int argc, char *argv[])
         mt_option.patience = kMtDefaultPatience;
         mt_option.stall = kMtDefaultStall;
         mt_option.tolerance_pct = sweep_tolerance;
+        mt_option.cool_down_temp = cool_down_temp;
         mt_option.stop_on_peak = !buffer_count_range_explicit;
         buffer_count = sweep_start;  // probe engine starts at the sweep start count
     }
@@ -1492,7 +1568,8 @@ int main(int argc, char *argv[])
                       << " cap=" << mt_option.cap << " round-time=" << mt_option.round_sec << "s"
                       << " peak-drop-threshold=" << mt_option.threshold_pct << "% (patience "
                       << mt_option.patience << ", stall " << mt_option.stall << ")"
-                      << " tolerance=" << mt_option.tolerance_pct << "%" << std::endl;
+                      << " tolerance=" << mt_option.tolerance_pct << "%"
+                      << " cool-down-temp=" << mt_option.cool_down_temp << "'C" << std::endl;
         }
         else if ( duration > 0 && mode != SINGLE_MODE)
         {
