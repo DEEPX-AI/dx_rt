@@ -130,7 +130,16 @@ void InferenceJob::onRequestComplete(RequestPtr req)
             if (checkAndSetTaskReady(nextTaskPtr))
             {
                 LOG_DBG("[Job_" + std::to_string(_jobId) + "] Task '" + nextTaskPtr->name() + "' is ready. Starting...");
-                processReadyTask(nextTaskPtr);
+                try
+                {
+                    processReadyTask(nextTaskPtr);
+                }
+                catch (...)
+                {
+                    LOG_DXRT_ERR("[Job_" + std::to_string(_jobId) + "] Failed to start task '" + nextTaskPtr->name() + "'");
+                    std::unique_lock<std::mutex> lk(_lock);
+                    all_request_complete = failTaskLocked(nextTaskPtr->name(), std::current_exception()) || all_request_complete;
+                }
             }
             else
             {
@@ -148,6 +157,43 @@ void InferenceJob::onRequestComplete(RequestPtr req)
     }
 }
 
+void InferenceJob::onRequestFailed(RequestPtr req, std::exception_ptr error)
+{
+    bool all_request_complete = false;
+    {
+        std::unique_lock<std::mutex> lk(_lock);
+        all_request_complete = failTaskLocked(req->task()->name(), error);
+    }
+    if (all_request_complete)
+    {
+        onAllRequestComplete();
+    }
+}
+
+bool InferenceJob::failTaskLocked(const std::string& taskName, std::exception_ptr error)
+{
+    if (!_error)
+    {
+        _error = error;
+    }
+    LOG_DXRT_ERR("[Job_" + std::to_string(_jobId) + "] Task '" + taskName + "' failed; tasks not yet started are skipped");
+
+    // Tasks still running (TASK_BUSY) complete on their own and are counted then.
+    for (auto& entry : _taskStatusMap)
+    {
+        if (entry.second == Status::TASK_DONE)
+        {
+            continue;
+        }
+        if (entry.first == taskName || entry.second == Status::TASK_IDLE || entry.second == Status::TASK_READY)
+        {
+            entry.second = Status::TASK_DONE;
+            _doneCount++;
+        }
+    }
+    return _doneCount.load() == _outputCount.load();
+}
+
 InferenceJob::InferenceJob(int id) noexcept
 : _jobId(id)
 {
@@ -156,6 +202,40 @@ InferenceJob::InferenceJob(int id) noexcept
 void InferenceJob::onAllRequestComplete()
 {
     LOG_DXRT_DBG << "onAllRequestComplete(job=" << _jobId << ")" << std::endl;
+
+    bool failed = false;
+    {
+        std::unique_lock<std::mutex> lk(_lock);
+        failed = (_error != nullptr);
+    }
+    if (failed)
+    {
+        // Callers count callbacks per job, so failed jobs still call back, with no outputs.
+        try
+        {
+            TensorPtrs noOutputs;
+            if (_inferenceEnginePtr != nullptr)
+            {
+                _inferenceEnginePtr->onInferenceComplete(noOutputs, _userArg, _jobId);
+            }
+            if (_infEngCallback != nullptr)
+            {
+                _infEngCallback(noOutputs, _userArg, _jobId);
+            }
+        } catch (dxrt::Exception& e) {
+            e.printTrace();
+            LOG_DXRT << "callback error " << endl;
+        } catch (std::exception& e) {
+            LOG_DXRT << e.what() << " std callback error " << endl;
+        } catch (...) {  // NOSONAR:S2738
+            LOG_DXRT << "callback error unknown " << endl;
+        }
+        ReleaseAllOutputBuffer();
+        setStatus(Request::Status::REQ_DONE);
+        SetOccupiedJob(false);
+        TASK_FLOW("["+to_string(_jobId)+"] FAILED");
+        return;
+    }
 
     // Latency is measured across the entire job lifetime, from the first
     // start call to completion of all requests. This intentionally replaces
@@ -412,6 +492,15 @@ int InferenceJob::startJob(void *inputPtr, void *userArg, void *outputPtr)
     req->SetStatus(Request::Status::REQ_BUSY);
     req->setInferenceJob(this);  // on each request complete, do next request or complete whole inference
     _requests.push_back(req);
+    {
+        // A failure elsewhere in the job must not count the running head task as skipped.
+        std::unique_lock<std::mutex> lk(_lock);
+        auto itHead = _taskStatusMap.find(head_task->name());
+        if (itHead != _taskStatusMap.end())
+        {
+            itHead->second = Status::TASK_BUSY;
+        }
+    }
 
     if (_outputPtr != nullptr)
     {
@@ -632,6 +721,12 @@ TensorPtrs InferenceJob::getOutput()
     return std::move(_returnOutputs);
 }
 
+std::exception_ptr InferenceJob::error()
+{
+    std::unique_lock<std::mutex> lk(_lock);
+    return _error;
+}
+
 void InferenceJob::SetStoreResult(bool storeResult)
 {
     _storeResult = storeResult;
@@ -714,6 +809,7 @@ void InferenceJob::Clear()
     _infEngCallback = nullptr;
     _outputPtr = nullptr;
     _storeResult = false;
+    _error = nullptr;
 
 #ifdef USE_VNPU
     _userInputReleaseCallback = nullptr;
@@ -896,8 +992,15 @@ Request::Status InferenceJob::getStatus() const
 
 void InferenceJob::Wait()
 {
-    std::unique_lock<std::mutex> lock(_waitMutex);
-    _waitCV.wait(lock, [this]{ return _status.load() != Request::Status::REQ_BUSY; });
+    {
+        std::unique_lock<std::mutex> lock(_waitMutex);
+        _waitCV.wait(lock, [this]{ return _status.load() != Request::Status::REQ_BUSY; });
+    }
+    std::exception_ptr failure = error();
+    if (failure)
+    {
+        std::rethrow_exception(failure);
+    }
 }
 
 bool InferenceJob::checkAndSetTaskReady(TaskPtr taskPtr)
@@ -962,9 +1065,14 @@ void InferenceJob::processReadyTask(TaskPtr nextTaskPtr)
         return;
     }
 
-    if (it->second != Status::TASK_READY)
     {
-        return;
+        // Claim the task under _lock so a concurrent job failure cannot also count it as skipped.
+        std::unique_lock<std::mutex> lk(_lock);
+        if (it->second != Status::TASK_READY)
+        {
+            return;
+        }
+        it->second = Status::TASK_BUSY;
     }
 
     LOG_DBG("[Job_" + std::to_string(_jobId) + "] Processing ready task '" + nextTaskPtr->name() + "' (" +
@@ -1018,6 +1126,7 @@ void InferenceJob::processReadyTask(TaskPtr nextTaskPtr)
         {
             LOG_DXRT_ERR("[Job_" + std::to_string(_jobId) + "] Aborting scheduling of task '" + nextTaskPtr->name() + "' due to invalid input tensor pointers");
             // Revert status to IDLE so that if tensors become available later it can retry.
+            std::unique_lock<std::mutex> lk(_lock);
             it->second = Status::TASK_IDLE;
             return; // Do not create Request
         }
@@ -1027,7 +1136,6 @@ void InferenceJob::processReadyTask(TaskPtr nextTaskPtr)
     req->SetStatus(Request::Status::REQ_BUSY);
     req->requestor_name() = nextTaskPtr->name();
     _requests.push_back(req);
-    it->second = Status::TASK_BUSY;
 
     LOG_DBG("[Job_" + std::to_string(_jobId) + "] Task '" + nextTaskPtr->name() + "' scheduled for execution (request ID: " + std::to_string(req->id()) + ")");
     RequestResponse::InferenceRequest(req);

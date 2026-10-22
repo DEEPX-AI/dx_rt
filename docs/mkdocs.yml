@@ -8,11 +8,8 @@ theme:
   language: en
   font:
     text: Noto Sans Display
-    #text: Noto Serif
-    #code: Noto Sans
     code: Roboto Mono
   logo: img/deepx.png
-  #favicon: img/favicon.png
   palette:
     # Palette toggle for light mode
     - scheme: default
@@ -57,12 +54,11 @@ plugins:
       author: DEEPX.ai
       copyright: ⓒ Copyright 2026 DEEPX All Rights Reserved.
       cover_title: DXNN Runtime (DX-RT) User Manual
-      cover_subtitle: 2026/10/16 (v3.5.0)
+      cover_subtitle: 2026/10/23 (v3.5.0)
       cover_logo: img/deepx.png
       custom_template_path: source/stylesheets
       output_path: ../DEEPX_DX-RT_UM_v3.5.0_OCT_2026.pdf
 extra:
-  homepage: https://developer.deepx.ai
   generator: false
   social:
      - icon: fontawesome/brands/linkedin

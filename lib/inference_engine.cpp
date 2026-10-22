@@ -666,6 +666,7 @@ std::vector<TensorPtrs> InferenceEngine::Run(
 
     // create outputs data
     std::vector<TensorPtrs> result(batch_count);
+    std::exception_ptr jobError;
 
     try
     {
@@ -675,18 +676,18 @@ std::vector<TensorPtrs> InferenceEngine::Run(
 
         if ( sub_batch_loop > 0 )
         {
-            for (int i = 0; i < sub_batch_loop; ++i)
+            for (int i = 0; i < sub_batch_loop && !jobError; ++i)
             {
-                runSubBatch(result, SUB_BATCH_MAX_COUNT, start_index,
+                jobError = runSubBatch(result, SUB_BATCH_MAX_COUNT, start_index,
                     inputBuffers, outputBuffers, userArgs);
 
                 start_index += SUB_BATCH_MAX_COUNT;
             }  // for i
         }
 
-        if ( sub_batch_remain > 0 )
+        if ( sub_batch_remain > 0 && !jobError )
         {
-            runSubBatch(result, sub_batch_remain, start_index,
+            jobError = runSubBatch(result, sub_batch_remain, start_index,
                 inputBuffers, outputBuffers, userArgs);
         }
 
@@ -700,10 +701,14 @@ std::vector<TensorPtrs> InferenceEngine::Run(
         LOG_DXRT_ERR(e.what());
     }
 
+    if (jobError)
+    {
+        std::rethrow_exception(jobError);
+    }
     return result;
 }
 
-void InferenceEngine::runSubBatch(std::vector<TensorPtrs>& result, int batchCount, int startIndex,
+std::exception_ptr InferenceEngine::runSubBatch(std::vector<TensorPtrs>& result, int batchCount, int startIndex,
         const std::vector<void*>& inputBuffers,
         const std::vector<void*>& outputBuffers,
         const std::vector<void*>& userArgs
@@ -713,9 +718,9 @@ void InferenceEngine::runSubBatch(std::vector<TensorPtrs>& result, int batchCoun
     std::atomic<int> complete_count{0};
     std::mutex mtx_cv;  // mutex lock
     std::condition_variable cv_complete;  // complete condition variable
-    bool is_completed = false;
+    std::exception_ptr firstJobError;  // guarded by mtx_cv
 
-    auto batch_callback = [this, &complete_count, &cv_complete, &result, batchCount, &is_completed](const TensorPtrs &outputs, void *userArg, int jobId) -> int
+    auto batch_callback = [this, &complete_count, &cv_complete, &result, &mtx_cv, &firstJobError](const TensorPtrs &outputs, void *userArg, int jobId) -> int
     {
         std::ignore = userArg;
 
@@ -723,6 +728,16 @@ void InferenceEngine::runSubBatch(std::vector<TensorPtrs>& result, int batchCoun
         if (infJob == nullptr)
         {
             throw dxrt::InvalidOperationException(EXCEPTION_MESSAGE("InferenceJob not found for jobId"));
+        }
+
+        std::exception_ptr jobError = infJob->error();
+        if (jobError)
+        {
+            std::lock_guard<std::mutex> lock(mtx_cv);
+            if (!firstJobError)
+            {
+                firstJobError = jobError;
+            }
         }
 
         int batch_index = -1;
@@ -746,16 +761,17 @@ void InferenceEngine::runSubBatch(std::vector<TensorPtrs>& result, int batchCoun
             LOG_DXRT_ERR(LogMessages::InferenceEngine_BatchFailToAllocateOutputBuffer() << e.what());
         }
 
-        complete_count++;
-        LOG_DXRT_DBG << "runAsync complete-count=" << complete_count.load() << std::endl;
-        if (complete_count.load() == batchCount && is_completed)
         {
+            // Notify under the lock: once the waiter sees the last count it returns and this frame is gone.
+            std::lock_guard<std::mutex> lock(mtx_cv);
+            complete_count++;
             cv_complete.notify_one();
-            LOG_DXRT_DBG << "runAsync completed" << std::endl;
         }
         return 0;
     };
 
+    // Callbacks reference this frame, so wait for every submitted job even if a submission throws.
+    int submitted = 0;
     try
     {
         // Run asynchronous operations for each batch
@@ -767,24 +783,23 @@ void InferenceEngine::runSubBatch(std::vector<TensorPtrs>& result, int batchCoun
             int job_id = runAsync(inputBuffers.at(current_index), userArg, outputBuffers.at(current_index), current_index, batch_callback);
             LOG_DXRT_DBG << "Insert jobId=" << job_id << ", batch_index=" << i << std::endl;
             std::ignore = job_id;  // Suppress unused variable warning
-
+            submitted++;
         }  // for i
-
-        is_completed = true;
-
-        // wait for inference done
-        std::unique_lock<std::mutex> lock(mtx_cv);
-        cv_complete.wait(lock, [&complete_count, batchCount]() { return complete_count.load() == batchCount; });
-        LOG_DXRT_DBG << "runAsync return" << std::endl;
     }
-    catch(const dxrt::Exception& e)
+    catch (...)
     {
-        LOG_DXRT_ERR(e.what());
+        std::lock_guard<std::mutex> lock(mtx_cv);
+        if (!firstJobError)
+        {
+            firstJobError = std::current_exception();
+        }
     }
-    catch (const std::exception& e)
-    {
-        LOG_DXRT_ERR(e.what());
-    }
+
+    // wait for inference done
+    std::unique_lock<std::mutex> lock(mtx_cv);
+    cv_complete.wait(lock, [&complete_count, &submitted]() { return complete_count.load() == submitted; });
+    LOG_DXRT_DBG << "runAsync return" << std::endl;
+    return firstJobError;
 }
 
 

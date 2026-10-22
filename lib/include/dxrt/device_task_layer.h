@@ -20,6 +20,7 @@
 // C++ headers
 #include <atomic>
 #include <condition_variable>
+#include <exception>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -278,6 +279,8 @@ class DXRT_API AccDeviceTaskLayer : public DeviceTaskLayer {
     int InputHandler(const int &reqId, int ch);
     int OutputHandler(const dxrt_response_t &resp, int ch);
     void ReleaseInferenceCache(int reqId) override;
+    // Ends a request that cannot produce output: frees its device resources and fails its job.
+    void FailRequest(int reqId, std::exception_ptr error);
 
     // DMA Abort Recovery
     void PauseDmaRequests();

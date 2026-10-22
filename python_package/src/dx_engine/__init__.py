@@ -12,6 +12,7 @@ import warnings
 
 from dx_engine.version import __version__
 from dx_engine.inference_engine import InferenceEngine
+from dx_engine.capi._pydxrt import DeviceRemovedError
 from dx_engine.inference_option import InferenceOption
 from dx_engine.configuration import Configuration
 from dx_engine.device_status import DeviceStatus

@@ -310,6 +310,12 @@ void Request::onRequestComplete(RequestPtr req)
     if (_job != nullptr)
         _job->onRequestComplete(req);
 }
+void Request::onRequestFailed(RequestPtr req, std::exception_ptr error)
+{
+    SetStatus(Request::Status::REQ_DONE);
+    if (_job != nullptr)
+        _job->onRequestFailed(req, error);
+}
 void Request::Reset()
 {
     LOG_DXRT_DBG << endl;
