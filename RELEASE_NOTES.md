@@ -1,48 +1,49 @@
 # RELEASE_NOTES
 
-## DX-RT v3.5.0 / 2026-10-21
+## DX-RT v3.5.0 / 2026-10-23
 
 ### 1. Changed
-- **`dxcli` Version Output**: Changed to `version (build: hash)`
-- **DDR Type in `dxtop`**: Shown in the device variant string
-- **`NOTICE.md`**: Added detailed ncurses and PDCurses license information
-- **Latency Definition**: Latency (`GetLatency*`) now equals E2E Response Time; use Core Latency for the value excluding buffer pool and queue wait times
-- **`dxrun` Latency Description**: Changed to "Core latency per request excluding buffer pool and queue wait times"
-- **Minimum Versions**: Updated minimum versions
-   - Driver : 2.5.0 -> 2.7.0
-   - PCIe Driver : 2.4.0 -> 2.7.0
+- **`dxcli` Version Output**: Changed to `version (build: hash)`.
+- **DDR Type in `dxtop`**: Shown in the device variant string.
+- **`NOTICE.md`**: Added detailed ncurses and PDCurses license information.
+- **Latency Definition**: Latency (`GetLatency*`) now equals E2E Response Time; use Core Latency for the value excluding buffer pool and queue wait times.
+- **`dxrun` Latency Description**: Changed to "Core latency per request excluding buffer pool and queue wait times".
+- **Minimum Versions**: Raised the minimum required driver and firmware versions.
+   - Linux Driver : 2.5.0 -> 2.7.0
+   - Linux PCIe Driver : 2.4.0 -> 2.7.0
+   - Windows PCIe Driver : 1.5.1 -> 2.0.1
    - Firmware : 2.7.0 -> 2.7.6
-- **Windows Driver Request Errors**: Pending requests that later fail are now reported as errors
-- **Windows `dxrtd` Named Pipe**: Rejects remote clients
-- **C# Support via C API**: Removed the C++/CLI `csharp_package` and its build step (no .NET SDK/msbuild needed); C# now uses the C API via P/Invoke
+- **Windows Driver Request Errors**: Pending requests that later fail are now reported as errors.
+- **Windows `dxrtd` Named Pipe**: Rejects remote clients.
+- **C# Support via C API**: Removed the C++/CLI `csharp_package` and its build step (no .NET SDK/msbuild needed); C# now uses the C API via P/Invoke.
 
 ### 2. Fixed
-- `dxrun` now exits with an error when no inference succeeds
-- `--max-throughput` now fails when no round succeeds, instead of recommending an untested buffer count
-- `dxrun` now rejects non-positive `--loops` and negative `--time` values
-- Fixed a segfault when PPU outputs are empty
-- Fixed busy-spin during teardown after device `Identify` failures
-- Fixed deadlock/heap corruption on `ServiceDevice` shutdown and swapped arguments in sub-command logging
-- Fixed divide-by-zero in the usage timer when the tick interval is 0
-- Cleared stale IPC client response state on `sendMessageSync` timeout
-- Fixed `dxrtd` stability issues (NPU memory leak on abnormal exit, Windows service crashes/stalls, device re-enable) and `find_package(dxrt)` failure on Windows
-- Prevented latency statistics overflow in long-running sessions (updates stop at `INT_MAX` samples)
+- `dxrun` now exits with an error when no inference succeeds.
+- `--max-throughput` now fails when no round succeeds, instead of recommending an untested buffer count.
+- `dxrun` now rejects non-positive `--loops` and negative `--time` values.
+- Fixed a segfault when PPU outputs are empty.
+- Fixed busy-spin during teardown after device `Identify` failures.
+- Fixed deadlock/heap corruption on `ServiceDevice` shutdown and swapped arguments in sub-command logging.
+- Fixed divide-by-zero in the usage timer when the tick interval is 0.
+- Cleared stale IPC client response state on `sendMessageSync` timeout.
+- Fixed `dxrtd` stability issues (NPU memory leak on abnormal exit, Windows service crashes/stalls, device re-enable) and `find_package(dxrt)` failure on Windows.
+- Prevented latency statistics overflow in long-running sessions (updates stop at `INT_MAX` samples).
 
 ### 3. Added
-- **V9 `.dxnn` Format**: Added V9 model parser, including PPU data transfer
-- **Python/Native Version Check**: `import dx_engine` raises `RuntimeError` if the `libdxrt.so` major.minor version differs (bypass: `DX_ENGINE_SKIP_VERSION_CHECK=1`)
-- **`dxrun --max-throughput` Mode**: Auto-tunes the I/O buffer count for peak throughput
-- **`showModelInfo` Option**: `InferenceOption::showModelInfo` (C++) / `dxrt_options_t::show_model_info` (C) hides the model info banner per engine; ABI size unchanged
-- **Input Quantization (SIMD)**: float32 → int8 input quantization with NEON/SSE4.1 kernels, reducing DMA write time
-- **Fan Control**: Forced on / forced off / auto modes
-- **FCT/OTP Authentication (H1M)**: FCT test results with OTP authentication (H1M only)
-- **`SLT`/`VNPU` Board Types**: Shown in device information and CLI output
-- **Windows Release Metadata**: Version metadata in Windows binaries, with Authenticode signing guide
-- **E2E Response Time API**: `GetE2EResponseTime()` and related APIs, including data transfer and overhead
-- **E2E Response Time Output**: Shown in `dxrun --verbose` (with Queue Wait Time) and the profiler summary (with Latency Average)
-- **Core Latency API**: `GetCoreLatency*` (C++), `dxrt_engine_get_core_latency*` (C), `get_core_latency*` (Python)
-- **Device Removed Error**: C API `DXRT_ERR_DEVICE_REMOVED` (-10), C++ `ERROR_CODE::DEVICE_REMOVED`, and `DeviceRemovedException`
-- **C# Usage Guide**: Using the C API from C# (`examples/csharp/README.md`)
+- **V9 `.dxnn` Format**: Added V9 model parser, including PPU data transfer.
+- **Python/Native Version Check**: `import dx_engine` raises `RuntimeError` if the `libdxrt.so` major.minor version differs (bypass: `DX_ENGINE_SKIP_VERSION_CHECK=1`).
+- **`dxrun --max-throughput` Mode**: Auto-tunes the I/O buffer count for peak throughput.
+- **`showModelInfo` Option**: `InferenceOption::showModelInfo` (C++) / `dxrt_options_t::show_model_info` (C) hides the model info banner per engine; ABI size unchanged.
+- **Input Quantization (SIMD)**: float32 → int8 input quantization with NEON/SSE4.1 kernels, reducing DMA write time.
+- **Fan Control**: Forced on / forced off / auto modes.
+- **FCT/OTP Authentication (H1M)**: FCT test results with OTP authentication (H1M only).
+- **`SLT`/`VNPU` Board Types**: Shown in device information and CLI output.
+- **Windows Release Metadata**: Version metadata in Windows binaries, with Authenticode signing guide.
+- **E2E Response Time API**: `GetE2EResponseTime()` and related APIs, including data transfer and overhead.
+- **E2E Response Time Output**: Shown in `dxrun --verbose` (with Queue Wait Time) and the profiler summary (with Latency Average).
+- **Core Latency API**: `GetCoreLatency*` (C++), `dxrt_engine_get_core_latency*` (C), `get_core_latency*` (Python).
+- **Device Removed Error**: C API `DXRT_ERR_DEVICE_REMOVED` (-10), C++ `ERROR_CODE::DEVICE_REMOVED`, and `DeviceRemovedException`.
+- **C# Usage Guide**: Using the C API from C# (`examples/csharp/README.md`).
 
 ---
 

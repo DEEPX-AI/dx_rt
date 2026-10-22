@@ -317,6 +317,12 @@ void* MemAlloc(size_t size, size_t align, int value)
         return mem;
     }
 #elif _WIN32
+    // _aligned_malloc rejects a bad alignment through the invalid-parameter handler, which ends the process.
+    if (align == 0 || (align & (align - 1)) != 0)
+    {
+        std::cout << "Error: alignment must be a power of two: " << align << std::endl;
+        return mem;
+    }
     mem = _aligned_malloc(size, align);
     if (!mem)
     {

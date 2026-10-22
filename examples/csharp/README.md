@@ -90,19 +90,31 @@ Sizes measured with MSVC x64 against `dxrt_c_api.h`:
 These apply to `dxrt_engine_register_callback` and
 `dxrt_event_register_handler`:
 
-- **Keep the delegate referenced.** The header has no unregister function, so
-  keep it alive for as long as the runtime can call it (at least the engine
-  lifetime for engine callbacks, and the process lifetime for event handlers).
-  A collected delegate crashes the process when the runtime calls it.
+- **Keep the delegate referenced.** Keep it alive for as long as the runtime
+  can call it: until `dxrt_engine_destroy` returns for engine callbacks, and
+  for the process lifetime for event handlers (registering `NULL` does not
+  wait for a handler call that is already running). A collected delegate
+  crashes the process when the runtime calls it.
 - Declare the delegate with
   `[UnmanagedFunctionPointer(CallingConvention.Cdecl)]`.
 - `dxrt_tensor_slice_t.data` is valid only during the callback. Copy the data
   before returning.
 - Never let an exception escape a callback. Catch everything inside it.
-- The header does not document which thread invokes callbacks, whether
-  callbacks can run concurrently, or the meaning of the `int` returned by
-  `dxrt_callback_fn`. Assume a runtime worker thread with possible concurrency,
-  and do not touch UI objects directly from the callback.
+- Both callbacks run on runtime worker threads (an event handler also runs on
+  the thread that calls `dxrt_event_dispatch`) and can run concurrently.
+  Synchronise shared state, and marshal to the UI thread (for example with
+  `SynchronizationContext` or `Control.BeginInvoke`) instead of touching UI
+  objects directly.
+- The runtime ignores the `int` returned by `dxrt_callback_fn`; return 0.
+- `dxrt_engine_register_callback` has no unregister function and rejects a
+  `null` delegate with `DXRT_ERR_INVALID_ARG`.
+- A failed job also invokes `dxrt_callback_fn`, with `tensor_count` 0.
+- Do not call `dxrt_engine_wait` for the same job or `dxrt_engine_destroy`
+  from inside the callback. Both wait for the callback to return and
+  deadlock.
+
+See the comments on `dxrt_engine_register_callback` and
+`dxrt_event_register_handler` in `dxrt_c_api.h` for the full contract.
 
 ## Minimal example
 

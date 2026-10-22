@@ -87,7 +87,8 @@ function Find-VSInstallation {
     # Try vswhere.exe first (shipped with VS 2017+)
     $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
     if (Test-Path $vswhere) {
-        $installPath = & $vswhere -latest -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath 2>$null
+        # Only VS 2022 (17.x) is supported; without a range -latest can pick a newer major version.
+        $installPath = & $vswhere -latest -version '[17.0,18.0)' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath 2>$null
         if ($installPath -and (Test-Path (Join-Path $installPath "VC\Auxiliary\Build\vcvars64.bat"))) {
             return $installPath
         }
@@ -970,6 +971,7 @@ if ($DoConfigure) {
     Write-Host ""
     cmake --preset "x64-$BuildType"
     if ($LASTEXITCODE -ne 0) {
+        if ($RestartDxrtd) { Start-DxrtdService }
         Write-Report "Configure" "FAILED" @("Preset: x64-$BuildType")
         exit 1
     }
@@ -986,6 +988,7 @@ if ($DoBuild) {
     Write-Host ""
     cmake --build --preset "x64-$BuildType"
     if ($LASTEXITCODE -ne 0) {
+        if ($RestartDxrtd) { Start-DxrtdService }
         Write-Report "Build" "FAILED" @("Preset: x64-$BuildType")
         exit 1
     }
@@ -1003,6 +1006,7 @@ if ($DoInstall) {
     Write-Host ""
     cmake --install "out\build\x64-$BuildType"
     if ($LASTEXITCODE -ne 0) {
+        if ($RestartDxrtd) { Start-DxrtdService }
         Write-Report "Install" "FAILED" @("Target: out\install\x64-$BuildType")
         exit 1
     }

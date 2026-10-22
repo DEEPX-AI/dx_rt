@@ -30,6 +30,7 @@
 #include "dxrt/util.h"
 #include "dxrt/datatype.h"
 #include "dxrt/runtime_event_dispatcher.h"
+#include "dxrt/exception/exception.h"
 #include "../resource/log_messages.h"
 #include "dxrt/safe_cast.h"
 
@@ -551,6 +552,19 @@ int AccDeviceTaskLayer::InputHandler(const int& reqId, int ch)
             ret = serviceLayer()->DMAWrite(id(), inferenceAcc.input.data,
                 inferenceAcc.input.base + inferenceAcc.input.offset, inferenceAcc.input.size);
         }
+#ifdef _WIN32
+        if (ret == ERROR_DEVICE_REMOVED)
+        {
+            RuntimeEventDispatcher::GetInstance().DispatchEvent(
+                RuntimeEventDispatcher::LEVEL::ERROR,
+                RuntimeEventDispatcher::TYPE::DEVICE_IO,
+                RuntimeEventDispatcher::CODE::WRITE_INPUT,
+                LogMessages::RuntimeDispatch_FailToWriteInput(ret, reqId, ch));
+            FailRequest(reqId, std::make_exception_ptr(DeviceRemovedException(
+                EXCEPTION_MESSAGE("input write failed; the device was removed or disabled"))));
+            return 0;
+        }
+#endif
         if (ret < 0)
         {
             RuntimeEventDispatcher::GetInstance().DispatchEvent(
@@ -626,6 +640,31 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
     if (req == nullptr)
     {
         DXRT_ASSERT(false, "req is nullptr "+std::to_string(reqId));
+    }
+
+    // Only dxrtd sends a nonzero status here (-2: device blocked, -1: invalid task); no output was produced.
+    if (response.status != 0)
+    {
+        const std::string reason = "dxrtd rejected request " + std::to_string(reqId)
+            + " on device " + std::to_string(id()) + " (status=" + std::to_string(response.status) + ")";
+        RuntimeEventDispatcher::GetInstance().DispatchEvent(
+            RuntimeEventDispatcher::LEVEL::ERROR,
+            RuntimeEventDispatcher::TYPE::DEVICE_IO,
+            RuntimeEventDispatcher::CODE::DEVICE_EVENT,
+            reason);
+        std::exception_ptr error;
+#ifdef _WIN32
+        if (isRemoved() || isRemovalPending())
+        {
+            error = std::make_exception_ptr(DeviceRemovedException(EXCEPTION_MESSAGE(reason + "; the device was removed or disabled")));
+        }
+#endif
+        if (!error)
+        {
+            error = std::make_exception_ptr(DeviceIOException(EXCEPTION_MESSAGE(reason)));
+        }
+        FailRequest(reqId, error);
+        return 0;
     }
 
     req->set_processed_unit("NPU_"+std::to_string(core()->id()), id(), response.dma_ch);
@@ -874,6 +913,19 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
 #ifdef USE_PROFILER
         profiler.End(Profiler::EventType::D2H, req->task()->name(), id(), req->job_id());
 #endif
+#ifdef _WIN32
+        if (ret2 == ERROR_DEVICE_REMOVED)
+        {
+            RuntimeEventDispatcher::GetInstance().DispatchEvent(
+                RuntimeEventDispatcher::LEVEL::ERROR,
+                RuntimeEventDispatcher::TYPE::DEVICE_IO,
+                RuntimeEventDispatcher::CODE::READ_OUTPUT,
+                LogMessages::RuntimeDispatch_FailToReadOutput(ret2, reqId, id()));
+            FailRequest(reqId, std::make_exception_ptr(DeviceRemovedException(
+                EXCEPTION_MESSAGE("output read failed; the device was removed or disabled"))));
+            return 0;
+        }
+#endif
         if ( ret2 != 0 )
         {
             RuntimeEventDispatcher::GetInstance().DispatchEvent(
@@ -966,6 +1018,29 @@ void AccDeviceTaskLayer::ReleaseInferenceCache(int reqId)
     }
 
     Deallocate_npuBuf(alloc.slice, alloc.taskId);
+}
+
+void AccDeviceTaskLayer::FailRequest(int reqId, std::exception_ptr error)
+{
+    // No decode will consume the slice, so it can be returned now.
+    ReleaseInferenceCache(reqId);
+    {
+        std::unique_lock<std::mutex> lock(npuInferenceLock());
+        _ongoingRequests.erase(reqId);
+    }
+#ifdef USE_PROFILER
+    {
+        std::lock_guard<std::mutex> lock(_responseTimestampLock);
+        _responseReceiveTimestamps.erase(reqId);
+    }
+#endif
+    CallBack();
+
+    RequestPtr req = Request::GetById(reqId);
+    if (req != nullptr)
+    {
+        req->onRequestFailed(req, error);
+    }
 }
 
 void AccDeviceTaskLayer::OutputReceiverThread(int id)

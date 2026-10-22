@@ -15,6 +15,7 @@
 #include <iostream>
 
 #include <cassert>
+#include <exception>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -717,7 +718,8 @@ class DXRT_API InferenceEngine // NOSONAR: Too many fields - stable as-is, refac
     int runAsync(void *inputPtr, void *userArg, void *outputPtr, int batchIndex,
         const std::function<int(const TensorPtrs &outputs, void *userArg, int jobId)>& batchCallback);
 
-    void runSubBatch(std::vector<TensorPtrs>& result, int batchCount, int startIndex,
+    // Returns the first job failure of the sub-batch, or nullptr.
+    std::exception_ptr runSubBatch(std::vector<TensorPtrs>& result, int batchCount, int startIndex,
             const std::vector<void*>& inputPtrs,
             const std::vector<void*>& outputPtrs,
             const std::vector<void*>& userArgs);

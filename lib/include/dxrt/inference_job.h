@@ -64,6 +64,7 @@ class InferenceJob // NOSONAR: Too many fields - stable as-is, refactoring defer
 
 
     void onRequestComplete(RequestPtr req);
+    void onRequestFailed(RequestPtr req, std::exception_ptr error);
     bool checkAndSetTaskReady(TaskPtr taskPtr);
     void processReadyTask(TaskPtr taskPtr);
 
@@ -78,6 +79,8 @@ class InferenceJob // NOSONAR: Too many fields - stable as-is, refactoring defer
     int startMultiInputJob(const std::map<std::string, void*>& inputTensors, void *userArg, void *outputPtr);
 
     TensorPtrs getOutput();
+    // First failure of the job, or nullptr. Valid until the job is reused.
+    std::exception_ptr error();
     void setStatus(Request::Status status);
     Request::Status getStatus() const;
     int getId() const;  
@@ -97,7 +100,7 @@ class InferenceJob // NOSONAR: Too many fields - stable as-is, refactoring defer
     void SetStoreResult(bool storeResult);
     friend class CircularDataPool<InferenceJob>;
 
-    // wait for inference job to complete
+    // wait for inference job to complete; rethrows the job failure, if any
     void Wait();
 
     // inference job for IE
@@ -135,6 +138,9 @@ class InferenceJob // NOSONAR: Too many fields - stable as-is, refactoring defer
     std::vector<std::string> _modelInputNames;
 
     void onAllRequestComplete();
+    // Marks taskName and every not-yet-started task done; caller holds _lock. Returns true when the job is complete.
+    bool failTaskLocked(const std::string& taskName, std::exception_ptr error);
+    std::exception_ptr _error;  // guarded by _lock
     InferenceEngine* _inferenceEnginePtr = nullptr;
     std::function<int(TensorPtrs &outputs, void *userArg, int jobId)> _infEngCallback;
 #ifdef USE_VNPU

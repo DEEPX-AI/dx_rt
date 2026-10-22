@@ -7,8 +7,9 @@
 - Changed Latency (`GetLatency*`) to equal E2E Response Time; use Core Latency for the value excluding buffer pool and queue wait times
 - Changed the `dxrun` latency description to "Core latency per request excluding buffer pool and queue wait times"
 - Updated minimum versions
-   - Driver : 2.5.0 -> 2.7.0
-   - PCIe Driver : 2.4.0 -> 2.7.0
+   - Linux Driver : 2.5.0 -> 2.7.0
+   - Linux PCIe Driver : 2.4.0 -> 2.7.0
+   - Windows PCIe Driver : 1.5.1 -> 2.0.1
    - Firmware : 2.7.0 -> 2.7.6
 - Reported Windows driver requests that fail after pending as errors
 - Rejected remote clients on the Windows `dxrtd` named pipe

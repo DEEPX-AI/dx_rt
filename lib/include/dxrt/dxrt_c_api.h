@@ -463,11 +463,28 @@ static inline void dxrt_tensor_slice_init(dxrt_tensor_slice_t* slice)
  *                      If the engine produces zero outputs, `tensors` may be
  *                      NULL and `tensor_count` will be 0; the callback is
  *                      still invoked so that the user_arg / user_data
- *                      bookkeeping runs.
+ *                      bookkeeping runs. A job that fails is also
+ *                      delivered this way (zero tensors).
  *        tensor_count: number of output tensors.
  *        user_arg:     user argument passed to RunAsync.
  *        user_data:    opaque pointer from registration.
+ *        return:       ignored by the runtime; return 0.
  * @param user_data Opaque pointer passed to every callback invocation.
+ *
+ * Threading and lifetime:
+ * - The callback runs on a runtime worker thread. Jobs can complete on
+ *   different worker threads, so calls for different jobs can run
+ *   concurrently; synchronise any shared state.
+ * - A job is not reported as complete (dxrt_engine_wait() returns, or the
+ *   synchronous run returns) until its callback has returned. Do not call
+ *   dxrt_engine_wait() for the same job or dxrt_engine_destroy() from inside
+ *   the callback; both wait for it and deadlock.
+ * - dxrt_engine_destroy() waits for in-flight jobs, including their
+ *   callbacks, and then drops the callback. The callback is not called
+ *   after dxrt_engine_destroy() returns.
+ * - There is no unregister function and `callback` must not be NULL.
+ *   Replacing the callback is not synchronised with completions in flight;
+ *   register it before the first asynchronous run.
  *
  * NOTE: This signature replaces the earlier byte-buffer form. C++ users
  *       routing through `dxrt::InferenceEngine::RegisterCallback` see no
@@ -690,7 +707,21 @@ DXRT_CAPI dxrt_status_t dxrt_event_dispatch(dxrt_event_level_t level,
                                             dxrt_event_code_t code,
                                             const char* message);
 
-/** Register a custom event handler callback. */
+/**
+ * Register a custom event handler callback.
+ *
+ * - Process-wide, not per engine. A single handler slot is shared with the
+ *   C++ RuntimeEventDispatcher::RegisterEventHandler(); registering a
+ *   non-NULL handler replaces the previous one.
+ * - Called synchronously on the thread that raised the event (a runtime
+ *   worker thread, or the caller of dxrt_event_dispatch()), only for events
+ *   at or above the dxrt_event_set_level() threshold. Calls are not
+ *   serialised and can run concurrently.
+ * - `message` and `timestamp` are valid only during the call.
+ * - Passing NULL stops later deliveries to the C handler; it does not wait
+ *   for a call that is already running. `handler` and `user_data` are not
+ *   swapped atomically together, so register before events are expected.
+ */
 DXRT_CAPI dxrt_status_t dxrt_event_register_handler(dxrt_event_handler_t handler,
                                                      void* user_data);
 

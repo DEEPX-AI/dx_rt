@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <mutex>
 #include <atomic>
+#include <exception>
 #include <memory>
 #include <vector>
 #include <string>
@@ -112,6 +113,8 @@ class DXRT_API Request // NOSONAR
     InferenceJob* inferenceJob() const;  // Get the associated inference job
 #endif // USE_VNPU
     void onRequestComplete(RequestPtr req);
+    // Completes the request without outputs; the owning job fails with error.
+    void onRequestFailed(RequestPtr req, std::exception_ptr error);
 
     void setBufferSet(std::unique_ptr<BufferSet> buffers);
     void releaseBuffers();

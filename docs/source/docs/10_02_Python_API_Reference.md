@@ -89,7 +89,19 @@ time = engine.get_npu_inference_time()
   
 This class is the main Python wrapper for the DX-RT Inference Engine. It provides an interface to load a compiled model and perform inference tasks, either synchronously or asynchronously, supporting both single and batch inference.  
   
-On Windows, if the NPU device is disabled, removed, or its driver is updated while the application is running, inference methods raise `IOError` (an alias of `OSError`) whose message contains `Device removed exception` (C API `DXRT_ERR_DEVICE_REMOVED`). The application must be restarted to use the device again.
+On Windows, if the NPU device is disabled, removed, or its driver is updated while the application is running, inference methods raise `dx_engine.DeviceRemovedError` (C API `DXRT_ERR_DEVICE_REMOVED`). It is a subclass of `OSError`, so existing `except OSError` / `except IOError` handlers still catch it; catch `DeviceRemovedError` first to tell it apart from other I/O errors. The application must be restarted to use the device again.
+
+```python
+from dx_engine import InferenceEngine, DeviceRemovedError
+
+ie = InferenceEngine("model.dxnn")
+try:
+    outputs = ie.run(inputs)  # inputs: list of numpy arrays
+except DeviceRemovedError:
+    ...  # device is gone: stop and restart the application
+except OSError:
+    ...  # other I/O error
+```
 
 #### Constructor  
   
