@@ -10,6 +10,7 @@
 
 #include "dxrt/common.h"
 
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -60,9 +61,23 @@ class ObjectsPool
 
     static ObjectsPool _staticInstance;
 
+    // Set at the very start of ~ObjectsPool(), before the pre-allocated Request
+    // pool is torn down. Meyer's singletons (ObjectsPool, DevicePool, ...) are
+    // destroyed in reverse order of first construction at process exit; since
+    // ObjectsPool is now eagerly constructed at model-load time (before
+    // DevicePool), DevicePool is torn down first. Request::releaseBuffers(),
+    // invoked from each Request's destructor during this teardown, must not
+    // reach into DevicePool::GetInstance() at that point -- doing so touches an
+    // already-destroyed singleton (dangling/UB, observed as a SIGSEGV on exit).
+    // This flag lets releaseBuffers() detect "we are being destroyed as part of
+    // process-wide static teardown" and skip that call; the device itself is
+    // going away regardless, so releasing its cache slice is moot at this point.
+    static std::atomic<bool> _shuttingDown;
+
  public:
     // member functions
     static ObjectsPool& GetInstance();
+    static bool IsShuttingDown();
 
     RequestPtr PickRequest() const; // new one
     RequestPtr GetRequestById(int id) const;  // find one by id

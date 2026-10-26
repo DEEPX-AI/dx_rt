@@ -119,6 +119,7 @@ int GetDataSize_Datatype(DataType dType)
 {
     int size = 0;
     switch (dType) {
+        case DataType::NONE_TYPE:
         case DataType::UINT8  :
         case DataType::INT8   :
             size = 1;
@@ -146,8 +147,9 @@ int GetDataSize_Datatype(DataType dType)
             size = 256;
             break;
         default:
-            cout << "Unwanted Data Type is inserted in GetDataSize_Datatype." << dType << endl;
-            exit(0);
+            LOG_DXRT_ERR("Unwanted Data Type is inserted in GetDataSize_Datatype." << dType);
+            size = 1;
+            break;
     }
     return size;
 }
@@ -209,6 +211,11 @@ vector<string> GetFileList(const std::string& dir)
     vector<string> v;
 #ifdef __linux__
     DIR* p = opendir(dir.c_str());
+    if (p == nullptr)
+    {
+        LOG_DXRT << "Failed to open directory: " << dir << endl;
+        return v;
+    }
     struct dirent* dp;
     while ((dp = readdir(p)) != nullptr)
     {
@@ -310,6 +317,12 @@ void* MemAlloc(size_t size, size_t align, int value)
         return mem;
     }
 #elif _WIN32
+    // _aligned_malloc rejects a bad alignment through the invalid-parameter handler, which ends the process.
+    if (align == 0 || (align & (align - 1)) != 0)
+    {
+        std::cout << "Error: alignment must be a power of two: " << align << std::endl;
+        return mem;
+    }
     mem = _aligned_malloc(size, align);
     if (!mem)
     {

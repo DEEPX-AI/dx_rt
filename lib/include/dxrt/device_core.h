@@ -77,6 +77,13 @@ class DXRT_API DeviceCore {
     int GetReadChannel() const;
     int GetWriteChannel() const;
     void Close();
+#ifdef _WIN32
+    // Blocks the device; returns true only if this call changed it from unblocked.
+    bool blockIfUnblocked() { return !_isBlocked.exchange(true); }
+    // Removal notifications for the device handle, and reopening it afterwards.
+    void SetRemovalHandler(DeviceRemovalHandler handler);
+    bool Reopen();
+#endif
 
  private:
     int _id;

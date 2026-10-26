@@ -25,9 +25,11 @@ const uint16_t M1_DDR_TYPE_LPDDR5 = 2;
 const uint16_t M1_DDR_TYPE_LPDDR5X = 3;
 
 // M1 M.2 board type (2)
-// board type (1 = SOM, 2 = M.2, 3 = H1)
+// board type (1 = SOM, 2 = M.2, 3 = H1, 4 = SLT, 6 = VNPU)
 const uint16_t BOARD_TYPE_M_dot_2 = 2;
 const uint16_t BOARD_TYPE_H1 = 3;
+const uint16_t BOARD_TYPE_SLT = 4;
+const uint16_t BOARD_TYPE_VNPU = 6;
 
 class DeviceCore;
 
@@ -94,6 +96,7 @@ class DXRT_API FWUpdateCommand : public CLICommand
 {
  public:
     explicit FWUpdateCommand(cxxopts::ParseResult &);
+    bool IsFailed() const { return _updateFailed; }
  private:
     void doCommand(std::shared_ptr<DeviceCore> devicePtr) override;
     void finish() override;
@@ -103,6 +106,7 @@ class DXRT_API FWUpdateCommand : public CLICommand
     std::string _fwUpdateFile;
     bool _showLogOnce = false;
     bool _showDonotTunrOff = false;
+    bool _updateFailed = false;
     int _updateDeviceCount = 0;
 };
 
@@ -167,6 +171,14 @@ class DXRT_API DDRErrorCLICommand : public CLICommand
 {
  public:
     explicit DDRErrorCLICommand(cxxopts::ParseResult &);
+ private:
+    void doCommand(std::shared_ptr<DeviceCore> devicePtr) override;
+};
+
+class DXRT_API FanCtrlCommand : public CLICommand
+{
+ public:
+    explicit FanCtrlCommand(cxxopts::ParseResult &);
  private:
     void doCommand(std::shared_ptr<DeviceCore> devicePtr) override;
 };

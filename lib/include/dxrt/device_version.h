@@ -16,13 +16,13 @@
 
 #if _WIN32
 #define RT_DRV_VERSION_CHECK (1800) // 1.8.0
-#define PCIE_VERSION_CHECK   (1501) // 1.5.1
+#define PCIE_VERSION_CHECK   (2001) // 1.5.1 -> 2.0.1
 #else
-#define RT_DRV_VERSION_CHECK (2500) // 2.4.0 -> 2.5.0
-#define PCIE_VERSION_CHECK   (2400) // 2.2.0 -> 2.4.0
+#define RT_DRV_VERSION_CHECK (2700) // 2.5.0 -> 2.7.0
+#define PCIE_VERSION_CHECK   (2700) // 2.4.0 -> 2.7.0
 #endif
 
-#define FW_VERSION_CHECK     (270)  // 2.5.2 -> 2.7.0
+#define FW_VERSION_CHECK     (276)  // 2.7.0 -> 2.7.6
 
 #define RT_DRIVER_WRITE_CHANNEL_CHANGE_VERSION 2000
 #define PCIE_DRIVER_WRITE_CHANNEL_CHANGE_VERSION 2000

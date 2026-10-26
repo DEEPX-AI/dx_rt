@@ -58,6 +58,13 @@ class DXRT_API InferenceOption
      */
     int bufferCount{DXRT_TASK_MAX_LOAD_VALUE};
 
+    /** @brief Print the model information banner when the engine is created
+     * @details Set to false to keep engine creation silent, e.g. when engines are
+     * repeatedly created and destroyed. The global SHOW_MODEL_INFO configuration
+     * must also be enabled for the banner to appear.
+     */
+    bool showModelInfo = true;
+
 };
 
 

@@ -19,6 +19,7 @@
 #include "dxrt/cpu_handle.h"
 #include "dxrt/request_response_class.h"
 #include "dxrt/safe_cast.h"
+#include "dxrt/profiler.h"
 
 #include <future>
 #include <memory>
@@ -27,6 +28,7 @@
 #include <cstring>
 #include <iostream>
 #include <fstream>
+#include <limits>
 
 using std::endl;
 using std::to_string;
@@ -108,10 +110,13 @@ void InferenceJob::onRequestComplete(RequestPtr req)
         LOG_DBG("[Job_" + std::to_string(_jobId) + "] Task '" + thisTask->name() +
                 "' done. Progress: " + std::to_string(_doneCount.load()) + "/" + std::to_string(_outputCount.load()));
 
-        _latency += (std::max)(static_cast<int64_t>(0), static_cast<int64_t>(req->latency()) - req->queueWaitTime());
+        // Queue wait is reported separately from job latency. It is clamped
+        // here because clock anomalies must not contaminate the job metric.
+        _queueWaitTime += (std::max)(static_cast<int64_t>(0), req->queueWaitTime());
         if (req->task()->processor() == Processor::NPU)
         {
             _infTime += req->inference_time();
+            _bufferPoolWaitTime += (std::max)(static_cast<int64_t>(0), req->bufferPoolWaitTime());
         }
     }
 
@@ -125,7 +130,16 @@ void InferenceJob::onRequestComplete(RequestPtr req)
             if (checkAndSetTaskReady(nextTaskPtr))
             {
                 LOG_DBG("[Job_" + std::to_string(_jobId) + "] Task '" + nextTaskPtr->name() + "' is ready. Starting...");
-                processReadyTask(nextTaskPtr);
+                try
+                {
+                    processReadyTask(nextTaskPtr);
+                }
+                catch (...)
+                {
+                    LOG_DXRT_ERR("[Job_" + std::to_string(_jobId) + "] Failed to start task '" + nextTaskPtr->name() + "'");
+                    std::unique_lock<std::mutex> lk(_lock);
+                    all_request_complete = failTaskLocked(nextTaskPtr->name(), std::current_exception()) || all_request_complete;
+                }
             }
             else
             {
@@ -143,6 +157,43 @@ void InferenceJob::onRequestComplete(RequestPtr req)
     }
 }
 
+void InferenceJob::onRequestFailed(RequestPtr req, std::exception_ptr error)
+{
+    bool all_request_complete = false;
+    {
+        std::unique_lock<std::mutex> lk(_lock);
+        all_request_complete = failTaskLocked(req->task()->name(), error);
+    }
+    if (all_request_complete)
+    {
+        onAllRequestComplete();
+    }
+}
+
+bool InferenceJob::failTaskLocked(const std::string& taskName, std::exception_ptr error)
+{
+    if (!_error)
+    {
+        _error = error;
+    }
+    LOG_DXRT_ERR("[Job_" + std::to_string(_jobId) + "] Task '" + taskName + "' failed; tasks not yet started are skipped");
+
+    // Tasks still running (TASK_BUSY) complete on their own and are counted then.
+    for (auto& entry : _taskStatusMap)
+    {
+        if (entry.second == Status::TASK_DONE)
+        {
+            continue;
+        }
+        if (entry.first == taskName || entry.second == Status::TASK_IDLE || entry.second == Status::TASK_READY)
+        {
+            entry.second = Status::TASK_DONE;
+            _doneCount++;
+        }
+    }
+    return _doneCount.load() == _outputCount.load();
+}
+
 InferenceJob::InferenceJob(int id) noexcept
 : _jobId(id)
 {
@@ -152,11 +203,78 @@ void InferenceJob::onAllRequestComplete()
 {
     LOG_DXRT_DBG << "onAllRequestComplete(job=" << _jobId << ")" << std::endl;
 
-#ifdef USE_PROFILER
+    bool failed = false;
+    {
+        std::unique_lock<std::mutex> lk(_lock);
+        failed = (_error != nullptr);
+    }
+    if (failed)
+    {
+        // Callers count callbacks per job, so failed jobs still call back, with no outputs.
+        try
+        {
+            TensorPtrs noOutputs;
+            if (_inferenceEnginePtr != nullptr)
+            {
+                _inferenceEnginePtr->onInferenceComplete(noOutputs, _userArg, _jobId);
+            }
+            if (_infEngCallback != nullptr)
+            {
+                _infEngCallback(noOutputs, _userArg, _jobId);
+            }
+        } catch (dxrt::Exception& e) {
+            e.printTrace();
+            LOG_DXRT << "callback error " << endl;
+        } catch (std::exception& e) {
+            LOG_DXRT << e.what() << " std callback error " << endl;
+        } catch (...) {  // NOSONAR:S2738
+            LOG_DXRT << "callback error unknown " << endl;
+        }
+        ReleaseAllOutputBuffer();
+        setStatus(Request::Status::REQ_DONE);
+        SetOccupiedJob(false);
+        TASK_FLOW("["+to_string(_jobId)+"] FAILED");
+        return;
+    }
+
+    // Latency is measured across the entire job lifetime, from the first
+    // start call to completion of all requests. This intentionally replaces
+    // the previous request-latency calculation, so a multi-task job can have
+    // a larger latency than any individual request.
+    if (_jobStartValid)
+    {
+        const auto elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - _jobStartTime).count();
+        // _latency is an int for API compatibility, so durations above INT_MAX
+        // microseconds are intentionally saturated rather than overflowing.
+        const int64_t clamped_us = (std::min)(elapsed_us, static_cast<int64_t>(((std::numeric_limits<int>::max)())));
+        _latency = static_cast<int>((std::max)(static_cast<int64_t>(0), clamped_us));
+    }
+    else
+    {
+        _latency = 0;
+    }
+
+    // Profiler timing samples are published only when profiling is enabled;
+    // the job's own queue-wait accumulator remains valid in either mode.
+    const int64_t nonNegativeQueueWaitTime =
+        (std::max)(static_cast<int64_t>(0), queue_wait_time());
     _inferenceEnginePtr->getTimer()->UpdateLatencyStatistics(latency());
+    _inferenceEnginePtr->getTimer()->UpdateQueueWaitTimeStatistics(nonNegativeQueueWaitTime);
     _inferenceEnginePtr->getTimer()->UpdateInferenceTimeStatistics(inference_time());
     _inferenceEnginePtr->getTimer()->PushLatency(latency());
+    _inferenceEnginePtr->getTimer()->PushQueueWaitTime(nonNegativeQueueWaitTime);
     _inferenceEnginePtr->getTimer()->PushInferenceTime(inference_time());
+
+    const int latencyExcludingWait = static_cast<int>(
+        (std::max)(static_cast<int64_t>(0),
+                   static_cast<int64_t>(latency()) - _bufferPoolWaitTime - nonNegativeQueueWaitTime));
+    _inferenceEnginePtr->recordLatency(latencyExcludingWait);
+#ifdef USE_PROFILER
+    if (_jobStartValid)
+    {
+        Profiler::GetInstance().AddJobTiming(latency(), latencyExcludingWait);
+    }
 #endif
 
     // Dynamic output processing is now handled immediately in onRequestComplete()
@@ -237,7 +355,10 @@ void InferenceJob::SetInferenceJob(std::vector<std::shared_ptr<Task>>& tasks_, s
     _headTask = head_;
     _doneCount.store(0);
     _latency = 0;
+    _queueWaitTime = 0;
+    _bufferPoolWaitTime = 0;
     _infTime = 0;
+    _jobStartValid = false;
 
     _tasks = tasks_;  // Store tasks for multi-input support
     _outputs.clear();
@@ -263,7 +384,10 @@ void InferenceJob::SetInferenceJobMultiHead(std::vector<std::shared_ptr<Task>>& 
     _inputTasks = inputTasks_;
     _doneCount.store(0);
     _latency = 0;
+    _queueWaitTime = 0;
+    _bufferPoolWaitTime = 0;
     _infTime = 0;
+    _jobStartValid = false;
 
     _tasks = tasks_;  // Store tasks for multi-input support
     _outputs.clear();
@@ -290,6 +414,8 @@ int InferenceJob::startJob(void *inputPtr, void *userArg, void *outputPtr)
     }
 
     setStatus(Request::Status::REQ_BUSY);
+    _jobStartTime = std::chrono::steady_clock::now();
+    _jobStartValid = true;
     _userArg = userArg;
     _outputPtr = outputPtr;
 
@@ -366,6 +492,15 @@ int InferenceJob::startJob(void *inputPtr, void *userArg, void *outputPtr)
     req->SetStatus(Request::Status::REQ_BUSY);
     req->setInferenceJob(this);  // on each request complete, do next request or complete whole inference
     _requests.push_back(req);
+    {
+        // A failure elsewhere in the job must not count the running head task as skipped.
+        std::unique_lock<std::mutex> lk(_lock);
+        auto itHead = _taskStatusMap.find(head_task->name());
+        if (itHead != _taskStatusMap.end())
+        {
+            itHead->second = Status::TASK_BUSY;
+        }
+    }
 
     if (_outputPtr != nullptr)
     {
@@ -396,6 +531,8 @@ int InferenceJob::startJob(void *inputPtr, void *userArg, void *outputPtr)
 int InferenceJob::startMultiInputJob(const std::map<std::string, void*>& inputTensors, void *userArg, void *outputPtr)
 {
     setStatus(Request::Status::REQ_BUSY);
+    _jobStartTime = std::chrono::steady_clock::now();
+    _jobStartValid = true;
     _userArg = userArg;
     _outputPtr = outputPtr;
 
@@ -584,6 +721,12 @@ TensorPtrs InferenceJob::getOutput()
     return std::move(_returnOutputs);
 }
 
+std::exception_ptr InferenceJob::error()
+{
+    std::unique_lock<std::mutex> lk(_lock);
+    return _error;
+}
+
 void InferenceJob::SetStoreResult(bool storeResult)
 {
     _storeResult = storeResult;
@@ -658,11 +801,15 @@ void InferenceJob::Clear()
 
     _userArg = nullptr;
     _latency = 0;
+    _queueWaitTime = 0;
+    _bufferPoolWaitTime = 0;
     _infTime = 0;
+    _jobStartValid = false;
     _inferenceEnginePtr = nullptr;
     _infEngCallback = nullptr;
     _outputPtr = nullptr;
     _storeResult = false;
+    _error = nullptr;
 
 #ifdef USE_VNPU
     _userInputReleaseCallback = nullptr;
@@ -845,8 +992,15 @@ Request::Status InferenceJob::getStatus() const
 
 void InferenceJob::Wait()
 {
-    std::unique_lock<std::mutex> lock(_waitMutex);
-    _waitCV.wait(lock, [this]{ return _status.load() != Request::Status::REQ_BUSY; });
+    {
+        std::unique_lock<std::mutex> lock(_waitMutex);
+        _waitCV.wait(lock, [this]{ return _status.load() != Request::Status::REQ_BUSY; });
+    }
+    std::exception_ptr failure = error();
+    if (failure)
+    {
+        std::rethrow_exception(failure);
+    }
 }
 
 bool InferenceJob::checkAndSetTaskReady(TaskPtr taskPtr)
@@ -911,9 +1065,14 @@ void InferenceJob::processReadyTask(TaskPtr nextTaskPtr)
         return;
     }
 
-    if (it->second != Status::TASK_READY)
     {
-        return;
+        // Claim the task under _lock so a concurrent job failure cannot also count it as skipped.
+        std::unique_lock<std::mutex> lk(_lock);
+        if (it->second != Status::TASK_READY)
+        {
+            return;
+        }
+        it->second = Status::TASK_BUSY;
     }
 
     LOG_DBG("[Job_" + std::to_string(_jobId) + "] Processing ready task '" + nextTaskPtr->name() + "' (" +
@@ -967,6 +1126,7 @@ void InferenceJob::processReadyTask(TaskPtr nextTaskPtr)
         {
             LOG_DXRT_ERR("[Job_" + std::to_string(_jobId) + "] Aborting scheduling of task '" + nextTaskPtr->name() + "' due to invalid input tensor pointers");
             // Revert status to IDLE so that if tensors become available later it can retry.
+            std::unique_lock<std::mutex> lk(_lock);
             it->second = Status::TASK_IDLE;
             return; // Do not create Request
         }
@@ -976,7 +1136,6 @@ void InferenceJob::processReadyTask(TaskPtr nextTaskPtr)
     req->SetStatus(Request::Status::REQ_BUSY);
     req->requestor_name() = nextTaskPtr->name();
     _requests.push_back(req);
-    it->second = Status::TASK_BUSY;
 
     LOG_DBG("[Job_" + std::to_string(_jobId) + "] Task '" + nextTaskPtr->name() + "' scheduled for execution (request ID: " + std::to_string(req->id()) + ")");
     RequestResponse::InferenceRequest(req);

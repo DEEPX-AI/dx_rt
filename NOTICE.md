@@ -156,27 +156,57 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## **ncurses**
 
-* **License:** MIT License
-* **Copyright:** Copyright (c) 1998-2018,2019 Free Software Foundation, Inc.
+* **License:** X11 License (MIT-style, with an additional advertising/endorsement restriction; SPDX-License-Identifier: X11)
+* **Copyright:**
+  * Copyright 2018-2019,2020 Thomas E. Dickey
+  * Copyright 1998-2018,2019 Free Software Foundation, Inc.
 
 ```text
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, distribute with modifications, sublicense, and/or sell
 copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE ABOVE COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR
+THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+Except as contained in this notice, the name(s) of the above copyright
+holders shall not be used in advertising or otherwise to promote the
+sale, use or other dealings in this Software without prior written
+authorization.
+```
+
+---
+
+## **PDCurses**
+
+* **Version:** 3.9 (vendored source at `extern/windows_pdcurses/`, used for Windows builds)
+* **License:** Public Domain (core package). Small portions of the upstream package are subject to copyright under various licenses; each directory contains a `README.md` with a "Distribution Status" section. The directories used by this project (root, `pdcurses/`, `common/`, `wincon/`) are all released to the public domain.
+* **Copyright:** No copyright claimed on the public-domain files. Maintainer: William McBrine.
+
+```text
+The core package is in the public domain, but small portions of PDCurses
+are subject to copyright under various licenses.  Each directory
+contains a README.md file, with a section titled "Distribution Status"
+which describes the status of the files in that directory.
+
+If you use PDCurses in an application, an acknowledgement would be
+appreciated, but is not mandatory. If you make corrections or
+enhancements to PDCurses, please forward them to the current maintainer
+for the benefit of other users.
+
+This software is provided AS IS with NO WARRANTY whatsoever.
 ```
 
 ---

@@ -1,3 +1,7 @@
+This section describes the Python bindings of the DX-RT SDK. It provides a streamlined interface to the same core functionalities as the C++ SDK, making it ideal for rapid development, prototyping, and integration with Python-based AI workflows.
+
+---
+
 ## Deprecated API Migration Guide
 
 The following `InferenceEngine` methods have been deprecated and will be removed in a future release. Please update your code to use the recommended alternatives.
@@ -10,7 +14,6 @@ The following `InferenceEngine` methods have been deprecated and will be removed
 | `RunBatch(input_buffers, output_buffers, user_args)` | `run(input_buffers, output_buffers=output_buffers, user_args=user_args)` | Use `run()` with batch-formatted inputs |
 | `RunAsync(input_feed_list, user_arg)` | `run_async(input_data, user_arg=user_arg)` | Parameter name kept as singular `user_arg` (only `run()` uses plural `user_args`) |
 | `RunBenchMark(loop_cnt, input_feed_list)` | `run_benchmark(num_loops, input_data)` | Parameter names changed |
-| `ValidateDevice(input_feed_list, device_id)` | `validate_device(input_data, device_id)` | |
 | `RegisterCallBack(callback)` | `register_callback(callback)` | |
 | `Wait(req_id)` | `wait(job_id)` | Parameter name changed: `req_id` → `job_id` |
 | `is_PPU()` | `is_ppu()` | |
@@ -82,14 +85,24 @@ time = engine.get_npu_inference_time()
 
 ---
 
-This section describes the Python bindings of the DX-RT SDK. It provides a streamlined interface to the same core functionalities as the C++ SDK, making it ideal for rapid development, prototyping, and integration with Python-based AI workflows.  
-
----
-
 ### class dx_engine.InferenceEngine  
   
-This class is the main Python wrapper for the DXRT Inference Engine. It provides an interface to load a compiled model and perform inference tasks, either synchronously or asynchronously, supporting both single and batch inference.  
+This class is the main Python wrapper for the DX-RT Inference Engine. It provides an interface to load a compiled model and perform inference tasks, either synchronously or asynchronously, supporting both single and batch inference.  
   
+On Windows, if the NPU device is disabled, removed, or its driver is updated while the application is running, inference methods raise `dx_engine.DeviceRemovedError` (C API `DXRT_ERR_DEVICE_REMOVED`). It is a subclass of `OSError`, so existing `except OSError` / `except IOError` handlers still catch it; catch `DeviceRemovedError` first to tell it apart from other I/O errors. The application must be restarted to use the device again.
+
+```python
+from dx_engine import InferenceEngine, DeviceRemovedError
+
+ie = InferenceEngine("model.dxnn")
+try:
+    outputs = ie.run(inputs)  # inputs: list of numpy arrays
+except DeviceRemovedError:
+    ...  # device is gone: stop and restart the application
+except OSError:
+    ...  # other I/O error
+```
+
 #### Constructor  
   
 ***`__init__(self, model_path: str, inference_option: Optional[InferenceOption] = None)`***  
@@ -171,6 +184,31 @@ This class is the main Python wrapper for the DXRT Inference Engine. It provides
 -   **Description**: Returns the compilation type or strategy of the loaded model (e.g., "debug", "release").  
 -   **Returns**: The compilation type as a string.  
   
+***`get_e2e_response_time(self)`***  
+-   **Signature**: `def get_e2e_response_time(self) -> int`  
+-   **Description**: Returns the end-to-end response time of the most recent inference in microseconds, including data transfer and overheads.  
+-   **Returns**: The E2E response time value as an integer.  
+  
+***`get_e2e_response_time_count(self)`***  
+-   **Signature**: `def get_e2e_response_time_count(self) -> int`  
+-   **Description**: Returns the total count of E2E response time values collected.  
+-   **Returns**: The number of measurements.  
+  
+***`get_e2e_response_time_list(self)`***  
+-   **Signature**: `def get_e2e_response_time_list(self) -> List[int]`  
+-   **Description**: Returns a list of recent E2E response time measurements in microseconds.  
+-   **Returns**: A list of integers.  
+  
+***`get_e2e_response_time_mean(self)`***  
+-   **Signature**: `def get_e2e_response_time_mean(self) -> float`  
+-   **Description**: Returns the mean (average) of all collected E2E response time values.  
+-   **Returns**: The mean E2E response time as a float.  
+  
+***`get_e2e_response_time_std(self)`***  
+-   **Signature**: `def get_e2e_response_time_std(self) -> float`  
+-   **Description**: Returns the standard deviation of all collected E2E response time values.  
+-   **Returns**: The standard deviation as a float.  
+  
 ***`get_input_size(self)`***  
 -   **Signature**: `def get_input_size(self) -> int`  
 -   **Description**: Gets the total expected size of all input tensors combined in bytes.  
@@ -199,11 +237,11 @@ This class is the main Python wrapper for the DXRT Inference Engine. It provides
 ***`get_input_tensors_info(self)`***  
 -   **Signature**: `def get_input_tensors_info(self) -> List[Dict[str, Any]]`  
 -   **Description**: Returns detailed information for each input tensor.  
--   **Returns**: A list of dictionaries, where each dictionary contains keys: `'name'` (str), `'shape'` (List[int]), `'dtype'` (np.dtype), and `'elem_size'` (int).  
+-   **Returns**: A list of dictionaries, where each dictionary contains keys: `'name'` (str), `'shape'` (List[int]), `'dtype'` (numpy type such as `np.uint8`), and `'elem_size'` (int).  
   
 ***`get_latency(self)`***  
 -   **Signature**: `def get_latency(self) -> int`  
--   **Description**: Returns the latency of the most recent inference in microseconds.  
+-   **Description**: Returns the latency of the most recent inference in microseconds. Identical to `get_e2e_response_time()`. Use `get_core_latency()` for the latency excluding wait times.  
 -   **Returns**: The latency value as an integer.  
   
 ***`get_latency_count(self)`***  
@@ -224,6 +262,31 @@ This class is the main Python wrapper for the DXRT Inference Engine. It provides
 ***`get_latency_std(self)`***  
 -   **Signature**: `def get_latency_std(self) -> float`  
 -   **Description**: Returns the standard deviation of all collected latency values.  
+-   **Returns**: The standard deviation as a float.  
+  
+***`get_core_latency(self)`***  
+-   **Signature**: `def get_core_latency(self) -> int`  
+-   **Description**: Returns the core latency of the most recent inference in microseconds. Core latency is the E2E response time excluding the host NPU buffer pool wait time and the NPU/CPU task queue wait time.  
+-   **Returns**: The core latency value as an integer.  
+  
+***`get_core_latency_count(self)`***  
+-   **Signature**: `def get_core_latency_count(self) -> int`  
+-   **Description**: Returns the total count of core latency values collected since initialization.  
+-   **Returns**: The count as an integer.  
+  
+***`get_core_latency_list(self)`***  
+-   **Signature**: `def get_core_latency_list(self) -> List[int]`  
+-   **Description**: Returns a list of recent core latency measurements in microseconds.  
+-   **Returns**: A list of integers.  
+  
+***`get_core_latency_mean(self)`***  
+-   **Signature**: `def get_core_latency_mean(self) -> float`  
+-   **Description**: Returns the mean (average) of all collected core latency values.  
+-   **Returns**: The mean core latency as a float.  
+  
+***`get_core_latency_std(self)`***  
+-   **Signature**: `def get_core_latency_std(self) -> float`  
+-   **Description**: Returns the standard deviation of all collected core latency values.  
 -   **Returns**: The standard deviation as a float.  
   
 ***`get_model_version(self)`***  
@@ -284,12 +347,17 @@ This class is the main Python wrapper for the DXRT Inference Engine. It provides
 ***`get_output_tensors_info(self)`***  
 -   **Signature**: `def get_output_tensors_info(self) -> List[Dict[str, Any]]`  
 -   **Description**: Returns detailed information for each output tensor.  
--   **Returns**: A list of dictionaries with keys: `'name'` (str), `'shape'` (List[int]), `'dtype'` (np.dtype), and `'elem_size'` (int).  
+-   **Returns**: A list of dictionaries with keys: `'name'` (str), `'shape'` (List[int]), `'dtype'` (numpy type such as `np.uint8`), and `'elem_size'` (int).  
   
 ***`get_task_order(self)`***  
 -   **Signature**: `def get_task_order(self) -> np.ndarray`  
 -   **Description**: Returns the execution order of tasks/subgraphs within the model.  
 -   **Returns**: A numpy array of strings representing the task order.  
+  
+***`has_dynamic_output(self)`***  
+-   **Signature**: `def has_dynamic_output(self) -> bool`  
+-   **Description**: Checks whether any output tensor has a dynamic shape.  
+-   **Returns**: `True` if at least one output tensor has a dynamic shape, `False` otherwise.  
   
 ***`is_multi_input_model(self)`***  
 -   **Signature**: `def is_multi_input_model(self) -> bool`  
@@ -312,7 +380,7 @@ This class is the main Python wrapper for the DXRT Inference Engine. It provides
 -   **Description**: Runs inference synchronously. This versatile method handles single-item, multi-input, and batch inference based on the format of `input_data`.  
 -   **Parameters**:  
     -   `input_data`: Input data in various formats (`np.ndarray`, `List[np.ndarray]`, `List[List[np.ndarray]]`).  
-    -   `output_buffers`: Optional pre-allocated buffers for the output.  
+    -   `output_buffers`: Optional pre-allocated buffers for the output. **Required for batch inference** (one entry per sample); omitting it raises an error.  
     -   `user_args`: Optional user-defined argument or list of arguments for batch mode.  
 -   **Returns**: The inference result(s). A `List[np.ndarray]` for single inference or a `List[List[np.ndarray]]` for batch inference.  
   
@@ -395,6 +463,18 @@ This class provides a Pythonic interface to configure inference options such as 
     option.buffer_count = 8  # Allocate 8 buffers for higher throughput
     engine = InferenceEngine("model.dxnn", option)
     ```
+
+***`show_model_info`***  
+-   **Description**: Gets or sets whether the model information banner (model file, input/output tensors, task graph) is printed when the engine is created. Default is `True`. Set it to `False` to keep engine creation silent, which is useful when engines are created and destroyed repeatedly. This instance-level switch is combined with the global `SHOW_MODEL_INFO` configuration item, so the banner appears only when both are enabled.
+-   **Type**: `bool`.
+-   **Example**:
+    ```python
+    from dx_engine import InferenceEngine, InferenceOption
+    
+    option = InferenceOption()
+    option.show_model_info = False  # Do not print the model info banner
+    engine = InferenceEngine("model.dxnn", option)
+    ```
   
   
 #### Member Functions  
@@ -418,6 +498,11 @@ This class provides a Pythonic interface to configure inference options such as 
 -   **Signature**: `def get_buffer_count(self) -> int`  
 -   **Description**: Returns the current buffer count configuration.  
 -   **Returns**: An integer representing the number of buffers.  
+  
+***`get_show_model_info(self)`***  
+-   **Signature**: `def get_show_model_info(self) -> bool`  
+-   **Description**: Returns whether the model information banner is printed on engine creation.  
+-   **Returns**: A boolean value.  
   
 ***`set_bound_option(self, boundOption: BOUND_OPTION)`***  
 -   **Signature**: `def set_bound_option(self, boundOption: BOUND_OPTION)`  
@@ -443,6 +528,12 @@ This class provides a Pythonic interface to configure inference options such as 
 -   **Parameters**:  
     -   `buffer_count`: An integer value specifying the number of buffers (valid range: 1-100).  
   
+***`set_show_model_info(self, show_model_info: bool)`***  
+-   **Signature**: `def set_show_model_info(self, show_model_info: bool)`  
+-   **Description**: Enables or disables printing of the model information banner on engine creation.  
+-   **Parameters**:  
+    -   `show_model_info`: A boolean value.  
+  
   
 #### Nested Classes  
   
@@ -454,7 +545,7 @@ This class provides a Pythonic interface to configure inference options such as 
   
 ### class dx_engine.Configuration  
   
-Provides access to the global DXRT configuration singleton, allowing for system-wide settings like enabling the profiler.  
+Provides access to the global DX-RT configuration singleton, allowing for system-wide settings like enabling the profiler.  
   
 #### Constructor  
   
@@ -491,7 +582,7 @@ Provides access to the global DXRT configuration singleton, allowing for system-
   
 ***`get_version(self)`***  
 -   **Signature**: `def get_version(self) -> str`  
--   **Description**: Returns the version of the DXRT library.  
+-   **Description**: Returns the version of the DX-RT library.  
 -   **Returns**: The library version string.  
   
 ***`load_config_file(self, file_name: str)`***  
@@ -538,8 +629,7 @@ Provides an interface to query real-time status and static information about har
 -   **Description**: Retrieves the status for the device with the specified ID. The status includes key metrics such as core utilization and temperature. Monitoring data is refreshed every 1 second.  
 -   **Parameters**:  
     -   `deviceId`: The integer ID of the device to query.  
--   **Returns**: An instance of `DeviceStatus`.  
--   **Raises**: `RuntimeError` if the specified device ID is invalid or does not exist.  
+-   **Returns**: An instance of `DeviceStatus`. This method never raises. When the device ID is invalid, the device is not present, or the monitoring shared memory cannot be opened, the returned object has `is_valid()` of `False`. Always check `is_valid()` before reading metrics.  
   
 ***`get_device_count(cls)`***  
 -   **Signature**: `def get_device_count(cls) -> int`  
@@ -552,6 +642,11 @@ Provides an interface to query real-time status and static information about har
 -   **Signature**: `def get_id(self) -> int`  
 -   **Description**: Returns the unique ID of the device associated with this `DeviceStatus` instance.  
 -   **Returns**: The device ID as an integer.  
+  
+***`get_driver_version(self)`***  
+-   **Signature**: `def get_driver_version(self) -> str`  
+-   **Description**: Returns the runtime driver version string.  
+-   **Returns**: The driver version string (e.g., "1.2.3").  
   
 ***`get_npu_clock(self, ch: int)`***  
 -   **Signature**: `def get_npu_clock(self, ch: int) -> int`  
@@ -590,6 +685,127 @@ Provides an interface to query real-time status and static information about har
 -   **Signature**: `def get_memory_free(self) -> int`
 -   **Description**: Retrieves the amount of free NPU DRAM.
 -   **Returns**: Free DRAM in bytes.
+
+***`is_valid(self)`***
+-   **Signature**: `def is_valid(self) -> bool`
+-   **Description**: Checks whether the device status data is valid (up-to-date). `False` means the monitoring service was not running and the data may be stale.
+-   **Returns**: `True` if the data is valid, `False` otherwise.
+
+---  
+
+### class dx_engine.Profiler
+
+A singleton class that provides runtime profiling of per-job inference timing and user-defined events. Enable the profiler with `Configuration.ITEM.PROFILER` before running inference.
+
+#### Class Methods
+
+***`get_instance()`***
+-   **Signature**: `@staticmethod def get_instance() -> Profiler`
+-   **Description**: Returns the singleton `Profiler` instance.
+-   **Returns**: The `Profiler` instance.
+
+#### Instance Methods
+
+***`get_job_metrics(self, job_id: int)`***
+-   **Signature**: `def get_job_metrics(self, job_id: int) -> JobMetrics`
+-   **Description**: Returns the timing metrics of the given job.
+-   **Parameters**:
+    -   `job_id`: The job ID returned by `run_async()`.
+-   **Returns**: A `JobMetrics` object. `valid` is `False` if the job is not found.
+-   **Example**:
+    ```python
+    from dx_engine import Profiler
+
+    profiler = Profiler.get_instance()
+    job_id = ie.run_async([input])
+    outputs = ie.wait(job_id)
+    jm = profiler.get_job_metrics(job_id)
+    if jm.valid:
+        npu = jm.get_task("npu_0")
+        print(npu.devices[0].h2d_us)
+    ```
+
+***`show(self)`***
+-   **Signature**: `def show(self) -> None`
+-   **Description**: Prints min/max/average/CoV statistics for all recorded events.
+
+***`save(self, filename: str)`***
+-   **Signature**: `def save(self, filename: str) -> None`
+-   **Description**: Saves the timing data to a JSON file.
+-   **Parameters**:
+    -   `filename`: The path of the output file.
+
+***`clear(self)`***
+-   **Signature**: `def clear(self) -> None`
+-   **Description**: Clears all recorded timing data.
+
+***`start(self, name: str)`***
+-   **Signature**: `def start(self, name: str) -> None`
+-   **Description**: Starts recording a user profiling event.
+-   **Parameters**:
+    -   `name`: The event name (e.g., `"preprocess"`, `"postprocess"`).
+
+***`end(self, name: str)`***
+-   **Signature**: `def end(self, name: str) -> None`
+-   **Description**: Ends recording a user profiling event.
+-   **Parameters**:
+    -   `name`: The event name matching a previous `start()` call.
+
+***`user_clear(self)`***
+-   **Signature**: `def user_clear(self) -> None`
+-   **Description**: Clears all user-recorded profiling events.
+
+---
+
+### class dx_engine.JobMetrics
+
+All task metrics for one job. Returned by `Profiler.get_job_metrics()`.
+
+#### Properties
+
+-   **`tasks`** (`list[TaskMetrics]`): One entry per task that participated in the job.
+-   **`valid`** (`bool`): `True` if the metrics are populated.
+
+#### Instance Methods
+
+***`get_task(self, name: str)`***
+-   **Signature**: `def get_task(self, name: str) -> TaskMetrics`
+-   **Description**: Looks up a task by name (e.g., `"npu_0"`, `"cpu_0"`).
+-   **Parameters**:
+    -   `name`: The task name.
+-   **Returns**: A `TaskMetrics` object. `valid` is `False` if the task is not found.
+
+---
+
+### class dx_engine.TaskMetrics
+
+Metrics for one registered task (NPU task or CPU task).
+
+#### Properties
+
+-   **`task_name`** (`str`): The task name (e.g., `"npu_0"`, `"cpu_0"`).
+-   **`devices`** (`dict[int, NpuDeviceMetrics]`): Per-device NPU metrics, keyed by device ID (NPU tasks only).
+-   **`cpu_task_us`** (`float`): CPU task execution time in microseconds (non-zero only for CPU tasks).
+-   **`valid`** (`bool`): `True` if the metrics are populated.
+
+---
+
+### class dx_engine.NpuDeviceMetrics
+
+Timing breakdown for one NPU device within a task. All times are in microseconds.
+
+#### Properties
+
+-   **`input_format_us`** (`float`): NPU input format handler time.
+-   **`h2d_us`** (`float`): Host-to-Device DMA time.
+-   **`inference_core_all_us`** (`float`): NPU inference time aggregated across all cores.
+-   **`inference_core_0_us`** (`float`): NPU inference time on core 0.
+-   **`inference_core_1_us`** (`float`): NPU inference time on core 1.
+-   **`inference_core_2_us`** (`float`): NPU inference time on core 2.
+-   **`d2h_us`** (`float`): Device-to-Host DMA time.
+-   **`output_format_us`** (`float`): NPU output format handler time.
+-   **`total_us`** (`float`): End-to-end NPU task time.
+-   **`valid`** (`bool`): `True` if the timing fields are populated from a real measurement.
 
 ---  
   

@@ -22,12 +22,10 @@ if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/data/CMakeLists.txt")
     list(REMOVE_ITEM srcs "${CMAKE_CURRENT_SOURCE_DIR}/data/ppcpu_data.cpp")
 endif()
 
-# Exclude ARM-specific files on x86_64
-if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64")
-    list(FILTER srcs EXCLUDE REGEX "xnn_kernel\\.cpp$")
-    list(FILTER headers EXCLUDE REGEX "xnn_kernel\\.h$")
-    message(STATUS "Excluded ARM-specific files (xnn_kernel.cpp/h) from build on x86_64")
-endif()
+# xnn_kernel.cpp now supports all architectures:
+# - ARM: NEON transpose + NEON quantize
+# - x86: scalar transpose + SSE4.1 quantize (or scalar fallback)
+# NEON code is guarded by #ifdef USE_NEON internally.
 
 
 message("DXRT LIB Source files : " ${srcs})
@@ -101,6 +99,10 @@ endif()
 
 if(WIN32 AND USE_SHARED_DXRT_LIB)
     add_dxrt_windows_version_info(${target} "DX Runtime Library" DLL)
+endif()
+
+if(USE_SHARED_DXRT_LIB)
+    dxrt_enable_release_strip_keep_unstripped(${target})
 endif()
 
 file(GLOB CFG_FILES ${CMAKE_CURRENT_SOURCE_DIR}/cfg/*.cfg)
@@ -314,6 +316,13 @@ endif()
 # ============================================================================
 if (USE_NPU_FORMAT_CONVERSION_ACCELERATION)
     if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64")
+        # x86_64: Enable SSE4.1 for quantize kernel (independent of IPP)
+        target_compile_options(${target} PRIVATE -msse4.1)
+        if(TARGET dxrt_obj)
+            target_compile_options(dxrt_obj PRIVATE -msse4.1)
+        endif()
+        message(STATUS "SSE4.1 enabled for quantize kernel (x86_64)")
+
         # x86_64: Use Intel IPP — find the library
         if(DEFINED ENV{IPPROOT})
             set(IPP_ROOT "$ENV{IPPROOT}")

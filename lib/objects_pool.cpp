@@ -31,6 +31,7 @@ using std::string;
 namespace dxrt {
 
 constexpr int ObjectsPool::REQUEST_MAX_COUNT;
+std::atomic<bool> ObjectsPool::_shuttingDown{false};
 
 
 ObjectsPool& ObjectsPool::GetInstance()
@@ -39,6 +40,11 @@ ObjectsPool& ObjectsPool::GetInstance()
     static ObjectsPool instance;
     return instance;
 
+}
+
+bool ObjectsPool::IsShuttingDown()
+{
+    return _shuttingDown.load(std::memory_order_acquire);
 }
 
 
@@ -59,6 +65,14 @@ ObjectsPool::ObjectsPool()
 
 ObjectsPool::~ObjectsPool()
 {
+    // Mark shutdown before tearing down the Request pool below: destroying
+    // _requestPool destroys every pooled Request, whose destructor calls
+    // Request::releaseBuffers(), which would otherwise reach into
+    // DevicePool::GetInstance() -- a separate Meyer's singleton that (due to
+    // reverse-construction-order destruction at process exit) is already torn
+    // down by this point. See the declaration of _shuttingDown for details.
+    _shuttingDown.store(true, std::memory_order_release);
+
     LOG_DXRT_DBG << "~ObjectsPool start" << std::endl;
 
     _requestPool = nullptr;

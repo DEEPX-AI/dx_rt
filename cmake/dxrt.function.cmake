@@ -18,6 +18,53 @@ set(DXRT_PUBLIC_INCLUDE_STAGING ${CMAKE_BINARY_DIR}/public_include)
 set(_DXRT_SRC_INCLUDE ${CMAKE_SOURCE_DIR}/lib/include)
 set(_DXRT_EXTERN_INCLUDE ${CMAKE_SOURCE_DIR}/extern/include)
 
+function(dxrt_enable_release_strip_keep_unstripped target)
+  if(MSVC)
+    return()
+  endif()
+
+  if(NOT TARGET ${target})
+    return()
+  endif()
+
+  get_target_property(_dxrt_skip_release_strip ${target} DXRT_SKIP_RELEASE_STRIP)
+  if(_dxrt_skip_release_strip)
+    return()
+  endif()
+
+  if(NOT ENABLE_RELEASE_STRIP)
+    return()
+  endif()
+
+  # This project uses single-config generators (Ninja + CMAKE_BUILD_TYPE).
+  # Keep behavior explicit and avoid running strip in Debug.
+  if(CMAKE_CONFIGURATION_TYPES)
+    return()
+  endif()
+
+  string(TOLOWER "${CMAKE_BUILD_TYPE}" _dxrt_build_type)
+  if(NOT _dxrt_build_type STREQUAL "release")
+    return()
+  endif()
+
+  if(CMAKE_STRIP)
+    set(_dxrt_strip_tool "${CMAKE_STRIP}")
+  else()
+    find_program(_dxrt_strip_tool strip)
+  endif()
+
+  if(NOT _dxrt_strip_tool)
+    message(WARNING "strip tool not found; skipping strip/unstripped step for target: ${target}")
+    return()
+  endif()
+
+  add_custom_command(TARGET ${target} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:${target}>" "$<TARGET_FILE:${target}>.unstripped"
+    COMMAND ${_dxrt_strip_tool} --strip-debug --strip-unneeded "$<TARGET_FILE:${target}>"
+    VERBATIM
+  )
+endfunction()
+
 file(MAKE_DIRECTORY ${DXRT_PUBLIC_INCLUDE_STAGING}/dxrt)
 file(MAKE_DIRECTORY ${DXRT_PUBLIC_INCLUDE_STAGING}/dxrt/exception)
 
@@ -112,6 +159,8 @@ macro(add_dxrt target)
   else()
     target_link_libraries(${target} PUBLIC dxrt pthread ${link_libs})
   endif()
+
+  dxrt_enable_release_strip_keep_unstripped(${target})
 endmacro(add_dxrt)
 
 macro(add_dxrt_static target)
@@ -130,6 +179,8 @@ macro(add_dxrt_static target)
   else()
     target_link_libraries(${target} PUBLIC dxrt_static pthread rt ${link_libs})
   endif()
+
+  dxrt_enable_release_strip_keep_unstripped(${target})
 endmacro(add_dxrt_static)
 
 function(add_dxrt_windows_version_info target description)

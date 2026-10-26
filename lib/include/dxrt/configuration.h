@@ -216,6 +216,13 @@ namespace dxrt {
         std::string GetGitHash() const;
 
         /**
+        * @brief Retrieves the build id stamped at public release time.
+        * @return Build id string "<round>.<source hash>" (e.g. "2.1a2b3c4"),
+        *         or "" for internal/development builds (build.ver value is empty).
+        */
+        std::string GetBuildId() const;
+
+        /**
         * @brief Retrieves the version of the associated device driver.
         * @return The driver version as a string.
         * @throws InvalidOperationException If the driver's version is below the minimum requirement.

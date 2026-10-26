@@ -224,7 +224,9 @@ typedef struct fct_result
     uint8_t i2c_fail;
     uint8_t test_done;
     uint8_t memtest[4];
-    uint32_t reserved32[15];
+    uint8_t otp_auth;        /* 0=N/A 1=PASS 2=FAIL 3=SKIP(non-Hexa): ECC204-auth OTP override */
+    uint8_t reserved8[3];
+    uint32_t reserved32[14];
 } dxrt_fct_result_t;
 
 typedef struct _dx_pcie_dev_event {
@@ -401,6 +403,7 @@ typedef enum {
     DX_SET_LED              = 4,
     DX_ADD_WEIGHT_INFO      = 5,
     DX_DEL_WEIGHT_INFO      = 6,
+    DX_SET_FAN              = 7,
     DX_INIT_PPCPU           = 10,
     DX_UPLOAD_MODEL         = 100,
     DX_INTERNAL_TESTCASE    = 200,

@@ -177,7 +177,9 @@ int IPCClientConnector::connect(const std::string &endpoint, IPCChannel *channel
 
         if (attempt == retryCount)
         {
-            LOG_DXRT_ERR("IPC Client connect FAILED after " << (retryCount + 1) << " attempts, last errno=" << savedErrno);
+            // Not an error by itself: the caller may still succeed on another endpoint candidate.
+            LOG_DXRT_DBG << "IPC Client connect FAILED after " << (retryCount + 1)
+                         << " attempts, last errno=" << savedErrno << std::endl;
             errno = savedErrno;
             return -1;
         }
@@ -191,7 +193,7 @@ int IPCClientConnector::connect(const std::string &endpoint, IPCChannel *channel
             (void)::nanosleep(&delay, nullptr);
         }
     }
-    LOG_DXRT_ERR("IPC Client connect FAILED: unexpected loop end");
+    LOG_DXRT_DBG << "IPC Client connect FAILED: unexpected loop end" << std::endl;
     errno = ECONNREFUSED;
     return -1;
 }

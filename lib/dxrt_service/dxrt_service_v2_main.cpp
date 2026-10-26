@@ -15,6 +15,9 @@
 #include "dxrt/extern/cxxopts.hpp"
 
 #include <algorithm>
+#ifdef __linux__
+#include <csignal>
+#endif
 #include <cerrno>
 #include <cstdint>
 #include <cstdlib>
@@ -26,6 +29,7 @@
 
 int dxrt_service_v2_main(int argc, char** argv)
 {
+    dxrt::ResetDxrtServiceV2TerminationSignal();
     cxxopts::Options options("dxrtd", "dxrtd dynamic_ipc service v2");
 
     std::string schedulerOption;
@@ -90,6 +94,10 @@ int dxrt_service_v2_main(int argc, char** argv)
 
     LOG_DXRT_S << "IPC server started successfully, entering run loop..." << std::endl;
 
+#ifdef __linux__
+    std::signal(SIGINT, dxrt::HandleDxrtServiceV2TerminationSignal);
+    std::signal(SIGTERM, dxrt::HandleDxrtServiceV2TerminationSignal);
+#endif
     const int rc = dxrtdNamespace::DxrtServiceV2RunIpcServer(runtime.get(), 1000);
     dxrtdNamespace::DxrtServiceV2StopIpcServer(runtime.get());
     return rc;

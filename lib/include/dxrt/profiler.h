@@ -273,6 +273,10 @@ namespace dxrt {
                   const std::vector<UserEvent>& userEvents);
         void Flush();
 
+        /** \internal
+         * \brief Record per-job E2E response time and latency (microseconds) for the Show() summary.
+        */
+        void AddJobTiming(int e2eResponseTimeUs, int latencyUs);
         /** \brief Get performance data for all devices
          * \return map of event name to vector of durations in milliseconds
          * \deprecated Use GetJobMetrics() instead.
@@ -383,6 +387,9 @@ namespace dxrt {
 
         std::map<std::string, std::map<int, DeviceProfilerBuffer>> _deviceBuffers;
 
+        uint64_t _jobTimingCount = 0;
+        double _jobE2EResponseTimeSumUs = 0.0;
+        double _jobLatencySumUs = 0.0;
         std::mutex _lock;
         bool _save_exit;
         bool _show_exit;

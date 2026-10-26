@@ -208,12 +208,14 @@ int processAcceptCompletion(
     }
 
     ++(*ready);
+    // Post the accepted client's read first so a failed next listener cannot strand it.
+    const int readResult = ensureEndpointReadRequests(readContexts, endpoint, maxMessageSize);
     if (endpoint->ensureAcceptPending() != 0)
     {
         return -1;
     }
 
-    return ensureEndpointReadRequests(readContexts, endpoint, maxMessageSize);
+    return readResult;
 }
 
 int processReadCompletion(

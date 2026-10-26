@@ -462,6 +462,17 @@ std::vector<int> SchedulerService::GetRunningTaskIds(pid_t pid)
     return {taskIds.begin(), taskIds.end()};
 }
 
+bool SchedulerService::HasAnyRequestForTask(pid_t pid, int taskId)
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    auto it = _map.find(static_cast<int>(pid));
+    if (it == _map.end()) { return false; }
+    return std::any_of(it->second.begin(), it->second.end(),
+        [taskId](const auto& kv) {
+            return kv.second.data.task_id == static_cast<uint32_t>(taskId);
+        });
+}
+
 bool SchedulerService::IsRequestRunning(pid_t pid, int deviceId, int reqId)
 {
     // NOTE: callers inside the scheduler already hold _lock; callers outside must

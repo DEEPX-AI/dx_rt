@@ -142,7 +142,8 @@ enum class ERROR_CODE {
     MODEL_PARSING,
     SERVICE_IO,
     DEVICE_IO,
-    INSUFFICIENT_MEMORY
+    INSUFFICIENT_MEMORY,
+    DEVICE_REMOVED
 };
 
 inline const char* to_string(ERROR_CODE code) noexcept
@@ -160,6 +161,7 @@ inline const char* to_string(ERROR_CODE code) noexcept
     case ERROR_CODE::SERVICE_IO:           return "SERVICE_IO";
     case ERROR_CODE::DEVICE_IO:            return "DEVICE_IO";
     case ERROR_CODE::INSUFFICIENT_MEMORY:  return "INSUFFICIENT_MEMORY";
+    case ERROR_CODE::DEVICE_REMOVED:       return "DEVICE_REMOVED";
     default:                               return "UNKNOWN";
     }
 }
@@ -213,6 +215,8 @@ private:
             return ERROR_CODE::FILE_IO;
         case DXRT_ERR_OUT_OF_MEMORY:
             return ERROR_CODE::INSUFFICIENT_MEMORY;
+        case DXRT_ERR_DEVICE_REMOVED:
+            return ERROR_CODE::DEVICE_REMOVED;
         case DXRT_ERR_INTERNAL:
             if (msg != nullptr && std::strstr(msg, kInvalidOperationMsg) != nullptr)
                 return ERROR_CODE::INVALID_OPERATION;
@@ -386,6 +390,7 @@ public:
     uint32_t boundOption = BOUND_OPTION::NPU_ALL;
     std::vector<int> devices;
     bool useORT = ort_available_();
+    bool showModelInfo = true;     // false = suppress the model info banner on engine creation
 
 private:
     static bool ort_available_()
@@ -423,6 +428,7 @@ public:
         opts.bound_option = static_cast<int>(option.boundOption);
         opts.buffer_count = option.bufferCount;
         opts.use_ort = option.useORT ? 1 : 0;
+        opts.show_model_info = option.showModelInfo ? 1 : 0;
         if (option.devices.size() > 1)
         {
             detail::check(dxrt_engine_create_with_devices(
@@ -449,6 +455,7 @@ public:
         opts.bound_option = static_cast<int>(option.boundOption);
         opts.buffer_count = option.bufferCount;
         opts.use_ort = option.useORT ? 1 : 0;
+        opts.show_model_info = option.showModelInfo ? 1 : 0;
         if (option.devices.size() > 1)
         {
             detail::check(dxrt_engine_create_from_memory_with_devices(
@@ -592,6 +599,8 @@ public:
         const std::vector<void*>& userArgs = {})
     {
         int batch = static_cast<int>(inputBuffers.size());
+        if (batch <= 0)
+            throw Exception("inputBuffers must not be empty", DXRT_ERR_INVALID_ARG);
         if (!userArgs.empty() && static_cast<int>(userArgs.size()) != batch)
             throw Exception("userArgs size does not match batch size", DXRT_ERR_INVALID_ARG);
         std::vector<const void*> in_ptrs(inputBuffers.begin(), inputBuffers.end());
@@ -1014,10 +1023,73 @@ public:
         return us;
     }
 
+    int GetCoreLatency() const
+    {
+        int us = 0;
+        detail::check(dxrt_engine_get_core_latency(h_, &us));
+        return us;
+    }
+
+    int GetCoreLatencyCnt() const
+    {
+        int cnt = 0;
+        detail::check(dxrt_engine_get_core_latency_count(h_, &cnt));
+        return cnt;
+    }
+
+    double GetCoreLatencyMean() const
+    {
+        double us = 0.0;
+        detail::check(dxrt_engine_get_core_latency_mean(h_, &us));
+        return us;
+    }
+
+    double GetCoreLatencyStdDev() const
+    {
+        double us = 0.0;
+        detail::check(dxrt_engine_get_core_latency_stddev(h_, &us));
+        return us;
+    }
+
+    int GetE2EResponseTime() const
+    {
+        int us = 0;
+        detail::check(dxrt_engine_get_e2e_response_time(h_, &us));
+        return us;
+    }
+
+    int GetE2EResponseTimeCnt() const
+    {
+        int cnt = 0;
+        detail::check(dxrt_engine_get_e2e_response_time_count(h_, &cnt));
+        return cnt;
+    }
+
+    double GetE2EResponseTimeMean() const
+    {
+        double us = 0.0;
+        detail::check(dxrt_engine_get_e2e_response_time_mean(h_, &us));
+        return us;
+    }
+
+    double GetE2EResponseTimeStdDev() const
+    {
+        double us = 0.0;
+        detail::check(dxrt_engine_get_e2e_response_time_stddev(h_, &us));
+        return us;
+    }
+
     uint32_t GetNpuInferenceTime()
     {
         uint32_t us = 0;
         detail::check(dxrt_engine_get_npu_inference_time(h_, &us));
+        return us;
+    }
+
+    int64_t GetQueueWaitTime() const
+    {
+        int64_t us = 0;
+        detail::check(dxrt_engine_get_queue_wait_time(h_, &us));
         return us;
     }
 
@@ -1035,11 +1107,32 @@ public:
         return us;
     }
 
+    double GetQueueWaitTimeMean() const
+    {
+        double us = 0.0;
+        detail::check(dxrt_engine_get_queue_wait_time_mean(h_, &us));
+        return us;
+    }
+
     double GetNpuInferenceTimeStdDev() const
     {
         double us = 0.0;
         detail::check(dxrt_engine_get_npu_time_stddev(h_, &us));
         return us;
+    }
+
+    double GetQueueWaitTimeStdDev() const
+    {
+        double us = 0.0;
+        detail::check(dxrt_engine_get_queue_wait_time_stddev(h_, &us));
+        return us;
+    }
+
+    int GetQueueWaitTimeCnt() const
+    {
+        int cnt = 0;
+        detail::check(dxrt_engine_get_queue_wait_time_count(h_, &cnt));
+        return cnt;
     }
 
     /* ── Performance Data Vectors ──────────────────────────── */
@@ -1051,6 +1144,26 @@ public:
         std::vector<int> result(count);
         if (count > 0)
             detail::check(dxrt_engine_get_latency_list(h_, result.data(), &count));
+        return result;
+    }
+
+    std::vector<int> GetCoreLatencyVector()
+    {
+        size_t count = 0;
+        detail::check(dxrt_engine_get_core_latency_list(h_, nullptr, &count));
+        std::vector<int> result(count);
+        if (count > 0)
+            detail::check(dxrt_engine_get_core_latency_list(h_, result.data(), &count));
+        return result;
+    }
+
+    std::vector<int> GetE2EResponseTimeVector()
+    {
+        size_t count = 0;
+        detail::check(dxrt_engine_get_e2e_response_time_list(h_, nullptr, &count));
+        std::vector<int> result(count);
+        if (count > 0)
+            detail::check(dxrt_engine_get_e2e_response_time_list(h_, result.data(), &count));
         return result;
     }
 
@@ -1453,6 +1566,7 @@ typedef enum {
     DX_SET_LED              = 4,
     DX_ADD_WEIGHT_INFO      = 5,
     DX_DEL_WEIGHT_INFO      = 6,
+    DX_SET_FAN              = 7,
 } dxrt_custom_sub_cmt_t;
 
 /* ================================================================

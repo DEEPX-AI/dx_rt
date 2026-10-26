@@ -30,6 +30,7 @@
 #include "dxrt/util.h"
 #include "dxrt/datatype.h"
 #include "dxrt/runtime_event_dispatcher.h"
+#include "dxrt/exception/exception.h"
 #include "../resource/log_messages.h"
 #include "dxrt/safe_cast.h"
 
@@ -492,12 +493,15 @@ int AccDeviceTaskLayer::InputHandler(const int& reqId, int ch)
 
     inferenceAcc.dma_ch = channel;
     RequestPtr req = Request::GetById(reqId);
+    const TaskData* reqTaskData = (req != nullptr) ? req->taskData() : nullptr;
+    const int reqJobId = (req != nullptr) ? req->job_id() : reqId;
+    const std::string reqTaskName = (reqTaskData != nullptr) ? reqTaskData->name() : "unknown-task";
 #ifdef USE_PROFILER
     const std::string profileTagBase =
         "[Device_" + std::to_string(id())
-        + "][Job_" + std::to_string(req->job_id())
-        + "][" + req->taskData()->name()
-        + "][Req_" + std::to_string(req->id()) + "]";
+        + "][Job_" + std::to_string(reqJobId)
+        + "][" + reqTaskName
+        + "][Req_" + std::to_string(reqId) + "]";
 #endif
 
     // Debug: Log input DMA parameters
@@ -510,11 +514,11 @@ int AccDeviceTaskLayer::InputHandler(const int& reqId, int ch)
     if (SKIP_INFERENCE_IO != 1)
     {
         TASK_FLOW(
-            "[" + std::to_string(req->job_id()) + "]"
-            + req->taskData()->name() + " write input, load: " + std::to_string(load));
+            "[" + std::to_string(reqJobId) + "]"
+            + reqTaskName + " write input, load: " + std::to_string(load()));
         flushInputBeforeDma(req, inferenceAcc.input.size, reqId, id());
 #ifdef USE_PROFILER
-        profiler.Start(Profiler::EventType::H2D, req->task()->name(), id(), req->job_id());
+        profiler.Start(Profiler::EventType::H2D, reqTaskName, id(), reqJobId);
 #endif
 
         int ret;
@@ -548,6 +552,19 @@ int AccDeviceTaskLayer::InputHandler(const int& reqId, int ch)
             ret = serviceLayer()->DMAWrite(id(), inferenceAcc.input.data,
                 inferenceAcc.input.base + inferenceAcc.input.offset, inferenceAcc.input.size);
         }
+#ifdef _WIN32
+        if (ret == ERROR_DEVICE_REMOVED)
+        {
+            RuntimeEventDispatcher::GetInstance().DispatchEvent(
+                RuntimeEventDispatcher::LEVEL::ERROR,
+                RuntimeEventDispatcher::TYPE::DEVICE_IO,
+                RuntimeEventDispatcher::CODE::WRITE_INPUT,
+                LogMessages::RuntimeDispatch_FailToWriteInput(ret, reqId, ch));
+            FailRequest(reqId, std::make_exception_ptr(DeviceRemovedException(
+                EXCEPTION_MESSAGE("input write failed; the device was removed or disabled"))));
+            return 0;
+        }
+#endif
         if (ret < 0)
         {
             RuntimeEventDispatcher::GetInstance().DispatchEvent(
@@ -579,21 +596,24 @@ int AccDeviceTaskLayer::InputHandler(const int& reqId, int ch)
             return ret;
         }
 #ifdef USE_PROFILER
-        profiler.End(Profiler::EventType::H2D, req->task()->name(), id(), req->job_id());
-        req->setDispatchTimestampNs(std::chrono::duration_cast<std::chrono::nanoseconds>(
-            ProfilerClock::now().time_since_epoch()).count());
+        profiler.End(Profiler::EventType::H2D, reqTaskName, id(), reqJobId);
+        if (req != nullptr)
+        {
+            req->setDispatchTimestampNs(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                ProfilerClock::now().time_since_epoch()).count());
+        }
 #endif
     }
 
-    if (dxrt::DEBUG_DATA > 0)
+    if (dxrt::DEBUG_DATA > 0 && req != nullptr && reqTaskData != nullptr)
     {
-        DataDumpBin(req->taskData()->name() + "_encoder_input.bin", req->inputs());
+        DataDumpBin(reqTaskName + "_encoder_input.bin", req->inputs());
         DataDumpBin(
-            req->taskData()->name() + "_input.bin",
+            reqTaskName + "_input.bin",
             req->encoded_inputs_ptr(),
-            req->taskData()->encoded_input_size());
+            reqTaskData->encoded_input_size());
     }
-    TASK_FLOW("["+std::to_string(req->job_id())+"]"+req->taskData()->name()+" signal to service input");
+    TASK_FLOW("["+std::to_string(reqJobId)+"]"+reqTaskName+" signal to service input");
 
     serviceLayer()->HandleInferenceAcc(inferenceAcc, id());
 
@@ -620,6 +640,31 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
     if (req == nullptr)
     {
         DXRT_ASSERT(false, "req is nullptr "+std::to_string(reqId));
+    }
+
+    // Only dxrtd sends a nonzero status here (-2: device blocked, -1: invalid task); no output was produced.
+    if (response.status != 0)
+    {
+        const std::string reason = "dxrtd rejected request " + std::to_string(reqId)
+            + " on device " + std::to_string(id()) + " (status=" + std::to_string(response.status) + ")";
+        RuntimeEventDispatcher::GetInstance().DispatchEvent(
+            RuntimeEventDispatcher::LEVEL::ERROR,
+            RuntimeEventDispatcher::TYPE::DEVICE_IO,
+            RuntimeEventDispatcher::CODE::DEVICE_EVENT,
+            reason);
+        std::exception_ptr error;
+#ifdef _WIN32
+        if (isRemoved() || isRemovalPending())
+        {
+            error = std::make_exception_ptr(DeviceRemovedException(EXCEPTION_MESSAGE(reason + "; the device was removed or disabled")));
+        }
+#endif
+        if (!error)
+        {
+            error = std::make_exception_ptr(DeviceIOException(EXCEPTION_MESSAGE(reason)));
+        }
+        FailRequest(reqId, error);
+        return 0;
     }
 
     req->set_processed_unit("NPU_"+std::to_string(core()->id()), id(), response.dma_ch);
@@ -868,6 +913,19 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
 #ifdef USE_PROFILER
         profiler.End(Profiler::EventType::D2H, req->task()->name(), id(), req->job_id());
 #endif
+#ifdef _WIN32
+        if (ret2 == ERROR_DEVICE_REMOVED)
+        {
+            RuntimeEventDispatcher::GetInstance().DispatchEvent(
+                RuntimeEventDispatcher::LEVEL::ERROR,
+                RuntimeEventDispatcher::TYPE::DEVICE_IO,
+                RuntimeEventDispatcher::CODE::READ_OUTPUT,
+                LogMessages::RuntimeDispatch_FailToReadOutput(ret2, reqId, id()));
+            FailRequest(reqId, std::make_exception_ptr(DeviceRemovedException(
+                EXCEPTION_MESSAGE("output read failed; the device was removed or disabled"))));
+            return 0;
+        }
+#endif
         if ( ret2 != 0 )
         {
             RuntimeEventDispatcher::GetInstance().DispatchEvent(
@@ -913,7 +971,7 @@ int AccDeviceTaskLayer::OutputHandler(const dxrt_response_t& response, int ch)
     TASK_FLOW(
         "[" + std::to_string(req->job_id()) + "]"
         + req->taskData()->name() + " output is ready, load :"
-        + std::to_string(_device->load()));
+        + std::to_string(load()));
 
     // NOTE: The NPU memory-cache slice for this request is intentionally NOT released
     // here. The encoded output produced by the DMA read above still lives in that slice,
@@ -960,6 +1018,29 @@ void AccDeviceTaskLayer::ReleaseInferenceCache(int reqId)
     }
 
     Deallocate_npuBuf(alloc.slice, alloc.taskId);
+}
+
+void AccDeviceTaskLayer::FailRequest(int reqId, std::exception_ptr error)
+{
+    // No decode will consume the slice, so it can be returned now.
+    ReleaseInferenceCache(reqId);
+    {
+        std::unique_lock<std::mutex> lock(npuInferenceLock());
+        _ongoingRequests.erase(reqId);
+    }
+#ifdef USE_PROFILER
+    {
+        std::lock_guard<std::mutex> lock(_responseTimestampLock);
+        _responseReceiveTimestamps.erase(reqId);
+    }
+#endif
+    CallBack();
+
+    RequestPtr req = Request::GetById(reqId);
+    if (req != nullptr)
+    {
+        req->onRequestFailed(req, error);
+    }
 }
 
 void AccDeviceTaskLayer::OutputReceiverThread(int id)
@@ -1035,6 +1116,17 @@ void AccDeviceTaskLayer::OutputReceiverThread(int id)
             // No data available, can occur during shutdown or if the device is blocked.
             // Sleep briefly to avoid busy loop, then check stop flag again.
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            continue;
+        }
+#endif
+#ifdef _WIN32
+        if (ret == ERROR_DEVICE_REMOVED)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            continue;
+        }
+        if (ret == ERROR_NO_DATA_DETECTED)
+        {
             continue;
         }
 #endif
@@ -1166,6 +1258,11 @@ bool AccDeviceTaskLayer::CatchEvent(dxrt_cmd_t cmd, dxrt::dx_pcie_dev_event_t* e
     if (ret == -ECANCELED)
     {
         return false;
+    }
+#elif _WIN32
+    if (ret == ERROR_DEVICE_REMOVED)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 #endif
 

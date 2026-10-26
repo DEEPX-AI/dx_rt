@@ -10,10 +10,12 @@
 #include "dxrt/common.h"
 #include "dxrt/inference_timer.h"
 
+#include <limits>
+
 namespace dxrt {
 
 InferenceTimer::InferenceTimer()
-: _latency(30), _infTime(30)  // NOSONAR:S3230
+: _latency(30), _queueWaitTime(30), _infTime(30)  // NOSONAR:S3230
 {
 
 }
@@ -22,6 +24,11 @@ void InferenceTimer::PushLatency(int latency)
 {
     _latency.Push(latency);
 }
+void InferenceTimer::PushQueueWaitTime(int64_t queue_wait_time)
+{
+    _queueWaitTime.Push((std::max)(static_cast<int64_t>(0), queue_wait_time));
+}
+
 void InferenceTimer::PushInferenceTime(uint32_t inference_time)
 {
     _infTime.Push(inference_time);
@@ -33,6 +40,14 @@ int InferenceTimer::latency()
     if (_latency.IsEmpty())
         return 0;
     return _latency.Get();
+}
+
+int64_t InferenceTimer::queue_wait_time()
+{
+    std::unique_lock<std::mutex> lk(_lock);
+    if (_queueWaitTime.IsEmpty())
+        return 0;
+    return _queueWaitTime.Get();
 }
 
 uint32_t InferenceTimer::inference_time()
@@ -51,6 +66,14 @@ std::vector<int> InferenceTimer::GetLatencyVector()
     return _latency.ToVector();
 }
 
+std::vector<int64_t> InferenceTimer::GetQueueWaitTimeVector()
+{
+    std::unique_lock<std::mutex> lk(_lock);
+    if (_queueWaitTime.IsEmpty())
+        return {};
+    return _queueWaitTime.ToVector();
+}
+
 std::vector<uint32_t> InferenceTimer::GetNpuInferenceTimeVector()
 {
     std::unique_lock<std::mutex> lk(_lock);
@@ -61,6 +84,9 @@ std::vector<uint32_t> InferenceTimer::GetNpuInferenceTimeVector()
 
 void InferenceTimer::UpdateLatencyStatistics(int latency) {
     std::unique_lock<std::mutex> lk(_lock);
+    // Freeze statistics at INT_MAX samples to avoid signed overflow of the count.
+    if (_latencyN == (std::numeric_limits<int>::max)())
+        return;
     _latencyN++;
     double delta = latency - _latencyMean;
     _latencyMean += delta / _latencyN;
@@ -68,8 +94,22 @@ void InferenceTimer::UpdateLatencyStatistics(int latency) {
     _latencyM2 += delta * delta2;
 }
 
+void InferenceTimer::UpdateQueueWaitTimeStatistics(int64_t queueWaitTime) {
+    std::unique_lock<std::mutex> lk(_lock);
+    queueWaitTime = (std::max)(static_cast<int64_t>(0), queueWaitTime);
+    if (_queueWaitTimeN == (std::numeric_limits<int>::max)())
+        return;
+    _queueWaitTimeN++;
+    double delta = static_cast<double>(queueWaitTime) - _queueWaitTimeMean;
+    _queueWaitTimeMean += delta / _queueWaitTimeN;
+    double delta2 = static_cast<double>(queueWaitTime) - _queueWaitTimeMean;
+    _queueWaitTimeM2 += delta * delta2;
+}
+
 void InferenceTimer::UpdateInferenceTimeStatistics(uint32_t inferenceTime) {
     std::unique_lock<std::mutex> lk(_lock);
+    if (_inferenceTimeN == (std::numeric_limits<int>::max)())
+        return;
     _inferenceTimeN++;
     double delta = inferenceTime - _inferenceTimeMean;
     _inferenceTimeMean += delta / _inferenceTimeN;
@@ -90,6 +130,21 @@ double InferenceTimer::GetLatencyStdDev() const{
 int InferenceTimer::GetLatencyCnt() const{
     std::unique_lock<std::mutex> lk(_lock);
     return _latencyN;
+}
+
+double InferenceTimer::GetQueueWaitTimeMean() const{
+    std::unique_lock<std::mutex> lk(_lock);
+    return (_queueWaitTimeN > 0) ? _queueWaitTimeMean : 0.0;
+}
+
+double InferenceTimer::GetQueueWaitTimeStdDev() const{
+    std::unique_lock<std::mutex> lk(_lock);
+    return (_queueWaitTimeN > 1) ? std::sqrt(_queueWaitTimeM2 / (_queueWaitTimeN - 1)) : 0.0;
+}
+
+int InferenceTimer::GetQueueWaitTimeCnt() const{
+    std::unique_lock<std::mutex> lk(_lock);
+    return _queueWaitTimeN;
 }
 
 double InferenceTimer::GetNpuInferenceTimeMean() const{

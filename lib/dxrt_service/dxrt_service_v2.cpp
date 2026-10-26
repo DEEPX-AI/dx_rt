@@ -8,6 +8,7 @@
  */
 
 #include "dxrt_service_v2.hpp"
+#include "dxrt_service_v2_main_logic.hpp"
 #include "../device_shm/shared_memory_writing_thread.hpp"
 
 
@@ -112,9 +113,18 @@ bool IsProcessRunning(pid_t pid)
 }
 #endif
 
+// Must stay above the driver's DMA drain timeout (RECOVERY_DMA_DRAIN_TIMEOUT_MS = 5000).
+constexpr std::chrono::seconds kPendingTaskFreeGrace{30};
+constexpr std::chrono::seconds kPendingTaskFreeScanInterval{1};
+
 }  // namespace
 
 namespace dxrt {
+
+bool IsLikelyDisconnectedSendErrorForTest(int rc)
+{
+    return isLikelyDisconnectedSendError(rc);
+}
 
 struct DxrtServiceV2::IpcServerContext
 {
@@ -137,6 +147,18 @@ struct DxrtServiceV2::IpcServerWorkItem
 
 DxrtServiceV2::~DxrtServiceV2()
 {
+#ifdef _WIN32
+    // Devices outlive the service; detach handlers that capture this (waits for a running callback).
+    for (const auto &device : _devices)
+    {
+        if (device)
+        {
+            device->SetRemovalHandler(nullptr);
+        }
+    }
+    stopDeviceReopen();
+#endif
+    StopPendingTaskFreeReaper();
     if (_sharedMemoryWritingThread)
     {
         _sharedMemoryWritingThread->Stop();
@@ -727,6 +749,10 @@ int DxrtServiceV2::RunIpcServer(int timeoutMs)
         {
             return rc;
         }
+        if (dxrt::IsDxrtServiceV2TerminationRequested())
+        {
+            break;
+        }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(sleepMs));
     }
@@ -871,6 +897,11 @@ DxrtServiceV2::DxrtServiceV2(
         device->SetThrottleCallback([this](dxrt::dx_pcie_dev_ntfy_throt_t throtInfo, int deviceId) {
             BroadcastThrottlingEventToClient(throtInfo, deviceId);
         });
+#ifdef _WIN32
+        device->SetRemovalHandler([this, id](dxrt::DeviceRemovalEvent event, uint32_t timeoutMs) {
+            return HandleDeviceRemoval(id, event, timeoutMs);
+        });
+#endif
         device->SetDMACompletionCallback([this](bool isRead, pid_t pid, int deviceId, int seqId, int result) {
             // Decrement pending DMA counter when completion is delivered
             DecrementPendingDMA();
@@ -983,10 +1014,160 @@ DxrtServiceV2::DxrtServiceV2(
             {
                 uint64_t memOffset = memService->Allocate(ppuDataSize, getpid());
                 device->LoadPPCPUFirmware(memOffset);
+#ifdef _WIN32
+                std::lock_guard<std::mutex> lock(_reopenMutex);
+                _ppcpuOffsets[id] = memOffset;
+#endif
             }
         }
     }
+
+    StartPendingTaskFreeReaper();
 }
+
+#ifdef _WIN32
+bool DxrtServiceV2::HandleDeviceRemoval(int deviceId, dxrt::DeviceRemovalEvent event, uint32_t timeoutMs)
+{
+    const std::shared_ptr<dxrt::ServiceDevice> device = _devices[deviceId];
+    std::lock_guard<std::mutex> stateLock(_removalStateMutex);
+    switch (event)
+    {
+    case dxrt::DeviceRemovalEvent::QueryRemove:
+    {
+        // Block only at an idle moment: requests dispatched to a blocked device fail.
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
+        while (true)
+        {
+            if (_scheduler->Load(deviceId) == 0)
+            {
+                const bool blockedHere = device->blockIfUnblocked();
+                if (_scheduler->Load(deviceId) == 0)
+                {
+                    _blockedForRemoval[deviceId] = _blockedForRemoval[deviceId] || blockedHere;
+                    _removalEpoch[deviceId]++;
+                    device->setRemoving(true);
+                    LOG_DXRT_S << "Device " << deviceId << ": accepting removal request" << std::endl;
+                    return true;
+                }
+                if (blockedHere)
+                {
+                    device->unblock();
+                }
+            }
+            if (std::chrono::steady_clock::now() >= deadline)
+            {
+                LOG_DXRT_S << "Device " << deviceId << ": removal refused, load="
+                           << _scheduler->Load(deviceId) << std::endl;
+                return false;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+    }
+    case dxrt::DeviceRemovalEvent::RemoveCancelled:
+        device->setRemoving(false);
+        if (_blockedForRemoval[deviceId])
+        {
+            device->unblock();
+            _blockedForRemoval[deviceId] = false;
+        }
+        LOG_DXRT_S << "Device " << deviceId << ": removal cancelled; device in use again" << std::endl;
+        return true;
+    case dxrt::DeviceRemovalEvent::Removed:
+        _removalEpoch[deviceId]++;
+        device->setRemoving(true);
+        device->block();
+        LOG_DXRT_S << "Device " << deviceId << ": removed; waiting for it to return" << std::endl;
+        startDeviceReopen(deviceId);
+        return true;
+    }
+    return true;
+}
+
+void DxrtServiceV2::startDeviceReopen(int deviceId)
+{
+    std::lock_guard<std::mutex> lock(_reopenMutex);
+    if (_reopenStop || _reopenRunning[deviceId])
+    {
+        return;
+    }
+    auto it = _reopenThreads.find(deviceId);
+    if (it != _reopenThreads.end() && it->second.joinable())
+    {
+        it->second.join();  // the previous loop has finished (_reopenRunning is false)
+    }
+    _reopenRunning[deviceId] = true;
+    _reopenThreads[deviceId] = std::thread(&DxrtServiceV2::reopenDeviceLoop, this, deviceId);
+}
+
+void DxrtServiceV2::reopenDeviceLoop(int deviceId)
+{
+    const std::shared_ptr<dxrt::ServiceDevice> device = _devices[deviceId];
+    std::unique_lock<std::mutex> lock(_reopenMutex);
+    while (!_reopenCv.wait_for(lock, std::chrono::seconds(1), [this] { return _reopenStop; }))
+    {
+        // Reopening blocks on the device; do it without _reopenMutex so stop and new events are not held up.
+        lock.unlock();
+        uint64_t epoch = 0;
+        {
+            std::lock_guard<std::mutex> stateLock(_removalStateMutex);
+            epoch = _removalEpoch[deviceId];
+        }
+        bool reopened = device->ReopenDevice();
+        if (reopened)
+        {
+            uint64_t ppcpuOffset = 0;
+            bool hasPpcpu = false;
+            {
+                std::lock_guard<std::mutex> offsetLock(_reopenMutex);
+                auto it = _ppcpuOffsets.find(deviceId);
+                hasPpcpu = (it != _ppcpuOffsets.end());
+                ppcpuOffset = hasPpcpu ? it->second : 0;
+            }
+            if (hasPpcpu)
+            {
+                device->LoadPPCPUFirmware(ppcpuOffset);
+            }
+            std::lock_guard<std::mutex> stateLock(_removalStateMutex);
+            if (_removalEpoch[deviceId] != epoch)
+            {
+                // Removed again while reopening; keep it blocked and try again.
+                reopened = false;
+            }
+            else
+            {
+                device->setRemoving(false);
+                device->unblock();
+                _blockedForRemoval[deviceId] = false;
+                LOG_DXRT_S << "Device " << deviceId << ": reopened after removal; available to new sessions" << std::endl;
+            }
+        }
+        lock.lock();
+        if (reopened)
+        {
+            break;
+        }
+    }
+    _reopenRunning[deviceId] = false;
+}
+
+void DxrtServiceV2::stopDeviceReopen()
+{
+    std::map<int, std::thread> threads;
+    {
+        std::lock_guard<std::mutex> lock(_reopenMutex);
+        _reopenStop = true;
+        threads.swap(_reopenThreads);
+    }
+    _reopenCv.notify_all();
+    for (auto& entry : threads)
+    {
+        if (entry.second.joinable())
+        {
+            entry.second.join();
+        }
+    }
+}
+#endif
 
 DxrtServiceV2::DxrtServiceV2(DXRTScheduleV2 schedulerOption)
     : DxrtServiceV2(dxrt::ServiceDevice::CheckServiceDevices(), schedulerOption)
@@ -1402,22 +1583,6 @@ int DxrtServiceV2::HandleProcessDeInit(pid_t pid, int deviceId)
 {
 
     LOG_DXRT_S << "HandleProcessDeInit: pid=" << pid << ", deviceId=" << deviceId << std::endl;
-    // Identify tasks with in-flight (RUNNING) requests *before* stopping them.
-    // Their RMAP/Weight memory must not be freed until the NPU delivers the
-    // completion response; register them for deferred cleanup via _onTaskDrained.
-    const std::vector<int> runningTaskIds = _scheduler->GetRunningTaskIds(pid);
-    const std::set<int> runningTaskIdSet(runningTaskIds.begin(), runningTaskIds.end());
-    {
-        std::lock_guard<std::mutex> lock(_pendingTaskFreeMutex);
-        for (int taskId : runningTaskIds)
-        {
-            _pendingTaskFree[{pid, taskId}] = deviceId;
-        }
-
-        LOG_DXRT_S << "HandleProcessDeInit: pid=" << pid
-                   << ", deviceId=" << deviceId
-                   << ", runningTaskIds count=" << runningTaskIds.size() << std::endl;
-    }
 
     _scheduler->StopAllInferenceForProcess(pid, deviceId);
 
@@ -1430,27 +1595,32 @@ int DxrtServiceV2::HandleProcessDeInit(pid_t pid, int deviceId)
     }
     _scheduler->ClearRunningRequests(pid, deviceId);
 
+    // Only past the stops above is it known which tasks the NPU still owes a completion for.
     auto *memService = GetMemoryService(deviceId);
     for (const auto &entry : taskEntries)
     {
         const int taskId = entry.first;
         const dxrt::npu_bound_op bound = entry.second;
 
-        if (memService != nullptr)
+        // Registered before re-checking so a completion landing in between is claimed by onTaskDrained.
         {
-            LOG_DXRT_S << "HandleProcessDeInit mem clear: pid=" << pid
-                       << ", deviceId=" << deviceId
-                       << ", taskId=" << taskId << std::endl;
-            // Do not deallocate tasks that still have in-flight requests.
-            // Those are deferred and reclaimed in onTaskDrained().
-            if (runningTaskIdSet.count(taskId) == 0)
-            {
-                // No in-flight request: RMAP/Weight is safe to free now.
-                (void)memService->DeallocateTask(pid, taskId);
-            }
+            std::lock_guard<std::mutex> lock(_pendingTaskFreeMutex);
+            _pendingTaskFree[{pid, taskId}][deviceId] = std::chrono::steady_clock::now();
         }
 
-        // Running tasks: DeallocateTask deferred to _onTaskDrained.
+        const bool freeNow =
+            !_scheduler->HasAnyRequestForTask(pid, taskId) && ClaimPendingTaskFree(pid, taskId, deviceId);
+
+        LOG_DXRT_S << "HandleProcessDeInit mem clear: pid=" << pid
+                   << ", deviceId=" << deviceId
+                   << ", taskId=" << taskId
+                   << ", deferred=" << (freeNow ? 0 : 1) << std::endl;
+
+        if (freeNow && memService != nullptr)
+        {
+            (void)memService->DeallocateTask(pid, taskId);
+        }
+
         std::lock_guard<std::mutex> lock(_deviceMutex);
         if (deviceId >= 0 && deviceId < static_cast<int>(_devices.size()))
         {
@@ -1731,18 +1901,120 @@ bool DxrtServiceV2::validateTask(pid_t pid, int deviceId, int taskId)
 
 void DxrtServiceV2::onTaskDrained(pid_t pid, int taskId)
 {
-    int deviceId = -1;
+    std::map<int, std::chrono::steady_clock::time_point> deferredDevices;
     {
         std::lock_guard<std::mutex> lock(_pendingTaskFreeMutex);
         auto it = _pendingTaskFree.find({pid, taskId});
         if (it == _pendingTaskFree.end()) { return; }  // normal idle — nothing to free
-        deviceId = it->second;
+        deferredDevices = std::move(it->second);
         _pendingTaskFree.erase(it);
     }
-    auto *memService = GetMemoryService(deviceId);
-    if (memService != nullptr)
+    for (const auto &device : deferredDevices)
     {
-        (void)memService->DeallocateTask(pid, taskId);
+        auto *memService = GetMemoryService(device.first);
+        if (memService != nullptr)
+        {
+            (void)memService->DeallocateTask(pid, taskId);
+        }
+    }
+}
+
+bool DxrtServiceV2::ClaimPendingTaskFree(pid_t pid, int taskId, int deviceId)
+{
+    std::lock_guard<std::mutex> lock(_pendingTaskFreeMutex);
+    auto it = _pendingTaskFree.find({pid, taskId});
+    if (it == _pendingTaskFree.end() || it->second.erase(deviceId) == 0) { return false; }
+    if (it->second.empty())
+    {
+        _pendingTaskFree.erase(it);
+    }
+    return true;
+}
+
+void DxrtServiceV2::StartPendingTaskFreeReaper()
+{
+    if (_pendingFreeReaperRunning.exchange(true)) { return; }
+    _pendingFreeReaper = std::thread([this]() {
+        while (_pendingFreeReaperRunning.load())
+        {
+            {
+                std::unique_lock<std::mutex> lock(_pendingFreeReaperMutex);
+                _pendingFreeReaperCv.wait_for(
+                    lock,
+                    kPendingTaskFreeScanInterval,
+                    [this]() { return !_pendingFreeReaperRunning.load(); });
+            }
+            if (!_pendingFreeReaperRunning.load()) { break; }
+            ReclaimStrandedTaskMemory();
+        }
+    });
+}
+
+void DxrtServiceV2::StopPendingTaskFreeReaper()
+{
+    {
+        std::lock_guard<std::mutex> lock(_pendingFreeReaperMutex);
+        if (!_pendingFreeReaperRunning.exchange(false)) { return; }
+    }
+    _pendingFreeReaperCv.notify_all();
+    if (_pendingFreeReaper.joinable())
+    {
+        _pendingFreeReaper.join();
+    }
+}
+
+void DxrtServiceV2::ReclaimStrandedTaskMemory()
+{
+    struct Candidate {
+        pid_t pid;
+        int taskId;
+        int deviceId;
+        bool expired;
+    };
+
+    std::vector<Candidate> candidates;
+    {
+        const auto now = std::chrono::steady_clock::now();
+        std::lock_guard<std::mutex> lock(_pendingTaskFreeMutex);
+        for (const auto &task : _pendingTaskFree)
+        {
+            for (const auto &device : task.second)
+            {
+                candidates.push_back(Candidate{
+                    task.first.first,
+                    task.first.second,
+                    device.first,
+                    (now - device.second) >= kPendingTaskFreeGrace});
+            }
+        }
+    }
+
+    // Lock order forbids taking scheduler/memory locks under _pendingTaskFreeMutex.
+    for (const auto &candidate : candidates)
+    {
+        if (IsProcessRunning(candidate.pid)) { continue; }
+
+        // A tracked request means a completion may still arrive; wait out the grace period.
+        if (_scheduler->HasAnyRequestForTask(candidate.pid, candidate.taskId) && !candidate.expired)
+        {
+            continue;
+        }
+
+        if (!ClaimPendingTaskFree(candidate.pid, candidate.taskId, candidate.deviceId))
+        {
+            continue;  // onTaskDrained reclaimed it in the meantime
+        }
+
+        LOG_DXRT_S_ERR("Reclaiming stranded task memory: pid=" + std::to_string(candidate.pid)
+            + ", deviceId=" + std::to_string(candidate.deviceId)
+            + ", taskId=" + std::to_string(candidate.taskId)
+            + ", expired=" + std::to_string(static_cast<int>(candidate.expired)));
+
+        auto *memService = GetMemoryService(candidate.deviceId);
+        if (memService != nullptr)
+        {
+            (void)memService->DeallocateTask(candidate.pid, candidate.taskId);
+        }
     }
 }
 
@@ -2029,37 +2301,49 @@ bool DxrtServiceV2::TaskInit(pid_t pid, int deviceId, int taskId, int bound, uin
 {
     if (deviceId < 0 || deviceId >= static_cast<int>(_devices.size()))
     {
+        LOG_DXRT_S_ERR("TaskInit: invalid deviceId=" + std::to_string(deviceId));
         return false;
     }
 
     auto memService = GetMemoryService(deviceId);
     if (memService == nullptr)
     {
+        LOG_DXRT_S_ERR("TaskInit: memory service not available for deviceId=" + std::to_string(deviceId));
         return false;
     }
 
+    /*
     if (memService->free_size() < modelMemorySize)
     {
         memService->OptimizeMemory();
         if (memService->free_size() < modelMemorySize)
         {
+            LOG_DXRT_S_ERR("TaskInit: insufficient memory for taskId=" + std::to_string(taskId) +
+                ", required=" + std::to_string(modelMemorySize) +
+                ", free=" + std::to_string(memService->free_size()));
             return false;
         }
     }
+    */
 
     const auto boundOp = static_cast<dxrt::npu_bound_op>(bound);
     {
         std::lock_guard<std::mutex> lock(_deviceMutex);
         if (_devices[deviceId]->isBlocked())
         {
+            LOG_DXRT_S_ERR("TaskInit: deviceId=" + std::to_string(deviceId) + " is blocked");
             return false;
         }
         if (_devices[deviceId]->CanAcceptBound(boundOp) == false)
         {
+            LOG_DXRT_S_ERR("TaskInit: deviceId=" + std::to_string(deviceId) +
+                " cannot accept boundOp=" + std::to_string(bound));
             return false;
         }
         if (_devices[deviceId]->AddBound(boundOp) != 0)
         {
+            LOG_DXRT_S_ERR("TaskInit: failed to add boundOp=" + std::to_string(bound) +
+                " for deviceId=" + std::to_string(deviceId));
             return false;
         }
     }
@@ -2072,6 +2356,9 @@ bool DxrtServiceV2::TaskInit(pid_t pid, int deviceId, int taskId, int bound, uin
             modelMemorySize,
             dxrt::InferenceContext{config}))
     {
+        LOG_DXRT_S_ERR("TaskInit: failed to add taskId=" + std::to_string(taskId) +
+            " for pid=" + std::to_string(pid) +
+            ", deviceId=" + std::to_string(deviceId));
         std::lock_guard<std::mutex> lock(_deviceMutex);
         (void)_devices[deviceId]->DeleteBound(boundOp);
         return false;

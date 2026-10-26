@@ -40,6 +40,9 @@ namespace py = pybind11;
 // Forward declarations for per-module init functions
 void init_profiler(py::module_& m);
 
+// Created once in PYBIND11_MODULE and intentionally never released.
+static PyObject* g_DeviceRemovedError = nullptr;
+
 // Exception translation: map dxrt_status_t to Python exception types
 void translateException(const std::exception_ptr& p) {
     try {
@@ -56,6 +59,8 @@ void translateException(const std::exception_ptr& p) {
                 PyErr_SetString(PyExc_IOError, e.what()); break;
             case DXRT_ERR_DEVICE:
                 PyErr_SetString(PyExc_IOError, e.what()); break;
+            case DXRT_ERR_DEVICE_REMOVED:
+                PyErr_SetString(g_DeviceRemovedError, e.what()); break;
             case DXRT_ERR_OUT_OF_MEMORY:
                 PyErr_SetString(PyExc_MemoryError, e.what()); break;
             case DXRT_ERR_TIMEOUT:
@@ -384,7 +389,7 @@ py::object pyRun(InferenceEngine &ie,
         } else {
             cpp_single_results = ie.Run(cpp_single_input_ptr, reinterpret_cast<void*>(single_user_arg_wrapper), cpp_single_output_ptr);
         }
-    } catch (const std::exception& e) {
+    } catch (...) {
         py::gil_scoped_acquire acquire_gil_for_cleanup;
         if (single_user_arg_wrapper) { delete single_user_arg_wrapper; single_user_arg_wrapper = nullptr; }
         for (UserArgWrapper* wrapper : batch_user_arg_wrappers) { if (wrapper) delete wrapper; }
@@ -651,27 +656,34 @@ void pyRegisterCallback(InferenceEngine &ie, const py::object &pyCallback_obj) {
 
 // Waits for an asynchronous job and retrieves its output.
 std::vector<py::array> pyWait(InferenceEngine &ie, int jobId) {
-    TensorPtrs outputs_cpp;
-    {
-        py::gil_scoped_release release_gil;
-        outputs_cpp = ie.Wait(jobId);
-    }
-    py::gil_scoped_acquire acquire_gil;
-
     // Retrieve and delete wrapper for this job to prevent memory leak
     // This is critical for non-contiguous inputs where wrapper holds input_arrays_pyObj
-    UserArgWrapper* wrapper = nullptr;
-    {
-        std::lock_guard<std::mutex> lock(g_jobWrapperMapMutex);
-        auto it = g_jobWrapperMap.find(jobId);
-        if (it != g_jobWrapperMap.end()) {
-            wrapper = it->second;
-            g_jobWrapperMap.erase(it);
+    auto releaseWrapper = [jobId]() {
+        UserArgWrapper* wrapper = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(g_jobWrapperMapMutex);
+            auto it = g_jobWrapperMap.find(jobId);
+            if (it != g_jobWrapperMap.end()) {
+                wrapper = it->second;
+                g_jobWrapperMap.erase(it);
+            }
         }
+        if (wrapper) {
+            delete wrapper;  // Release wrapper and its Python object references
+        }
+    };
+
+    TensorPtrs outputs_cpp;
+    try {
+        py::gil_scoped_release release_gil;
+        outputs_cpp = ie.Wait(jobId);
+    } catch (...) {
+        // A failed job (e.g. device removed) has no outputs; the GIL is held again here.
+        releaseWrapper();
+        throw;
     }
-    if (wrapper) {
-        delete wrapper;  // Release wrapper and its Python object references
-    }
+    py::gil_scoped_acquire acquire_gil;
+    releaseWrapper();
 
     std::vector<py::array> result_py_list;
     for(const auto &output_tensor_cpp_ptr : outputs_cpp) {
@@ -852,7 +864,7 @@ std::vector<py::array> pyRunMultiInputDict(InferenceEngine &ie, const py::dict &
     TensorPtrs outputs_cpp;
     try {
         outputs_cpp = ie.RunMultiInput(inputTensors, reinterpret_cast<void*>(wrapper), output_c_ptr_for_engine);
-    } catch (const std::exception& e) {
+    } catch (...) {
         py::gil_scoped_acquire acquire_gil_for_cleanup;
         if (wrapper) delete wrapper;
         // Re-throw the exception to be handled by the translator
@@ -977,6 +989,16 @@ int pyRuntimeEventDispatcher_GetCurrentLevel(dxrt::RuntimeEventDispatcher &dispa
 // Module definition
 PYBIND11_MODULE(_pydxrt, m) {
     m.doc() = "Python bindings for DXRT Inference Engine";
+
+    g_DeviceRemovedError = PyErr_NewExceptionWithDoc(
+        "dx_engine.DeviceRemovedError",
+        "The NPU device was removed, disabled, or its driver was updated "
+        "(DXRT_ERR_DEVICE_REMOVED). Restart the application to use the device again.",
+        PyExc_OSError, nullptr);
+    if (g_DeviceRemovedError == nullptr) {
+        throw py::error_already_set();
+    }
+    m.add_object("DeviceRemovedError", g_DeviceRemovedError);
 
     // Register exception translators
     py::register_exception_translator([](std::exception_ptr p) {
@@ -1133,6 +1155,7 @@ PYBIND11_MODULE(_pydxrt, m) {
         .def(py::init<>())
         .def_readwrite("useORT", &InferenceOption::useORT)
         .def_readwrite("bufferCount", &InferenceOption::bufferCount)
+        .def_readwrite("showModelInfo", &InferenceOption::showModelInfo)
         .def_property("boundOption",
             [](const InferenceOption &opt) { return static_cast<int>(opt.boundOption); },
             [](InferenceOption &opt, int val) {
@@ -1174,14 +1197,24 @@ PYBIND11_MODULE(_pydxrt, m) {
         .def("get_output_size", &InferenceEngine::GetOutputSize)
         .def("get_output_tensor_sizes", &InferenceEngine::GetOutputTensorSizes)
         .def("get_latency", &InferenceEngine::GetLatency)
+        .def("get_core_latency", &InferenceEngine::GetCoreLatency)
+        .def("get_e2e_response_time", &InferenceEngine::GetE2EResponseTime)
         .def("get_npu_inference_time", &InferenceEngine::GetNpuInferenceTime)
         .def("get_latency_list", &InferenceEngine::GetLatencyVector)
+        .def("get_core_latency_list", &InferenceEngine::GetCoreLatencyVector)
+        .def("get_e2e_response_time_list", &InferenceEngine::GetE2EResponseTimeVector)
         .def("get_npu_inference_time_list", &InferenceEngine::GetNpuInferenceTimeVector)
         .def("get_latency_mean", &InferenceEngine::GetLatencyMean)
+        .def("get_core_latency_mean", &InferenceEngine::GetCoreLatencyMean)
+        .def("get_e2e_response_time_mean", &InferenceEngine::GetE2EResponseTimeMean)
         .def("get_npu_inference_time_mean", &InferenceEngine::GetNpuInferenceTimeMean)
         .def("get_latency_std", &InferenceEngine::GetLatencyStdDev)
+        .def("get_core_latency_std", &InferenceEngine::GetCoreLatencyStdDev)
+        .def("get_e2e_response_time_std", &InferenceEngine::GetE2EResponseTimeStdDev)
         .def("get_npu_inference_time_std", &InferenceEngine::GetNpuInferenceTimeStdDev)
         .def("get_latency_count", &InferenceEngine::GetLatencyCnt)
+        .def("get_core_latency_count", &InferenceEngine::GetCoreLatencyCnt)
+        .def("get_e2e_response_time_count", &InferenceEngine::GetE2EResponseTimeCnt)
         .def("get_npu_inference_time_count", &InferenceEngine::GetNpuInferenceTimeCnt)
         .def("get_bitmatch_mask", &InferenceEngine::GetBitmatchMask, py::arg("index") = 0)
         .def("get_num_tail_tasks", &InferenceEngine::GetNumTailTasks)

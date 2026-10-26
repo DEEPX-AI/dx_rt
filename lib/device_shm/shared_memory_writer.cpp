@@ -70,6 +70,21 @@ bool BuildMonitorShmSecurityAttributes(SECURITY_ATTRIBUTES& attributes, Security
     return true;
 }
 
+// Same liveness rule as SharedMemoryReader::IsWriterAlive().
+bool IsProcessAlive(DWORD pid)
+{
+    HANDLE process_handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (process_handle == nullptr)
+    {
+        // ERROR_ACCESS_DENIED: the process exists but belongs to a more privileged account.
+        return ::GetLastError() == ERROR_ACCESS_DENIED;
+    }
+    DWORD exit_code = 0;
+    const bool alive = GetExitCodeProcess(process_handle, &exit_code) && (exit_code == STILL_ACTIVE);
+    CloseHandle(process_handle);
+    return alive;
+}
+
 } // namespace
 #endif
 
@@ -90,8 +105,28 @@ bool SharedMemoryWriter::Initialize()
 #ifdef __linux__
     const char* shm_name = GetMonitorShmName();
 
-    // Open-or-create shared memory (reader-first/writer-first both supported).
-    _shm_fd = shm_open(shm_name, O_CREAT | O_RDWR, MONITOR_SHM_PERMS);
+    // Preferred path: attach to existing shared memory without O_CREAT.
+    // Some kernels enforce fs.protected_regular, which rejects O_CREAT opens
+    // on a file that already exists but is owned by a different uid, inside
+    // world-writable sticky directories like /dev/shm -- even for root. If a
+    // reader (e.g. dxtop) started first and bootstrapped the SHM under its
+    // own uid, an O_CREAT-only open here would fail with EACCES even though
+    // the file itself is 0666. Avoiding O_CREAT on the common "already
+    // exists" path sidesteps that restriction entirely (mirrors
+    // SharedMemoryReader::Open()).
+    _shm_fd = shm_open(shm_name, O_RDWR, 0);
+
+    // Writer-first bootstrap: create it only if it doesn't exist yet.
+    if (_shm_fd == -1 && errno == ENOENT)
+    {
+        _shm_fd = shm_open(shm_name, O_CREAT | O_EXCL | O_RDWR, MONITOR_SHM_PERMS);
+        if (_shm_fd == -1 && errno == EEXIST)
+        {
+            // Lost the creation race to another process; attach to it instead.
+            _shm_fd = shm_open(shm_name, O_RDWR, 0);
+        }
+    }
+
     if (_shm_fd != -1)
     {
         // Best effort: enforce permissions regardless of process umask.
@@ -268,16 +303,68 @@ bool SharedMemoryWriter::Initialize()
         return false;
     }
 
-    // 새로 생성되었거나 magic/version이 유효하지 않으면(손상/비호환) 초기화
-    if (!already_existed || _shm_ptr->magic != MONITOR_SHM_MAGIC || _shm_ptr->version != MONITOR_SHM_VERSION)
+    // Enforce single-writer policy across processes (Linux uses an fcntl write lock).
+    // The lock is a named event that exists while this writer keeps its handle open,
+    // so the OS releases it automatically if the writer process dies.
+    const std::string lock_name = _win_shm_name + "_writer";
+    HANDLE writer_lock = CreateEventA(security_attributes_ptr, TRUE, FALSE, lock_name.c_str());
+    const DWORD lock_error = ::GetLastError();
+    if (writer_lock == nullptr || lock_error == ERROR_ALREADY_EXISTS)
     {
-        LOG_DXRT << "Initializing new shared memory";
-        new (_shm_ptr) MonitorSharedMemory();
+        if (writer_lock != nullptr || lock_error == ERROR_ACCESS_DENIED)
+        {
+            _lastError = "single-writer lock is already held";
+            LOG_DXRT_ERR("Another monitor writer is already active for shared memory: " << _win_shm_name);
+        }
+        else
+        {
+            _lastError = "writer lock creation failed";
+            LOG_DXRT_ERR("Failed to create writer lock for shared memory: " << _win_shm_name
+                         << " error=" << lock_error);
+        }
+        if (writer_lock != nullptr)
+        {
+            CloseHandle(writer_lock);
+        }
+        UnmapViewOfFile(_shm_ptr);
+        _shm_ptr = nullptr;
+        CloseHandle(static_cast<HANDLE>(_shm_handle));
+        _shm_handle = nullptr;
+        return false;
+    }
+
+    const bool header_valid = already_existed
+        && _shm_ptr->magic == MONITOR_SHM_MAGIC && _shm_ptr->version == MONITOR_SHM_VERSION;
+
+    // A writer built without the lock (older binary) can still own the segment.
+    if (header_valid && _shm_ptr->writer_pid != 0
+        && _shm_ptr->writer_pid != static_cast<uint32_t>(GetCurrentProcessId())
+        && IsProcessAlive(static_cast<DWORD>(_shm_ptr->writer_pid)))
+    {
+        _lastError = "another writer process is active";
+        LOG_DXRT_ERR("Monitor writer (pid=" << _shm_ptr->writer_pid
+                     << ") is still active for shared memory: " << _win_shm_name);
+        CloseHandle(writer_lock);
+        UnmapViewOfFile(_shm_ptr);
+        _shm_ptr = nullptr;
+        CloseHandle(static_cast<HANDLE>(_shm_handle));
+        _shm_handle = nullptr;
+        return false;
+    }
+    _writer_lock_handle = writer_lock;
+
+    // Holding the lock means no other writer is alive, so data left in an existing
+    // segment (stale device slots from earlier writers) is discarded.
+    if (already_existed)
+    {
+        LOG_DXRT_DBG << "Reclaiming existing shared memory (previous writer pid="
+                     << (header_valid ? _shm_ptr->writer_pid : 0) << ")";
     }
     else
     {
-        LOG_DXRT << "Reusing existing shared memory";
+        LOG_DXRT_DBG << "Initializing new shared memory";
     }
+    new (_shm_ptr) MonitorSharedMemory();
 
     _shm_ptr->writer_pid = static_cast<uint32_t>(GetCurrentProcessId());
 
@@ -382,6 +469,12 @@ void SharedMemoryWriter::Cleanup()
     {
         CloseHandle(static_cast<HANDLE>(_shm_handle));
         _shm_handle = nullptr;
+    }
+    // Release the single-writer lock only after the shared data has been reset.
+    if (_writer_lock_handle != nullptr)
+    {
+        CloseHandle(static_cast<HANDLE>(_writer_lock_handle));
+        _writer_lock_handle = nullptr;
     }
     // Windows: 모든 핸들/뷰 해제 시 자동 소멸 (shm_unlink 불필요)
     LOG_DXRT_DBG << "Shared memory writer cleaned up: " << _win_shm_name;

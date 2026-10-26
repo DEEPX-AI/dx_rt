@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <mutex>
 #include <atomic>
+#include <exception>
 #include <memory>
 #include <vector>
 #include <string>
@@ -95,6 +96,8 @@ class DXRT_API Request // NOSONAR
     int &latency();
     int64_t queueWaitTime() const { return _queueWaitTime; }
     void setQueueWaitTime(int64_t us) { _queueWaitTime = us; }
+    int64_t bufferPoolWaitTime() const { return _bufferPoolWaitTime; }
+    void setBufferPoolWaitTime(int64_t us) { _bufferPoolWaitTime = us; }
     void setDispatchTimestampNs(uint64_t ns) { _dispatchTimestampNs = ns; }
     uint64_t dispatchTimestampNs() const { return _dispatchTimestampNs; }
     bool &latency_valid();
@@ -110,6 +113,8 @@ class DXRT_API Request // NOSONAR
     InferenceJob* inferenceJob() const;  // Get the associated inference job
 #endif // USE_VNPU
     void onRequestComplete(RequestPtr req);
+    // Completes the request without outputs; the owning job fails with error.
+    void onRequestFailed(RequestPtr req, std::exception_ptr error);
 
     void setBufferSet(std::unique_ptr<BufferSet> buffers);
     void releaseBuffers();
@@ -138,12 +143,13 @@ class DXRT_API Request // NOSONAR
     std::shared_ptr<TimePoint> _timePoint;
     int _latency;
     int64_t _queueWaitTime = 0;
+    int64_t _bufferPoolWaitTime = 0;
     uint64_t _dispatchTimestampNs = 0;
     bool _latencyValid;
     bool _validateDevice = false;
     int16_t _modelType;
     uint32_t _infTime;
-    InferenceJob*  _job;
+    InferenceJob*  _job = nullptr;
     std::atomic<bool> _use_flag = {false};
     std::mutex _reqLock;
 

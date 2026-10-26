@@ -75,6 +75,7 @@
 
 namespace dxrt {
 
+DXRT_API std::ostream& operator<<(std::ostream& os, dxrt_sche_sub_cmd_t subCmd);
 
 class Worker;
 class Memory;
@@ -134,6 +135,17 @@ class DXRT_API ServiceDevice  // NOSONAR:S1820
 
     static std::vector<shared_ptr<ServiceDevice>> CheckServiceDevices(uint32_t subCmd = 0);
     bool isBlocked () const {return _isBlocked;}
+#ifdef _WIN32
+    void block() { _isBlocked = true; }
+    void unblock() { _isBlocked = false; }
+    // Blocks the device; returns true only if this call changed it from unblocked.
+    bool blockIfUnblocked() { return !_isBlocked.exchange(true); }
+    // While a removal is accepted, client DMA is failed instead of reaching the device.
+    void setRemoving(bool removing) { _removing = removing; }
+    // Device removal: the handler is kept across Identify; ReopenDevice reopens and re-identifies.
+    void SetRemovalHandler(const DeviceRemovalHandler& handler);
+    bool ReopenDevice();
+#endif
     DeviceDispatcher* dispatcher() const { return _dispatcher.get(); }
 
     double getUsage(int core_id);
@@ -178,7 +190,11 @@ class DXRT_API ServiceDevice  // NOSONAR:S1820
     std::function<void(dxrt::dxrt_server_err_t, uint32_t, int, const dx_pcie_dev_err_t *)> _errCallBack;
     std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)> _recoveryCallBack;
     std::function<void(dx_pcie_dev_ntfy_throt_t, int)> _throttleCallBack;
-    bool _isBlocked = false;
+#ifdef _WIN32
+    DeviceRemovalHandler _removalHandler;
+    std::atomic<bool> _removing{false};
+#endif
+    std::atomic<bool> _isBlocked{false};
     std::array<UsageTimer, 3> _timer;
 
     struct DMAItem
@@ -201,4 +217,3 @@ class DXRT_API ServiceDevice  // NOSONAR:S1820
 };
 
 }  // namespace dxrt
-

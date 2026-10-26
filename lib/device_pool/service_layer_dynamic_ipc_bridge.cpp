@@ -54,9 +54,10 @@ IpcClientOwner CreateServiceLayerDynamicIpcClient(const std::string &endpoint)
     {
         auto connectEnd = std::chrono::high_resolution_clock::now();
         auto connectDuration = std::chrono::duration_cast<std::chrono::milliseconds>(connectEnd - connectStart);
-        LOG_DXRT_ERR("IPC_CONNECT_FAILED: endpoint=" + dxrt::GetDynamicIpcEndpointForLog(endpoint)
-                     + " elapsed_ms=" + std::to_string(connectDuration.count())
-                     + " errno=" + std::to_string(errno));
+        // Per-candidate failure only; ServiceLayer reports the error once all candidates are exhausted.
+        LOG_DXRT_DBG << "  IPC_CONNECT_FAILED: endpoint=" << dxrt::GetDynamicIpcEndpointForLog(endpoint)
+                     << " elapsed_ms=" << connectDuration.count()
+                     << " errno=" << errno << std::endl;
         return IpcClientOwner(nullptr, &DestroyServiceLayerDynamicIpcClient);
     }
 

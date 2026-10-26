@@ -62,6 +62,7 @@ Request::~Request()
 RequestPtr Request::Create(Task *task_, const Tensors &inputs_, const Tensors &outputs_, void *userArg, int jobId)
 {
     RequestPtr req = Request::Pick();
+    req->setInferenceJob(nullptr);
     req->_is_validate_request = false;
     req->_task = task_;
     req->_data.taskData = task_->getData();
@@ -74,6 +75,7 @@ RequestPtr Request::Create(Task *task_, const Tensors &inputs_, const Tensors &o
     req->latency_valid() = true;
     req->latency() = 0;
     req->setQueueWaitTime(0);
+    req->setBufferPoolWaitTime(0);
     req->setDispatchTimestampNs(0);
     req->inference_time() = 0;
     req->_requestorName = "";
@@ -89,6 +91,7 @@ RequestPtr Request::Create(Task *task_, const Tensors &inputs_, const Tensors &o
 RequestPtr Request::Create(Task *task_, void *input, void *output, void *userArg, int jobId)
 {
     RequestPtr req = Request::Pick();
+    req->setInferenceJob(nullptr);
     req->_task = task_;
     req->_data.taskData = task_->getData();
     req->_is_validate_request = false;
@@ -105,6 +108,7 @@ RequestPtr Request::Create(Task *task_, void *input, void *output, void *userArg
     req->latency_valid() = true;
     req->latency() = 0;
     req->setQueueWaitTime(0);
+    req->setBufferPoolWaitTime(0);
     req->setDispatchTimestampNs(0);
     req->inference_time() = 0;
     req->_requestorName = "";
@@ -306,6 +310,12 @@ void Request::onRequestComplete(RequestPtr req)
     if (_job != nullptr)
         _job->onRequestComplete(req);
 }
+void Request::onRequestFailed(RequestPtr req, std::exception_ptr error)
+{
+    SetStatus(Request::Status::REQ_DONE);
+    if (_job != nullptr)
+        _job->onRequestFailed(req, error);
+}
 void Request::Reset()
 {
     LOG_DXRT_DBG << endl;
@@ -318,6 +328,10 @@ void Request::Reset()
 
     _data.encoded_input_ptrs.clear();
     _data.encoded_output_ptrs.clear();
+
+    _data._processedPU.clear();
+    _data._processedDevId = -1;
+    _data._processedId = -1;
 
     _data.output_buffer_base = nullptr;
 
@@ -466,7 +480,15 @@ void Request::releaseBuffers()
     // request reuse and overwrite the slice mid-consumption -> torn output / bitmatch failure on
     // multi-task (NPU->CPU) models under async + a single bound device. No-op for CPU requests
     // and for NPU requests that never acquired a cache slice (unknown reqId).
-    if (_data._processedDevId >= 0
+    //
+    // Skip entirely once ObjectsPool is shutting down: this Request may be one of the
+    // REQUEST_MAX_COUNT pooled objects destroyed by ~ObjectsPool() itself during process-wide
+    // static teardown. ObjectsPool and DevicePool are both Meyer's singletons destroyed in
+    // reverse order of first construction; DevicePool is torn down before ObjectsPool in that
+    // case, so calling DevicePool::GetInstance() here would touch an already-destroyed
+    // singleton. The device is going away regardless, so releasing its cache slice is moot.
+    if (!ObjectsPool::IsShuttingDown()
+        && _data._processedDevId >= 0
         && _data._processedDevId < static_cast<int>(DevicePool::GetInstance().GetDeviceCountNoInit()))
     {
         auto devLayer = DevicePool::GetInstance().GetDeviceTaskLayer(_data._processedDevId);
@@ -509,6 +531,7 @@ RequestPtr Request::CreateValidateRequest(Task* task_, void* input, void* output
     req->latency_valid() = true;
     req->latency() = 0;
     req->setQueueWaitTime(0);
+    req->setBufferPoolWaitTime(0);
     req->setDispatchTimestampNs(0);
     req->inference_time() = 0;
     req->_requestorName = "";

@@ -496,6 +496,72 @@ void CpuHandle::RunWithSession(RequestPtr req, std::shared_ptr<Ort::Session> ses
     profiler.End(dxrt::Profiler::EventType::CPU_TASK_TOTAL, _name, req->job_id());
 #endif
 }
+
+void CpuHandle::WarmupSession(std::shared_ptr<Ort::Session> session)
+{
+    if (!session) return;
+    try
+    {
+        bool canWarmup = (_numInputs > 0);
+        for (int i = 0; canWarmup && i < _numInputs; i++)
+        {
+            for (auto d : _inputShapes[i])
+            {
+                if (d <= 0) { canWarmup = false; break; }  // dynamic dim: shape unknown, skip
+            }
+        }
+        if (!canWarmup)
+        {
+            LOG_DXRT_DBG << "Task " << _name << ": ORT warm-up skipped (dynamic input shape)" << std::endl;
+            return;
+        }
+
+        std::vector<std::vector<uint8_t>> warmupBuffers(_numInputs);
+        Ort::MemoryInfo memoryInfo =
+            Ort::MemoryInfo::CreateCpu(OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault);
+        for (int i = 0; i < _numInputs; i++)
+        {
+            warmupBuffers[i].assign(static_cast<size_t>(_inputSizes[i]), 0);
+        }
+
+        // Measurement showed ORT's CPU memory arena keeps growing across the
+        // first ~2 real Run() calls before stabilizing (job0, job1 both
+        // elevated; job2 onward steady). Repeat the warm-up run a few times
+        // here so that growth is exhausted before any real request arrives.
+        constexpr int kWarmupRuns = 3;
+        for (int run = 0; run < kWarmupRuns; run++)
+        {
+            std::vector<Ort::Value> warmupInputs;
+            warmupInputs.reserve(_numInputs);
+            for (int i = 0; i < _numInputs; i++)
+            {
+                warmupInputs.emplace_back(
+                    Ort::Value::CreateTensor(
+                        memoryInfo,
+                        warmupBuffers[i].data(),
+                        _inputSizes[i],
+                        _inputShapes[i].data(),
+                        _inputShapes[i].size(),
+                        convertONNXTensorElementDataType(_inputDataTypes[i])));
+            }
+            // Plain (non-IO-binding) Run(): ORT allocates/frees the output tensors
+            // itself, which is fine here since the results are immediately discarded.
+            auto warmupOutputs = session->Run(
+                Ort::RunOptions{nullptr},
+                _inputNamesChar.data(), warmupInputs.data(), static_cast<size_t>(_numInputs),
+                _outputNamesChar.data(), static_cast<size_t>(_numOutputs));
+        }
+        LOG_DXRT_DBG << "Task " << _name << ": ORT warm-up (" << kWarmupRuns
+                     << " runs) complete (arena + thread pool primed)" << std::endl;
+    }
+    catch (const std::exception& e)
+    {
+        // Warm-up is a pure optimization; never let it prevent the worker thread
+        // from processing real requests if it fails for any reason.
+        LOG_DXRT_DBG << "Task " << _name << ": ORT warm-up failed, continuing without it: " << e.what() << std::endl;
+    }
+}
+
 void CpuHandle::Terminate() const
 {
     _worker->Stop();

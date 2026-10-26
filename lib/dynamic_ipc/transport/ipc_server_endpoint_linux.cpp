@@ -24,6 +24,11 @@
 
 namespace dxrt {
 
+bool IsTransientAcceptErrorForTest(int err)
+{
+    return err == EAGAIN || err == EWOULDBLOCK || err == EINTR || err == ECONNABORTED;
+}
+
 namespace {
 
 bool isTransientAcceptError(int err)

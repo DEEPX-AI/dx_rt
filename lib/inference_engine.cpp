@@ -73,6 +73,14 @@ void InferenceEngine::checkService() const
 InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &option_)
 : _modelFile(path_), _option(option_)
 {
+    // Eagerly trigger ObjectsPool's lazy singleton construction here (at model
+    // load time) instead of letting it happen inside the first user RunAsync()
+    // call. ObjectsPool's constructor builds a CircularDataPool<Request> of
+    // REQUEST_MAX_COUNT (15000) pre-allocated Request objects, which takes
+    // several milliseconds -- previously this one-time cost silently landed on
+    // whichever thread happened to submit the very first inference request
+    // process-wide, inflating its latency (~5-7ms observed).
+    ObjectsPool::GetInstance();
     checkService();
     loadModelFromFile(path_, option_);
 
@@ -82,6 +90,8 @@ InferenceEngine::InferenceEngine(const std::string &path_, InferenceOption &opti
 InferenceEngine::InferenceEngine(const uint8_t* modelBuffer, size_t modelSize, InferenceOption &option)
 :_modelFile("In-Memory Model"), _option(option)
 {
+    // See comment in the from-file constructor above: warm up ObjectsPool here.
+    ObjectsPool::GetInstance();
     checkService();
     loadModelFromMemory(_modelFile, modelBuffer, modelSize, option);
 
@@ -387,7 +397,7 @@ void InferenceEngine::loadModelFromMemory(const std::string& name, const uint8_t
     DXRT_ASSERT(_numTails != 0, "Invalid Graph : tail task is not found. Check the DX-COM compilation process.");
 
 #ifdef PRINT_ALL_INFERENCE_ENGINE
-    if ( Configuration::GetInstance().GetEnable(Configuration::ITEM::SHOW_MODEL_INFO) )
+    if ( _option.showModelInfo && Configuration::GetInstance().GetEnable(Configuration::ITEM::SHOW_MODEL_INFO) )
     {
         cout << *this << endl;
     }
@@ -656,6 +666,7 @@ std::vector<TensorPtrs> InferenceEngine::Run(
 
     // create outputs data
     std::vector<TensorPtrs> result(batch_count);
+    std::exception_ptr jobError;
 
     try
     {
@@ -665,18 +676,18 @@ std::vector<TensorPtrs> InferenceEngine::Run(
 
         if ( sub_batch_loop > 0 )
         {
-            for (int i = 0; i < sub_batch_loop; ++i)
+            for (int i = 0; i < sub_batch_loop && !jobError; ++i)
             {
-                runSubBatch(result, SUB_BATCH_MAX_COUNT, start_index,
+                jobError = runSubBatch(result, SUB_BATCH_MAX_COUNT, start_index,
                     inputBuffers, outputBuffers, userArgs);
 
                 start_index += SUB_BATCH_MAX_COUNT;
             }  // for i
         }
 
-        if ( sub_batch_remain > 0 )
+        if ( sub_batch_remain > 0 && !jobError )
         {
-            runSubBatch(result, sub_batch_remain, start_index,
+            jobError = runSubBatch(result, sub_batch_remain, start_index,
                 inputBuffers, outputBuffers, userArgs);
         }
 
@@ -690,10 +701,14 @@ std::vector<TensorPtrs> InferenceEngine::Run(
         LOG_DXRT_ERR(e.what());
     }
 
+    if (jobError)
+    {
+        std::rethrow_exception(jobError);
+    }
     return result;
 }
 
-void InferenceEngine::runSubBatch(std::vector<TensorPtrs>& result, int batchCount, int startIndex,
+std::exception_ptr InferenceEngine::runSubBatch(std::vector<TensorPtrs>& result, int batchCount, int startIndex,
         const std::vector<void*>& inputBuffers,
         const std::vector<void*>& outputBuffers,
         const std::vector<void*>& userArgs
@@ -703,9 +718,9 @@ void InferenceEngine::runSubBatch(std::vector<TensorPtrs>& result, int batchCoun
     std::atomic<int> complete_count{0};
     std::mutex mtx_cv;  // mutex lock
     std::condition_variable cv_complete;  // complete condition variable
-    bool is_completed = false;
+    std::exception_ptr firstJobError;  // guarded by mtx_cv
 
-    auto batch_callback = [this, &complete_count, &cv_complete, &result, batchCount, &is_completed](const TensorPtrs &outputs, void *userArg, int jobId) -> int
+    auto batch_callback = [this, &complete_count, &cv_complete, &result, &mtx_cv, &firstJobError](const TensorPtrs &outputs, void *userArg, int jobId) -> int
     {
         std::ignore = userArg;
 
@@ -713,6 +728,16 @@ void InferenceEngine::runSubBatch(std::vector<TensorPtrs>& result, int batchCoun
         if (infJob == nullptr)
         {
             throw dxrt::InvalidOperationException(EXCEPTION_MESSAGE("InferenceJob not found for jobId"));
+        }
+
+        std::exception_ptr jobError = infJob->error();
+        if (jobError)
+        {
+            std::lock_guard<std::mutex> lock(mtx_cv);
+            if (!firstJobError)
+            {
+                firstJobError = jobError;
+            }
         }
 
         int batch_index = -1;
@@ -736,16 +761,17 @@ void InferenceEngine::runSubBatch(std::vector<TensorPtrs>& result, int batchCoun
             LOG_DXRT_ERR(LogMessages::InferenceEngine_BatchFailToAllocateOutputBuffer() << e.what());
         }
 
-        complete_count++;
-        LOG_DXRT_DBG << "runAsync complete-count=" << complete_count.load() << std::endl;
-        if (complete_count.load() == batchCount && is_completed)
         {
+            // Notify under the lock: once the waiter sees the last count it returns and this frame is gone.
+            std::lock_guard<std::mutex> lock(mtx_cv);
+            complete_count++;
             cv_complete.notify_one();
-            LOG_DXRT_DBG << "runAsync completed" << std::endl;
         }
         return 0;
     };
 
+    // Callbacks reference this frame, so wait for every submitted job even if a submission throws.
+    int submitted = 0;
     try
     {
         // Run asynchronous operations for each batch
@@ -757,24 +783,23 @@ void InferenceEngine::runSubBatch(std::vector<TensorPtrs>& result, int batchCoun
             int job_id = runAsync(inputBuffers.at(current_index), userArg, outputBuffers.at(current_index), current_index, batch_callback);
             LOG_DXRT_DBG << "Insert jobId=" << job_id << ", batch_index=" << i << std::endl;
             std::ignore = job_id;  // Suppress unused variable warning
-
+            submitted++;
         }  // for i
-
-        is_completed = true;
-
-        // wait for inference done
-        std::unique_lock<std::mutex> lock(mtx_cv);
-        cv_complete.wait(lock, [&complete_count, batchCount]() { return complete_count.load() == batchCount; });
-        LOG_DXRT_DBG << "runAsync return" << std::endl;
     }
-    catch(const dxrt::Exception& e)
+    catch (...)
     {
-        LOG_DXRT_ERR(e.what());
+        std::lock_guard<std::mutex> lock(mtx_cv);
+        if (!firstJobError)
+        {
+            firstJobError = std::current_exception();
+        }
     }
-    catch (const std::exception& e)
-    {
-        LOG_DXRT_ERR(e.what());
-    }
+
+    // wait for inference done
+    std::unique_lock<std::mutex> lock(mtx_cv);
+    cv_complete.wait(lock, [&complete_count, &submitted]() { return complete_count.load() == submitted; });
+    LOG_DXRT_DBG << "runAsync return" << std::endl;
+    return firstJobError;
 }
 
 
@@ -1577,14 +1602,42 @@ std::vector<std::string> InferenceEngine::GetTaskOrder() const
 
 int InferenceEngine::GetLatency()
 {
+    return GetE2EResponseTime();
+}
+
+int InferenceEngine::GetCoreLatency()
+{
     LOG_DXRT_DBG << std::endl;
-    return _inferenceTimer.latency();
+    return _latencyTimer.latency();
 }
 
 std::vector<int> InferenceEngine::GetLatencyVector()
 {
+    return GetE2EResponseTimeVector();
+}
+
+std::vector<int> InferenceEngine::GetCoreLatencyVector()
+{
+    LOG_DXRT_DBG << std::endl;
+    return _latencyTimer.GetLatencyVector();
+}
+
+int InferenceEngine::GetE2EResponseTime()
+{
+    LOG_DXRT_DBG << std::endl;
+    return _inferenceTimer.latency();
+}
+
+std::vector<int> InferenceEngine::GetE2EResponseTimeVector()
+{
     LOG_DXRT_DBG << std::endl;
     return _inferenceTimer.GetLatencyVector();
+}
+
+void InferenceEngine::recordLatency(int latency)
+{
+    _latencyTimer.UpdateLatencyStatistics(latency);
+    _latencyTimer.PushLatency(latency);
 }
 
 uint32_t InferenceEngine::GetNpuInferenceTime()
@@ -1593,13 +1646,35 @@ uint32_t InferenceEngine::GetNpuInferenceTime()
     return _inferenceTimer.inference_time();
 }
 
+int64_t InferenceEngine::GetQueueWaitTime()
+{
+    LOG_DXRT_DBG << std::endl;
+    return _inferenceTimer.queue_wait_time();
+}
+
 std::vector<uint32_t> InferenceEngine::GetNpuInferenceTimeVector()
 {
     LOG_DXRT_DBG << std::endl;
     return _inferenceTimer.GetNpuInferenceTimeVector();
 }
 
+std::vector<int64_t> InferenceEngine::GetQueueWaitTimeVector()
+{
+    LOG_DXRT_DBG << std::endl;
+    return _inferenceTimer.GetQueueWaitTimeVector();
+}
+
 double InferenceEngine::GetLatencyMean() const
+{
+    return GetE2EResponseTimeMean();
+}
+
+double InferenceEngine::GetCoreLatencyMean() const
+{
+    return _latencyTimer.GetLatencyMean();
+}
+
+double InferenceEngine::GetE2EResponseTimeMean() const
 {
     return _inferenceTimer.GetLatencyMean();
 }
@@ -1609,7 +1684,22 @@ double InferenceEngine::GetNpuInferenceTimeMean() const
     return _inferenceTimer.GetNpuInferenceTimeMean();
 }
 
+double InferenceEngine::GetQueueWaitTimeMean() const
+{
+    return _inferenceTimer.GetQueueWaitTimeMean();
+}
+
 double InferenceEngine::GetLatencyStdDev() const
+{
+    return GetE2EResponseTimeStdDev();
+}
+
+double InferenceEngine::GetCoreLatencyStdDev() const
+{
+    return _latencyTimer.GetLatencyStdDev();
+}
+
+double InferenceEngine::GetE2EResponseTimeStdDev() const
 {
     return _inferenceTimer.GetLatencyStdDev();
 }
@@ -1619,7 +1709,22 @@ double InferenceEngine::GetNpuInferenceTimeStdDev() const
     return _inferenceTimer.GetNpuInferenceTimeStdDev();
 }
 
+double InferenceEngine::GetQueueWaitTimeStdDev() const
+{
+    return _inferenceTimer.GetQueueWaitTimeStdDev();
+}
+
 int InferenceEngine::GetLatencyCnt() const
+{
+    return GetE2EResponseTimeCnt();
+}
+
+int InferenceEngine::GetCoreLatencyCnt() const
+{
+    return _latencyTimer.GetLatencyCnt();
+}
+
+int InferenceEngine::GetE2EResponseTimeCnt() const
 {
     return _inferenceTimer.GetLatencyCnt();
 }
@@ -1627,6 +1732,11 @@ int InferenceEngine::GetLatencyCnt() const
 int InferenceEngine::GetNpuInferenceTimeCnt() const
 {
     return _inferenceTimer.GetNpuInferenceTimeCnt();
+}
+
+int InferenceEngine::GetQueueWaitTimeCnt() const
+{
+    return _inferenceTimer.GetQueueWaitTimeCnt();
 }
 
 std::vector<TensorPtrs> InferenceEngine::GetAllTaskOutputs()
@@ -2168,7 +2278,7 @@ void InferenceEngine::buildTasksAndSubgraphMap(int bufferCount)
             //    throw InvalidModelException(EXCEPTION_MESSAGE("invalid model"));
 
             // v8: Add PPU binary if exists (for PPCPU type)
-            if (_modelData.deepx_binary._dxnnFileFormatVersion == 8 &&
+            if (_modelData.deepx_binary._dxnnFileFormatVersion >= 8 &&
                 j < _modelData.deepx_binary.ppu().size() &&
                 _modelData.deepx_binary.ppu(static_cast<int>(j)).size() > 0) {
                 const auto& ppuBuffer = _modelData.deepx_binary.ppu(static_cast<int>(j)).buffer();
@@ -2198,7 +2308,7 @@ void InferenceEngine::buildTasksAndSubgraphMap(int bufferCount)
         {
             // Check if this task has PPU binary (v8 PPCPU type)
             bool hasPpuBinary = false;
-            if (_modelData.deepx_binary._dxnnFileFormatVersion == 8) {
+            if (_modelData.deepx_binary._dxnnFileFormatVersion >= 8) {
                 auto rmapIndexMapIterator = rmapIndexMap.find(order);
                 if (rmapIndexMapIterator != rmapIndexMap.end()) {
                     size_t j = rmapIndexMapIterator->second;
@@ -2393,7 +2503,20 @@ void InferenceEngine::buildTaskGraph()
                 auto owner_task_it = _taskMap.find(owner_task_name);
                 if (owner_task_it == _taskMap.end())
                 {
-                    LOG_DXRT_ERR("[buildTaskGraph] Owner task '" + owner_task_name + "' not found for tensor '" + tensor_name + "'");
+ #ifdef USE_ORT
+                    if (_option.useORT == true)
+                    {
+                        LOG_DXRT_ERR("[buildTaskGraph] Owner task '" + owner_task_name + "' not found for tensor '" + tensor_name + "'");
+                    }
+                    else
+                    {
+                        LOG_DXRT_WARN("[buildTaskGraph] Owner task '" + owner_task_name + "' not found for tensor '" + tensor_name
+                                      + "' (expected in non-ORT single-task mode)");
+                    }
+ #else
+                    LOG_DXRT_WARN("[buildTaskGraph] Owner task '" + owner_task_name + "' not found for tensor '" + tensor_name
+                                  + "' (expected when ORT is disabled / single-task mode)");
+ #endif
                     continue;
                 }
 

@@ -95,6 +95,69 @@ void DeviceTaskLayer::RegisterCallback(std::function<void()> f)
     _onCompleteInferenceHandler = std::move(f);
 }
 
+#ifdef _WIN32
+bool DeviceTaskLayer::HandleDeviceRemoval(DeviceRemovalEvent event, uint32_t timeoutMs)
+{
+    switch (event)
+    {
+    case DeviceRemovalEvent::QueryRemove:
+    {
+        _removalPending = true;
+        _blockedForRemoval = core()->blockIfUnblocked();
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
+        bool drained = true;
+        while (_load.load(std::memory_order_acquire) > 0)
+        {
+            if (std::chrono::steady_clock::now() >= deadline)
+            {
+                drained = false;
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        if (drained)
+        {
+            // Stay pending until Removed or RemoveCancelled decides the outcome.
+            return true;
+        }
+        LOG_DXRT_WARN("Device " << id() << ": removal refused, " << _load.load() << " job(s) still running");
+        if (_blockedForRemoval)
+        {
+            unblock();
+            _blockedForRemoval = false;
+        }
+        _removalPending = false;
+        if (_onCompleteInferenceHandler)
+        {
+            _onCompleteInferenceHandler();
+        }
+        return false;
+    }
+    case DeviceRemovalEvent::RemoveCancelled:
+        _removalPending = false;
+        _removed = false;
+        if (_blockedForRemoval)
+        {
+            unblock();
+            _blockedForRemoval = false;
+        }
+        break;
+    case DeviceRemovalEvent::Removed:
+        block();
+        _removed = true;
+        _removalPending = false;
+        LOG_DXRT_WARN("Device " << id() << " was removed; restart the application to use it again");
+        break;
+    }
+    // Wake threads waiting for a device so they re-evaluate blocked/removed devices.
+    if (_onCompleteInferenceHandler)
+    {
+        _onCompleteInferenceHandler();
+    }
+    return true;
+}
+#endif
+
 static constexpr int TERMINATE_NUM_CHANNEL = 3;
 
 void DeviceTaskLayer::Terminate()

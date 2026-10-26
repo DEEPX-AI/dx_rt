@@ -76,18 +76,11 @@ std::string normalizePipeName(const std::string &endpoint)
     return prefix + endpoint;
 }
 
+// nMaxInstances caps connected clients plus the listener; it is not the listen() backlog.
 DWORD toPipeInstanceCount(int backlog)
 {
-    int instanceCount = backlog;
-    if (instanceCount < 1)
-    {
-        instanceCount = 1;
-    }
-    if (instanceCount > 254)
-    {
-        instanceCount = 254;
-    }
-    return static_cast<DWORD>(instanceCount);
+    (void)backlog;
+    return PIPE_UNLIMITED_INSTANCES;
 }
 
 HANDLE createPipeInstance(const std::string &pipeName, int backlog, HANDLE iocp)
@@ -114,14 +107,17 @@ HANDLE createPipeInstance(const std::string &pipeName, int backlog, HANDLE iocp)
     HANDLE pipe = ::CreateNamedPipeA(
         pipeName.c_str(),
         PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
-        PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
+        PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
         toPipeInstanceCount(backlog),
         65536,
         65536,
         0,
         &sa);
+    const DWORD createError = ::GetLastError();
+    ::LocalFree(sa.lpSecurityDescriptor);
     if (pipe == INVALID_HANDLE_VALUE)
     {
+        ::SetLastError(createError);
         return pipe;
     }
 
@@ -224,8 +220,10 @@ int IPCServerListenSocket::ensureAcceptPending(void *owner) const
             reinterpret_cast<HANDLE>(_iocpHandle));
         if (replacementPipe == INVALID_HANDLE_VALUE)
         {
-            setErrnoFromWindowsError(::GetLastError());
-            return -1;
+            const DWORD error = ::GetLastError();
+            setErrnoFromWindowsError(error);
+            // All instances are in use: keep serving connected clients and retry on the next poll.
+            return (error == ERROR_PIPE_BUSY) ? 0 : -1;
         }
         _listenHandle = reinterpret_cast<IPCNativeHandle>(replacementPipe);
         _connectPending = false;
@@ -260,6 +258,13 @@ int IPCServerListenSocket::ensureAcceptPending(void *owner) const
         if (err == ERROR_IO_PENDING)
         {
             _connectPending = true;
+            return 0;
+        }
+
+        if (err == ERROR_NO_DATA)
+        {
+            // The client closed before the connect completed: recycle the instance and wait again.
+            ::DisconnectNamedPipe(listenPipe);
             return 0;
         }
 

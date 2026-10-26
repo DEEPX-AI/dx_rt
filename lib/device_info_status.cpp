@@ -14,6 +14,7 @@
 #include "dxrt/map_lookup_template.h"
 #include "dxrt/device_core.h"
 #include "dxrt/device_task_layer.h"
+#include "dxrt/device_pool.h"
 
 #include "dxrt/safe_cast.h"
 #include "dxrt/fw.h"
@@ -43,7 +44,7 @@ constexpr std::array<pair_type, 7> device_variants = {{{100, "L1"}, {101, "L2"},
     {200, "M1"}, {202, "M1"}}};
 constexpr std::array<pair_type, 3> memory_types{{{1, "LPDDR4"}, {2, "LPDDR5"}, {3, "LPDDR5x"}}};
 constexpr std::array<pair_type, 5> memory_vendors{{{0x0, "NOT SUPPORTED"}, {0x4, "SS"}, {6, "HY"}, {0x08, "WB"}, {0xFF, "MI"}}};  // NOSONAR:S1481
-constexpr std::array<pair_type, 3> board_types = {{{1, "SOM"}, {2, "M.2"}, {3, "H1"}}};
+constexpr std::array<pair_type, 5> board_types = {{{1, "SOM"}, {2, "M.2"}, {3, "H1"}, {4,"SLT"}, {6, "VNPU"}}};
 
 
 string convert_capacity(uint64_t n)
@@ -183,12 +184,37 @@ DeviceStatus DeviceStatus::GetCurrentStatus(int id)
 
 int DeviceStatus::GetDeviceCount()
 {
+    // The monitoring shared memory is only populated once a Service/NoService
+    // layer writer has been started (e.g. after an InferenceEngine has been
+    // created, or by a persistent dxrtd process). Callers may ask for the
+    // device count before that happens (e.g. run_model validating '-d'
+    // before loading a model), especially in USE_SERVICE=OFF builds where no
+    // standalone dxrtd process exists to pre-populate it. In that case fall
+    // back to direct hardware enumeration via DevicePool so the reported
+    // count always reflects devices actually present on the system.
     SharedMemoryReader reader;
-    if (!reader.Open())
+    if (reader.Open() && reader.IsWriterAlive())
+    {
+        auto count = reader.GetDeviceCount();
+        if (count > 0)
+        {
+            return static_cast<int>(count);
+        }
+    }
+    try
+    {
+        return static_cast<int>(DevicePool::GetInstance().GetDeviceCount());
+    }
+    catch (const dxrt::Exception&)
+    {
+        // No hardware devices found (e.g. no /dev/dxrt* nodes); report 0
+        // rather than propagating, matching this API's no-throw contract.
+        return 0;
+    }
+    catch (const std::exception&)
     {
         return 0;
     }
-    return static_cast<int>(reader.GetDeviceCount());
 }
 
 string DeviceStatus::DdrStatusStr(int ch) const
@@ -290,20 +316,32 @@ string DeviceStatus::PcieInfoStr(int spd, int wd, int bus, int dev, int func) co
 
 static constexpr int FW_VERSION_SUPPORT_SUFFIX = 230;
 
+// Suffix carries the public-release build id.
+// Note: some driver versions serialize an empty suffix as the literal two-char
+// string "\"\"" (quoted empty string) instead of a true empty string; treat both as absent.
+static std::string BuildSuffixStr(const char* suffix)
+{
+    std::string s = suffix ? suffix : "";
+    if (s.empty() || s == "\"\"")
+        return "";
+    return " (build: " + s + ")";
+}
+
 std::ostream& DeviceStatus::InfoToStream(std::ostream& os) const
 {
     os << "=======================================================" << endl;
     os << std::showbase << std::dec << " * Device " << GetId()
       << ": " << DeviceVariantStr()<< ", "<< DeviceTypeWord() <<" type" << endl;
     os << "---------------------   Version   ---------------------" << endl;
-    os << " * RT Driver version   : v" << GetDrvVersionFromRT(_devInfo.rt_drv_ver) << endl;
+    os << " * RT Driver version   : v" << GetDrvVersionWithDot(_devInfo.rt_drv_ver.driver_version)
+      << BuildSuffixStr(_devInfo.rt_drv_ver.driver_version_suffix) << endl;
     if (_info.type == static_cast<uint32_t>(DeviceType::ACC_TYPE))
     {
         os << " * PCIe Driver version : v" << GetDrvVersionWithDot(_devInfo.pcie.driver_version) << endl;
     }
     os << "-------------------------------------------------------" << endl;
     if (_info.fw_ver >= FW_VERSION_SUPPORT_SUFFIX || _info.fw_ver == 216) {
-        os << " * FW version          : v"<< GetFWVersionFromDeviceInfo(_info.fw_ver, _info.fw_ver_suffix) << endl;
+        os << " * FW version          : v"<< GetFwVersionWithDot(_info.fw_ver) << BuildSuffixStr(_info.fw_ver_suffix) << endl;
     } else {
         os << " * FW version          : v"<< GetFwVersionWithDot(_info.fw_ver) << endl;
     }

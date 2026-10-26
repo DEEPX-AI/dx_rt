@@ -17,9 +17,9 @@ Figure. DEEPX SDK Architecture
 
 **DX-COM** is the compiler in the DEEPX SDK that converts a pre-trained ONNX model and its associated configuration JSON file into a hardware-optimized .dxnn binary for DEEPX NPUs. The ONNX file contains the model structure and weights, while the JSON file defines pre/post-processing settings and compilation parameters. DX-COM provides a fully compiled .dxnn file, optimized for low-latency, high-efficiency inference on DEEPX NPU.  
 
-**DX-RT** is the runtime software responsible for executing .dxnn models on DEEPX NPU hardware. DX-RT directly interacts with the DEEPX NPU through firmware and device drivers, using PCIe interface for high-speed data transfer between the host and the NPU, and provides C/C++ and Python APIs for application-level inference control. DX-RT offers a complete runtime environment, including model loading, I/O buffer management, inference execution, and real-time hardware monitoring.  
+**DX-RT** is the runtime software responsible for executing .dxnn models on DEEPX NPU hardware. DX-RT directly interacts with the DEEPX NPU through firmware and device drivers, using a PCIe-based interface for high-speed data transfer between the host and the NPU, and provides C/C++ and Python APIs for application-level inference control. DX-RT offers a complete runtime environment, including model loading, I/O buffer management, inference execution, and real-time hardware monitoring.  
 
-**DX ModelZoo** is a curated collection of pre-trained neural network models optimized for DEEPX NPU, designed to simplify AI development for DEEPX users. It includes pre-trained ONNX models, configuration JSON files, and pre-compiled DXNN binaries, allowing developers to rapidly test and deploy applications. DX ModelZoo also provides benchmark tools for comparing the performance of quantized INT8 models on DEEPX NPU with full-precision FP32 models on CPU or GPU.  
+**DX-ModelZoo** is a curated collection of pre-trained neural network models optimized for DEEPX NPU, designed to simplify AI development for DEEPX users. It includes pre-trained ONNX models, configuration JSON files, and pre-compiled DXNN binaries, allowing developers to rapidly test and deploy applications. DX-ModelZoo also provides benchmark tools for comparing the performance of quantized INT8 models on DEEPX NPU with full-precision FP32 models on CPU or GPU.  
 
 **DX-STREAM** is a custom GStreamer plugin that enables real-time streaming data integration into AI inference applications on DEEPX NPU. It provides a modular pipeline framework with configurable elements for preprocessing, inference, and postprocessing, tailored to vision AI work. DX-STREAM allows developers to build flexible, high-performance applications for use cases such as video analytics, smart cameras, and edge AI systems.  
 
@@ -33,23 +33,23 @@ Here is the inference flow of **DX-RT**.
 
 <div class="center-text">
 <p align="center">
-<img src="./../resources/01_02_Inference_Flow_of_DXNN_Runtime.png" alt="Inference Flow of DXNN Runtime" width="900px">  
+<img src="./../resources/01_02_Inference_Flow_of_DXNN_Runtime.png" alt="Inference Flow of DX-RT" width="900px">  
 <br>
-Figure. Inference Flow of DXNN Runtime  
+Figure. Inference Flow of DX-RT  
 <br><br>
 </p>
 </div>
 
-This figure illustrates the inference workflow of the DXNN Runtime SDK, which integrates OpenCV-based input/output handling with efficient NPU-accelerated model execution.
+This figure illustrates the inference workflow of DX-RT, which integrates OpenCV-based input/output handling with efficient NPU-accelerated model execution.
 
 **Input & Pre-Processing**  
 Input data—such as images, camera feeds, or video—is captured using OpenCV. The data is then passed through a Pre-Processing module, which transforms it into input tensors suitable for the model.  
 
 **Feeding Input to the Inference Engine**  
-The pre-processed input tensors are fed into the InferenceEngine along with the compiled model (.dxnn). Before execution, you **must** configure the InferenceOption, which specifies the target device and available resources.  
+The pre-processed input tensors are fed into the InferenceEngine along with the compiled model (.dxnn). You can optionally configure the InferenceOption, which specifies the target device and available resources. If omitted, default options are used.  
 
 **Model Execution**  
-The InferenceEngine is the core component of the DXNN Runtime SDK. It:  
+The InferenceEngine is the core component of DX-RT. It:  
   - Initializes and controls the NPU device  
   - Manages memory for input/output tensors  
   - Schedules inference tasks across NPU and CPU, optimizing their interaction for real-time performance  

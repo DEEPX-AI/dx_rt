@@ -96,6 +96,31 @@ This class abstracts the runtime inference executor for a user's compiled model.
 -   **Returns**: The compile type as a `std::string`.  
 -   **Note**: The legacy function `get_compile_type()` is deprecated.  
   
+***`GetE2EResponseTime()`***  
+-   **Signature**: `int GetE2EResponseTime()`  
+-   **Description**: Gets the end-to-end response time of the most recent inference in microseconds, including data transfer and overheads.  
+-   **Returns**: The E2E response time value.  
+  
+***`GetE2EResponseTimeCnt()`***  
+-   **Signature**: `int GetE2EResponseTimeCnt()`  
+-   **Description**: Gets the total count of E2E response time measurements recorded.  
+-   **Returns**: The number of E2E response time measurements.  
+  
+***`GetE2EResponseTimeMean()`***  
+-   **Signature**: `double GetE2EResponseTimeMean()`  
+-   **Description**: Gets the mean (average) of all collected E2E response time values.  
+-   **Returns**: The mean E2E response time in microseconds.  
+  
+***`GetE2EResponseTimeStdDev()`***  
+-   **Signature**: `double GetE2EResponseTimeStdDev()`  
+-   **Description**: Gets the standard deviation of all collected E2E response time values.  
+-   **Returns**: The standard deviation of E2E response time.  
+  
+***`GetE2EResponseTimeVector()`***  
+-   **Signature**: `std::vector<int> GetE2EResponseTimeVector()`  
+-   **Description**: Gets a vector of recent E2E response time measurements.  
+-   **Returns**: A vector of E2E response times in microseconds.  
+  
 ***`GetInputSize()`***  
 -   **Signature**: `uint64_t GetInputSize()`  
 -   **Description**: Gets the total size of all input tensors combined in bytes.  
@@ -141,7 +166,7 @@ This class abstracts the runtime inference executor for a user's compiled model.
   
 ***`GetLatency()`***  
 -   **Signature**: `int GetLatency()`  
--   **Description**: Gets the latency of the most recent inference in microseconds.  
+-   **Description**: Gets the latency of the most recent inference in microseconds. Identical to `GetE2EResponseTime()`. Use `GetCoreLatency()` for the latency excluding wait times.  
 -   **Returns**: The latency value.  
 -   **Note**: The legacy function `latency()` is deprecated.  
   
@@ -164,6 +189,31 @@ This class abstracts the runtime inference executor for a user's compiled model.
 -   **Signature**: `std::vector<int> GetLatencyVector()`  
 -   **Description**: Gets a vector of recent latency measurements.  
 -   **Returns**: A vector of latencies in microseconds.  
+  
+***`GetCoreLatency()`***  
+-   **Signature**: `int GetCoreLatency()`  
+-   **Description**: Gets the core latency of the most recent inference in microseconds. Core latency is the E2E response time excluding the host NPU buffer pool wait time and the NPU/CPU task queue wait time.  
+-   **Returns**: The core latency value.  
+  
+***`GetCoreLatencyCnt()`***  
+-   **Signature**: `int GetCoreLatencyCnt()`  
+-   **Description**: Gets the total count of core latency measurements recorded.  
+-   **Returns**: The number of core latency measurements.  
+  
+***`GetCoreLatencyMean()`***  
+-   **Signature**: `double GetCoreLatencyMean()`  
+-   **Description**: Gets the mean (average) of all collected core latency values.  
+-   **Returns**: The mean core latency in microseconds.  
+  
+***`GetCoreLatencyStdDev()`***  
+-   **Signature**: `double GetCoreLatencyStdDev()`  
+-   **Description**: Gets the standard deviation of all collected core latency values.  
+-   **Returns**: The standard deviation of core latency.  
+  
+***`GetCoreLatencyVector()`***  
+-   **Signature**: `std::vector<int> GetCoreLatencyVector()`  
+-   **Description**: Gets a vector of recent core latency measurements.  
+-   **Returns**: A vector of core latencies in microseconds.  
   
 ***`GetModelName()`***  
 -   **Signature**: `std::string GetModelName()`  
@@ -239,12 +289,17 @@ This class abstracts the runtime inference executor for a user's compiled model.
 -   **Signature**: `std::vector<uint64_t> GetOutputTensorSizes()`  
 -   **Description**: Gets the individual sizes (in bytes) of each output tensor.  
 -   **Returns**: A vector of output tensor sizes, in the order specified by `GetOutputTensorNames()`.  
-  
+
 ***`GetTaskOrder()`***  
 -   **Signature**: `std::vector<std::string> GetTaskOrder()`  
 -   **Description**: Gets the model's task execution order.  
 -   **Returns**: A vector of strings representing the task order.  
 -   **Note**: The legacy function `task_order()` is deprecated.  
+  
+***`HasDynamicOutput()`***  
+-   **Signature**: `bool HasDynamicOutput() const`  
+-   **Description**: Checks whether any output tensor has a dynamic shape.  
+-   **Returns**: `true` if at least one output tensor has a dynamic shape, `false` otherwise.  
   
 ***`IsMultiInputModel()`***  
 -   **Signature**: `bool IsMultiInputModel() const`  
@@ -267,7 +322,7 @@ This class abstracts the runtime inference executor for a user's compiled model.
 -   **Description**: Registers a user-defined callback function that will be executed upon completion of an asynchronous inference request.  
 -   **Parameters**:  
     -   `callbackFunc`: The function to be called. It receives the output tensors and the user-provided argument.  
--   **Note**: The legacy function `RegisterCallBack(...)` is deprecated.  
+-   **Note**: The legacy function `RegisterCallBack(...)` is deprecated.
   
 ***`Run(void *inputPtr, void *userArg = nullptr, void *outputPtr = nullptr)`***  
 -   **Signature**: `TensorPtrs Run(void *inputPtr, void *userArg = nullptr, void *outputPtr = nullptr)`  
@@ -380,6 +435,12 @@ This class specifies inference options applied to an `InferenceEngine`, allowing
     option.bufferCount = 8;  // Allocate 8 buffers for higher throughput
     dxrt::InferenceEngine ie("model.dxnn", option);
     ```
+-   **`showModelInfo`**: `bool`. Controls whether the model information banner (model file, input/output tensors, task graph) is printed when this engine is created. Default is `true`. Set it to `false` to keep engine creation silent, which is useful when engines are created and destroyed repeatedly. This is an instance-level switch that is combined with the global `Configuration::ITEM::SHOW_MODEL_INFO` setting: the banner is printed only when both are enabled, so disabling the global setting still suppresses the banner for every engine.
+    ```cpp
+    dxrt::InferenceOption option;
+    option.showModelInfo = false;  // Do not print the model info banner
+    dxrt::InferenceEngine ie("model.dxnn", option);
+    ```
   
   
 
@@ -453,7 +514,7 @@ A singleton class for managing global application configurations. Access is thre
   
 ***`GetVersion()`***  
 -   **Signature**: `std::string GetVersion() const`  
--   **Description**: Retrieves the version of the DXRT library.  
+-   **Description**: Retrieves the version of the DX-RT library.  
 -   **Returns**: The library version string.  
   
 ***`LoadConfigFile(const std::string& fileName)`***  
@@ -561,6 +622,11 @@ Provides an abstraction for retrieving device information and real-time status.
 -   **Description**: Retrieves the number of DMA (Direct Memory Access) channels available for the NPU. A higher number of DMA channels allows better parallel data movement, improving performance.  
 -   **Returns**: The number of DMA channels.  
   
+***`DriverVersionStr()`***  
+-   **Signature**: `std::string DriverVersionStr() const`  
+-   **Description**: Retrieves the runtime driver version string.  
+-   **Returns**: The driver version string (e.g., "1.2.3").  
+  
 ***`FirmwareVersionStr()`***  
 -   **Signature**: `std::string FirmwareVersionStr() const`  
 -   **Description**: Retrieves the firmware version of the NPU, following the Major.Minor.Patch versioning format.  
@@ -648,7 +714,7 @@ Provides an abstraction for retrieving device information and real-time status.
 -   **Signature**: `std::string PcieInfoStr(int spd, int wd, int bus, int dev, int func) const`  
 -   **Description**: Returns PCIe information (speed, generation, etc.) as a string.  
 -   **Parameters**:  
-    -   `spd`, `wd`, `bus`, `dev`, `func`: PCIe configuration parameters.  
+    -   `spd`, `wd`, `bus`, `dev`, `func`: PCIe configuration parameters. In `dxrt_cxx_api.h`, these arguments are ignored and the values reported by the device are used; a zero-argument overload `PcieInfoStr()` is also available.  
 -   **Returns**: A formatted string with PCIe information.  
   
 ***`GetCoreUtilization(int coreId)`***
@@ -668,11 +734,127 @@ Provides an abstraction for retrieving device information and real-time status.
 -   **Description**: Retrieves the amount of free NPU DRAM.
 -   **Returns**: Free DRAM in bytes. Returns 0 if monitoring data is unavailable.
 
+***`IsValid()`***
+-   **Signature**: `bool IsValid() const`
+-   **Description**: Checks whether the device status data is valid (up-to-date). It is `true` if the monitoring service was active when this status was queried. If it is `false`, the returned data may be stale or incomplete.
+-   **Returns**: `true` if the data is valid, `false` otherwise.
+
+---  
+
+### class dxrt::Profiler
+
+A singleton class that provides runtime profiling of per-job inference timing and user-defined events. Enable the profiler with `Configuration::ITEM::PROFILER` before running inference. Access is done via the `GetInstance()` method.
+
+#### Static Member Functions
+
+***`GetInstance()`***
+-   **Signature**: `static Profiler& GetInstance()`
+-   **Description**: Returns the unique static instance of the `Profiler` class.
+-   **Returns**: A reference to the `Profiler` instance.
+
+#### Member Functions
+
+***`GetJobMetrics(int jobId)`***
+-   **Signature**: `JobMetrics GetJobMetrics(int jobId)`
+-   **Description**: Returns the timing metrics of the given job. Call it immediately after `Wait()` returns with the corresponding job ID.
+-   **Parameters**:
+    -   `jobId`: The job ID returned by `RunAsync()`.
+-   **Returns**: A `JobMetrics` object. `valid` is `false` if the job ID is not found.
+
+***`Start(const std::string& name)`***
+-   **Signature**: `void Start(const std::string& name)`
+-   **Description**: Starts recording a user profiling event.
+-   **Parameters**:
+    -   `name`: The event name (e.g., `"preprocess"`, `"postprocess"`).
+
+***`End(const std::string& name)`***
+-   **Signature**: `void End(const std::string& name)`
+-   **Description**: Ends recording a user profiling event.
+-   **Parameters**:
+    -   `name`: The event name matching a previous `Start()` call.
+-   **Example**:
+    ```cpp
+    auto& profiler = dxrt::Profiler::GetInstance();
+    profiler.Start("my_preprocess");
+    // ... preprocessing code ...
+    profiler.End("my_preprocess");
+    ```
+
+***`Show()`***
+-   **Signature**: `void Show()`
+-   **Description**: Prints the statistics of all recorded events.
+
+***`Save(const std::string& file)`***
+-   **Signature**: `void Save(const std::string& file)`
+-   **Description**: Saves the timing data to a JSON file.
+-   **Parameters**:
+    -   `file`: The path of the output file.
+
+***`Clear()`***
+-   **Signature**: `void Clear()`
+-   **Description**: Clears all recorded timing data.
+
+***`UserClear()`***
+-   **Signature**: `void UserClear()`
+-   **Description**: Clears all user-recorded profiling events.
+
+---
+
+### struct dxrt::JobMetrics
+
+All task metrics for one completed job. Returned by `Profiler::GetJobMetrics()`.
+
+#### Public Members
+
+-   **`tasks`**: `std::vector<TaskMetrics>`. One entry per task that participated in the job.
+-   **`valid`**: `bool`. `false` if the job ID was not found.
+
+#### Member Functions
+
+***`GetTask(const std::string& name)`***
+-   **Signature**: `TaskMetrics GetTask(const std::string& name) const`
+-   **Description**: Looks up a task by name (e.g., `"npu_0"`, `"cpu_0"`).
+-   **Parameters**:
+    -   `name`: The task name.
+-   **Returns**: A `TaskMetrics` object. `valid` is `false` if the task is not found.
+
+---
+
+### struct dxrt::TaskMetrics
+
+Metrics for one task within a job (NPU task or CPU task).
+
+#### Public Members
+
+-   **`task_name`**: `std::string`. The task name (e.g., `"npu_0"`, `"cpu_0"`).
+-   **`devices`**: `std::map<int, NpuDeviceMetrics>`. Per-device NPU metrics, keyed by device ID (NPU tasks only).
+-   **`cpu_task_us`**: `double`. CPU task execution time in microseconds (CPU tasks only; 0 for NPU tasks).
+-   **`valid`**: `bool`. `true` if the task was measured.
+
+---
+
+### struct dxrt::NpuDeviceMetrics
+
+Timing breakdown for one NPU device within a task. All times are in microseconds.
+
+#### Public Members
+
+-   **`input_format_us`**: `double`. NPU input format handler time.
+-   **`h2d_us`**: `double`. Host-to-Device transfer time.
+-   **`inference_core_all_us`**: `double`. NPU compute time across all cores.
+-   **`inference_core_0_us`**: `double`. NPU compute time on core 0.
+-   **`inference_core_1_us`**: `double`. NPU compute time on core 1.
+-   **`inference_core_2_us`**: `double`. NPU compute time on core 2.
+-   **`d2h_us`**: `double`. Device-to-Host transfer time.
+-   **`output_format_us`**: `double`. NPU output format handler time.
+-   **`total_us`**: `double`. End-to-end NPU task time.
+-   **`valid`**: `bool`. `true` if populated from a real measurement.
+
 ---  
   
 ### class dxrt::Tensor  
   
-This class abstracts a DXRT tensor object, which defines a data array composed of uniform elements.  
+This class abstracts a DX-RT tensor object, which defines a data array composed of uniform elements.  
   
 #### Constructor  
   

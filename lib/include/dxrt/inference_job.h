@@ -17,6 +17,7 @@
 #include <memory>
 #include <atomic>
 #include <map>
+#include <chrono>
 
 #include "dxrt/tensor.h"
 #include "dxrt/request.h"
@@ -63,6 +64,7 @@ class InferenceJob // NOSONAR: Too many fields - stable as-is, refactoring defer
 
 
     void onRequestComplete(RequestPtr req);
+    void onRequestFailed(RequestPtr req, std::exception_ptr error);
     bool checkAndSetTaskReady(TaskPtr taskPtr);
     void processReadyTask(TaskPtr taskPtr);
 
@@ -77,10 +79,14 @@ class InferenceJob // NOSONAR: Too many fields - stable as-is, refactoring defer
     int startMultiInputJob(const std::map<std::string, void*>& inputTensors, void *userArg, void *outputPtr);
 
     TensorPtrs getOutput();
+    // First failure of the job, or nullptr. Valid until the job is reused.
+    std::exception_ptr error();
     void setStatus(Request::Status status);
     Request::Status getStatus() const;
     int getId() const;  
     int latency() const {return _latency;}
+    int64_t queue_wait_time() const { return _queueWaitTime; }
+    int64_t buffer_pool_wait_time() const { return _bufferPoolWaitTime; }
     uint32_t inference_time() const {return _infTime;}
     void setInferenceEngineInterface(InferenceEngine* ptr);
     void setCallBack(std::function<int(const TensorPtrs &outputs, void *userArg, int jobIc)> func);
@@ -94,7 +100,7 @@ class InferenceJob // NOSONAR: Too many fields - stable as-is, refactoring defer
     void SetStoreResult(bool storeResult);
     friend class CircularDataPool<InferenceJob>;
 
-    // wait for inference job to complete
+    // wait for inference job to complete; rethrows the job failure, if any
     void Wait();
 
     // inference job for IE
@@ -112,10 +118,14 @@ class InferenceJob // NOSONAR: Too many fields - stable as-is, refactoring defer
     std::atomic<int> _outputCount{0};
     std::atomic<int> _doneCount{0};
     std::vector<std::string> _outputs;
-    void* _userArg;
-    int _latency;
-    uint32_t _infTime;
+    void* _userArg = nullptr;
+    int _latency = 0;
+    int64_t _queueWaitTime = 0;
+    int64_t _bufferPoolWaitTime = 0;
+    uint32_t _infTime = 0;
     int _jobId;
+    std::chrono::steady_clock::time_point _jobStartTime{};
+    bool _jobStartValid = false;
 
     // Tasks for multi-input support
     std::vector<std::shared_ptr<Task>> _tasks;
@@ -128,7 +138,10 @@ class InferenceJob // NOSONAR: Too many fields - stable as-is, refactoring defer
     std::vector<std::string> _modelInputNames;
 
     void onAllRequestComplete();
-    InferenceEngine* _inferenceEnginePtr;
+    // Marks taskName and every not-yet-started task done; caller holds _lock. Returns true when the job is complete.
+    bool failTaskLocked(const std::string& taskName, std::exception_ptr error);
+    std::exception_ptr _error;  // guarded by _lock
+    InferenceEngine* _inferenceEnginePtr = nullptr;
     std::function<int(TensorPtrs &outputs, void *userArg, int jobId)> _infEngCallback;
 #ifdef USE_VNPU
     std::function<void(void* userArg, int jobId)> _userInputReleaseCallback;
@@ -140,7 +153,7 @@ class InferenceJob // NOSONAR: Too many fields - stable as-is, refactoring defer
     void ReleaseAllOutputBuffer();
     bool isUserOutputBuffer(const RequestPtr& req) const;
     void releaseIndividualBuffers(const RequestPtr& req);
-    void* _outputPtr;
+    void* _outputPtr = nullptr;
     std::atomic<bool> _use_flag = {false};
 
     // Limit access to shared resources to one thread at a time.

@@ -20,6 +20,7 @@ With simple APIs compatible with various applications, DXRT empowers developers 
 ## Resources
 ### Model zoo (Prebuilt models)
 Official modelzoo is in preparation.  
+
 ### Documents
 Official website documents are in preparation.  
 Currently, documents are provided with limited rights. Please consult with our contact point person.  

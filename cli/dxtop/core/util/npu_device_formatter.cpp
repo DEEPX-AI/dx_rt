@@ -25,22 +25,28 @@ std::string NpuDeviceFormatter::FormatDeviceType(const uint32_t type)
     }
 }
 
-std::string NpuDeviceFormatter::FormatDeviceVariant(const uint32_t variant)
+std::string NpuDeviceFormatter::FormatDeviceVariant(const uint32_t variant, const uint16_t ddr_type)
 {
+    std::string base;
     switch (variant)
     {
     case 100:
-        return "L1";
+        base = "L1";
+        break;
     case 101:
-        return "L2";
+        base = "L2";
+        break;
     case 102:
-        return "L3";
+        base = "L3";
+        break;
     case 103:
-        return "L4";
+        base = "L4";
+        break;
     case 200:
     case 201:
     case 202:
-        return "M1";
+        base = "M1";
+        break;
     // case 200:
     //     return "M1";
     // case 201:
@@ -50,6 +56,13 @@ std::string NpuDeviceFormatter::FormatDeviceVariant(const uint32_t variant)
     default:
         return "Invalid Variant";
     }
+
+    if (ddr_type == 1)
+    {
+        return base + "M";
+    }
+
+    return base;
 }
 
 std::string NpuDeviceFormatter::FormatFirmwareVersion(const uint16_t fw_version)

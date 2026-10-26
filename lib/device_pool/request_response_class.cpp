@@ -10,6 +10,7 @@
 
 #include "dxrt/request_response_class.h"
 
+#include <chrono>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -62,7 +63,10 @@ int RequestResponse::InferenceRequest(RequestPtr req)
                 auto& profiler = dxrt::Profiler::GetInstance();
                 profiler.Start(dxrt::Profiler::EventType::BUFFER_POOL_WAIT, req->task()->name(), device->id(), req->job_id());
 #endif
+                const auto bufferWaitStart = std::chrono::steady_clock::now();
                 BufferSet buffers = req->task()->AcquireAllBuffers();
+                req->setBufferPoolWaitTime(std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now() - bufferWaitStart).count());
 #ifdef USE_PROFILER
                 profiler.End(dxrt::Profiler::EventType::BUFFER_POOL_WAIT, req->task()->name(), device->id(), req->job_id());
                 req->CheckTimePoint(0);
@@ -329,15 +333,17 @@ void RequestResponse::ProcessByDataPPU(RequestPtr req, const dxrt_response_t& re
     std::ignore = deviceId;
     LOG_DXRT_DBG << "response.ppu_filter_num : " << response.ppu_filter_num << std::endl;
     RequestData* req_data = req->getData();
-    if (!req_data->outputs.empty())
+    if (req_data->outputs.empty())
     {
-        memcpy(req_data->outputs[0].data(),
-                static_cast<const void*>(req_data->encoded_output_ptrs[0]),
-                128 * 1024);
-        req_data->outputs[0].shape() = {1, response.ppu_filter_num};
+        return;
     }
 
-    DXRT_ASSERT(req_data->outputs.front().shape()[1] == response.ppu_filter_num, "PPU MODEL OUTPUT NOT VALID SET");
+    memcpy(req_data->outputs[0].data(),
+            static_cast<const void*>(req_data->encoded_output_ptrs[0]),
+            128 * 1024);
+    req_data->outputs[0].shape() = {1, response.ppu_filter_num};
+
+    DXRT_ASSERT(req_data->outputs[0].shape()[1] == response.ppu_filter_num, "PPU MODEL OUTPUT NOT VALID SET");
 
     if (DEBUG_DATA > 0)
         DataDumpBin(req->taskData()->name() + "_output.ppu.bin", req->outputs());

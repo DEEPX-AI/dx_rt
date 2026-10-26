@@ -1081,40 +1081,80 @@ class InferenceEngine:
         return task_order
 
     def get_latency(self) -> int:
-        """Returns the latency of the most recent inference in microseconds."""
+        """Returns the latency of the most recent inference in microseconds (identical to get_e2e_response_time())."""
         return self.engine.get_latency()
+
+    def get_core_latency(self) -> int:
+        """Returns the core latency (E2E response time excluding host NPU buffer pool wait and queue wait) of the most recent inference in microseconds."""
+        return self.engine.get_core_latency()
+
+    def get_e2e_response_time(self) -> int:
+        """Returns the end-to-end response time of the most recent inference in microseconds."""
+        return self.engine.get_e2e_response_time()
+
+    def get_e2e_response_time_list(self) -> List[int]:
+        """Returns a list of recent E2E response time measurements (microseconds)."""
+        return self.engine.get_e2e_response_time_list()
+
+    def get_e2e_response_time_mean(self) -> float:
+        """Returns the mean of collected E2E response time values."""
+        return self.engine.get_e2e_response_time_mean()
+
+    def get_e2e_response_time_std(self) -> float:
+        """Returns the standard deviation of collected E2E response time values."""
+        return self.engine.get_e2e_response_time_std()
+
+    def get_e2e_response_time_count(self) -> int:
+        """Returns the count of E2E response time values collected."""
+        return self.engine.get_e2e_response_time_count()
 
     def get_npu_inference_time(self) -> int:
         """Returns the NPU processing time for the most recent inference in microseconds."""
         return self.engine.get_npu_inference_time()
 
     def get_latency_list(self) -> List[int]:
-        """Returns a list of recent latency measurements (microseconds)."""
+        """Returns a list of recent latency measurements (microseconds; identical to get_e2e_response_time_list())."""
         return self.engine.get_latency_list()
+
+    def get_core_latency_list(self) -> List[int]:
+        """Returns a list of recent core latency measurements (microseconds)."""
+        return self.engine.get_core_latency_list()
 
     def get_npu_inference_time_list(self) -> List[int]:
         """Returns a list of recent NPU inference time measurements (microseconds)."""
         return self.engine.get_npu_inference_time_list()
 
     def get_latency_mean(self) -> float:
-        """Returns the mean of collected latency values."""
+        """Returns the mean of collected latency values (identical to get_e2e_response_time_mean())."""
         return self.engine.get_latency_mean()
+
+    def get_core_latency_mean(self) -> float:
+        """Returns the mean of collected core latency values."""
+        return self.engine.get_core_latency_mean()
 
     def get_npu_inference_time_mean(self) -> float:
         """Returns the mean of collected NPU inference times."""
         return self.engine.get_npu_inference_time_mean()
 
     def get_latency_std(self) -> float:
-        """Returns the standard deviation of collected latency values."""
+        """Returns the standard deviation of collected latency values (identical to get_e2e_response_time_std())."""
         return self.engine.get_latency_std()
+
+    def get_core_latency_std(self) -> float:
+        """Returns the standard deviation of collected core latency values."""
+        return self.engine.get_core_latency_std()
 
     def get_npu_inference_time_std(self) -> float:
         """Returns the standard deviation of collected NPU inference times."""
         return self.engine.get_npu_inference_time_std()
 
     def get_latency_count(self) -> int:
-        """Returns the count of latency values collected."""
+        """Returns the count of latency values collected (identical to get_e2e_response_time_count())."""
         return self.engine.get_latency_count()
+
+    def get_core_latency_count(self) -> int:
+        """Returns the count of core latency values collected."""
+        return self.engine.get_core_latency_count()
 
     def get_npu_inference_time_count(self) -> int:
         """Returns the count of NPU inference times collected."""

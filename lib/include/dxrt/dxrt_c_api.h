@@ -80,6 +80,7 @@ typedef enum {
     DXRT_ERR_IO             = -7,   /**< file/service I/O error */
     DXRT_ERR_INVALID_MODEL  = -8,   /**< invalid or corrupt model */
     DXRT_ERR_NOT_AVAILABLE  = -9,   /**< resource not available (e.g. monitoring inactive) */
+    DXRT_ERR_DEVICE_REMOVED = -10,  /**< NPU device was removed or disabled */
     DXRT_ERR_INTERNAL       = -99   /**< catch-all for unexpected errors */
 } dxrt_status_t;
 
@@ -112,8 +113,17 @@ typedef struct {
     int      device_id;         /**< target device ID (-1 = auto) */
     uint32_t bound_option;      /**< NPU core binding (0 = all) */
     int      use_ort;           /**< 1 = enable ORT tasks, 0 = NPU only, -1 = default */
-    uint32_t reserved[6];       /**< zero-initialised, reserved for future use */
+    int      show_model_info;   /**< 1 = print model info banner, 0 = silent, -1 = default */
+    uint32_t reserved[5];       /**< zero-initialised, reserved for future use */
 } dxrt_options_t;
+
+/* New fields are carved out of `reserved`, so the total size must never change;
+   growing it would silently break already-compiled callers. */
+#if defined(__cplusplus)
+static_assert(sizeof(dxrt_options_t) == 44, "dxrt_options_t ABI size must stay 44 bytes");
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+_Static_assert(sizeof(dxrt_options_t) == 44, "dxrt_options_t ABI size must stay 44 bytes");
+#endif
 
 /** Helper: initialise options with safe defaults. */
 static inline void dxrt_options_init(dxrt_options_t* opts)
@@ -125,6 +135,7 @@ static inline void dxrt_options_init(dxrt_options_t* opts)
     opts->device_id     = -1;     /* -1 = auto */
     opts->bound_option  = 0;      /* 0 = NPU_ALL */
     opts->use_ort       = -1;     /* -1 = library default */
+    opts->show_model_info = -1;   /* -1 = library default */
 }
 
 #ifdef __cplusplus
@@ -348,10 +359,21 @@ DXRT_CAPI dxrt_status_t dxrt_engine_get_model_name(
     char*          buf,
     size_t         buf_len);
 
-/** Get latency of the last inference in microseconds. */
+/** Get latency of the last inference in microseconds (identical to E2E response time). */
 DXRT_CAPI dxrt_status_t dxrt_engine_get_latency(
     dxrt_engine_t  engine,
     int*           latency_us);
+
+/** Get core latency of the last inference in microseconds
+ *  (E2E response time excluding host NPU buffer pool wait and queue wait). */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_core_latency(
+    dxrt_engine_t  engine,
+    int*           core_latency_us);
+
+/** Get end-to-end response time of the last inference in microseconds. */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_e2e_response_time(
+    dxrt_engine_t  engine,
+    int*           e2e_us);
 
 /* ══════════════════════════════════════════════════════════════
  *  Tensor Name Queries
@@ -441,11 +463,28 @@ static inline void dxrt_tensor_slice_init(dxrt_tensor_slice_t* slice)
  *                      If the engine produces zero outputs, `tensors` may be
  *                      NULL and `tensor_count` will be 0; the callback is
  *                      still invoked so that the user_arg / user_data
- *                      bookkeeping runs.
+ *                      bookkeeping runs. A job that fails is also
+ *                      delivered this way (zero tensors).
  *        tensor_count: number of output tensors.
  *        user_arg:     user argument passed to RunAsync.
  *        user_data:    opaque pointer from registration.
+ *        return:       ignored by the runtime; return 0.
  * @param user_data Opaque pointer passed to every callback invocation.
+ *
+ * Threading and lifetime:
+ * - The callback runs on a runtime worker thread. Jobs can complete on
+ *   different worker threads, so calls for different jobs can run
+ *   concurrently; synchronise any shared state.
+ * - A job is not reported as complete (dxrt_engine_wait() returns, or the
+ *   synchronous run returns) until its callback has returned. Do not call
+ *   dxrt_engine_wait() for the same job or dxrt_engine_destroy() from inside
+ *   the callback; both wait for it and deadlock.
+ * - dxrt_engine_destroy() waits for in-flight jobs, including their
+ *   callbacks, and then drops the callback. The callback is not called
+ *   after dxrt_engine_destroy() returns.
+ * - There is no unregister function and `callback` must not be NULL.
+ *   Replacing the callback is not synchronised with completions in flight;
+ *   register it before the first asynchronous run.
  *
  * NOTE: This signature replaces the earlier byte-buffer form. C++ users
  *       routing through `dxrt::InferenceEngine::RegisterCallback` see no
@@ -668,7 +707,21 @@ DXRT_CAPI dxrt_status_t dxrt_event_dispatch(dxrt_event_level_t level,
                                             dxrt_event_code_t code,
                                             const char* message);
 
-/** Register a custom event handler callback. */
+/**
+ * Register a custom event handler callback.
+ *
+ * - Process-wide, not per engine. A single handler slot is shared with the
+ *   C++ RuntimeEventDispatcher::RegisterEventHandler(); registering a
+ *   non-NULL handler replaces the previous one.
+ * - Called synchronously on the thread that raised the event (a runtime
+ *   worker thread, or the caller of dxrt_event_dispatch()), only for events
+ *   at or above the dxrt_event_set_level() threshold. Calls are not
+ *   serialised and can run concurrently.
+ * - `message` and `timestamp` are valid only during the call.
+ * - Passing NULL stops later deliveries to the C handler; it does not wait
+ *   for a call that is already running. `handler` and `user_data` are not
+ *   swapped atomically together, so register before events are expected.
+ */
 DXRT_CAPI dxrt_status_t dxrt_event_register_handler(dxrt_event_handler_t handler,
                                                      void* user_data);
 
@@ -880,23 +933,59 @@ DXRT_CAPI dxrt_status_t dxrt_config_load_file(const char* file_path);
 /** Get last NPU inference time in microseconds. */
 DXRT_CAPI dxrt_status_t dxrt_engine_get_npu_inference_time(dxrt_engine_t engine, uint32_t* out_us);
 
-/** Get latency mean across accumulated samples (microseconds). */
+/**
+ * Get the last queue wait time in microseconds.
+ *
+ * The signed type is kept for ABI consistency with the internal timing API;
+ * valid queue wait values are always non-negative. Negative internal values
+ * are normalized to zero before they are published.
+ */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_queue_wait_time(dxrt_engine_t engine, int64_t* out_us);
+
+/** Get latency mean across accumulated samples (microseconds; identical to E2E response time mean). */
 DXRT_CAPI dxrt_status_t dxrt_engine_get_latency_mean(dxrt_engine_t engine, double* out_us);
 
-/** Get latency standard deviation (microseconds). */
+/** Get latency standard deviation (microseconds; identical to E2E response time stddev). */
 DXRT_CAPI dxrt_status_t dxrt_engine_get_latency_stddev(dxrt_engine_t engine, double* out_us);
+
+/** Get core latency mean across accumulated samples (microseconds). */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_core_latency_mean(dxrt_engine_t engine, double* out_us);
+
+/** Get core latency standard deviation (microseconds). */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_core_latency_stddev(dxrt_engine_t engine, double* out_us);
+
+/** Get E2E response time mean across accumulated samples (microseconds). */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_e2e_response_time_mean(dxrt_engine_t engine, double* out_us);
+
+/** Get E2E response time standard deviation (microseconds). */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_e2e_response_time_stddev(dxrt_engine_t engine, double* out_us);
+
+/** Get count of accumulated E2E response time samples. */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_e2e_response_time_count(dxrt_engine_t engine, int* out_count);
 
 /** Get NPU inference time mean (microseconds). */
 DXRT_CAPI dxrt_status_t dxrt_engine_get_npu_time_mean(dxrt_engine_t engine, double* out_us);
 
+/** Get queue wait time mean (microseconds). */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_queue_wait_time_mean(dxrt_engine_t engine, double* out_us);
+
 /** Get NPU inference time standard deviation (microseconds). */
 DXRT_CAPI dxrt_status_t dxrt_engine_get_npu_time_stddev(dxrt_engine_t engine, double* out_us);
 
-/** Get count of accumulated latency samples. */
+/** Get queue wait time standard deviation (microseconds). */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_queue_wait_time_stddev(dxrt_engine_t engine, double* out_us);
+
+/** Get count of accumulated latency samples (identical to E2E response time count). */
 DXRT_CAPI dxrt_status_t dxrt_engine_get_latency_count(dxrt_engine_t engine, int* out_count);
+
+/** Get count of accumulated core latency samples. */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_core_latency_count(dxrt_engine_t engine, int* out_count);
 
 /** Get count of accumulated NPU inference time samples. */
 DXRT_CAPI dxrt_status_t dxrt_engine_get_npu_time_count(dxrt_engine_t engine, int* out_count);
+
+/** Get count of accumulated queue wait time samples. */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_queue_wait_time_count(dxrt_engine_t engine, int* out_count);
 
 /**
  * Get per-tensor output sizes.
@@ -938,12 +1027,26 @@ DXRT_CAPI dxrt_status_t dxrt_engine_dispose(dxrt_engine_t engine);
  * ══════════════════════════════════════════════════════════════ */
 
 /**
- * Get vector of recent latency measurements (microseconds).
+ * Get vector of recent latency measurements (microseconds; identical to E2E response time list).
  * Call with out_values=NULL to query count only.
  * @param out_values [out] Caller-allocated buffer, or NULL for size query.
  * @param inout_count [in/out] In: buffer capacity. Out: actual count.
  */
 DXRT_CAPI dxrt_status_t dxrt_engine_get_latency_list(
+    dxrt_engine_t engine, int* out_values, size_t* inout_count);
+
+/**
+ * Get vector of recent core latency measurements (microseconds).
+ * Call with out_values=NULL to query count only.
+ */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_core_latency_list(
+    dxrt_engine_t engine, int* out_values, size_t* inout_count);
+
+/**
+ * Get vector of recent E2E response time measurements (microseconds).
+ * Call with out_values=NULL to query count only.
+ */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_e2e_response_time_list(
     dxrt_engine_t engine, int* out_values, size_t* inout_count);
 
 /**

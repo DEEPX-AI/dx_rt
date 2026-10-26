@@ -1,4 +1,5 @@
 site_name: DXNN Runtime (DX-RT) User Manual
+site_url: 'https://developer.deepx.ai/'
 use_directory_urls: false
 docs_dir: source # markdown original file folder
 site_dir: html_docs # html target folder
@@ -7,11 +8,8 @@ theme:
   language: en
   font:
     text: Noto Sans Display
-    #text: Noto Serif
-    #code: Noto Sans
     code: Roboto Mono
   logo: img/deepx.png
-  #favicon: img/favicon.png
   palette:
     # Palette toggle for light mode
     - scheme: default
@@ -33,7 +31,6 @@ theme:
      - navigation.tabs.sticky
      - content.tabs.link
      - content.code.copy
-  site_url: 'https://developer.deepx.ai/'
 nav:
   - DXNN Runtime Overview: docs/01_DXNN_Runtime_Overview.md
   - Installation on Linux: docs/02_Installation_on_Linux.md
@@ -41,7 +38,7 @@ nav:
   - Model Inference: docs/04_Model_Inference.md
   - Command Line Interface: docs/05_Command_Line_Interface.md
   - Inference API Guide: docs/06_Inference_API.md
-  - Multi-input Inference Guide: docs/07_Multi_Input_Inference.md
+  - Multi-Input Inference Guide: docs/07_Multi_Input_Inference.md
   - Configuration and DeviceStatus Guide: docs/08_Global_Instance.md
   - Tutorials:
       - C++ Tutorials: docs/09_01_C++_Tutorials.md
@@ -57,12 +54,11 @@ plugins:
       author: DEEPX.ai
       copyright: ⓒ Copyright 2026 DEEPX All Rights Reserved.
       cover_title: DXNN Runtime (DX-RT) User Manual
-      cover_subtitle: 2026/08/04 (v3.4.2)
+      cover_subtitle: 2026/10/23 (v3.5.0)
       cover_logo: img/deepx.png
       custom_template_path: source/stylesheets
-      output_path: ../DEEPX_DX-RT_UM_v3.4.2_August_2026.pdf
+      output_path: ../DEEPX_DX-RT_UM_v3.5.0_OCT_2026.pdf
 extra:
-  homepage: https://developer.deepx.ai
   generator: false
   social:
      - icon: fontawesome/brands/linkedin
@@ -72,6 +68,7 @@ extra_css:
 markdown_extensions:
   - admonition
   - def_list
+  - attr_list
   - toc:
         permalink: "true"
         baselevel: 1
@@ -91,8 +88,5 @@ markdown_extensions:
   - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
-  - attr_list
   - md_in_html
-extra_javascript:
-#  - https://polyfill.io/v3/polyfill.min.js?features=es6
 copyright: ⓒ Copyright 2026 <a href="http://deepx.ai">DEEPX</a>. All Rights Reserved.

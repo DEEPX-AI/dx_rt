@@ -683,10 +683,10 @@ std::string V6ModelParser::ConvertGraphInfoV6ToV7(const std::string& v6GraphInfo
                     inputObj.AddMember("tail", false, allocator);
 
                     Value users(kArrayType);
-                    if (v6Graph.HasMember("name") && v6Graph["name"].IsString()) 
+                    if (!taskName.empty())
                     {
                         Value taskNameVal;
-                        taskNameVal.SetString(v6Graph["name"].GetString(), allocator);
+                        taskNameVal.SetString(taskName.c_str(), allocator);
                         users.PushBack(taskNameVal, allocator);
                     }
                     inputObj.AddMember("users", users, allocator);
@@ -709,10 +709,10 @@ std::string V6ModelParser::ConvertGraphInfoV6ToV7(const std::string& v6GraphInfo
                     nameVal.SetString(outputName.c_str(), allocator);
                     outputObj.AddMember("name", nameVal, allocator);
 
-                    if (v6Graph.HasMember("name") && v6Graph["name"].IsString()) 
+                    if (!taskName.empty())
                     {
                         Value ownerTaskVal;
-                        ownerTaskVal.SetString(v6Graph["name"].GetString(), allocator);
+                        ownerTaskVal.SetString(taskName.c_str(), allocator);
                         outputObj.AddMember("owner", ownerTaskVal, allocator);
                     }
                     

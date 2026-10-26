@@ -8,6 +8,7 @@
  */
 
 #include "dxrt/common.h"
+#include "dxrt/exception/exception.h"
 #include "dxrt/fixed_size_buffer.h"
 #include <chrono>
 #include <cstdlib>
@@ -46,6 +47,26 @@ std::chrono::seconds GetBufferWaitTimeout()
     }
     return std::chrono::seconds(value);
 }
+
+void ReleaseAllocatedHeapBuffers(std::vector<void*>& data)
+{
+    for (void* ptr : data)
+    {
+#ifdef __linux__
+        free(ptr);
+#elif _WIN32
+        _aligned_free(ptr);
+#else
+        free(ptr);
+#endif
+    }
+    data.clear();
+}
+
+[[noreturn]] void ThrowInsufficientMemory()
+{
+    throw InsufficientMemoryException(EXCEPTION_MESSAGE("Memory allocation failed - check system memory availability"));
+}
 }  // namespace
 
 #ifndef USE_VNPU
@@ -65,7 +86,9 @@ FixedSizeBuffer::FixedSizeBuffer(int64_t size, int buffer_count)
                          << ", buffer_index=" << i << "/" << _count
                          << ", size=" << size << " bytes (" << (size / 1024.0 / 1024.0) << " MB)"
                          << ", alignment=" << MEM_ALIGN_VALUE);
-            DXRT_ASSERT(false, "Memory allocation failed - check system memory availability");
+            ReleaseAllocatedHeapBuffers(_data);
+            _pointers.clear();
+            ThrowInsufficientMemory();
         }
 #elif _WIN32
         ptr = _aligned_malloc(size, MEM_ALIGN_VALUE);
@@ -73,7 +96,9 @@ FixedSizeBuffer::FixedSizeBuffer(int64_t size, int buffer_count)
             LOG_DXRT_ERR("Failed to _aligned_malloc: buffer_index=" << i << "/" << _count
                          << ", size=" << size << " bytes (" << (size / 1024.0 / 1024.0) << " MB)"
                          << ", alignment=" << MEM_ALIGN_VALUE);
-            DXRT_ASSERT(false, "Memory allocation failed - check system memory availability");
+            ReleaseAllocatedHeapBuffers(_data);
+            _pointers.clear();
+            ThrowInsufficientMemory();
         }
 #else
         ptr = aligned_alloc(MEM_ALIGN_VALUE, size);
@@ -81,7 +106,9 @@ FixedSizeBuffer::FixedSizeBuffer(int64_t size, int buffer_count)
             LOG_DXRT_ERR("Failed to aligned_alloc: buffer_index=" << i << "/" << _count
                          << ", size=" << size << " bytes (" << (size / 1024.0 / 1024.0) << " MB)"
                          << ", alignment=" << MEM_ALIGN_VALUE);
-            DXRT_ASSERT(false, "Memory allocation failed - check system memory availability");
+            ReleaseAllocatedHeapBuffers(_data);
+            _pointers.clear();
+            ThrowInsufficientMemory();
         }
 #endif
         _data.push_back(ptr);
@@ -142,7 +169,9 @@ void FixedSizeBuffer::allocateHeapBuffers()
                          << ", buffer_index=" << i << "/" << _count
                          << ", size=" << _size << " bytes (" << (_size / 1024.0 / 1024.0) << " MB)"
                          << ", alignment=" << MEM_ALIGN_VALUE);
-            DXRT_ASSERT(false, "Memory allocation failed - check system memory availability");
+            ReleaseAllocatedHeapBuffers(_data);
+            _pointers.clear();
+            ThrowInsufficientMemory();
         }
 #elif _WIN32
         ptr = _aligned_malloc(_size, MEM_ALIGN_VALUE);
@@ -150,7 +179,9 @@ void FixedSizeBuffer::allocateHeapBuffers()
             LOG_DXRT_ERR("Failed to _aligned_malloc: buffer_index=" << i << "/" << _count
                          << ", size=" << _size << " bytes (" << (_size / 1024.0 / 1024.0) << " MB)"
                          << ", alignment=" << MEM_ALIGN_VALUE);
-            DXRT_ASSERT(false, "Memory allocation failed - check system memory availability");
+            ReleaseAllocatedHeapBuffers(_data);
+            _pointers.clear();
+            ThrowInsufficientMemory();
         }
 #else
         ptr = aligned_alloc(MEM_ALIGN_VALUE, _size);
@@ -158,7 +189,9 @@ void FixedSizeBuffer::allocateHeapBuffers()
             LOG_DXRT_ERR("Failed to aligned_alloc: buffer_index=" << i << "/" << _count
                          << ", size=" << _size << " bytes (" << (_size / 1024.0 / 1024.0) << " MB)"
                          << ", alignment=" << MEM_ALIGN_VALUE);
-            DXRT_ASSERT(false, "Memory allocation failed - check system memory availability");
+            ReleaseAllocatedHeapBuffers(_data);
+            _pointers.clear();
+            ThrowInsufficientMemory();
         }
 #endif
         _data.push_back(ptr);

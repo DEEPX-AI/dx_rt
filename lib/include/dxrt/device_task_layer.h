@@ -20,6 +20,7 @@
 // C++ headers
 #include <atomic>
 #include <condition_variable>
+#include <exception>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -110,6 +111,12 @@ class DXRT_API DeviceTaskLayer { // NOSONAR: Too many fields - stable as-is, ref
     bool isBlocked() const { return core()->isBlocked();  }
     void block() { core()->block(); }
     void unblock() { core()->unblock(); }
+#ifdef _WIN32
+    bool isRemoved() const { return _removed.load(); }
+    bool isRemovalPending() const { return _removalPending.load(); }
+    // Windows device removal: blocks the device and waits for submitted jobs before the handle closes.
+    bool HandleDeviceRemoval(DeviceRemovalEvent event, uint32_t timeoutMs);
+#endif
     virtual int getFullLoad() const = 0;
 
     /// Returns pointer to the TaskStaticConfig for taskId, or nullptr if not found.
@@ -197,6 +204,12 @@ class DXRT_API DeviceTaskLayer { // NOSONAR: Too many fields - stable as-is, ref
 
     std::unordered_map<int, ModelMemoryInfos> _modelMemoryInfos; // Keyed by taskId
     std::unordered_map<int, TaskStaticConfig>  _taskStaticConfigs; // Keyed by taskId
+
+#ifdef _WIN32
+    std::atomic<bool> _removed{false};
+    std::atomic<bool> _removalPending{false};
+    bool _blockedForRemoval = false;  // guarded by WindowsDriverAdapter::_removalMutex (events are serialized)
+#endif
 };
 
 class DXRT_API StdDeviceTaskLayer : public DeviceTaskLayer {
@@ -266,6 +279,8 @@ class DXRT_API AccDeviceTaskLayer : public DeviceTaskLayer {
     int InputHandler(const int &reqId, int ch);
     int OutputHandler(const dxrt_response_t &resp, int ch);
     void ReleaseInferenceCache(int reqId) override;
+    // Ends a request that cannot produce output: frees its device resources and fails its job.
+    void FailRequest(int reqId, std::exception_ptr error);
 
     // DMA Abort Recovery
     void PauseDmaRequests();

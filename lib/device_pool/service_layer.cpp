@@ -87,10 +87,11 @@ void ServiceLayer::EnsureDynamicIPCConnected()
 
     if (_dynamicIpcClient == nullptr)
     {
-        throw dxrt::ServiceIOException(
-            EXCEPTION_MESSAGE(
-                "Failed to connect dynamic IPC endpoints after " + std::to_string(attemptCount)
-                + " attempts: " + triedEndpoints));
+        const std::string failureMessage =
+            "Failed to connect dynamic IPC endpoints after " + std::to_string(attemptCount)
+            + " attempts: " + triedEndpoints;
+        LOG_DXRT_ERR("IPC_CONNECT_FAILED: " + failureMessage + " errno=" + std::to_string(errno));
+        throw dxrt::ServiceIOException(EXCEPTION_MESSAGE(failureMessage));
     }
 
     LOG_DXRT_I_DBG << "ServiceLayer connected dynamic IPC endpoint: "
@@ -350,7 +351,7 @@ void ServiceLayer::SignalTaskInitLocked(int deviceId, int taskId, npu_bound_op b
         config);
     if (rc != 0)
     {
-        throw dxrt::ServiceIOException(EXCEPTION_MESSAGE("Dynamic IPC task init failed"));
+        throw dxrt::ServiceIOException(EXCEPTION_MESSAGE("Dynamic IPC task init failed " + std::to_string(rc)));
     }
 }
 
@@ -371,7 +372,7 @@ void ServiceLayer::SignalTaskDeInitLocked(int deviceId, int taskId, npu_bound_op
         static_cast<int>(bound));
     if (rc != 0)
     {
-        throw dxrt::ServiceIOException(EXCEPTION_MESSAGE("Dynamic IPC task deinit failed"));
+        throw dxrt::ServiceIOException(EXCEPTION_MESSAGE("Dynamic IPC task deinit failed " + std::to_string(rc)));
     }
 }
 

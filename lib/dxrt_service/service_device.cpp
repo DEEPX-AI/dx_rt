@@ -90,10 +90,22 @@ ServiceDevice::~ServiceDevice(void)
 {
     _stop.store(true);
 
-    Terminate();
+    // Three-phase teardown, and the order is load-bearing (BUG-011).
+    // The dispatcher threads park inside a blocking ioctl, so they cannot observe the
+    // stop flag until the descriptor is closed:
+    //   1. raise the stop flag first, so a woken thread leaves its loop immediately
+    //      instead of spinning on EBADF and flooding the allocator with log strings,
+    //   2. close the device to unblock the parked ioctl,
+    //   3. join, which now completes because the threads are awake and stopping.
+    // Joining before Terminate() deadlocks; closing before RequestStop() lets the
+    // threads keep running against a destroyed object and corrupts the heap.
     if (_dispatcher)
     {
         _dispatcher->RequestStop();
+    }
+    Terminate();
+    if (_dispatcher)
+    {
         _dispatcher->Join();
     }
 }
@@ -154,6 +166,10 @@ void ServiceDevice::Identify(int id_, uint32_t subCmd )
         return;
     }
     _core = std::make_shared<DeviceCore>(_id, std::move(adapter));
+    if (_removalHandler)
+    {
+        _core->SetRemovalHandler(_removalHandler);
+    }
 #endif
 
     _core->Identify(_id, subCmd);
@@ -284,7 +300,7 @@ int ServiceDevice::InferenceRequest(dxrt_request_acc_t* req)
 
 
 
-std::ostream& operator<< (dxrt_sche_sub_cmd_t subCmd, std::ostream& os)
+std::ostream& operator<< (std::ostream& os, dxrt_sche_sub_cmd_t subCmd)
 {
     switch(subCmd)
     {
@@ -348,6 +364,45 @@ void ServiceDevice::SetRecoveryAdapter(const std::shared_ptr<RecoveryAdapter>& a
         _dispatcher->SetRecoveryAdapter(adapter);
     }
 }
+
+#ifdef _WIN32
+void ServiceDevice::SetRemovalHandler(const DeviceRemovalHandler& handler)
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    _removalHandler = handler;
+    if (_core)
+    {
+        _core->SetRemovalHandler(handler);
+    }
+}
+
+bool ServiceDevice::ReopenDevice()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    if (_core == nullptr || !_core->Reopen())
+    {
+        return false;
+    }
+    try
+    {
+        _core->Identify(_id, 0);
+    }
+    catch (const DeviceIOException& e)
+    {
+        LOG_DXRT_S_ERR("Device " + std::to_string(_id) + " reopened but identify failed: " + e.what());
+        _core->Close();
+        return false;
+    }
+    _info = _core->info();
+    if (_boundManager && _boundManager->RestoreBounds() != 0)
+    {
+        // Without the bounds NPU_RUN_REQ fails; close and let the caller retry.
+        _core->Close();
+        return false;
+    }
+    return true;
+}
+#endif
 
 
 static vector<shared_ptr<ServiceDevice>> serviceDevices;  // NOSONAR:S5421
@@ -506,7 +561,12 @@ void ServiceDevice::HandleDMARead(const DMAItem& item, int ch)
 
     LOG_DXRT_S_DBG << "HandleDMARead: pid=" << pid << ", seqId=" << seqId <<
         ", memInfo={addr=" << std::hex << memInfo.data << std::dec << ", size=" << memInfo.size << "}" << std::endl;
+#ifdef _WIN32
+    // An output read after removal was accepted would return stale data as a result.
+    const int ret = _removing ? static_cast<int>(ERROR_DEVICE_REMOVED) : _core->Read(memInfo, ch);
+#else
     const int ret = _core->Read(memInfo, ch);
+#endif
     if (_dmaCompletionCallback)
     {
         _dmaCompletionCallback(true, pid, _core->id(), seqId, ret);
@@ -521,7 +581,11 @@ void ServiceDevice::HandleDMAWrite(const DMAItem& item, int ch)
 
     LOG_DXRT_S_DBG << "HandleDMAWrite: pid=" << pid << ", seqId=" << seqId <<
         ", memInfo={addr=" << std::hex << memInfo.data << std::dec << ", size=" << memInfo.size << "}" << std::endl;
+#ifdef _WIN32
+    const int ret = _removing ? static_cast<int>(ERROR_DEVICE_REMOVED) : _core->Write(memInfo, ch);
+#else
     const int ret = _core->Write(memInfo, ch);
+#endif
     if (_dmaCompletionCallback)
     {
         _dmaCompletionCallback(false, pid, _core->id(), seqId, ret);
@@ -530,4 +594,3 @@ void ServiceDevice::HandleDMAWrite(const DMAItem& item, int ch)
 
 
 }  // namespace dxrt
-

@@ -18,4 +18,8 @@ namespace dxrt {
 
 std::vector<std::string> BuildDxrtServiceV2Endpoints(bool endpointOptionProvided,
     const std::string &cliEndpoint, const std::string &envEndpoint, const std::string &defaultEndpoint);
+bool IsDxrtServiceV2TerminationSignal(int signalNumber);
+void ResetDxrtServiceV2TerminationSignal();
+void HandleDxrtServiceV2TerminationSignal(int signalNumber);
+bool IsDxrtServiceV2TerminationRequested();
 }  // namespace dxrt
