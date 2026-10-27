@@ -429,7 +429,7 @@ This class specifies inference options applied to an `InferenceEngine`, allowing
 -   **`boundOption`**: `uint32_t`. Selects the NPU core(s) to use within a device, using a value from the `BOUND_OPTION` enum. Default is `NPU_ALL`.  
 -   **`devices`**: `std::vector<int>`. A list of device IDs to be used for inference. If the list is empty (default), all available devices are used.  
 -   **`useORT`**: `bool`. If `true`, both NPU and CPU (via ONNX Runtime) tasks will be executed. If `false`, only NPU tasks will run.  
--   **`bufferCount`**: `int`. Specifies the number of internal buffers allocated for inference. Higher values can improve throughput in pipelined inference scenarios by allowing more concurrent operations, but consume more memory. Default is `DXRT_TASK_MAX_LOAD_VALUE` (typically 6). Valid range is 1-100.
+-   **`bufferCount`**: `int`. Specifies the number of internal buffers allocated for inference. Higher values can improve throughput in pipelined inference scenarios by allowing more concurrent operations, but consume more memory. Default is `6`. Valid range is 1-100.
     ```cpp
     dxrt::InferenceOption option;
     option.bufferCount = 8;  // Allocate 8 buffers for higher throughput

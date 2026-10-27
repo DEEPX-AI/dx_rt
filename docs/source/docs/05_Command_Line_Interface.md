@@ -302,9 +302,11 @@ dxcli -m 1
 
 **Minimum Version Output**
 
-`dxcli -v` prints the minimum component versions required by this runtime build, not the versions currently installed on the system.
+The first line of every `dxcli` invocation shows the version and build ID of the installed DX-RT runtime. Use this line to check the installed runtime version.  
+The remaining lines of `dxcli -v` show the minimum component versions required by this runtime build, not the versions currently installed on the system.
 
 ```
+DXRT v<version> (build: <build id>)
 Minimum Driver Versions
   Device Driver: v<version>
   PCIe Driver: v<version>
