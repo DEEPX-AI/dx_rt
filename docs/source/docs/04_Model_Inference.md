@@ -76,7 +76,7 @@ Create a `dxrt::InferenceOption` object to configure runtime settings for the in
   option.useORT = true;  // Enable CPU fallback for unsupported operations
   ```
 
-- **`bufferCount`** (default: `DXRT_TASK_MAX_LOAD_VALUE`)  
+- **`bufferCount`** (default: `6`)  
   Specifies the number of internal buffers allocated for inference. Higher values may improve throughput in pipelined scenarios.  
   ```cpp
   option.bufferCount = 4;  // Allocate 4 inference buffers

@@ -27,8 +27,8 @@ This section describes the hardware and software requirements for running **DX-R
 - **CPU:** amd64(x86_64), aarch64(arm64)
 - **RAM:** 8GB RAM (16GB RAM or higher is recommended)
 - **Storage:** 4GB or higher available disk space
-- **OS**: Ubuntu 20.04 / 22.04 / 24.04 / 26.04 (x64)
-          Debian 12 / Debian 13 (x64)
+- **OS**: Ubuntu 20.04 / 22.04 / 24.04 / 26.04 (x64, arm64)
+          Debian 12 / Debian 13 (x64, arm64)
 - **Driver:** v2.7.0 or later
 - **PCIe Driver:** v2.7.0 or later
 - **Firmware:** v2.7.6 or later
@@ -56,7 +56,7 @@ Figure. DX-M1 M.2 Module
 
 DEEPX provides an installation shell script to set up the **DX-RT** build environment. You can install the entire toolchain installation or perform a partial installation as necessary.
 
-**DX-RT** supports the Target OS of **Ubuntu 20.04,** **Ubuntu 22.04,** **Ubuntu 24.04,** and **Ubuntu 26.04**. 
+**DX-RT** supports the Target OS of **Ubuntu 20.04,** **Ubuntu 22.04,** **Ubuntu 24.04,** **Ubuntu 26.04,** **Debian 12,** and **Debian 13**. 
 
 **Installation of DX-RT**  
 To install the full **DX-RT** toolchain, use the following commands.  
@@ -257,8 +257,8 @@ DX-RT is distributed as a **prebuilt binary Debian package** (`libdxrt-bin`), pr
 
 | File name example | Target architecture |
 |-------------------|---------------------|
-| `libdxrt-bin_3.4.0_amd64.deb` | amd64 (x86_64) |
-| `libdxrt-bin_3.4.0_arm64.deb` | aarch64 (arm64) |
+| `libdxrt-bin_<version>_amd64.deb` | amd64 (x86_64) |
+| `libdxrt-bin_<version>_arm64.deb` | aarch64 (arm64) |
 
 The package contains precompiled shared libraries, headers, CLI tools, and the Python module — no on-target compilation is required.
 
@@ -272,6 +272,8 @@ The package contains precompiled shared libraries, headers, CLI tools, and the P
 
     **Releases older than Ubuntu 20.04 are not supported** — they ship glibc 2.27 with an older libstdc++ ABI and lack the `libgcc-s1` package (renamed from `libgcc1` starting Ubuntu 20.04). Attempting to install on these systems will fail with unmet dependency errors. Use the source-based build (`./build.sh`) if you must target older distributions.
 
+    The glibc requirement above applies to the **prebuilt package** only. A DX-RT library built from source (`./build.sh`) is linked against the glibc of the build host, so its minimum glibc depends on that host. For example, a library built on Ubuntu 24.04 may require `GLIBC_2.38`. When you mount such a host-built library into a Docker container, the container image **must** provide the same or a newer glibc than the build host (e.g., use `ubuntu:24.04` or newer as the base image). Containers that install the prebuilt `libdxrt-bin` package follow the table above.
+
 !!! note "NOTE"
     The source-based Debian package (`libdxrt_<version>_all.deb`) is **no longer distributed**. If you need to build from source, use `./build.sh` as described in the **Framework Build on Linux** section above.
 
@@ -282,13 +284,13 @@ Use the file that matches your target CPU architecture (check with `dpkg --print
 **For amd64 (x86_64) hosts:**
 
 ```bash
-sudo dpkg -i libdxrt-bin_3.4.0_amd64.deb
+sudo dpkg -i libdxrt-bin_<version>_amd64.deb
 ```
 
 **For aarch64 (arm64) hosts:**
 
 ```bash
-sudo dpkg -i libdxrt-bin_3.4.0_arm64.deb
+sudo dpkg -i libdxrt-bin_<version>_arm64.deb
 ```
 
 If `dpkg` reports unmet dependencies, resolve them with:
@@ -298,7 +300,7 @@ sudo apt --fix-broken install
 ```
 
 !!! note "NOTE"
-    Replace `3.4.0` in the file name with the version you actually received.
+    Replace `<version>` in the file name with the version you actually received.
 
 !!! note "NOTE"  
     When installing via the Debian package, the Python module is installed to the system Python. For virtual environments, please refer to the section "Using a Virtual Environment" below.
@@ -348,7 +350,7 @@ python3 -m venv my_venv
 source my_venv/bin/activate
 
 # Install from the bundled wheel (adjust Python version as needed)
-pip install /usr/share/libdxrt-bin/python/dx_engine-3.4.0-cp311-cp311-linux_x86_64.whl
+pip install /usr/share/libdxrt-bin/python/dx_engine-<version>-cp311-cp311-linux_x86_64.whl
 
 # Verify
 python -c "import dx_engine; print(dx_engine.__version__)"
@@ -359,12 +361,12 @@ To find the correct wheel for your Python version:
 ```bash
 ls /usr/share/libdxrt-bin/python/
 # Example output:
-# dx_engine-3.4.0-cp38-cp38-linux_x86_64.whl
-# dx_engine-3.4.0-cp39-cp39-linux_x86_64.whl
-# dx_engine-3.4.0-cp310-cp310-linux_x86_64.whl
-# dx_engine-3.4.0-cp311-cp311-linux_x86_64.whl
+# dx_engine-<version>-cp38-cp38-linux_x86_64.whl
+# dx_engine-<version>-cp39-cp39-linux_x86_64.whl
+# dx_engine-<version>-cp310-cp310-linux_x86_64.whl
+# dx_engine-<version>-cp311-cp311-linux_x86_64.whl
 # ...
-# dx_engine-3.4.0-cp314-cp314-linux_x86_64.whl
+# dx_engine-<version>-cp314-cp314-linux_x86_64.whl
 ```
 
 #### Uninstalling the package
@@ -563,13 +565,14 @@ dkms status
 
 For instance:  
 ```
-dxrt-driver-dkms/1.7.1-1, 6.5.0-27-generic, x86_64: installed
+dxrt-driver-dkms/<version>, 6.5.0-27-generic, x86_64: installed
+dxrt-driver-dkms/<version>, 6.8.0-60-generic, x86_64: installed
 ```
 
 In summary, these lines mean:  
 
-- The `dxrt-driver-dkms` module, version `1.7.1-1`, is currently installed and fully operational for your system running the `6.5.0-27-generic` kernel on an `x86_64` architecture.  
-- The same `dxrt-driver-dkms` module, version `1.7.1-1`, is also installed and fully operational for your system running the `6.8.0-60-generic` kernel on an `x86_64` architecture.  
+- The `dxrt-driver-dkms` module, version `<version>`, is currently installed and fully operational for your system running the `6.5.0-27-generic` kernel on an `x86_64` architecture.  
+- The same `dxrt-driver-dkms` module, version `<version>`, is also installed and fully operational for your system running the `6.8.0-60-generic` kernel on an `x86_64` architecture.  
 
 #### Viewing Package information
 
@@ -587,7 +590,7 @@ If you run `apt show dxrt-driver-dkms`, you'd see output similar to this:
 
 ```
 Package: dxrt-driver-dkms
-Version: 1.7.1-1
+Version: <version>
 Status: install ok installed
 Priority: optional
 Section: kernel
@@ -601,7 +604,7 @@ APT-Sources: /var/lib/dpkg/status
 Description: A DEEPX NPU Driver
 ```
 
-This tells you that `dxrt-driver-dkms` is version `1.7.1-1`, is a DKMS module, requires the `dkms` package, comes from a specific APT source, and its purpose is to provide the **DX-RT** driver source for automatic rebuilding with new kernels.  
+This tells you the installed version of `dxrt-driver-dkms` (`Version` field), that it is a DKMS module, requires the `dkms` package, comes from a specific APT source, and its purpose is to provide the **DX-RT** driver source for automatic rebuilding with new kernels.  
 
 #### Finding Locally Installed Source Code
 
@@ -613,7 +616,7 @@ The source code for DKMS drivers installed via packages is reliably located unde
 ```
 
 **Example:**  
-For the `dxrt-driver-dkms` package (version `1.7.1-1`), the source code would likely be in `/usr/src/dxrt-driver-1.7.1-1/`. You can then `cd` into this directory to explore the source files.  
+For the `dxrt-driver-dkms` package (version `<version>`), the source code would likely be in `/usr/src/dxrt-driver-<version>/`. You can then `cd` into this directory to explore the source files.  
 
 ---
 
@@ -1062,22 +1065,22 @@ Log file location : /.../sanity_check_result_..._....log
 [INFO] /lib/modules/6.8.0-87-generic/kernel/drivers/dxrt_driver.ko ... NONE
 [INFO] /lib/modules/6.8.0-87-generic/kernel/drivers/dx_dma.ko ... NONE
 ==== DKMS Driver Installed Check ====
-[INFO] dxrt-driver-dkms/1.8.0-2, 6.8.0-87-generic, x86_64: installed
+[INFO] dxrt-driver-dkms/<version>, 6.8.0-87-generic, x86_64: installed
 [INFO] /lib/modules/6.8.0-87-generic/updates/dkms/dxrt_driver.ko ... OK
 [INFO] /lib/modules/6.8.0-87-generic/updates/dkms/dx_dma.ko ... OK
 ==== Runtime Version Dependency Check ====
 [OK] Version Dependency Check
-   Runtime Framework Version: 3.4.0
-   Device Driver Version: v2.5.0
-   PCIe Driver Version: v2.4.0
-   Firmware Version: device-id=0 v2.7.0
+   Runtime Framework Version: 3.5.0
+   Device Driver Version: v2.7.0
+   PCIe Driver Version: v2.7.0
+   Firmware Version: device-id=0 v2.7.6
    ONNX Runtime Version: v1.20.1
 ==== Runtime Executable File Check ====
 [OK] Executable File Check
-   Runtime Framework Version: 3.4.0
-   Device Driver Version: v2.5.0
-   PCIe Driver Version: v2.4.0
-   Firmware Version: device-id=0 v2.7.0
+   Runtime Framework Version: 3.5.0
+   Device Driver Version: v2.7.0
+   PCIe Driver Version: v2.7.0
+   Firmware Version: device-id=0 v2.7.6
    ONNX Runtime Version: v1.20.1
    dxcli ...OK
    dxrun ...OK
@@ -1108,17 +1111,17 @@ Log file location : /.../sanity_check_result_..._....log
 
 ==== Runtime Version Dependency Check ====
 [OK] Version Dependency Check
-   Runtime Framework Version: 3.4.0
-   Device Driver Version: v2.5.0
-   PCIe Driver Version: v2.4.0
-   Firmware Version: device-id=0 v2.7.0
+   Runtime Framework Version: 3.5.0
+   Device Driver Version: v2.7.0
+   PCIe Driver Version: v2.7.0
+   Firmware Version: device-id=0 v2.7.6
    ONNX Runtime Version: v1.20.1
 ==== Runtime Executable File Check ====
 [OK] Executable File Check
-   Runtime Framework Version: 3.4.0
-   Device Driver Version: v2.5.0
-   PCIe Driver Version: v2.4.0
-   Firmware Version: device-id=0 v2.7.0
+   Runtime Framework Version: 3.5.0
+   Device Driver Version: v2.7.0
+   PCIe Driver Version: v2.7.0
+   Firmware Version: device-id=0 v2.7.6
    ONNX Runtime Version: v1.20.1
    dxcli ...OK
    dxrun ...OK
@@ -1160,7 +1163,7 @@ Log file location : /.../sanity_check_result_..._....log
 [INFO] /lib/modules/6.8.0-87-generic/kernel/drivers/dxrt_driver.ko ... NONE
 [INFO] /lib/modules/6.8.0-87-generic/kernel/drivers/dx_dma.ko ... NONE
 ==== DKMS Driver Installed Check ====
-[INFO] dxrt-driver-dkms/1.8.0-2, 6.8.0-87-generic, x86_64: installed
+[INFO] dxrt-driver-dkms/<version>, 6.8.0-87-generic, x86_64: installed
 [INFO] /lib/modules/6.8.0-87-generic/updates/dkms/dxrt_driver.ko ... OK
 [INFO] /lib/modules/6.8.0-87-generic/updates/dkms/dx_dma.ko ... OK
 
