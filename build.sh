@@ -381,6 +381,7 @@ build_dxrt() {
         print_colored_v2 "ERROR" "Failed to install the project."
         exit $return_code
     }
+    [ "$CROSS_COMPILE" = "native" ] && sudo ldconfig
     
     # Generate compile_commands.json for IDE integration
     if [ -f compile_commands.json ]; then
