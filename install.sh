@@ -207,16 +207,22 @@ function install_onnx()
         # Determine download source and parameters based on cpu acceleration
         local onnx_source=""
         local onnx_download_url=""
+        local onnx_mirror_url=""
         local strip_components=1
         if [ "$enable_cpu_accel" == true ]; then
             echo " Install DeepX Pre-built ONNX-Runtime API "
             onnx_source="deepx"
             onnx_download_url="https://github.com/DEEPX-AI/dx_rt/releases/download/v3.2.0-sr1/$ONNX_PACKAGE_NAME"
+            # No mirror on purpose: the DEEPX mirror only holds the upstream (microsoft) archives,
+            # not the DeepX pre-built ORT. onnx_mirror_url stays empty and is skipped below.
             strip_components=2
         else
             echo " Install ONNX-Runtime API "
             onnx_source="microsoft"
             onnx_download_url="https://github.com/microsoft/onnxruntime/releases/download/v$ONNX_VERSION/$ONNX_PACKAGE_NAME"
+            # DEEPX mirror of the same upstream archive, used when the official link fails.
+            # Layout: linux/<x86_64|aarch64>/onnxruntime-linux-<x64|aarch64>-<version>.tgz
+            onnx_mirror_url="https://github.com/DEEPX-AI/onnxruntime/raw/main/linux/$target_arch/$ONNX_PACKAGE_NAME"
             strip_components=1
         fi
 
@@ -243,7 +249,39 @@ function install_onnx()
         fi
 
         if [ "$need_download" == true ]; then
-            wget $onnx_download_url --no-check-certificate --backups=0
+            # Try each source in order: official link first, then the DEEPX mirror (if any).
+            local onnx_downloaded=false
+            local onnx_url=""
+            for onnx_url in "$onnx_download_url" "$onnx_mirror_url"; do
+                if [ -z "$onnx_url" ]; then
+                    # Empty mirror URL: the mirror is only available for the microsoft/upstream source.
+                    continue
+                fi
+                if wget "$onnx_url" --no-check-certificate --backups=0; then
+                    onnx_downloaded=true
+                    break
+                fi
+                echo -e "${TAG_WARN} Failed to download: $onnx_url"
+                # Remove any partial file after every failed attempt. If it is left behind,
+                # wget saves the next attempt as "<name>.1" and the partial file gets extracted.
+                rm -f "$DX_SRC_DIR/util/$ONNX_PACKAGE_NAME"
+            done
+
+            if [ "$onnx_downloaded" != true ]; then
+                echo ""
+                echo -e "${TAG_ERROR} ONNX Runtime download failed: $ONNX_PACKAGE_NAME"
+                echo -e "${TAG_ERROR} No download source could be reached:"
+                echo -e "${TAG_ERROR}   - $onnx_download_url"
+                if [ -n "$onnx_mirror_url" ]; then
+                    echo -e "${TAG_ERROR}   - $onnx_mirror_url (DEEPX mirror)"
+                fi
+                echo -e "${TAG_ERROR} Check the network connection, proxy and firewall settings, then run this script again."
+                echo -e "${TAG_ERROR} To install offline, download the file on another machine and run:"
+                echo -e "${TAG_ERROR}   cp $ONNX_PACKAGE_NAME $DX_SRC_DIR/util/"
+                echo -e "${TAG_ERROR}   echo $onnx_source > $ONNX_SOURCE_MARKER"
+                echo -e "${TAG_ERROR} ONNX Runtime was not installed."
+                exit 1
+            fi
             echo "$onnx_source" > "$ONNX_SOURCE_MARKER"
         fi
 
