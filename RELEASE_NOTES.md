@@ -1,5 +1,20 @@
 # RELEASE_NOTES
 
+## DX-RT v3.5.1 / 2026-11-20
+
+### 1. Changed
+- **ONNX Runtime Download Error Message**: When the download fails, `install.sh` now lists the sources it tried and shows how to install offline.
+
+### 2. Fixed
+- Fixed `install.sh` failing to install ONNX Runtime when the official download link cannot be reached; it now retries from the DEEPX mirror.
+- Fixed `install.sh` extracting a partially downloaded ONNX Runtime archive after a failed download.
+- `build.sh` now runs `ldconfig` after a native build so the newly installed `libdxrt.so` is found without a manual cache refresh.
+
+### 3. Added
+- **ONNX Runtime Download Mirror**: Added a DEEPX mirror (`DEEPX-AI/onnxruntime`) as a fallback source for the upstream ONNX Runtime archive. The DeepX pre-built ONNX Runtime (CPU acceleration) has no mirror.
+
+---
+
 ## DX-RT v3.5.0 / 2026-10-23
 
 ### 1. Changed
