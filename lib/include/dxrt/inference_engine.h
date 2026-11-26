@@ -22,6 +22,7 @@
 #include <functional>
 #include <vector>
 #include <stdint.h>
+#include <unordered_map>
 
 
 #include "dxrt/model.h"
@@ -708,6 +709,22 @@ class DXRT_API InferenceEngine // NOSONAR: Too many fields - stable as-is, refac
 
     friend class InferenceJob;
 
+#ifdef USE_SYSTEM_LEVEL_TESTING
+    /** @brief Gets the NPU device (core) ID that processed the given job.
+     * The entry is removed from the internal map after retrieval (one-shot query).
+     * @param jobId The job ID returned by RunAsync().
+     * @return The NPU core ID (0, 1, 2, ...) or -1 if not found.
+     */
+    int GetJobDevice(int jobId);
+
+    /** @brief Records the NPU core ID that processed the given job.
+     * Called internally by InferenceJob on completion.
+     * @param jobId The job ID.
+     * @param npuCoreId The NPU core ID (0, 1, 2, ...) or -1 if unknown.
+     */
+    void SetJobDevice(int jobId, int npuCoreId);
+#endif  // USE_SYSTEM_LEVEL_TESTING
+
  private:  // private functions
 
     void checkService() const;
@@ -825,6 +842,12 @@ class DXRT_API InferenceEngine // NOSONAR: Too many fields - stable as-is, refac
     std::vector<uint8_t> _validationOutputBuffer;
 
     void checkInputOutputMistmatch();
+#ifdef USE_SYSTEM_LEVEL_TESTING
+    // Job ID -> NPU device (core) ID mapping (populated by InferenceJob on completion)
+    mutable std::mutex _jobDeviceMapMutex;
+    std::unordered_map<int, int> _jobDeviceMap;
+#endif  // USE_SYSTEM_LEVEL_TESTING
+
 };
 
 } /* namespace dxrt */

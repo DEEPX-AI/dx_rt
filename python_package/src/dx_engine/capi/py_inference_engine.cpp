@@ -1175,6 +1175,14 @@ PYBIND11_MODULE(_pydxrt, m) {
         return dxrt_config_get_ort_version(buf, sizeof(buf)) == DXRT_OK;
     }, "Returns True if this build supports ONNX Runtime, otherwise False.");
 
+    m.def("is_system_level_testing_supported", []() -> bool {
+#ifdef USE_SYSTEM_LEVEL_TESTING
+        return true;
+#else
+        return false;
+#endif
+    }, "Returns True if this build enables system-level testing APIs (e.g. get_job_device).");
+
     // InferenceEngine class binding (member functions are bound directly)
     py::class_<InferenceEngine>(m, "InferenceEngine")
         .def(py::init<const std::string&, InferenceOption&>(),
@@ -1217,6 +1225,9 @@ PYBIND11_MODULE(_pydxrt, m) {
         .def("get_e2e_response_time_count", &InferenceEngine::GetE2EResponseTimeCnt)
         .def("get_npu_inference_time_count", &InferenceEngine::GetNpuInferenceTimeCnt)
         .def("get_bitmatch_mask", &InferenceEngine::GetBitmatchMask, py::arg("index") = 0)
+#ifdef USE_SYSTEM_LEVEL_TESTING
+        .def("get_job_device", &InferenceEngine::GetJobDevice, py::arg("job_id"))
+#endif
         .def("get_num_tail_tasks", &InferenceEngine::GetNumTailTasks)
         .def("get_compile_type", &InferenceEngine::GetCompileType)
         .def("get_model_version", &InferenceEngine::GetModelVersion)

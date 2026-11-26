@@ -34,6 +34,7 @@ class DXRT_INTERNAL_API IPCClientEndpoint
 {
  public:
     using OnReceiveHandler = std::function<void(const IPCClientReceivedMessage &message)>;
+    using OnDisconnectHandler = std::function<void()>;
 
     IPCClientEndpoint();
     ~IPCClientEndpoint();
@@ -50,6 +51,8 @@ class DXRT_INTERNAL_API IPCClientEndpoint
     bool isConnected() const;
 
     void setOnReceive(OnReceiveHandler handler);
+    // Called from the receive thread when the server closes the connection; not called after close().
+    void setOnDisconnect(OnDisconnectHandler handler);
 
     void close();
 
@@ -77,6 +80,7 @@ class DXRT_INTERNAL_API IPCClientEndpoint
     mutable std::mutex _pendingMutex;
     std::unordered_map<int32_t, std::shared_ptr<PendingResponse>> _pendingResponses;
     OnReceiveHandler _onReceive;
+    OnDisconnectHandler _onDisconnect;
 };
 
 }  // namespace dxrt

@@ -560,6 +560,31 @@ DXRT_CAPI dxrt_status_t dxrt_engine_wait_with_tensor_info(
     DXRT_C_CATCH
 }
 
+DXRT_CAPI dxrt_status_t dxrt_engine_get_job_device(
+    dxrt_engine_t  engine,
+    int            job_id,
+    int*           device)
+{
+    if (!engine || !device) {
+        set_error("engine and device must not be NULL");
+        return DXRT_ERR_INVALID_ARG;
+    }
+
+#ifdef USE_SYSTEM_LEVEL_TESTING
+    DXRT_C_TRY
+
+    *device = engine->engine->GetJobDevice(job_id);
+    return DXRT_OK;
+
+    DXRT_C_CATCH
+#else
+    (void)job_id;
+    *device = -1;
+    set_error("dxrt_engine_get_job_device requires a build with USE_SYSTEM_LEVEL_TESTING=ON");
+    return DXRT_ERR_NOT_SUPPORTED;
+#endif
+}
+
 /* ══════════════════════════════════════════════════════════════
  *  Metadata Queries
  * ══════════════════════════════════════════════════════════════ */

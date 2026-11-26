@@ -11,10 +11,13 @@
 
 #pragma once
 
+#include <memory>
 #include <string>
+#include <vector>
 #include "dxrt/common.h"
 #include "dxrt/extern/cxxopts.hpp"
 #include "dxrt/driver.h"
+#include "dxrt/cli_support.h"
 
 
 namespace dxrt {
@@ -108,6 +111,9 @@ class DXRT_API FWUpdateCommand : public CLICommand
     bool _showDonotTunrOff = false;
     bool _updateFailed = false;
     int _updateDeviceCount = 0;
+
+    // devices that acked an update and reset themselves; finish() waits for them
+    std::vector<FwRebootTarget> _rebootTargets;
 };
 
 class DXRT_API FWUploadCommand : public CLICommand

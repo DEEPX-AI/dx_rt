@@ -30,7 +30,7 @@ version = "3.5.1"
 description="Python wrapper class for dx_rt"
 readme = "README.md"
 license = "LicenseRef-Proprietary"
-license-files = ["LICENSE"]
+license-files = ["LICENSE", "NOTICE.md"]
 authors = [{name="DEEPX-RT", email="rt@deepx.ai"}]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -54,6 +54,11 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://deepx.ai"
+Source = "https://github.com/DEEPX-AI/dx_rt"
+Documentation = "https://developer.deepx.ai/tech-docs"
+Changelog = "https://github.com/DEEPX-AI/dx_rt/blob/main/RELEASE_NOTES.md"
+Community = "https://community.deepx.ai"
+Support = "https://community.deepx.ai/c/support/5"
 
 
 [tool.scikit-build]

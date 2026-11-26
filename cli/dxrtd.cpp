@@ -33,6 +33,20 @@ static void* g_ServiceMutex = nullptr;  // Mutex to indicate service is running
 static const wchar_t* SERVICE_NAME = L"dxrtd";
 static std::thread g_ServiceThread;
 
+// As a background service Windows gives dxrtd Utility QoS, which schedules its DMA and
+// response threads on efficiency cores and adds up to tens of ms per inference.
+static void RequestHighQos()
+{
+    PROCESS_POWER_THROTTLING_STATE state = {};
+    state.Version = PROCESS_POWER_THROTTLING_CURRENT_VERSION;
+    state.ControlMask = PROCESS_POWER_THROTTLING_EXECUTION_SPEED;
+    state.StateMask = 0;
+    if (!SetProcessInformation(GetCurrentProcess(), ProcessPowerThrottling, &state, sizeof(state)))
+    {
+        std::cerr << "dxrtd: high QoS request failed: " << GetLastError() << std::endl;
+    }
+}
+
 // Check if running as administrator
 bool IsRunningAsAdmin()
 {
@@ -160,6 +174,7 @@ void WINAPI ServiceMain(DWORD argc, LPWSTR* argv)
 
     // Report service start pending status
     ReportServiceStatus(SERVICE_START_PENDING, NO_ERROR, 3000);
+    RequestHighQos();
 
     // Create service stop event
     g_ServiceStopEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
@@ -222,9 +237,8 @@ bool InstallService()
         return false;
     }
 
-    // Append --run argument for service execution
-    std::wstring servicePath = szPath;
-    servicePath += L" --run";
+    // Quote the path so a space in it (e.g. "Program Files") cannot be read as an argument boundary.
+    std::wstring servicePath = L"\"" + std::wstring(szPath) + L"\" --run";
 
     SC_HANDLE schService = CreateServiceW(
         schSCManager,
@@ -242,6 +256,26 @@ bool InstallService()
         std::cerr << "CreateService failed: " << GetLastError() << std::endl;
         CloseServiceHandle(schSCManager);
         return false;
+    }
+
+    // Recovery paths end dxrtd with quick_exit and expect a restart, as systemd Restart=on-failure does on Linux.
+    // After the third failure SCM keeps repeating the last action (restart after 30 s).
+    SC_ACTION restartActions[] = {
+        { SC_ACTION_RESTART, 1000 },
+        { SC_ACTION_RESTART, 5000 },
+        { SC_ACTION_RESTART, 30000 },
+    };
+    SERVICE_FAILURE_ACTIONSW failureActions = {};
+    failureActions.dwResetPeriod = 3600;  // seconds; after an hour without failures the next restart waits 1 s again
+    failureActions.cActions = static_cast<DWORD>(std::size(restartActions));
+    failureActions.lpsaActions = restartActions;
+    if (!ChangeServiceConfig2W(schService, SERVICE_CONFIG_FAILURE_ACTIONS, &failureActions))
+    {
+        DWORD error = GetLastError();
+        std::cerr << "Warning: restart-on-failure was not configured (error " << error
+                  << "). dxrtd will stay stopped after it exits for device recovery." << std::endl
+                  << "Set it manually: sc failure dxrtd reset= 3600 actions= restart/1000/restart/5000/restart/30000"
+                  << std::endl;
     }
 
     std::cout << "Service installed successfully" << std::endl;
@@ -465,6 +499,7 @@ int RunConsoleMode(int argc, char* argv[])
     }
 
 #ifdef USE_SERVICE
+    RequestHighQos();
     int result = dxrt_service_main(argc, argv);
 
     // Release mutex on exit

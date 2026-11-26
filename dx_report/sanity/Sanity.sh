@@ -6,7 +6,7 @@ if [ "$OPTION" == "" ]; then
     OPTION="all"
 fi
 
-USAGE="Usage: sudo ./SanityCheck.sh [all(default) | dx_rt | dx_driver | help]"
+USAGE="Usage: ./SanityCheck.sh [all(default) | dx_rt | dx_driver | help]"
 if [ "$OPTION" == "help" ]; then
     echo $USAGE
     exit 0
@@ -21,8 +21,6 @@ fi
 LOG_DIR="result"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/sanity_check_result_$(date +'%Y%m%d_%H%M%S').log"
-DMESG_FILE="$LOG_DIR/dmesg_$(date +'%Y%m%d_%H%M%S').log"
-PCIE_INFO_FILE="$LOG_DIR/pcie_$(date +'%Y%m%d_%H%M%S').log"
 
 
 function SC_DevFile() {
@@ -60,114 +58,6 @@ function SC_DevFile() {
     fi
 
     return $ERROR_FOUND
-}
-
-pci_id=""
-function ExtractString() {
-    local input_string="$1"
-    local temp
-
-    if [[ $input_string == *:* && $input_string != *:*:* ]]; then
-        temp="$input_string"
-    elif [[ $input_string == *:*:* ]]; then
-        temp=$(echo "$input_string" | awk -F':' '{print $2":"$3}')
-    fi
-    echo "$temp"
-}
-function GetPCIeId(){
-    local temp=`eval lspci -n | grep "$1" | tr ' ' '\n' | grep "[0-9]:*\."`
-    local ext_temp=''
-    if [ "$temp" != "" ]; then
-        for id in ${temp}
-        do
-            ext_temp+=$(ExtractString "${id}")
-            ext_temp+=" "
-        done
-        pci_id+=$(echo $ext_temp)
-    fi
-    # echo Detected PCI Device ID : ${pci_id}
-}
-
-RT_DRV_KO="dxrt_driver"
-PCIE_DRV_KO="dx_dma"
-function SC_DriverCheck() {
-    echo "==== Kernel Module Check ====" | tee -a "$LOG_FILE"
-    local ERROR_FOUND=0
-
-    if lsmod | grep -q $RT_DRV_KO; then
-        echo "[OK] $RT_DRV_KO module is loaded." | tee -a "$LOG_FILE"
-    else
-        echo "[ERROR] $RT_DRV_KO module is NOT loaded." | tee -a "$LOG_FILE"
-        ERROR_FOUND=1
-    fi
-
-    if lsmod | grep -q $PCIE_DRV_KO; then
-        echo "[OK] $PCIE_DRV_KO module is loaded." | tee -a "$LOG_FILE"
-    else
-        echo "[ERROR] $PCIE_DRV_KO module is NOT loaded." | tee -a "$LOG_FILE"
-        ERROR_FOUND=1
-    fi
-
-    GetPCIeId 1ff4
-    for id in ${pci_id}
-    do
-        if lspci -vvk -s ${id}| grep -q "Kernel driver in use: dx_dma_pcie"; then
-            echo "[OK] PCIe ${id} driver probe is success." | tee -a "$LOG_FILE"
-        else
-            echo "[ERROR] PCIe ${id} driver probe is fail." | tee -a "$LOG_FILE"
-            ERROR_FOUND=1
-        fi
-    done
-
-    return $ERROR_FOUND
-}
-
-function SC_Legacy_Driver_Check() {
-    echo "==== Legacy Driver Installed Check ====" | tee -a "$LOG_FILE"
-
-    local DRIVER_FILE_PATH=/lib/modules/$(uname -r)/kernel/drivers/dxrt_driver.ko
-    if [ -f $DRIVER_FILE_PATH ]; then
-        echo "[INFO] "$DRIVER_FILE_PATH" ... OK" | tee -a "$LOG_FILE"
-    else
-        echo "[INFO] "$DRIVER_FILE_PATH" ... NONE" | tee -a "$LOG_FILE"
-    fi
-
-    local DMA_FILE_PATH=/lib/modules/$(uname -r)/kernel/drivers/dx_dma.ko
-    if [ -f $DMA_FILE_PATH ]; then
-        echo "[INFO] "$DMA_FILE_PATH" ... OK" | tee -a "$LOG_FILE"
-    else
-        echo "[INFO] "$DMA_FILE_PATH" ... NONE" | tee -a "$LOG_FILE"
-    fi
-}
-
-function SC_DKMS_Check() {
-    echo "==== DKMS Driver Installed Check ====" | tee -a "$LOG_FILE"
-
-    DKMS_STATUS=$(dkms status -m dxrt-driver-dkms)
-    if [[ -n "$DKMS_STATUS" ]]; then
-        IFS=$'\n'
-        for line in $DKMS_STATUS; do
-            echo "[INFO] $line" | tee -a "$LOG_FILE"
-        done
-        unset IFS 
-    else
-        echo "[INFO] Not installed dxrt-driver-dkms"
-    fi
-
-    local DRIVER_FILE_PATH=/lib/modules/$(uname -r)/updates/dkms/dxrt_driver.ko
-    if [ -f $DRIVER_FILE_PATH ]; then
-        echo "[INFO] "$DRIVER_FILE_PATH" ... OK" | tee -a "$LOG_FILE"
-    else
-        echo "[INFO] "$DRIVER_FILE_PATH" ... NONE" | tee -a "$LOG_FILE"
-    fi
-
-    local DMA_FILE_PATH=/lib/modules/$(uname -r)/updates/dkms/dx_dma.ko
-    if [ -f $DMA_FILE_PATH ]; then
-        echo "[INFO] "$DMA_FILE_PATH" ... OK" | tee -a "$LOG_FILE"
-    else
-        echo "[INFO] "$DMA_FILE_PATH" ... NONE" | tee -a "$LOG_FILE"
-    fi
-
 }
 
 function VersionDependencyCheck()
@@ -291,7 +181,7 @@ function ServiceCheck()
 {
     echo "==== Runtime dxrtd Service Check ====" | tee -a "$LOG_FILE"
 
-    IGNORE=$(sudo systemctl status dxrt.service)
+    IGNORE=$(systemctl status dxrt.service)
     RETURN_VALUE=$?
 
     if [ $RETURN_VALUE -eq 0 ]; then
@@ -303,39 +193,7 @@ function ServiceCheck()
     return $RETURN_VALUE
 }
 
-DX_VENDOR_ID="1ff4"
-function SC_PCIeLinkUp() {
-    echo "==== PCI Link-up Check ====" | tee -a "$LOG_FILE"
-    local DEV_NUM=$(lspci -n | grep -c "$DX_VENDOR_ID")
-    if [ "$DEV_NUM" -gt 0 ]; then
-        echo "[OK] Vendor ID $DX_VENDOR_ID is present in the PCI devices.(num=$DEV_NUM)" | tee -a "$LOG_FILE"
-    else
-        echo "[ERROR] Vendor ID $DX_VENDOR_ID is NOT found in the PCI devices." | tee -a "$LOG_FILE"
-        return 1
-    fi
-    return 0
-}
-
-function CaptureDmesg() {
-    sudo dmesg > "$DMESG_FILE"
-    echo "dmesg logs saved to: $DMESG_FILE" | tee -a "$LOG_FILE"
-}
-
-function CapturePCIeInfo() {
-    touch $PCIE_INFO_FILE
-    for id in ${pci_id}
-    do
-        sudo lspci -vvv -s ${id} >> "$PCIE_INFO_FILE"
-    done
-    echo "pcie infomation saved to: $PCIE_INFO_FILE" | tee -a "$LOG_FILE"
-}
-
 # main body of this script
-if [[ $(id -u) -ne 0 ]]; then
-    echo "Error: Please run this script as root (use 'sudo')."
-    exit 2
-fi
-
 echo "============================================================================" | tee -a "$LOG_FILE"
 echo "==== Sanity Check Date : $(date) ====" | tee "$LOG_FILE"
 echo "Log file location : $(pwd)/$LOG_FILE" | tee -a "$LOG_FILE"
@@ -345,23 +203,10 @@ echo "" | tee -a "$LOG_FILE"
 
 if [[ "$OPTION" == "all" || "$OPTION" == "dx_driver" ]]; then
 
-    SC_PCIeLinkUp
-    VENDOR_STATUS=$?
-
     SC_DevFile
     DEV_STATUS=$?
-
-    SC_DriverCheck
-    DRIVER_STATUS=$?
-
-    SC_Legacy_Driver_Check
-    
-    SC_DKMS_Check
-  
 else
-    VENDOR_STATUS=0
     DEV_STATUS=0
-    DRIVER_STATUS=0
 fi
 
 
@@ -381,15 +226,10 @@ fi
 
 echo
 echo "============================================================================" | tee -a "$LOG_FILE"
-if [[ $DEV_STATUS -ne 0 || $DRIVER_STATUS -ne 0 || $VENDOR_STATUS -ne 0 || $VERSION_STATUS -ne 0 || $EXECUTABLE_FILE_STATUS -ne 0 ]]; then
+if [[ $DEV_STATUS -ne 0 || $VERSION_STATUS -ne 0 || $EXECUTABLE_FILE_STATUS -ne 0 ]]; then
     echo "** Sanity check FAILED! Check logs at: $(pwd)/$LOG_FILE" | tee -a "$LOG_FILE"
     echo "** Please report this result to DEEPX with logs"
 
-    if [[ $DEV_STATUS -ne 0 || $DRIVER_STATUS -ne 0 || $VENDOR_STATUS -ne 0 ]]; then
-        CaptureDmesg
-        CapturePCIeInfo
-    fi
-    
     echo "============================================================================" | tee -a "$LOG_FILE"
     exit 1
 else

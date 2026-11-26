@@ -11,6 +11,7 @@
 
 #include "dxrt/common.h"
 #include "dxrt/worker.h"
+#include <algorithm>
 #include <iostream>
 #include <string>
 #include <memory>
@@ -49,10 +50,11 @@ void CpuHandleWorker::InitializeThreadCPUWorker()
 
     if (CpuHandle::_dynamicCpuThread)
     {
+        std::unique_lock<std::mutex> lk(getLock());
         for (int i = 0; i < _initDynamicThreads; i++)
         {
-            StartDynamicThread(i);
-            LOG_DXRT_DBG <<getName()<< " Added a new thread, current number of threads: " << static_cast<int>(_dynamicThreads.size()) + _numThreads << endl;
+            StartDynamicThread();
+            LOG_DXRT_DBG <<getName()<< " Added a new thread, current number of threads: " << _activeDynamicThreads + static_cast<int>(_numThreads) << endl;
         }
     }
 }
@@ -68,7 +70,7 @@ CpuHandleWorker::~CpuHandleWorker()
                 LOG_DXRT_DBG << " _dynamicThreads is empty - return" << endl;
                 return;
             }
-            _dynamicStopCnt.store(static_cast<int>(_dynamicThreads.size()));
+            _dynamicStopCnt.store(_activeDynamicThreads);
             LOG_DXRT_DBG << " _dynamicStopCnt is set to " << _dynamicStopCnt.load() << ", notify_all" << endl;
             getConditionVariable().notify_all();
         }
@@ -135,6 +137,11 @@ bool CpuHandleWorker::HandleThreadStop(int id, bool isDynamic, bool& dynamicStop
     if (id == 0 &&
         (GetAverageLoad() > 2 || SHOW_PROFILE || Configuration::GetInstance().GetEnable(Configuration::ITEM::SHOW_PROFILE)))
     {
+#ifdef _WIN32
+        static const char* const kEnableDynamicHint = " - To improve FPS, set: 'set DXRT_DYNAMIC_CPU_THREAD=ON'";
+#else
+        static const char* const kEnableDynamicHint = " - To improve FPS, set: 'export DXRT_DYNAMIC_CPU_THREAD=ON'";
+#endif
         double avgLoad = GetAverageLoad();
         double loadPercent = 0.0;
 
@@ -146,7 +153,7 @@ bool CpuHandleWorker::HandleThreadStop(int id, bool isDynamic, bool& dynamicStop
         LOG << "CPU TASK [" << getName() << "] Inference Worker - Average Input Queue Load : " << loadPercent
             << "%  (DXRT_DYNAMIC_CPU_THREAD: " << (CpuHandle::_dynamicCpuThread ? "ON" : "OFF") << ")"
             << (avgLoad > 2 && (CpuHandle::_dynamicCpuThread == false)
-                ? " - To improve FPS, set: \'export DXRT_DYNAMIC_CPU_THREAD=ON\'"
+                ? kEnableDynamicHint
                 : "")
             << endl;
     }
@@ -224,12 +231,43 @@ int CpuHandleWorker::MakeDynamicThreadId(int dynamicIndex) const
     return dynamicIndex + static_cast<int>(_numThreads);
 }
 
-void CpuHandleWorker::StartDynamicThread(int dynamicIndex)
+// Caller holds getLock().
+void CpuHandleWorker::ReapExitedDynamicThreads()
 {
+    if (_exitedDynamicThreadIds.empty())
+    {
+        return;
+    }
+    // A thread lands in _exitedDynamicThreadIds while holding getLock() and
+    // never takes it again, so joining here cannot deadlock.
+    auto exited = [this](std::thread& t) {
+        return std::find(_exitedDynamicThreadIds.begin(), _exitedDynamicThreadIds.end(), t.get_id())
+            != _exitedDynamicThreadIds.end();
+    };
+    for (auto& t : _dynamicThreads)
+    {
+        if (t.joinable() && exited(t))
+        {
+            t.join();
+        }
+    }
+    _dynamicThreads.erase(
+        std::remove_if(_dynamicThreads.begin(), _dynamicThreads.end(),
+                       [](const std::thread& t) { return !t.joinable(); }),
+        _dynamicThreads.end());
+    _exitedDynamicThreadIds.clear();
+}
+
+// Caller holds getLock().
+void CpuHandleWorker::StartDynamicThread()
+{
+    ReapExitedDynamicThreads();
+    const int dynamicIndex = _nextDynamicIndex++;
     _dynamicThreads.emplace_back([this, dynamicIndex]()
     {
         ThreadWorkImpl(MakeDynamicThreadId(dynamicIndex));
     });
+    _activeDynamicThreads++;
 }
 
 void CpuHandleWorker::ThreadWorkImpl(int id)
@@ -267,6 +305,8 @@ void CpuHandleWorker::ThreadWorkImpl(int id)
             if (isDynamic && (_dynamicStopCnt.load() > 0))
             {
                 _dynamicStopCnt--;
+                _activeDynamicThreads--;
+                _exitedDynamicThreadIds.push_back(std::this_thread::get_id());
                 dynamicStop = true;
                 return true;
             }
@@ -360,19 +400,24 @@ int CpuHandleWorker::request(shared_ptr<Request> req)
     }
 
     size_t avgLoad = _slidingSum / _loadHistory.size();
+    if (avgLoad != 0)
+    {
+        // Load came back: the next idle period starts from scratch.
+        _idleStartTime = std::chrono::steady_clock::time_point();
+    }
     if (timeSinceLastAdd >= _threadControlInterval && _loadHistory.size() == getBufferCount()*_device_num)
     {
-        auto dynamicThreads = static_cast<int>(_dynamicThreads.size());
+        const auto dynamicThreads = static_cast<size_t>(_activeDynamicThreads);
 
         if (avgLoad > dynamicThreads + _numThreads)
         {
             if (dynamicThreads + _numThreads < _maxThreads)
             {
-                StartDynamicThread(dynamicThreads);
+                StartDynamicThread();
 
                 CpuHandle::_totalNumThreads++;
                 LOG_DXRT_DBG << getName() << " Added a new thread, current threads: "
-                    << _dynamicThreads.size() + _numThreads << "(total: " << CpuHandle::_totalNumThreads.load()
+                    << _activeDynamicThreads + static_cast<int>(_numThreads) << "(total: " << CpuHandle::_totalNumThreads.load()
                     << "), avgLoad: " << avgLoad << endl;
                 _threadControlInterval = std::chrono::milliseconds(10);
                 _lastThreadControlTime = std::chrono::steady_clock::now();
@@ -391,19 +436,25 @@ int CpuHandleWorker::request(shared_ptr<Request> req)
 
             if (canStopThread)
             {
-                if (dynamicThreads > _dynamicStopCnt.load())
+                // Only live threads still without a pending stop token can take a new one.
+                if (_activeDynamicThreads > _dynamicStopCnt.load())
                 {
                     _dynamicStopCnt++;
                 }
                 LOG_DXRT_DBG << getName() << " Remove one unnecessary thread. Remaining: "
                     << dynamicThreads <<" + "<< _numThreads << ", avgLoad: " << avgLoad << ", dynamicStopCnt: " << _dynamicStopCnt.load() << endl;
 
+                // Restart the idle period before releasing the lock: request()
+                // runs on several threads, and any of them entering during the
+                // unlock below would otherwise see the old idle start and
+                // remove another thread at once.
+                _idleStartTime = std::chrono::steady_clock::time_point();
+                _threadControlInterval = std::chrono::milliseconds(10);
+
                 getConditionVariable().notify_all();
                 lk.unlock();
                 std::this_thread::yield();
                 lk.lock();
-                _idleStartTime = std::chrono::steady_clock::time_point();
-                _threadControlInterval = std::chrono::milliseconds(10);
             }
         }
         else

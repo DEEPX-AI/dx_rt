@@ -61,7 +61,7 @@ namespace dxrt {
 
         if (handlerCopy)
         {
-            // Invoke the handler in a separate thread to avoid blocking
+            // Runs synchronously on the dispatching thread, outside _handlerMutex.
             handlerCopy(level, type, code, eventMessage, timestamp);
             return true;
         }

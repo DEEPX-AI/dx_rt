@@ -43,6 +43,7 @@ class NpuDevice
     uint32_t GetDeviceVariant() const;
     uint16_t GetDDRFrequency() const;
     uint16_t GetDDRType() const;
+    bool IsM1MChip() const;
     uint64_t GetTotalUsableMemory() const;
 
     uint16_t GetFirmwareVersion() const;

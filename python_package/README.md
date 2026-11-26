@@ -14,9 +14,10 @@ device status, and collect profiling data from Python.
 ## Installation
 
 ### From PyPI
-```bash
-python -m pip install dx-engine
-```
+
+`dx-engine` is currently not installable from PyPI. Use the wheel bundled in
+the `libdxrt-bin` Debian package (next section); it is built against the
+`libdxrt` version shipped in the same package.
 
 ### From a prebuilt wheel
 
@@ -33,9 +34,11 @@ PYTAG=cp$(python -c 'import sys;print(f"{sys.version_info[0]}{sys.version_info[1
 pip install /usr/share/libdxrt-bin/python/dx_engine-*-${PYTAG}-${PYTAG}-*.whl
 ```
 
-`sudo dpkg -i` automatically installs the wheel that matches the **system**
-`python3` interpreter. Any user-owned venv must repeat the `pip install`
-step because `dpkg` runs as root and cannot safely write into a venv.
+`dpkg` only stages the wheels; it does not install `dx_engine` into any
+Python environment. Run the `pip install` step yourself, either in a
+virtual environment (recommended) or for the system interpreter. On
+Ubuntu 23.04 and later, installing into the system interpreter requires
+`--break-system-packages`.
 
 
 ## Quick Start
@@ -104,3 +107,6 @@ This software is provided exclusively to customers supplied with a DEEPX
 NPU. Unauthorized sharing or use is prohibited. See LICENSE
 for the full terms; each wheel embeds the same file under
 `dx_engine-<ver>.dist-info/licenses/LICENSE`.
+
+Third-party components and their licenses are listed in `NOTICE.md`,
+embedded under `dx_engine-<ver>.dist-info/licenses/NOTICE.md`.

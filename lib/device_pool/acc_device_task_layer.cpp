@@ -167,10 +167,12 @@ AccDeviceTaskLayer::AccDeviceTaskLayer(
     std::shared_ptr<DeviceCore> dev,
     std::shared_ptr<ServiceLayerInterface> service_interface)
     : DeviceTaskLayer(dev, service_interface),
+      // true: these workers issue the H2D/D2H DMA ioctls on the latency-critical
+      // path, so they're boosted to SCHED_FIFO (see SetRealtimePriority()).
       _inputHandlerQueue(dev->name() + "_input", dev->GetReadChannel(),
-          std::bind(&AccDeviceTaskLayer::InputHandler, this, std::placeholders::_1, std::placeholders::_2)),
+          std::bind(&AccDeviceTaskLayer::InputHandler, this, std::placeholders::_1, std::placeholders::_2), true),
       _outputHandlerQueue(dev->name() + "_output", dev->GetWriteChannel(),
-          std::bind(&AccDeviceTaskLayer::OutputHandler, this, std::placeholders::_1, std::placeholders::_2))
+          std::bind(&AccDeviceTaskLayer::OutputHandler, this, std::placeholders::_1, std::placeholders::_2), true)
 {
 }
 
@@ -208,19 +210,19 @@ int AccDeviceTaskLayer::Release(TaskData* task)
         // Deallocate RMAP memory
         if (memInfos.rmapMemInfo.block_id > 0)
         {
-            serviceLayer()->DeAllocate(id(), memInfos.rmapMemInfo.block_id);
+            serviceLayer()->DeAllocateInfo(id(), memInfos.rmapMemInfo);
         }
 
         // Deallocate Weight memory
         if (memInfos.weightMemInfo.block_id > 0)
         {
-            serviceLayer()->DeAllocate(id(), memInfos.weightMemInfo.block_id);
+            serviceLayer()->DeAllocateInfo(id(), memInfos.weightMemInfo);
         }
 
         // Deallocate PPU memory if it exists
         if (memInfos.ppuMemInfo.size > 0 && memInfos.ppuMemInfo.block_id > 0)
         {
-            serviceLayer()->DeAllocate(id(), memInfos.ppuMemInfo.block_id);
+            serviceLayer()->DeAllocateInfo(id(), memInfos.ppuMemInfo);
         }
 
         modelMemoryInfos().erase(memInfosIt);
@@ -1327,9 +1329,10 @@ bool AccDeviceTaskLayer::HandleCaughtEvent(const dxrt::dx_pcie_dev_event_t& even
                 RuntimeEventDispatcher::TYPE::DEVICE_IO,
                 RuntimeEventDispatcher::CODE::DEVICE_EVENT,
                 LogMessages::RuntimeDispatch_DeviceEventError(id(), err_code_str));
-
+#ifndef USE_SYSTEM_LEVEL_TESTING
             // recovery signal
             core()->Process(dxrt::dxrt_cmd_t::DXRT_CMD_RECOVERY, nullptr);
+#endif // USE_SYSTEM_LEVEL_TESTING
 #endif
 
 #ifndef USE_VNPU
@@ -1371,13 +1374,63 @@ bool AccDeviceTaskLayer::HandleCaughtEvent(const dxrt::dx_pcie_dev_event_t& even
     else if (static_cast<dxrt::dxrt_event_t>(eventInfo.event_type)==dxrt::dxrt_event_t::DXRT_EVENT_RECOVERY)
     {
         std::string type = "Unknown";
-        if (eventInfo.dx_rt_recv.action==dxrt::dxrt_recov_t::DXRT_RECOV_RMAP)
+        if (eventInfo.dx_rt_recv.reason != DX_RECOVERY_REASON_NONE)
         {
-            auto model = npuModelMap().begin()->second;
-            DXRT_ASSERT(
-                serviceLayer()->DMAWrite(id(), model.rmap.data, model.rmap.base + model.rmap.offset, model.rmap.size) == 0,
-                "Recovery rmap failed to write model parameters(cmd)");
-            LOG_DXRT_ERR("RMAP data has been recovered. This error can cause issues with NPU operation.");
+            // The driver's own recovery events share this event type but always carry
+            // a reason, and their `action` is a dx_recovery_subcode_t, not a dxrt_recov_t.
+            const uint32_t subcode = eventInfo.dx_rt_recv.action;
+            if (subcode == DX_RECOVERY_FW_HANG || subcode == DX_RECOVERY_PERM_FAIL)
+            {
+                LOG_DXRT_ERR("Driver could not recover the device: subcode=" + std::to_string(subcode)
+                    + " reason=" + std::to_string(eventInfo.dx_rt_recv.reason));
+            }
+            else
+            {
+                LOG_DXRT << "Driver recovery event: subcode=" << subcode
+                         << " reason=" << eventInfo.dx_rt_recv.reason << std::endl;
+            }
+            type = "DRIVER";
+        }
+        else if (eventInfo.dx_rt_recv.action==dxrt::dxrt_recov_t::DXRT_RECOV_RMAP)
+        {
+            // The FW does not say which model's RMAP is damaged, so write back
+            // every RMAP this process holds on the device, then let it re-issue.
+            int written = 0;
+            int failed = 0;
+            {
+                // Held across the writes: Release() erases a model under this lock
+                // before it frees the model's range, so no range is freed (and handed
+                // to another allocation) while its RMAP is written back. The writes
+                // go straight to DeviceCore and take no task-layer lock.
+                std::unique_lock<std::mutex> lk(npuInferenceLock());
+                for (const auto &entry : npuModelMap())
+                {
+                    const auto &rmap = entry.second.rmap;
+                    if (rmap.data == 0 || rmap.size == 0)
+                    {
+                        continue;
+                    }
+                    if (serviceLayer()->DMAWrite(id(), rmap.data, rmap.base + rmap.offset, rmap.size) == 0)
+                    {
+                        ++written;
+                    }
+                    else
+                    {
+                        ++failed;
+                    }
+                }
+            }
+            if (failed > 0)
+            {
+                LOG_DXRT_ERR("Recovery rmap failed to write " + std::to_string(failed) + " of "
+                    + std::to_string(written + failed) + " model RMAP(s)");
+            }
+            else
+            {
+                LOG_DXRT_ERR("RMAP data has been recovered. This error can cause issues with NPU operation.");
+            }
+            // Answer even on failure so the FW re-issues (and escalates if it fails
+            // again) instead of dropping the request when its wait times out.
             StartDev(RMAP_RECOVERY_DONE);
             type = "RMAP";
         }

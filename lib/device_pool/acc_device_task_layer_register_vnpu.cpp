@@ -86,8 +86,12 @@ int AccDeviceTaskLayer::RegisterTask(TaskData* task)
         serviceLayer()->DeAllocate(id(), temp_addr);
     }
 
-    // Store model with offsets set
-    npuModelMap()[tId] = model;
+    // Store model with offsets set. Under npuInferenceLock like every other
+    // npuModelMap access: the event thread walks the map for RMAP recovery.
+    {
+        std::unique_lock<std::mutex> lk(npuInferenceLock());
+        npuModelMap()[tId] = model;
+    }
 
     // Write model params using temporary CMA buffers for zero-copy DMA
     // Allocate CMA buffers for DMA transmission

@@ -149,6 +149,16 @@ class DXRT_API DeviceTaskLayer { // NOSONAR: Too many fields - stable as-is, ref
     void SetProcessResponseHandler(const std::function<void(int deviceId, int reqId, const dxrt_response_t *response)>& handler) {
         _processResponseHandler = handler;
     }
+
+    // Pin and DMA-map a host buffer once so repeated transfers skip per-transfer
+    // pinning. The caller owns the buffer and must unregister before freeing it.
+    // Returns 0 on success; a non-zero result means the driver declined and the
+    // legacy per-transfer path stays in effect.
+    int RegisterDmaBuffer(void* ptr, uint64_t size, bool input);
+    int UnregisterDmaBuffer(void* ptr, uint64_t size, bool input);
+
+    // True when DMA is issued by dxrtd (on its own fd) rather than by this process.
+    bool isRunOnService() const { return _serviceLayer != nullptr && _serviceLayer->isRunOnService(); }
     std::shared_ptr<DeviceCore> core() { return _core; }
 
     std::shared_ptr<DeviceCore> core() const { return _core; }

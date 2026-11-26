@@ -224,26 +224,48 @@ string DeviceStatus::DdrStatusStr(int ch) const
     uint32_t rm_0 = 0;
     uint32_t derate = 0;
 
-    switch(_status.ddr_status[ch]) {
-		case 0x01 : rm_1 = 8;             break;
-		case 0x02 : rm_1 = 6;             break;
-		case 0x03 : rm_1 = 4;             break;
-		case 0x04 : rm_1 = 3; rm_0 = 3;   break;
-		case 0x05 : rm_1 = 2; rm_0 = 5;   break;
-		case 0x06 : rm_1 = 2;             break;
-		case 0x07 : rm_1 = 1; rm_0 = 7;   break;
-		case 0x08 : rm_1 = 1; rm_0 = 3;   break;
-		case 0x09 : rm_1 = 1; rm_0 = 0;   break;
-		case 0x0A : rm_1 = 0; rm_0 = 7;   break;
-		case 0x0B : rm_1 = 0; rm_0 = 5;   break;
-		case 0x0C : rm_1 = 0; rm_0 = 25;  break;
-		case 0x0D : rm_1 = 0; rm_0 = 25;  derate = 1; break;
-		case 0x0E : rm_1 = 0; rm_0 = 125; break;
-		case 0x0F : rm_1 = 0; rm_0 = 125; derate = 1; break;
-		default   : rm_1 = 0xF; break;
+    const char* limit = "";
+
+    if (_info.ddr_type == 1)
+    {
+        // LPDDR4: MR4 OP[2:0] refresh-rate encoding (JEDEC LPDDR4 MR4)
+        switch (_status.ddr_status[ch] & 0x7) {
+            case 0x0 : rm_1 = 0;   limit = " low temperature limit exceeded";  break;
+            case 0x1 : rm_1 = 4;              break;
+            case 0x2 : rm_1 = 2;              break;
+            case 0x3 : rm_1 = 1;              break;
+            case 0x4 : rm_1 = 0; rm_0 = 5;    break;
+            case 0x5 : rm_1 = 0; rm_0 = 25;   break;
+            case 0x6 : rm_1 = 0; rm_0 = 25;   derate = 1; break;
+            default  : rm_1 = 0;   limit = " high temperature limit exceeded"; break;
+        }
     }
-    snprintf(buf.data(), CHARBUFFER_SIZE, "LPDDR CH[%d]: RM: 0x%x(%u.%ux)%s",
-            ch, _status.ddr_status[ch], rm_1, rm_0, (derate ? " with de-rating" : ""));
+    else
+    {
+        // LPDDR5: MR4 OP[4:0] refresh multiplier encoding (JEDEC LPDDR5 MR4)
+        switch(_status.ddr_status[ch] & 0x1F) {
+            case 0x00 : rm_1 = 0;   limit = " low temperature limit exceeded";  break;
+            case 0x01 : rm_1 = 8;             break;
+            case 0x02 : rm_1 = 6;             break;
+            case 0x03 : rm_1 = 4;             break;
+            case 0x04 : rm_1 = 3; rm_0 = 3;   break;
+            case 0x05 : rm_1 = 2; rm_0 = 5;   break;
+            case 0x06 : rm_1 = 2;             break;
+            case 0x07 : rm_1 = 1; rm_0 = 7;   break;
+            case 0x08 : rm_1 = 1; rm_0 = 3;   break;
+            case 0x09 : rm_1 = 1; rm_0 = 0;   break;
+            case 0x0A : rm_1 = 0; rm_0 = 7;   break;
+            case 0x0B : rm_1 = 0; rm_0 = 5;   break;
+            case 0x0C : rm_1 = 0; rm_0 = 25;  break;
+            case 0x0D : rm_1 = 0; rm_0 = 25;  derate = 1; break;
+            case 0x0E : rm_1 = 0; rm_0 = 125; break;
+            case 0x0F : rm_1 = 0; rm_0 = 125; derate = 1; break;
+            case 0x1F : rm_1 = 0;   limit = " high temperature limit exceeded"; break;
+            default   : rm_1 = 0xF; break;  // reserved
+        }
+    }
+    snprintf(buf.data(), CHARBUFFER_SIZE, "LPDDR CH[%d]: RM: 0x%x(%u.%ux)%s%s",
+            ch, _status.ddr_status[ch], rm_1, rm_0, (derate ? " with de-rating" : ""), limit);
     return string(buf.data());
 }
 
@@ -274,11 +296,12 @@ string DeviceStatus::DeviceTypeWord() const
 }
 string DeviceStatus::DeviceVariantStr() const
 {
-    if ( _info.ddr_type == 1 ) // LPDDR4
+    // M1M chip, not LPDDR4: a DX-M1 M.2 board may carry LPDDR4X
+    if ( IsM1MChip(_info) )
     {
         return map_lookup(device_variants, _info.variant) + "M";
     }
-    
+
     return map_lookup(device_variants, _info.variant);
 }
 string DeviceStatus::BoardTypeStr() const

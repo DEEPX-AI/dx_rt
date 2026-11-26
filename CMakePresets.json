@@ -27,7 +27,8 @@
         "GTest_DIR": "${sourceDir}/vcpkg_installed/x64-windows/share/gtest",
         "USE_ORT": "ON",
         "USE_SERVICE": "ON",
-        "USE_PYTHON": "OFF"
+        "USE_PYTHON": "OFF",
+        "USE_NPU_FORMAT_CONVERSION_ACCELERATION": "ON"
       }
     },
     {

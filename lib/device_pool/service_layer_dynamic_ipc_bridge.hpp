@@ -30,6 +30,7 @@ using ThrottleNotificationCallback = std::function<void(int, int, const dx_pcie_
 using ErrorNotificationCallback = std::function<void(int, dxrt_server_err_t, const dx_pcie_dev_err_t&)>;
 using InferenceResponseCallback = std::function<void(int, const dxrt_response_t&)>;
 using RecoveryStartNotificationCallback = std::function<void(int, uint32_t)>;
+using ServiceLostCallback = std::function<void()>;
 
 IpcClientOwner CreateServiceLayerDynamicIpcClient(const std::string &endpoint);
 void DestroyServiceLayerDynamicIpcClient(ServiceLayerDynamicIpcClient *client);
@@ -49,6 +50,10 @@ void ServiceLayerDynamicIpcSetInferenceResponseHandler(
 void ServiceLayerDynamicIpcSetRecoveryStartNotificationHandler(
     ServiceLayerDynamicIpcClient *client,
     RecoveryStartNotificationCallback callback);
+
+void ServiceLayerDynamicIpcSetServiceLostHandler(
+    ServiceLayerDynamicIpcClient *client,
+    ServiceLostCallback callback);
 
 int ServiceLayerDynamicIpcSendRecoveryStartAck(
     ServiceLayerDynamicIpcClient *client,

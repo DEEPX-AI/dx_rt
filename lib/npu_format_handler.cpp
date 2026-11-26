@@ -455,8 +455,8 @@ void NpuFormatHandler::bidirectional_transpose(void* src, void* dst, int row, in
 #ifdef USE_IPP
         ipp_bidirectional_transpose(src, dst, row, col, element_size);
         return;
-#elif defined(USE_NEON)
-        neon_bidirectional_transpose(src, dst, row, col, element_size);
+#elif defined(USE_NEON) || defined(USE_SSE2)
+        simd_bidirectional_transpose(src, dst, row, col, element_size);
         return;
 #endif
     }
@@ -586,10 +586,10 @@ void NpuFormatHandler::ipp_bidirectional_transpose(void* src, void* dst, int row
 }
 #endif
 
-#ifdef USE_NEON
-// ARM NEON transpose implementation using XNNPACK optimized kernels
+#if defined(USE_NEON) || defined(USE_SSE2)
+// SIMD transpose through xnnpack_transpose<T> (ARM NEON on aarch64, SSE2 on Windows x64)
 // Note: Only called when element_size is 1 or 4 (checked by caller)
-void NpuFormatHandler::neon_bidirectional_transpose(void* src, void* dst, int row, int col, size_t element_size)
+void NpuFormatHandler::simd_bidirectional_transpose(void* src, void* dst, int row, int col, size_t element_size)
 {
     // Note: Validation and element_size check already done by caller (bidirectional_transpose)
 
@@ -622,7 +622,7 @@ void NpuFormatHandler::neon_bidirectional_transpose(void* src, void* dst, int ro
     // Out-of-place: Use XNNPACK optimized transpose based on element size
     if (element_size == 1)
     {
-        // uint8_t transpose (16x16 NEON vzipq)
+        // uint8_t transpose (16x16 tiles)
         xnnpack_transpose<uint8_t>(
             static_cast<const uint8_t*>(src),
             static_cast<uint8_t*>(dst),
@@ -631,7 +631,7 @@ void NpuFormatHandler::neon_bidirectional_transpose(void* src, void* dst, int ro
     }
     else  // element_size == 4
     {
-        // float/uint32 transpose (4x4 NEON vqtbl4q)
+        // float/uint32 transpose (4x4 tiles)
         xnnpack_transpose<float>(
             static_cast<const float*>(src),
             static_cast<float*>(dst),
@@ -1233,9 +1233,16 @@ int NpuFormatHandler::DecodeOutputs(const void* reqPtr, const void* responsePtr,
                         NpuFormatHandler::decode_aligned(encoded_output, decoded_output, static_cast<int>(tensor_info.shape_encoded()[shape_dims - 1]), static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded()), tensor_info.align_unit());
                         Bytes transposed_output = {encoded_output.size, decoded_output.data};
                         auto col = static_cast<int>(tensor_info.shape_encoded()[shape_dims - 1]);
-                        int row = 1; for (int j = 0; j < shape_dims - 1; j++) row *= static_cast<int>(tensor_info.shape_encoded()[j]);
+                        // [N,H,W,C] -> [N,C,H,W]: transpose each batch plane [H*W, C] -> [C, H*W].
+                        // Folding N into the rows mixes batch and channel when N > 1 and C > 1 (#1338).
+                        int batch = (shape_dims >= 3) ? static_cast<int>(tensor_info.shape_encoded()[0]) : 1;
+                        int row = 1; for (int j = (shape_dims >= 3) ? 1 : 0; j < shape_dims - 1; j++) row *= static_cast<int>(tensor_info.shape_encoded()[j]);
                         int elem_size = dxrt::GetDataSize_rmapinfo_datatype(static_cast<deepx_rmapinfo::DataType>(tensor_info.dtype_encoded()));
-                        NpuFormatHandler::bidirectional_transpose(transposed_output.data, encoded_output.data, row, col, elem_size);
+                        size_t plane = static_cast<size_t>(row) * static_cast<size_t>(col) * static_cast<size_t>(elem_size);
+                        for (int b = 0; b < batch; b++)
+                        {
+                            NpuFormatHandler::bidirectional_transpose(transposed_output.data + static_cast<size_t>(b) * plane, encoded_output.data + static_cast<size_t>(b) * plane, row, col, elem_size);
+                        }
                         output_tensor.data() = static_cast<void*>(encoded_output.data);
                     }
                     else

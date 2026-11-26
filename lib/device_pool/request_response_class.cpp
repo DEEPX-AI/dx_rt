@@ -266,21 +266,28 @@ void RequestResponse::ProcessByDataNormal(RequestPtr req, const dxrt_response_t&
                         << endl;
                     npu_format_handler::Bytes transposed_output = {encoded_output.size, decoded_output.data};
                     auto col = static_cast<int>(tensor_info.shape_encoded()[shape_dims - 1]);
+                    // [N,H,W,C] -> [N,C,H,W]: transpose each batch plane [H*W, C] -> [C, H*W].
+                    // Folding N into the rows mixes batch and channel when N > 1 and C > 1 (#1338).
+                    int batch = (shape_dims >= 3) ? static_cast<int>(tensor_info.shape_encoded()[0]) : 1;
                     int row = 1;
-                    for (int j = 0; j < shape_dims - 1; j++)
+                    for (int j = (shape_dims >= 3) ? 1 : 0; j < shape_dims - 1; j++)
                     {
                         row *= static_cast<int>(tensor_info.shape_encoded()[j]);
                     }
                     int elem_size = GetDataSize_rmapinfo_datatype(
                         static_cast<deepx_rmapinfo::DataType>(
                             tensor_info.dtype_encoded()));
+                    size_t plane = static_cast<size_t>(row) * static_cast<size_t>(col) * static_cast<size_t>(elem_size);
 
-                    npu_format_handler::NpuFormatHandler::bidirectional_transpose(
-                        transposed_output.data,
-                        decoded_output.data,
-                        row,
-                        col,
-                        elem_size);
+                    for (int b = 0; b < batch; b++)
+                    {
+                        npu_format_handler::NpuFormatHandler::bidirectional_transpose(
+                            transposed_output.data + static_cast<size_t>(b) * plane,
+                            decoded_output.data + static_cast<size_t>(b) * plane,
+                            row,
+                            col,
+                            elem_size);
+                    }
 
 
                     LOG_DXRT_DBG

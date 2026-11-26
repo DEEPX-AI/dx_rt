@@ -40,6 +40,12 @@ int IPCPacketClient::connectToServer(const std::string &socketPath, int retryCou
     _client.setOnReceive([this](const IPCClientReceivedMessage &message) {
         onClientReceived(message);
     });
+    _client.setOnDisconnect([this]() {
+        if (_serviceLostHandler)
+        {
+            _serviceLostHandler();
+        }
+    });
 
     // Introduce ourselves so the server can bind clientFd → pid immediately.
     IPCPacketClientHello hello{};
@@ -54,6 +60,7 @@ int IPCPacketClient::connectToServer(const std::string &socketPath, int retryCou
 void IPCPacketClient::close()
 {
     _client.setOnReceive(nullptr);
+    _client.setOnDisconnect(nullptr);
     _client.close();
 }
 
@@ -75,6 +82,11 @@ void IPCPacketClient::setInferenceResponseHandler(InferenceResponseHandler handl
 void IPCPacketClient::setRecoveryStartNotificationHandler(RecoveryStartNotificationHandler handler)
 {
     _recoveryStartNotificationHandler = std::move(handler);
+}
+
+void IPCPacketClient::setServiceLostHandler(ServiceLostHandler handler)
+{
+    _serviceLostHandler = std::move(handler);
 }
 
 int IPCPacketClient::receiveAndDispatch(int *receivedFd) const

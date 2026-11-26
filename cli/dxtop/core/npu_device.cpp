@@ -126,6 +126,11 @@ uint16_t NpuDevice::GetDDRType() const
     return _info.ddr_type;
 }
 
+bool NpuDevice::IsM1MChip() const
+{
+    return dxrt::IsM1MChip(_info);
+}
+
 uint64_t NpuDevice::GetTotalUsableMemory() const
 {
     return _info.mem_size;

@@ -130,6 +130,22 @@ class ProcessTaskInfoStore
         return taskEntries;
     }
 
+    /// Processes that have at least one task registered on deviceId. Each pid
+    /// appears at most once: the map key is (pid, deviceId), not the task.
+    std::vector<pid_t> pidsForDevice(int deviceId) const
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+        std::vector<pid_t> pids;
+        for (const auto &entry : _taskInfoMap)
+        {
+            if (entry.first.second == deviceId)
+            {
+                pids.push_back(entry.first.first);
+            }
+        }
+        return pids;
+    }
+
  private:
     using Key = std::pair<pid_t, int>;
 

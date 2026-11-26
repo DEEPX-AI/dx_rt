@@ -105,12 +105,18 @@ class DXRT_INTERNAL_API DxrtServiceV2 : public ISchedulerListener
     void StopIpcServer();
 
     void onCompleteInference(const dxrt::dxrt_response_t &response, int deviceId);
+    // A DMA accepted by HandleDMARead/HandleDMAWrite finished (or failed) on the device.
+    // Releases deferred task frees of pid on deviceId once its last DMA there completes.
+    void OnDMACompleted(pid_t pid, int deviceId);
     void BroadcastThrottlingEventToClient(dxrt::dx_pcie_dev_ntfy_throt_t throtInfo, int deviceId);
     void ErrorBroadCastToClient(
         dxrt::dxrt_server_err_t err,
         uint32_t errCode,
         int deviceId,
         const dx_pcie_dev_err_t *errorInfo = nullptr);
+    // Clients that use deviceId: a task registered on it or device memory
+    // allocated on it. An out-of-range deviceId yields every connected client.
+    std::vector<pid_t> CollectClientPidsForDevice(int deviceId);
 
     bool IsTaskValid(pid_t pid, int deviceId, int taskId);
     void Dispose();
@@ -157,7 +163,12 @@ class DXRT_INTERNAL_API DxrtServiceV2 : public ISchedulerListener
     void requestAllIpcServerStops();
     void TrackSharedMemoryHandle(int deviceId, pid_t pid, const SharedMemoryInfo &info);
     bool TryResolveSharedMemoryHandle(int deviceId, pid_t pid, uint64_t address, SharedMemoryInfo *info);
-    void ReleaseSharedMemoryHandle(const SharedMemoryInfo &info);
+    // Drops the block's DMA registrations and unmaps it, or queues it on
+    // _deferredShmReleases while pid still has DMA in flight on deviceId or the
+    // driver refuses to drop a registration.
+    void ReleaseSharedMemoryHandle(int deviceId, pid_t pid, const SharedMemoryInfo &info);
+    bool TryReleaseSharedMemoryHandle(int deviceId, pid_t pid, const SharedMemoryInfo &info);
+    void RetryDeferredSharedMemoryReleases();
     void ReleaseAllSharedMemoryHandlesForProcess(int deviceId, pid_t pid);
 
     bool TaskInit(pid_t pid, int deviceId, int taskId, int bound, uint64_t modelMemorySize, const TaskStaticConfig &config);
@@ -178,14 +189,26 @@ class DXRT_INTERNAL_API DxrtServiceV2 : public ISchedulerListener
         void *ptr{nullptr};
         uint64_t size{0};
         uint64_t physAddrOffset{0};
+        bool isRmap{false};      // allocated as MemoryType::Model_rmap
+        bool rmapLoaded{false};  // isRmap, and the client has filled and sent the whole block
     };
 
     bool TryGetSharedMemoryHandle(int deviceId, pid_t pid, uint64_t address, SharedMemHandle *handle);
+    // Mark every alias key of the block at physAddrOffset; both take _sharedMemoryLock.
+    void MarkRmapBlock(int deviceId, pid_t pid, uint64_t physAddrOffset);
+    void MarkRmapBlockLoaded(int deviceId, pid_t pid, uint64_t physAddrOffset);
+    // Caller holds _sharedMemoryLock.
+    std::map<uint64_t, SharedMemHandle> *FindProcessHandlesLocked(int deviceId, pid_t pid);
+    // FW RMAP recovery: rewrites every loaded RMAP block of the device from its SHM copy.
+    int RestoreRmapBlocks(int deviceId);
 
-    // DMA recovery helpers
-    void IncrementPendingDMA();
-    void DecrementPendingDMA();
+    // DMA tracking helpers (global count for recovery + per-process count for memory reclaim)
+    void IncrementPendingDMA(pid_t pid, int deviceId);
+    // Returns true when pid's last in-flight DMA on deviceId completed.
+    bool DecrementPendingDMA(pid_t pid, int deviceId);
+    bool HasPendingDMA(pid_t pid, int deviceId);
     bool WaitForDMACompletion(int timeoutMs);
+    void ReclaimDeferredTaskFreesAfterDMA(pid_t pid, int deviceId);
 
     std::vector<std::shared_ptr<dxrt::ServiceDevice>> _devices;
     std::shared_ptr<SchedulerService> _scheduler;
@@ -200,10 +223,15 @@ class DXRT_INTERNAL_API DxrtServiceV2 : public ISchedulerListener
     // or with the above four locks):
     //   SchedulerService::_lock   — internal scheduler request queue
     //   MemoryService::_lock      — per-device memory allocation records
+    //   _processDmaMutex          — per-process in-flight DMA counts
+    //   _deferredShmMutex         — shared memory blocks waiting to be unmapped
     //
     // Rule: do NOT hold any of these locks while calling IPC, external
     // callbacks, or other layer methods. Release the lock first, capture
     // any needed data by value, then call outward.
+    // Exception: RestoreRmapBlocks holds _sharedMemoryLock across
+    // ServiceDevice::WriteSync so no block is freed mid-write; WriteSync takes
+    // no service lock.
     std::mutex _deviceMutex;
     std::mutex _pidSetMutex;
     std::mutex _sharedMemoryLock;
@@ -226,6 +254,21 @@ class DXRT_INTERNAL_API DxrtServiceV2 : public ISchedulerListener
     std::condition_variable _pendingFreeReaperCv;
     std::map<int, std::map<pid_t, std::map<uint64_t, SharedMemHandle>>> _sharedMemoryHandles;
 
+    // Shared memory blocks already dropped from _sharedMemoryHandles but not unmapped
+    // yet: a DMA of the owning process was still in flight, or the driver refused to
+    // drop a DMA registration on them (-EBUSY, or -ENODATA/-EIO while the device is
+    // not READY). Unmapping then would let the address be reused while the driver
+    // still holds a registration for it. Retried by the reaper, on DMA completion and
+    // after recovery.
+    struct DeferredShmRelease
+    {
+        int deviceId;
+        pid_t pid;
+        SharedMemoryInfo info;
+    };
+    std::mutex _deferredShmMutex;
+    std::vector<DeferredShmRelease> _deferredShmReleases;
+
     std::map<int, dxrt::MemoryService *> _memoryServices;
     std::unique_ptr<SharedMemoryWritingThread> _sharedMemoryWritingThread;
     std::vector<std::unique_ptr<IpcServerContext>> _ipcServers;
@@ -239,6 +282,13 @@ class DXRT_INTERNAL_API DxrtServiceV2 : public ISchedulerListener
     std::mutex _dmaMutex;
     std::condition_variable _dmaCompletionCv;
     std::atomic<int> _pendingDmaOperations{0};
+
+    // In-flight DMA count per {pid, deviceId}. A process's task memory is not
+    // returned to the allocator while a DMA it requested (e.g. a model rmap/weight
+    // write) may still touch it, or a later owner of the same range could be
+    // overwritten. Leaf lock: never held while taking any other lock.
+    std::mutex _processDmaMutex;
+    std::map<std::pair<pid_t, int>, int> _pendingDmaByProcess;
 
     std::atomic<bool> _recoveryInProgress{false};
 

@@ -111,7 +111,7 @@ private:
     bool HandleThreadStop(int id, bool isDynamic, bool& dynamicStop, const std::string& threadName);
     bool ProcessRequest(int id, const std::string& threadName, const std::shared_ptr<Request>& req);
     int MakeDynamicThreadId(int dynamicIndex) const;
-    void StartDynamicThread(int dynamicIndex);
+    void StartDynamicThread();
 
     constexpr static size_t MIN_EACH_CPU_TASK_THREADS = 1;
     constexpr static size_t MAX_EACH_CPU_TASK_THREADS = 6;
@@ -128,11 +128,26 @@ private:
 
     std::chrono::steady_clock::time_point _lastThreadControlTime = std::chrono::steady_clock::now();
     std::chrono::milliseconds _threadControlInterval = std::chrono::milliseconds(200);
-    std::chrono::steady_clock::time_point _idleStartTime = std::chrono::steady_clock::now();
+    // Start of the current run of zero average load; a default-constructed
+    // value means the load is not idle. Reset whenever load is seen again, so
+    // only a continuous idle period of _idleInterval removes a thread.
+    std::chrono::steady_clock::time_point _idleStartTime{};
     std::chrono::milliseconds _idleInterval = std::chrono::milliseconds(500);
 
+    // Every dynamic thread started and not yet joined, including ones that
+    // have already exited. Exited threads are joined and removed by
+    // ReapExitedDynamicThreads(); use _activeDynamicThreads for the live count.
     std::vector<std::thread> _dynamicThreads;
+    // Live dynamic threads, guarded by getLock(). Decremented when a thread
+    // takes a stop token, so scaling decisions never count exited threads.
+    int _activeDynamicThreads = 0;
+    // Ids of dynamic threads that took a stop token and are leaving, guarded by getLock().
+    std::vector<std::thread::id> _exitedDynamicThreadIds;
+    // Source of unique ids for dynamic threads (logs and processed-unit ids).
+    int _nextDynamicIndex = 0;
     std::atomic<int> _dynamicStopCnt{0};
+
+    void ReapExitedDynamicThreads();
 
 };
 } // namespace dxrt

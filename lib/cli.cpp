@@ -14,6 +14,8 @@
 
 #include <string>
 #include <cctype>
+#include <chrono>
+#include <thread>
 
 #include "dxrt/device.h"
 #include "dxrt/fw.h"
@@ -302,7 +304,7 @@ void FWUpdateCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
     if ( fw.GetBoardType() == BOARD_TYPE_M_dot_2
         && deviceInfo.bd_type == BOARD_TYPE_M_dot_2 )
     {
-        // M1 or M1M board type
+        // M1 or M1M board type: the image follows the LPDDR type, not the chip
         if ( ((fw.GetDdrType() == M1_DDR_TYPE_LPDDR5) || (fw.GetDdrType() == M1_DDR_TYPE_LPDDR5X))
             && ((deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR5) || (deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR5X)) )
         {
@@ -311,17 +313,15 @@ void FWUpdateCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
         else if ( fw.GetDdrType() == M1_DDR_TYPE_LPDDR4
             && deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR4 )
         {
-            isCompatible = true; // M1M
+            isCompatible = true; // M1M, or M1 with LPDDR4X (same image)
         }
         // else isCompatible is false;
     }
     else if ( fw.GetBoardType() == BOARD_TYPE_H1
         && deviceInfo.bd_type == BOARD_TYPE_H1 )
     {
-        // NOTE: H1 and H1M share the same bd_type (BOARD_TYPE_H1), so they cannot be distinguished
-        //       by board type alone. Currently H1M is identified solely by ddr_type == M1_DDR_TYPE_LPDDR4.
-        //       This logic should be replaced once firmware/driver provides a dedicated board type
-        //       or identification field for H1M.
+        // NOTE: H1 and H1M share the same bd_type (BOARD_TYPE_H1). The image follows the LPDDR
+        //       type; the chip family itself is IsM1MChip() (see CheckH1Devices).
         if ( ((fw.GetDdrType() == M1_DDR_TYPE_LPDDR5) || (fw.GetDdrType() == M1_DDR_TYPE_LPDDR5X))
             && ((deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR5) || (deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR5X)) )
         {
@@ -371,7 +371,7 @@ void FWUpdateCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
         _showDonotTunrOff = true;
     }
 
-    // Perform firmware update
+    // Perform firmware update: returns once the FW acks the written flash
     int ret = UpdateFw(devicePtr, _fwUpdateFile, _fwUpdateSubCmd);
 
     // Display update result
@@ -379,6 +379,15 @@ void FWUpdateCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
               << "] by " << _fwUpdateFile << ", SubCmd:" << getSubCmdString();
     if (ret == 0) {
         cout << " : SUCCESS" << endl;
+        // the FW resets itself 0.5 s after the ack unless told not to
+        if (!(_fwUpdateSubCmd & FWUPDATE_DEV_UNRESET))
+        {
+            FwRebootTarget target;
+            target.device = devicePtr;
+            target.fwVer = fw.GetFwBinVersion();
+            target.ackTime = std::chrono::steady_clock::now();
+            _rebootTargets.push_back(target);
+        }
     } else {
         _updateFailed = true;
         cout << " : FAIL (" << ret << ")" << endl;
@@ -389,17 +398,27 @@ void FWUpdateCommand::doCommand(std::shared_ptr<DeviceCore> devicePtr)
     _updateDeviceCount++;
 }
 
+static constexpr int FW_UPDATE_FIXED_WAIT_S = 4;
+
 void FWUpdateCommand::finish()
 {
     if (_updateDeviceCount == 0)
     {
         std::cout << LogMessages::CLI_NoUpdateDeviceFound() << std::endl;
+        return;
     }
-    else if (poolForTest == nullptr)
+    // unit tests (poolForTest) have no FW that resets
+    if (_rebootTargets.empty() || poolForTest != nullptr)
+        return;
+
+    if (!FwRebootWaitSupported(_rebootTargets))
     {
-        // sleep for a while to wait for device reset after firmware update
-        std::this_thread::sleep_for(std::chrono::seconds(4));
+        std::this_thread::sleep_for(std::chrono::seconds(FW_UPDATE_FIXED_WAIT_S));
+        return;
     }
+    WaitFwUpdateReboot(_rebootTargets);
+    if (!ReportFwUpdateReboot(_rebootTargets, std::cout))
+        _updateFailed = true;
 }
 
 FWUploadCommand::FWUploadCommand(cxxopts::ParseResult &cmd)
@@ -606,18 +625,16 @@ bool CheckH1Devices()
 
     int h1_count = 0;
     int h1m_count = 0;
-    int unexpected_lpddr4_count = 0;
+    int unexpected_m1m_count = 0;
 
-    // NOTE: H1 and H1M share the same bd_type (BOARD_TYPE_H1), so they cannot be distinguished
-    //       by board type alone. Currently H1M is identified solely by ddr_type == M1_DDR_TYPE_LPDDR4.
-    //       This logic should be replaced once firmware/driver provides a dedicated board type
-    //       or identification field for H1M.
+    // NOTE: H1 and H1M share the same bd_type (BOARD_TYPE_H1). The chip family tells them
+    //       apart: IsM1MChip() reads the FW chip_pkg, or falls back to LPDDR4 on older FW.
     for (int i = 0; i < device_total_count; i++)
     {
         auto devicePtr = pool->GetDeviceCores(i);
         auto deviceInfo = devicePtr->info();
 
-        if (deviceInfo.bd_type == BOARD_TYPE_H1 && deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR4)
+        if (deviceInfo.bd_type == BOARD_TYPE_H1 && IsM1MChip(deviceInfo))
         {
             // count of devices recognized as H1M
             h1m_count++;
@@ -627,20 +644,19 @@ bool CheckH1Devices()
             // count of devices recognized as H1
             h1_count++;
         }
-        else if (deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR4
+        else if (IsM1MChip(deviceInfo)
                  && deviceInfo.bd_type != BOARD_TYPE_M_dot_2)
         {
-            // Defensive: BOARD_TYPE_M_dot_2 with LPDDR4 is the valid M1M case (handled by
-            // CheckM1Devices). Any other bd_type carrying LPDDR4 means the assumption
-            // "LPDDR4 within BOARD_TYPE_H1 ⇒ H1M" is no longer sufficient on this platform.
-            unexpected_lpddr4_count++;
+            // Defensive: an M1M chip on BOARD_TYPE_M_dot_2 is the M1M M.2 case (handled by
+            // CheckM1Devices). Any other bd_type means H1M identification needs updating.
+            unexpected_m1m_count++;
         }
     }
 
-    if (unexpected_lpddr4_count > 0)
+    if (unexpected_m1m_count > 0)
     {
-        LOG_DXRT_ERR("Found " << unexpected_lpddr4_count
-                     << " LPDDR4 device(s) with bd_type other than BOARD_TYPE_H1/BOARD_TYPE_M_dot_2. "
+        LOG_DXRT_ERR("Found " << unexpected_m1m_count
+                     << " M1M device(s) with bd_type other than BOARD_TYPE_H1/BOARD_TYPE_M_dot_2. "
                      << "H1M identification in CheckH1Devices may need updating.");
     }
 
@@ -723,20 +739,23 @@ bool CheckM1Devices(int deviceType)
         auto deviceInfo = devicePtr->info();
 
         // M1 M.2 board type (2)
-        // lpddr type (1 = lpddr4, 2= lpddr5, 3= lpddr5x)
         // board type (1 = SOM, 2 = M.2, 3 = H1)
+        // M1 vs M1M is the chip family, not the LPDDR type: a DX-M1 M.2 board may carry
+        // LPDDR4X (IsM1MChip falls back to "LPDDR4 = M1M" on FW without chip_pkg).
         if ( deviceType == CHECK_M1_DEVICE
              && deviceInfo.bd_type == BOARD_TYPE_M_dot_2
-             && (deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR5 || deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR5X) )
+             && !IsM1MChip(deviceInfo)
+             && (deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR4 || deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR5
+                 || deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR5X) )
         {
             // count of devices recognized as M1
             m1_count ++;
         }
         else if ( deviceType == CHECK_M1M_DEVICE
              && deviceInfo.bd_type == BOARD_TYPE_M_dot_2
-             && deviceInfo.ddr_type == M1_DDR_TYPE_LPDDR4 )
+             && IsM1MChip(deviceInfo) )
         {
-            // count of devices recognized as M1 or M1M
+            // count of devices recognized as M1M
             m1_count ++;
         }
     }

@@ -58,7 +58,7 @@ public:
 
     std::string _processedPU;
     int _processedDevId = -1;
-    int _processedId;
+    int _processedId = -1;
 
     void BuildEncodedInputPtrs(const std::vector<uint64_t>& offsets) {
         encoded_input_ptrs.clear();

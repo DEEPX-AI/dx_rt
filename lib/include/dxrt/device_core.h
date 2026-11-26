@@ -39,6 +39,12 @@ class DXRT_API DeviceCore {
     int id() const { return _id; }
 
     int Process(dxrt_cmd_t cmd, void *data, uint32_t size = 0, uint32_t sub_cmd = 0, uint64_t address = 0);
+
+    /* Pin and DMA-map a host buffer on this device's fd once so later transfers skip
+     * per-transfer pin/map/unmap. Registration is owned by the fd. Returns 0 on success;
+     * non-zero (including on non-Linux / vNPU builds) means the legacy path stays in effect. */
+    int RegisterDmaBuffer(void *ptr, uint64_t size, bool input);
+    int UnregisterDmaBuffer(void *ptr, uint64_t size, bool input);
     int Poll();
     int Write(const dxrt_meminfo_t &, int ch);
     int Write(const dxrt_meminfo_t &);

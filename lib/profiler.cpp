@@ -448,20 +448,6 @@ namespace dxrt
                 }
             }
         }
-
-        if (_jobTimingCount > 0)
-        {
-            const double count = static_cast<double>(_jobTimingCount);
-            const std::ios_base::fmtflags oldFlags = cout.flags();
-            const std::streamsize oldPrecision = cout.precision();
-            cout << std::fixed << std::setprecision(2);
-            cout << "E2E Response Time Average   : " << (_jobE2EResponseTimeSumUs / count)
-                 << " us (End-to-end time per request including data transfer and overheads)" << endl;
-            cout << "Latency Average             : " << (_jobLatencySumUs / count)
-                 << " us (Core latency per request excluding buffer pool and queue wait times)" << endl;
-            cout.flags(oldFlags);
-            cout.precision(oldPrecision);
-        }
     }
 
     void Profiler::AddJobTiming(int e2eResponseTimeUs, int latencyUs)

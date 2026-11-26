@@ -14,6 +14,7 @@ option(USE_VALIDATION_TEST "Build validation_test only (without full DXRT test s
 option(USE_ORT "Use ONNX Runtime" ON)
 option(USE_PYTHON "Use Python" ON)
 option(USE_SERVICE "Use DXRT Service" ON)
+option(USE_SYSTEM_LEVEL_TESTING "Enable system-level testing APIs (per-job NPU core tracking; adds per-job overhead)" OFF)
 
 # Acceleration options: build with acceleration support.
 option(USE_NPU_FORMAT_CONVERSION_ACCELERATION "Accelerate NPU data format conversion (transpose/padding)" OFF)

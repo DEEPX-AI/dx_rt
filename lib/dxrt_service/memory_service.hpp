@@ -39,6 +39,8 @@ class MemoryService
     bool DeallocateTask(pid_t pid, int taskId);
     void DeallocateAllTasks(pid_t pid);
     bool DeallocateAllForProcess(pid_t pid);
+    // Task ids that pid holds task-based memory for on this device.
+    std::vector<int> GetTaskIds(pid_t pid) const;
 
 
     bool IsTaskValid(pid_t pid, int taskId) const;

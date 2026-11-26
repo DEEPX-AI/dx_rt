@@ -2883,4 +2883,25 @@ void InferenceEngine::onInferenceComplete(TensorPtrs &outputs, void *userArg, in
     }
 }
 
+#ifdef USE_SYSTEM_LEVEL_TESTING
+void InferenceEngine::SetJobDevice(int jobId, int npuCoreId)
+{
+    std::lock_guard<std::mutex> lock(_jobDeviceMapMutex);
+    _jobDeviceMap[jobId] = npuCoreId;
+}
+
+int InferenceEngine::GetJobDevice(int jobId)
+{
+    std::lock_guard<std::mutex> lock(_jobDeviceMapMutex);
+    auto it = _jobDeviceMap.find(jobId);
+    if (it != _jobDeviceMap.end())
+    {
+        int npuCoreId = it->second;
+        _jobDeviceMap.erase(it);
+        return npuCoreId;
+    }
+    return -1;
+}
+#endif  // USE_SYSTEM_LEVEL_TESTING
+
 }  // namespace dxrt

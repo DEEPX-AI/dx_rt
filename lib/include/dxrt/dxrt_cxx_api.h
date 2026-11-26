@@ -67,6 +67,7 @@
 #include <cerrno>
 #include <cstdio>
 #ifdef _WIN32
+#include <io.h>
 #include <malloc.h>
 #endif
 #ifdef __linux__
@@ -75,6 +76,13 @@
 #endif
 #include <utility>
 #include <vector>
+
+/* wingdi.h defines ERROR as 0, which breaks RuntimeEventDispatcher::LEVEL::ERROR
+ * when <windows.h> is included first. Not restored, matching the pre-3.4 SDK,
+ * so callers can still write LEVEL::ERROR after including this header. */
+#if defined(_WIN32) && defined(ERROR)
+#undef ERROR // NOSONAR
+#endif
 
 /* ── Utility macros (migrated from dxrt/common.h) ─────────────── */
 
@@ -526,6 +534,16 @@ public:
         trackAsyncOutput(job_id, output);
         return job_id;
     }
+
+#ifdef USE_SYSTEM_LEVEL_TESTING
+    /** Retrieve and remove the recorded NPU core ID, or -1 if absent. */
+    int GetJobDevice(int jobId)
+    {
+        int device = -1;
+        detail::check(dxrt_engine_get_job_device(h_, jobId, &device));
+        return device;
+    }
+#endif  // USE_SYSTEM_LEVEL_TESTING
 
     TensorPtrs Wait(int jobId) const
     {
@@ -1384,6 +1402,10 @@ private:
 class Configuration
 {
 public:
+/* Guard against a host-defined DEBUG macro; restored after the enum so
+ * host code that tests DEBUG keeps working. */
+#pragma push_macro("DEBUG")
+#undef DEBUG
     enum class ITEM
     {
         DEBUG = 1,
@@ -1404,6 +1426,7 @@ public:
         CPU_OP_ACCELERATION,
 #endif
     };
+#pragma pop_macro("DEBUG")
 
     enum class ATTRIBUTE
     {
@@ -1821,7 +1844,7 @@ public:
 
     std::ostream& StatusToStream(std::ostream& os) const
     {
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < static_cast<int>(DmaChannel()); i++) {
             std::string s = NpuStatusStr(i);
             if (!s.empty()) os << s << "\n";
         }
@@ -1831,7 +1854,7 @@ public:
 
     std::ostream& DebugStatusToStream(std::ostream& os) const
     {
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < static_cast<int>(DmaChannel()); i++) {
             std::string s = DdrStatusStr(i);
             if (!s.empty()) os << s << "\n";
         }
@@ -2282,7 +2305,7 @@ inline unsigned int RandomValue()
 
 inline std::vector<int> RandomSequence(int n)
 {
-    std::vector<int> values(static_cast<size_t>(std::max(0, n)));
+    std::vector<int> values(static_cast<size_t>((std::max)(0, n)));
     for (int i = 0; i < n; ++i)
     {
         values[static_cast<size_t>(i)] = i;
@@ -2433,23 +2456,21 @@ inline std::vector<std::string> GetFileList(const std::string& dir)
     }
     closedir(handle);
 #elif defined(_WIN32)
-#if !defined(INVALID_HANDLE_VALUE)
-    return files;
-#else
-    WIN32_FIND_DATA find_data;
-    HANDLE find_handle = FindFirstFile((dir + "\\*").c_str(), &find_data);
-    if (find_handle != INVALID_HANDLE_VALUE)
+    /* CRT <io.h> instead of the Win32 API: works whether or not the host
+     * includes <windows.h>, and is always narrow regardless of UNICODE. */
+    struct _finddata_t find_data;
+    const intptr_t find_handle = _findfirst((dir + "\\*").c_str(), &find_data);
+    if (find_handle != -1)
     {
         do
         {
-            if (std::strcmp(find_data.cFileName, ".") != 0 && std::strcmp(find_data.cFileName, "..") != 0)
+            if (std::strcmp(find_data.name, ".") != 0 && std::strcmp(find_data.name, "..") != 0)
             {
-                files.emplace_back(find_data.cFileName);
+                files.emplace_back(find_data.name);
             }
-        } while (FindNextFile(find_handle, &find_data) != 0);
-        FindClose(find_handle);
+        } while (_findnext(find_handle, &find_data) == 0);
+        _findclose(find_handle);
     }
-#endif
 #endif
     return files;
 }
@@ -2494,20 +2515,28 @@ inline void* MemAlloc(size_t size, size_t align = 8, int value = 0)
         return nullptr;
     }
 #elif defined(_WIN32)
-#if defined(INVALID_HANDLE_VALUE)
+    /* Always _aligned_malloc, paired with _aligned_free in MemFree. Do not
+     * branch on <windows.h> macros: every translation unit must compile the
+     * same inline definition, or MemAlloc/MemFree can mismatch at link time. */
+    if (align == 0)
+    {
+        align = 8;
+    }
+    if (align < sizeof(void*))
+    {
+        align = sizeof(void*);
+    }
+    /* _aligned_malloc reports a bad alignment through the invalid-parameter
+     * handler, which ends the process by default. */
+    if ((align & (align - 1)) != 0)
+    {
+        return nullptr;
+    }
     mem = _aligned_malloc(size, align);
     if (mem == nullptr)
     {
         return nullptr;
     }
-#else
-    (void)align;
-    mem = std::malloc(size);
-    if (mem == nullptr)
-    {
-        return nullptr;
-    }
-#endif
 #else
     mem = std::malloc(size);
     if (mem == nullptr)
@@ -2528,11 +2557,7 @@ inline void MemFree(void** p)
 #ifdef __linux__
     std::free(*p);
 #elif defined(_WIN32)
-#if defined(INVALID_HANDLE_VALUE)
     _aligned_free(*p);
-#else
-    std::free(*p);
-#endif
 #else
     std::free(*p);
 #endif
