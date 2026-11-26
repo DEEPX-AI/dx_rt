@@ -245,8 +245,8 @@ void PrintInfResult(const std::string& inputFile, const std::string& outputFile,
     if (dxrt::Configuration::GetInstance().GetEnable(dxrt::Configuration::ITEM::SHOW_PROFILE))
         verbose = true;
 
-    const std::string desc_npu_time = "Actual NPU core computation time for a single request";
-    const std::string desc_e2e = "End-to-end time per request including data transfer and overheads";
+    const std::string desc_npu_latency = "NPU Processing Time";
+    const std::string desc_host_latency = "CPU Processing Time";
     const std::string desc_core_latency = "Core latency per request excluding buffer pool and queue wait times";
     const std::string desc_queue_wait = "Time spent waiting in NPU/CPU task queues; included in E2E Response Time";
     const std::string desc_fps = "Overall user-observed inference throughput (inputs/second), reflecting perceived speed";
@@ -275,8 +275,12 @@ void PrintInfResult(const std::string& inputFile, const std::string& outputFile,
         return line;
     };
 
+    (void)e2eMs;
+    // Host latency: portion of the core latency not spent on the NPU (pre/post-processing, CPU tasks, etc.)
+    const float hostLatencyMs = (std::max)(0.0f, coreLatencyMs - infTimeMs);
+
     std::string infTimeStr = float_to_string_fixed(infTimeMs, 3);
-    std::string e2eStr = float_to_string_fixed(e2eMs, 3);
+    std::string hostLatencyStr = float_to_string_fixed(hostLatencyMs, 3);
     std::string latencyStr = float_to_string_fixed(coreLatencyMs, 3);
     std::string queueWaitStr = float_to_string_fixed(queueWaitMs, 3);
     std::string fpsStr     = float_to_string_fixed(fps_val, 2);
@@ -286,27 +290,16 @@ void PrintInfResult(const std::string& inputFile, const std::string& outputFile,
         lines.push_back("* Output Saved As : " + outputFile);
     }
 
-    if (current_mode == SINGLE_MODE)
     {
-        lines.push_back("* Benchmark Result (single input)");
+        const std::string header = (current_mode == SINGLE_MODE)
+            ? "* Benchmark Result (single mode, " + std::to_string(loops) + " inputs)"
+            : "* Benchmark Result (" + std::to_string(loops) + " inputs)";
+        lines.push_back(header);
         if (verbose) {
-            lines.push_back(build_formatted_line("  - NPU Processing Time  : ", infTimeStr, "ms", desc_npu_time));
-            lines.push_back(build_formatted_line("  - Queue Wait Time      : ", queueWaitStr, "ms", desc_queue_wait));
-            lines.push_back(build_formatted_line("  - E2E Response Time    : ", e2eStr, "ms", desc_e2e));
-            lines.push_back(build_formatted_line("  - Latency              : ", latencyStr, "ms", desc_core_latency));
-            lines.push_back(build_formatted_line("  - FPS                  : ", fpsStr, "", desc_fps));
-        }
-        else
-        {
-            lines.push_back(build_formatted_line("  - FPS : ", fpsStr, "", desc_fps));
-        }
-    } else {
-        lines.push_back("* Benchmark Result (" + std::to_string(loops) + " inputs)");
-        if (verbose) {
-            lines.push_back(build_formatted_line("  - NPU Processing Time Average : ", infTimeStr, "ms", desc_npu_time));
             lines.push_back(build_formatted_line("  - Queue Wait Time Average     : ", queueWaitStr, "ms", desc_queue_wait));
-            lines.push_back(build_formatted_line("  - E2E Response Time Average   : ", e2eStr, "ms", desc_e2e));
             lines.push_back(build_formatted_line("  - Latency Average             : ", latencyStr, "ms", desc_core_latency));
+            lines.push_back(build_formatted_line("    - NPU Latency Average       : ", infTimeStr, "ms", desc_npu_latency));
+            lines.push_back(build_formatted_line("    - Host Latency Average      : ", hostLatencyStr, "ms", desc_host_latency));
             lines.push_back(build_formatted_line("  - FPS                         : ", fpsStr, "", desc_fps));
         }
         else
@@ -460,6 +453,75 @@ static MultiInputBuffers prepareMultiInputBuffers(dxrt::InferenceEngine& ie, voi
         result.ptrs.push_back(result.buffers[idx].data());
     }
     return result;
+}
+
+// Single mode: sequential synchronous Run() calls, one request in flight at a time.
+// Runs for --loops iterations, or for --time seconds when duration > 0, then prints
+// the per-request averages (measured here, so warmup runs are excluded).
+static float runSingleBenchmark(int64_t& outLoops, dxrt::InferenceEngine& ie, void* inputBuffer,
+                                int64_t durationSec, const ReportConfig& reportCfg,
+                                const std::string& dumpFile, bool verbose,
+                                const std::string& inputFile, const std::string& modelFile)
+{
+    const bool by_time = durationSec > 0;
+    const int64_t target_loops = outLoops;
+    const auto target_duration = std::chrono::seconds(durationSec);
+
+    auto mi = prepareMultiInputBuffers(ie, inputBuffer);
+    std::atomic<int64_t> done(0);
+
+    double sum_e2e_us = 0, sum_core_us = 0, sum_npu_us = 0, sum_queue_us = 0;
+    dxrt::TensorPtrs outputs;
+
+    auto start = std::chrono::steady_clock::now();
+    PeriodicReporter reporter(ie, reportCfg,
+        [&done]() -> int64_t { return done.load(); },
+        start, SINGLE_MODE);
+
+    for (;;)
+    {
+        if (mi.is_multi_input)
+            outputs = ie.RunMultiInput(mi.ptrs);
+        else
+            outputs = ie.Run(inputBuffer);
+
+        sum_e2e_us   += ie.GetE2EResponseTime();
+        sum_core_us  += ie.GetCoreLatency();
+        sum_npu_us   += ie.GetNpuInferenceTime();
+        sum_queue_us += static_cast<double>(ie.GetQueueWaitTime());
+        int64_t n = ++done;
+
+        if (by_time ? (std::chrono::steady_clock::now() - start >= target_duration)
+                    : (n >= target_loops))
+            break;
+    }
+
+    auto end = std::chrono::steady_clock::now();
+    reporter.stopAndJoin();
+
+    const int64_t count = done.load();
+    const uint64_t infTime = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    const float fps = (infTime > 0) ? static_cast<float>(1000000.0 * count / infTime) : 0.0f;
+    outLoops = count;
+
+    if (by_time)
+        std::cout << "Inference by time: total-inference-time=" << infTime / 1000000.0 << "(s)"
+                  << " total-loops=" << count << std::endl;
+
+    if (!dumpFile.empty())
+        localDataDumpBin(dumpFile, outputs);
+
+    if (count > 0)
+    {
+        const double n = static_cast<double>(count);
+        PrintInfResult(inputFile, dumpFile, modelFile,
+                       static_cast<float>(sum_e2e_us / n / 1000.0),
+                       static_cast<float>(sum_core_us / n / 1000.0),
+                       static_cast<float>(sum_npu_us / n / 1000.0),
+                       static_cast<float>(sum_queue_us / n / 1000.0),
+                       fps, count, SINGLE_MODE, verbose);
+    }
+    return fps;
 }
 
 static float runBenchmarkByTime(int64_t& outLoops, dxrt::InferenceEngine& ie, void* inputBuffer,
@@ -1100,14 +1162,14 @@ int main(int argc, char *argv[])
         //("i, input", "Input data file", cxxopts::value<string>(inputFile))
         //("o, output", "Output data file", cxxopts::value<string>(outputFile)->default_value("output.bin"))
         ("b, benchmark", "Perform a benchmark test at a fixed --buffer-count (default mode if --single, --fps > 0, or --max-throughput is not specified)", cxxopts::value<bool>(benchmark)->default_value("false"))
-        ("s, single", "Perform a single run test (sequential single-input inference on a single core)", cxxopts::value<bool>(single)->default_value("false"))
+        ("s, single", "Perform a single run test (sequential synchronous inference, one request at a time); honors --loops/--time and reports averages", cxxopts::value<bool>(single)->default_value("false"))
         ("v, verbose", "Shows NPU Processing Time, Queue Wait Time, E2E Response Time, and Latency", cxxopts::value<bool>(verbose)->default_value("false"))
         ("n, npu",
             "NPU bounding\n"
             "  0: NPU_ALL\n  1: NPU_0\n  2: NPU_1\n  3: NPU_2\n"
             "  4: NPU_0/1\n  5: NPU_1/2\n  6: NPU_0/2", cxxopts::value<int>(bounding)->default_value("0") )
         ("l, loops", "Number of inference loops to perform", cxxopts::value<int64_t>(loops)->default_value("30") )
-        ("t, time", "Duration of inference in seconds (benchmark and target-fps mode, overrides --loops)", cxxopts::value<int64_t>(duration)->default_value("0") )
+        ("t, time", "Duration of inference in seconds (benchmark, single and target-fps mode, overrides --loops)", cxxopts::value<int64_t>(duration)->default_value("0") )
         ("w, warmup-runs", "Number of warmup runs before actual measurement", cxxopts::value<int64_t>(warmup_runs)->default_value("0") )
         ("d, devices",
             "Specify target NPU devices.\nExamples:\n"
@@ -1571,7 +1633,7 @@ int main(int argc, char *argv[])
                       << " tolerance=" << mt_option.tolerance_pct << "%"
                       << " cool-down-temp=" << mt_option.cool_down_temp << "'C" << std::endl;
         }
-        else if ( duration > 0 && mode != SINGLE_MODE)
+        else if ( duration > 0 )
         {
             std::cout << "Inference by time: duration=" << duration << "(s)" << std::endl;
         }
@@ -1627,33 +1689,10 @@ int main(int argc, char *argv[])
         switch (mode)
         {
             case SINGLE_MODE: {
-                uint64_t infTime = 0;
-                float fps = 0.0;
-                auto single_mi = prepareMultiInputBuffers(ie, inputBuf.data());
-                for (int i = 0; i < loops; i++)
-                {
-                    auto start_clock = std::chrono::steady_clock::now();
-                    dxrt::TensorPtrs outputs;
-                    if (single_mi.is_multi_input)
-                    {
-                        outputs = ie.RunMultiInput(single_mi.ptrs);
-                    }
-                    else
-                    {
-                        outputs = ie.Run(inputBuf.data());
-                    }
-                    auto end_clock = std::chrono::steady_clock::now();
-                    infTime = std::chrono::duration_cast<std::chrono::microseconds>(end_clock - start_clock).count();
-                    fps = static_cast<float>(1000000.0 / infTime);
-                    if (!inputFile.empty())
-                        localDataDumpBin(outputFile, outputs);
-                    PrintInfResult(inputFile, outputFile, modelFile,
-                                   static_cast<float>(ie.GetE2EResponseTime()/1000.0),
-                                   static_cast<float>(ie.GetCoreLatency()/1000.0),
-                                   static_cast<float>(ie.GetNpuInferenceTime()/1000.0),
-                                   static_cast<float>(ie.GetQueueWaitTime()/1000.0),
-                                   fps, 1, mode, verbose);
-                }
+                float fps = runSingleBenchmark(loops, ie, inputBuf.data(), duration, report_cfg,
+                                               inputFile.empty() ? std::string() : outputFile,
+                                               verbose, inputFile, modelFile);
+                if (!ensureInferenceRan(fps, loops)) return -1;
                 break;
             }
             case TARGET_FPS_MODE: {

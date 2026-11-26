@@ -257,9 +257,24 @@ typedef struct device_info {
     uint16_t interface_value = 0;
 #endif
     char     fw_ver_suffix[16];
-    uint8_t  reserved[48];
+    uint32_t hw_id_magic = 0;           // DXRT_HW_ID_MAGIC when chip_pkg and bd_strap are valid
+    uint16_t chip_pkg = 0;              // DXRT_CHIP_PKG_* (older FW leaves stale bytes here)
+    uint16_t bd_strap = 0;              // board type / slot position strap, GPIO00_12:09
+    uint8_t  reserved[40];
     uint16_t chip_offset = 0;
 } dxrt_device_info_t;
+
+constexpr uint32_t DXRT_HW_ID_MAGIC = 0x44495748; /* "HWID" */
+constexpr uint16_t DXRT_CHIP_PKG_M1 = 1;          /* DX-M1, LPDDR5/5X or LPDDR4X */
+constexpr uint16_t DXRT_CHIP_PKG_M1M = 2;         /* DX-M1M family */
+
+/* M1M family chip (M1M M.2, H1M). FW without the hw_id fields: LPDDR4 always meant M1M. */
+inline bool IsM1MChip(const dxrt_device_info_t& info)
+{
+    if (info.hw_id_magic == DXRT_HW_ID_MAGIC)
+        return info.chip_pkg == DXRT_CHIP_PKG_M1M;
+    return info.ddr_type == 1;  // LPDDR4
+}
 
 typedef struct _dxrt_meminfo_t {
     uint64_t data = 0;
@@ -376,8 +391,30 @@ typedef enum {
     DXRT_CMD_PCIE               , /* Sub-command */
     DXRT_CMD_NPU_RUN_RESP_V2    ,
     DXRT_CMD_EVENT_V2           ,
+    DXRT_CMD_REGISTER_BUFFER    ,
+    DXRT_CMD_UNREGISTER_BUFFER  ,
     DXRT_CMD_MAX                ,
 } dxrt_cmd_t;
+
+/* CMD : DXRT_CMD_REGISTER_BUFFER / DXRT_CMD_UNREGISTER_BUFFER
+ * Pins and DMA-maps a user buffer once so that every later inference skips
+ * pin/map/unmap. Registration is owned by the fd it was made on and is dropped
+ * automatically when that fd is closed. Must stay byte-identical to the kernel
+ * definition in modules/include/dxrt_drv.h. */
+#pragma pack(push, 1)
+typedef struct {
+    uint64_t addr;
+    uint64_t size;
+    uint32_t dir;
+    uint32_t reserved;
+} dxrt_buffer_reg_t;
+#pragma pack(pop)
+static_assert(sizeof(dxrt_buffer_reg_t) == 24, "dxrt_buffer_reg_t must match the kernel ABI");
+
+typedef enum {
+    DXRT_BUF_DIR_H2C = 0,   /* input: host -> device */
+    DXRT_BUF_DIR_C2H = 1,   /* output: device -> host */
+} dxrt_buf_dir_t;
 
 /* CMD : DXRT_CMD_IDENTIFY_DEVICE*/
 typedef enum {
@@ -409,8 +446,33 @@ typedef enum {
     DX_INTERNAL_TESTCASE    = 200,
     DX_GET_FCT_TESTCASE_RESULT   = 201,
     DX_RUN_FCT_TESTCASE     = 202,
+    DX_INTERNAL_FCT_OTP     = 203,
     DX_INTERNAL_GET_SOC_ID  = 300,
+    DX_GET_ALL_SENSORS = 400,
 } dxrt_custom_sub_cmt_t;
+
+// 4-word payload of DX_INTERNAL_FCT_OTP; keep in sync with the firmware.
+constexpr uint32_t DX_FCT_OTP_REQ_MAGIC = 0x524D314D;
+constexpr uint32_t DX_FCT_OTP_RESP_MAGIC = 0x524D3141;
+constexpr uint32_t DX_FCT_OTP_PAYLOAD_SIZE = 4 * sizeof(uint32_t);
+
+enum dxrt_fct_otp_mode_t : uint32_t {
+    DX_FCT_OTP_CHECK = 0,
+    DX_FCT_OTP_APPLY = 1,
+};
+
+enum dxrt_fct_otp_result_t : int32_t {
+    DX_FCT_OTP_DONE = 0,
+    DX_FCT_OTP_ALREADY_SET = 1,
+    DX_FCT_OTP_CHECK_OK = 2,
+    DX_FCT_OTP_BAD_ARG = -1,
+    DX_FCT_OTP_UNSUPPORTED = -2,
+    DX_FCT_OTP_NOT_ALLOWED = -3,
+    DX_FCT_OTP_MISMATCH = -4,
+    DX_FCT_OTP_NOT_APPLICABLE = -5,
+    DX_FCT_OTP_WRITE_FAIL = -6,
+    DX_FCT_OTP_VERIFY_FAIL = -7,
+};
 
 typedef enum device_type
 {

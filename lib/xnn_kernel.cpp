@@ -1,5 +1,6 @@
 // XNNPACK Transpose & Quantize Kernels
-// Supports: ARM NEON, x86 SSE4.1, scalar fallback
+// Transpose: ARM NEON, x86-64 SSE2 (Windows x64), scalar fallback
+// Quantize:  ARM NEON, x86 SSE4.1, scalar fallback
 //
 // Based on XNNPACK (https://github.com/google/XNNPACK)
 // License: BSD 3-Clause
@@ -569,7 +570,165 @@ void xnnpack_transpose(
 template void xnnpack_transpose<uint8_t>(const uint8_t*, uint8_t*, size_t, size_t);
 template void xnnpack_transpose<float>(const float*, float*, size_t, size_t);
 
-#else // !USE_NEON
+#elif defined(USE_SSE2)
+// ============================================================================
+// x86-64 SSE2 Transpose Kernels (Windows x64 / MSVC)
+// ============================================================================
+//
+// SSE2 is part of the x64 baseline, so these kernels need no compiler flag and
+// no runtime CPU check. Only whole tiles are loaded with 16-byte vector loads;
+// the remaining rows and columns are copied one element at a time, so no load
+// reads past the end of a row or of the buffer.
+#include <emmintrin.h>
+#include <utility>
+
+namespace {
+
+constexpr size_t SSE2_TILE_X8  = 16;   // 16 x 16 bytes per tile
+constexpr size_t SSE2_TILE_X32 = 4;    // 4 x 4 32-bit words per tile
+
+// Cache blocks, same sizes as the NEON macro kernel: the source and destination
+// blocks together fit in a 32 KB L1D cache.
+constexpr size_t SSE2_BLOCK_X8  = 128;  // multiple of SSE2_TILE_X8
+constexpr size_t SSE2_BLOCK_X32 = 64;   // multiple of SSE2_TILE_X32
+
+inline __m128i load_row(const uint8_t* p)
+{
+    return _mm_loadu_si128(reinterpret_cast<const __m128i*>(p));
+}
+
+inline void store_row(uint8_t* p, __m128i v)
+{
+    _mm_storeu_si128(reinterpret_cast<__m128i*>(p), v);
+}
+
+// 4 x 4 tile of 32-bit words: interleave neighbouring rows, then join the halves.
+void transpose_tile_x32(const uint8_t* in, size_t in_stride, uint8_t* out, size_t out_stride)
+{
+    const __m128i r0 = load_row(in);                  // a0 a1 a2 a3
+    const __m128i r1 = load_row(in + in_stride);      // b0 b1 b2 b3
+    const __m128i r2 = load_row(in + 2 * in_stride);  // c0 c1 c2 c3
+    const __m128i r3 = load_row(in + 3 * in_stride);  // d0 d1 d2 d3
+
+    const __m128i top_lo    = _mm_unpacklo_epi32(r0, r1);  // a0 b0 a1 b1
+    const __m128i top_hi    = _mm_unpackhi_epi32(r0, r1);  // a2 b2 a3 b3
+    const __m128i bottom_lo = _mm_unpacklo_epi32(r2, r3);  // c0 d0 c1 d1
+    const __m128i bottom_hi = _mm_unpackhi_epi32(r2, r3);  // c2 d2 c3 d3
+
+    store_row(out,                  _mm_unpacklo_epi64(top_lo, bottom_lo));  // a0 b0 c0 d0
+    store_row(out + out_stride,     _mm_unpackhi_epi64(top_lo, bottom_lo));  // a1 b1 c1 d1
+    store_row(out + 2 * out_stride, _mm_unpacklo_epi64(top_hi, bottom_hi));  // a2 b2 c2 d2
+    store_row(out + 3 * out_stride, _mm_unpackhi_epi64(top_hi, bottom_hi));  // a3 b3 c3 d3
+}
+
+// 16 x 16 tile of bytes: four rounds of byte interleaving, the same network as
+// the NEON vzipq_u8 kernel. Each round pairs vector k with vector k + 8, which
+// rotates the 8-bit (row, column) index left by one bit; after four rounds the
+// row and column indices have swapped.
+void transpose_tile_x8(const uint8_t* in, size_t in_stride, uint8_t* out, size_t out_stride)
+{
+    __m128i a[16];
+    __m128i b[16];
+    for (size_t r = 0; r < 16; ++r)
+    {
+        a[r] = load_row(in + r * in_stride);
+    }
+
+    __m128i* src = a;
+    __m128i* dst = b;
+    for (int round = 0; round < 4; ++round)
+    {
+        for (size_t k = 0; k < 8; ++k)
+        {
+            dst[2 * k]     = _mm_unpacklo_epi8(src[k], src[k + 8]);
+            dst[2 * k + 1] = _mm_unpackhi_epi8(src[k], src[k + 8]);
+        }
+        std::swap(src, dst);
+    }
+
+    for (size_t c = 0; c < 16; ++c)
+    {
+        store_row(out + c * out_stride, src[c]);
+    }
+}
+
+// Tiled transpose of a rows x cols matrix of T. Whole tiles go to the SIMD tile
+// kernel, block by block; the right and bottom edges are copied element by element.
+template<typename T, size_t TILE, size_t BLOCK>
+void sse2_transpose(const T* input, T* output, size_t rows, size_t cols,
+                    void (*tile_kernel)(const uint8_t*, size_t, uint8_t*, size_t))
+{
+    const size_t in_stride = cols * sizeof(T);
+    const size_t out_stride = rows * sizeof(T);
+    const size_t full_rows = rows / TILE * TILE;
+    const size_t full_cols = cols / TILE * TILE;
+    const auto* in = reinterpret_cast<const uint8_t*>(input);
+    auto* out = reinterpret_cast<uint8_t*>(output);
+
+    for (size_t r0 = 0; r0 < full_rows; r0 += BLOCK)
+    {
+        const size_t r_end = (std::min)(r0 + BLOCK, full_rows);  // (): <windows.h> min macro
+        for (size_t c0 = 0; c0 < full_cols; c0 += BLOCK)
+        {
+            const size_t c_end = (std::min)(c0 + BLOCK, full_cols);
+            for (size_t r = r0; r < r_end; r += TILE)
+            {
+                for (size_t c = c0; c < c_end; c += TILE)
+                {
+                    tile_kernel(in + r * in_stride + c * sizeof(T), in_stride,
+                                out + c * out_stride + r * sizeof(T), out_stride);
+                }
+            }
+        }
+    }
+
+    // Right edge: columns past the last whole tile, for the rows covered by tiles.
+    for (size_t r = 0; r < full_rows; ++r)
+    {
+        for (size_t c = full_cols; c < cols; ++c)
+        {
+            output[c * rows + r] = input[r * cols + c];
+        }
+    }
+    // Bottom edge: rows past the last whole tile, for every column.
+    for (size_t r = full_rows; r < rows; ++r)
+    {
+        for (size_t c = 0; c < cols; ++c)
+        {
+            output[c * rows + r] = input[r * cols + c];
+        }
+    }
+}
+
+void sse2_transpose_dispatch(const uint8_t* input, uint8_t* output, size_t rows, size_t cols)
+{
+    sse2_transpose<uint8_t, SSE2_TILE_X8, SSE2_BLOCK_X8>(input, output, rows, cols, transpose_tile_x8);
+}
+
+void sse2_transpose_dispatch(const float* input, float* output, size_t rows, size_t cols)
+{
+    // Moves 32-bit words bit for bit, so NaN payloads and -0.0f are preserved.
+    sse2_transpose<float, SSE2_TILE_X32, SSE2_BLOCK_X32>(input, output, rows, cols, transpose_tile_x32);
+}
+
+}  // namespace
+
+template<typename T>
+void xnnpack_transpose(const T* input, T* output, size_t rows, size_t cols)
+{
+    assert(input != NULL);
+    assert(output != NULL);
+    if (rows == 0 || cols == 0)
+    {
+        return;
+    }
+    sse2_transpose_dispatch(input, output, rows, cols);
+}
+
+template void xnnpack_transpose<uint8_t>(const uint8_t*, uint8_t*, size_t, size_t);
+template void xnnpack_transpose<float>(const float*, float*, size_t, size_t);
+
+#else // !USE_NEON && !USE_SSE2
 
 // Scalar fallback transpose (x86_64 or other non-NEON architectures)
 template<typename T>
@@ -583,7 +742,7 @@ void xnnpack_transpose(const T* input, T* output, size_t rows, size_t cols)
 template void xnnpack_transpose<uint8_t>(const uint8_t*, uint8_t*, size_t, size_t);
 template void xnnpack_transpose<float>(const float*, float*, size_t, size_t);
 
-#endif // USE_NEON
+#endif // USE_NEON / USE_SSE2
 
 // ============================================================================
 // Quantize float32 → int8 kernels

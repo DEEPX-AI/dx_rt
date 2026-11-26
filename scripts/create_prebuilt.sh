@@ -12,6 +12,7 @@ PREBUILT_LIB_DIR="${PREBUILT_DIR}/lib"
 PREBUILT_PYTHON_DIR="${PREBUILT_DIR}/python"
 PREBUILT_SERVICE_DIR="${PREBUILT_DIR}/service"
 PREBUILT_CMAKE_DIR="${PREBUILT_LIB_DIR}/cmake/dxrt"
+PREBUILT_DOC_DIR="${PREBUILT_DIR}/doc"
 
 SRC_BIN_DIR="${WORKSPACE_ROOT}/prebuilt_files/bin"
 SRC_LIB_DIR="${WORKSPACE_ROOT}/prebuilt_files/lib"
@@ -198,6 +199,36 @@ copy_sanity_check() {
   log "Copied SanityCheckForDebian.sh to ${PREBUILT_DIR}"
 }
 
+copy_license_notices() {
+  require_file "${DX_RT_ROOT}/LICENSE"
+  require_file "${DX_RT_ROOT}/NOTICE.md"
+
+  mkdir -p "${PREBUILT_DOC_DIR}/onnxruntime"
+  cp -f "${DX_RT_ROOT}/LICENSE" "${DX_RT_ROOT}/NOTICE.md" "${PREBUILT_DOC_DIR}/"
+
+  # ONNX Runtime LICENSE and ThirdPartyNotices.txt come from the extracted
+  # archive: util/onnxruntime_<x64|aarch64> (where install.sh puts it), or
+  # ORT_NOTICE_DIR when set. ":-" keeps this safe under "set -u".
+  local ort_dir="${ORT_NOTICE_DIR:-}"
+  if [[ -z "${ort_dir}" ]]; then
+    case "$(uname -m)" in
+      x86_64)  ort_dir="${DX_RT_ROOT}/util/onnxruntime_x64" ;;
+      aarch64) ort_dir="${DX_RT_ROOT}/util/onnxruntime_aarch64" ;;
+      *)
+        echo "[create_prebuilt][ERROR] Unknown architecture $(uname -m): set ORT_NOTICE_DIR." >&2
+        exit 1
+        ;;
+    esac
+  fi
+
+  # Third-party notices are mandatory: fail instead of shipping without them.
+  require_file "${ort_dir}/LICENSE"
+  require_file "${ort_dir}/ThirdPartyNotices.txt"
+  cp -f "${ort_dir}/LICENSE" "${ort_dir}/ThirdPartyNotices.txt" "${PREBUILT_DOC_DIR}/onnxruntime/"
+
+  log "Copied license notices to ${PREBUILT_DOC_DIR}"
+}
+
 main() {
   log "Creating prebuilt directory structure"
   create_dirs
@@ -225,6 +256,9 @@ main() {
 
   log "Copying SanityCheckForDebian.sh"
   copy_sanity_check
+
+  log "Copying license notices"
+  copy_license_notices
 
   log "Done: ${PREBUILT_DIR}"
 }

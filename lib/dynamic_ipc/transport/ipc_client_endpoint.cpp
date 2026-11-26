@@ -230,6 +230,12 @@ void IPCClientEndpoint::setOnReceive(OnReceiveHandler handler)
     _onReceive = std::move(handler);
 }
 
+void IPCClientEndpoint::setOnDisconnect(OnDisconnectHandler handler)
+{
+    std::lock_guard<std::mutex> lock(_pendingMutex);
+    _onDisconnect = std::move(handler);
+}
+
 void IPCClientEndpoint::close()
 {
     stopReceiveLoop();
@@ -365,12 +371,26 @@ void IPCClientEndpoint::receiveLoop()
         }
     }
 
+    // stopReceiveLoop() sets _receiveLoopStopRequested before closing the channel, so false here means the server closed.
+    const bool serverClosed = !_receiveLoopStopRequested.exchange(true);
     _receiveLoopRunning.store(false);
-    _receiveLoopStopRequested.store(true);
     _channel.close();
-    LOG_DXRT_I_DBG << "receiveLoop stopped" << std::endl;
+    LOG_DXRT_I_DBG << "receiveLoop stopped, serverClosed=" << serverClosed << std::endl;
     // Unblock any threads blocked in sendMessageSync that are still waiting.
     failPendingResponses();
+
+    if (serverClosed)
+    {
+        OnDisconnectHandler handler;
+        {
+            std::lock_guard<std::mutex> lock(_pendingMutex);
+            handler = _onDisconnect;
+        }
+        if (handler)
+        {
+            handler();
+        }
+    }
 }
 
 bool IPCClientEndpoint::tryMatchPendingResponse(

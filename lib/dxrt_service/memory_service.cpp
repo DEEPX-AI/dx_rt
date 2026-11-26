@@ -440,6 +440,22 @@ void MemoryService::DeallocateAllTasks(pid_t pid)
     LOG_DXRT_S_DBG << "All tasks memory deallocated for PID:" << pid << endl;
 }
 
+std::vector<int> MemoryService::GetTaskIds(pid_t pid) const
+{
+    std::lock_guard<std::mutex> lk(_lock);
+
+    std::vector<int> taskIds;
+    auto pidIt = _taskAllocInfo.find(pid);
+    if (pidIt != _taskAllocInfo.end())
+    {
+        for (const auto &taskPair : pidIt->second)
+        {
+            taskIds.push_back(taskPair.first);
+        }
+    }
+    return taskIds;
+}
+
 bool MemoryService::IsTaskValid(pid_t pid, int taskId) const
 {
     std::lock_guard<std::mutex> lk(_lock);

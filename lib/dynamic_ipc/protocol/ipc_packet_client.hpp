@@ -65,6 +65,7 @@ class DXRT_INTERNAL_API IPCPacketClient
     using ErrorNotificationHandler = std::function<int(int deviceId, dxrt_server_err_t, const dx_pcie_dev_err_t &)>;
     using InferenceResponseHandler = std::function<int(const InferenceResult &)>;
     using RecoveryStartNotificationHandler = std::function<bool(int deviceId, uint32_t recoveryId)>;
+    using ServiceLostHandler = std::function<void()>;
 
     IPCPacketClient() = default;
     ~IPCPacketClient() = default;
@@ -79,6 +80,7 @@ class DXRT_INTERNAL_API IPCPacketClient
     void setErrorNotificationHandler(ErrorNotificationHandler handler);
     void setInferenceResponseHandler(InferenceResponseHandler handler);
     void setRecoveryStartNotificationHandler(RecoveryStartNotificationHandler handler);
+    void setServiceLostHandler(ServiceLostHandler handler);
 
     int sendRecoveryStartAck(
         int deviceId,
@@ -215,6 +217,7 @@ class DXRT_INTERNAL_API IPCPacketClient
     ErrorNotificationHandler _errorHandler;
     InferenceResponseHandler _inferenceHandler;
     RecoveryStartNotificationHandler _recoveryStartNotificationHandler;
+    ServiceLostHandler _serviceLostHandler;
 };
 
 }  // namespace dxrt

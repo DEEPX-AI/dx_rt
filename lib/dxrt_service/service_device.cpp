@@ -72,8 +72,10 @@ namespace {
 
 ServiceDevice::ServiceDevice(const string &file_)
 : _file(file_), _profiler(Profiler::GetInstance()), // NOSONAR:S3230
-  _readHandlerQueue("ServiceDevice_ReadHandlerQueue", 4,[this](const DMAItem& item, int ch){ this->HandleDMARead(item, ch); return 0; }),
-  _writeHandlerQueue("ServiceDevice_WriteHandlerQueue", 2,[this](const DMAItem& item, int ch){ this->HandleDMAWrite(item, ch); return 0; })
+  // true: these workers issue the H2D/D2H DMA ioctls on the latency-critical
+  // path, so they're boosted to SCHED_FIFO (see SetRealtimePriority()).
+  _readHandlerQueue("ServiceDevice_ReadHandlerQueue", 4,[this](const DMAItem& item, int ch){ this->HandleDMARead(item, ch); return 0; }, true),
+  _writeHandlerQueue("ServiceDevice_WriteHandlerQueue", 2,[this](const DMAItem& item, int ch){ this->HandleDMAWrite(item, ch); return 0; }, true)
 {
     _name = string(_file);  // temp.
     LOG_DXRT_S_DBG << "Device created from " << _name << endl;
@@ -239,6 +241,7 @@ void ServiceDevice::Identify(int id_, uint32_t subCmd )
     _dispatcher->SetErrorCallback(_errCallBack);
     _dispatcher->SetRecoveryCallback(_recoveryCallBack);
     _dispatcher->SetThrottleCallback(_throttleCallBack);
+    _dispatcher->SetRmapRestoreCallback(_rmapRestoreCallBack);
     _dispatcher->StartThreads();
     _readHandlerQueue.Start();
     _writeHandlerQueue.Start();
@@ -362,6 +365,15 @@ void ServiceDevice::SetRecoveryAdapter(const std::shared_ptr<RecoveryAdapter>& a
     if (_dispatcher)
     {
         _dispatcher->SetRecoveryAdapter(adapter);
+    }
+}
+
+void ServiceDevice::SetRmapRestoreCallback(const DeviceDispatcher::RmapRestoreCallback& f)
+{
+    _rmapRestoreCallBack = f;
+    if (_dispatcher)
+    {
+        _dispatcher->SetRmapRestoreCallback(f);
     }
 }
 
@@ -548,9 +560,108 @@ void ServiceDevice::DMAWriteAsync(const dxrt_meminfo_t& memInfo, pid_t pid, int 
     _writeHandlerQueue.PushWork(item);
 }
 
+int ServiceDevice::WriteSync(const dxrt_meminfo_t& memInfo)
+{
+#ifdef _WIN32
+    if (_removing)
+    {
+        return static_cast<int>(ERROR_DEVICE_REMOVED);
+    }
+#endif
+    return _core->Write(memInfo);
+}
+
 void ServiceDevice::SetDMACompletionCallback(const std::function<void(bool, pid_t, int, int, int)> &callback)
 {
     _dmaCompletionCallback = callback;
+}
+
+void ServiceDevice::EnsureDmaRegistered(const dxrt_meminfo_t& memInfo, bool input)
+{
+#if defined(__linux__) && !defined(USE_VNPU)
+    if (memInfo.data == 0 || memInfo.size == 0) return;
+
+    const DmaRegKey key{memInfo.data, memInfo.size, input};
+    std::lock_guard<std::mutex> lock(_dmaRegLock);
+    if (_dmaRegDisabled || _dmaRegistered.count(key) != 0) return;
+
+    void *ptr = reinterpret_cast<void*>(static_cast<uintptr_t>(memInfo.data));
+    int ret = _core->RegisterDmaBuffer(ptr, memInfo.size, input);
+    if (ret == -EEXIST)
+    {
+        // The driver keys a registration by (address, direction) only.
+        auto cached = _dmaRegistered.lower_bound(DmaRegKey{memInfo.data, 0, false});
+        for (; cached != _dmaRegistered.end() && std::get<0>(*cached) == memInfo.data; ++cached)
+        {
+            if (std::get<2>(*cached) == input)
+            {
+                // Ours with another length: this transfer takes the per-transfer path.
+                return;
+            }
+        }
+
+        // Not in this cache: a stale registration whose unregister the driver refused
+        // (device not READY, or a transfer in flight) before the memory behind this
+        // address was unmapped and the address reused. The driver fails every transfer
+        // that matches it with EFAULT (reported as -ECOMM), so drop it and register anew.
+        const int unregRet = _core->UnregisterDmaBuffer(ptr, memInfo.size, input);
+        if (unregRet != 0)
+        {
+            LOG_DXRT_S_ERR("Device " << _core->id() << ": cannot drop stale DMA registration at 0x"
+                << std::hex << memInfo.data << std::dec << " (ret=" << unregRet << ")");
+            return;
+        }
+        LOG_DXRT_S << "Device " << _core->id() << ": dropped stale DMA registration at 0x"
+                   << std::hex << memInfo.data << std::dec << endl;
+        ret = _core->RegisterDmaBuffer(ptr, memInfo.size, input);
+    }
+    if (ret != 0)
+    {
+        // Older drivers reject the command; keep the legacy per-transfer pinning.
+        _dmaRegDisabled = true;
+        LOG_DXRT_S_ERR("Device " << _core->id() << ": DMA buffer registration unavailable (ret="
+            << ret << "), using legacy per-transfer pinning");
+        return;
+    }
+    _dmaRegistered.insert(key);
+#else
+    (void)memInfo; (void)input;
+#endif
+}
+
+bool ServiceDevice::UnregisterDmaRange(const void* base, uint64_t size)
+{
+#if defined(__linux__) && !defined(USE_VNPU)
+    if (base == nullptr || size == 0) return true;
+
+    const uint64_t lo = reinterpret_cast<uintptr_t>(base);
+    const uint64_t hi = lo + size;
+    bool released = true;
+    std::lock_guard<std::mutex> lock(_dmaRegLock);
+    auto it = _dmaRegistered.lower_bound(DmaRegKey{lo, 0, false});
+    while (it != _dmaRegistered.end() && std::get<0>(*it) < hi)
+    {
+        const int ret = _core->UnregisterDmaBuffer(
+            reinterpret_cast<void*>(static_cast<uintptr_t>(std::get<0>(*it))),
+            std::get<1>(*it), std::get<2>(*it));
+        // -ENOENT: the driver no longer holds it, so there is nothing left to drop.
+        if (ret == 0 || ret == -ENOENT)
+        {
+            it = _dmaRegistered.erase(it);
+            continue;
+        }
+        // Refused (e.g. -EBUSY with a transfer in flight, -ENODATA/-EIO while the
+        // device is not READY): the driver keeps it pinned. Keep it cached for a retry.
+        LOG_DXRT_S_DBG << "Device " << _core->id() << ": DMA unregister at 0x" << std::hex
+                       << std::get<0>(*it) << std::dec << " refused (ret=" << ret << ")" << endl;
+        released = false;
+        ++it;
+    }
+    return released;
+#else
+    (void)base; (void)size;
+    return true;
+#endif
 }
 
 void ServiceDevice::HandleDMARead(const DMAItem& item, int ch)
@@ -561,6 +672,7 @@ void ServiceDevice::HandleDMARead(const DMAItem& item, int ch)
 
     LOG_DXRT_S_DBG << "HandleDMARead: pid=" << pid << ", seqId=" << seqId <<
         ", memInfo={addr=" << std::hex << memInfo.data << std::dec << ", size=" << memInfo.size << "}" << std::endl;
+    EnsureDmaRegistered(memInfo, false);
 #ifdef _WIN32
     // An output read after removal was accepted would return stale data as a result.
     const int ret = _removing ? static_cast<int>(ERROR_DEVICE_REMOVED) : _core->Read(memInfo, ch);
@@ -581,6 +693,7 @@ void ServiceDevice::HandleDMAWrite(const DMAItem& item, int ch)
 
     LOG_DXRT_S_DBG << "HandleDMAWrite: pid=" << pid << ", seqId=" << seqId <<
         ", memInfo={addr=" << std::hex << memInfo.data << std::dec << ", size=" << memInfo.size << "}" << std::endl;
+    EnsureDmaRegistered(memInfo, true);
 #ifdef _WIN32
     const int ret = _removing ? static_cast<int>(ERROR_DEVICE_REMOVED) : _core->Write(memInfo, ch);
 #else

@@ -23,16 +23,70 @@
 #include <condition_variable>
 #include <mutex>
 #include <thread>
+#ifdef __linux__
+#include <pthread.h>
+#include <sched.h>
+#include <unistd.h>
+#endif
 
 namespace dxrt {
 
+// Boosts the scheduling priority of a DMA-issuing HandlerQueueThread worker so
+// the kernel's wake_up() after DMA completion is followed by (near) immediate
+// re-scheduling instead of waiting in the CFS/EEVDF runqueue behind other
+// runnable threads. Root cause evidence: for several observed H2D/D2H
+// outliers, /proc/<tid>/schedstat field 2 (run_delay, ns spent
+// runnable-but-waiting) grew by an amount nearly equal to the entire outlier
+// duration -- i.e. the thread was ready to run but not on a CPU, not actually
+// blocked doing DMA work. SCHED_FIFO at a priority above normal (non-RT)
+// threads eliminates that wait.
+//
+// Best-effort / non-fatal: requires CAP_SYS_NICE (e.g. via `setcap
+// cap_sys_nice=eip <binary>` or an rtprio limit in
+// /etc/security/limits.conf) -- silently no-ops (falls back to the default
+// SCHED_OTHER policy) if the caller lacks privilege. Prefer granting the
+// narrow CAP_SYS_NICE capability (or an rtprio ulimit) to the process over
+// running the whole application as root/sudo: this capability only lets a
+// process raise its own scheduling priority, and dx_rt only ever applies it
+// to the specific worker threads below that issue DMA ioctls -- it is never
+// used to boost user application threads.
+inline void SetRealtimePriority(std::thread& t, int priority = 20)
+{
+#ifdef __linux__
+    sched_param sch{};
+    sch.sched_priority = priority;
+    pthread_setschedparam(t.native_handle(), SCHED_FIFO, &sch);
+#else
+    (void)t; (void)priority;
+#endif
+}
+
+// Sets the kernel-visible thread name (comm, 16 bytes incl. null terminator)
+// so DMA worker threads can be identified with `ps -eLo pid,tid,cls,rtprio,comm`
+// or `top -H` to verify that only these threads -- not the whole process --
+// actually got SCHED_FIFO applied.
+inline void NameWorkerThread(std::thread& t, const std::string& baseName, size_t id)
+{
+#ifdef __linux__
+    std::string threadName = baseName + "-" + std::to_string(id);
+    if (threadName.size() > 15) threadName = threadName.substr(0, 15);  // comm limit is 16B incl. '\0'
+    pthread_setname_np(t.native_handle(), threadName.c_str());
+#else
+    (void)t; (void)baseName; (void)id;
+#endif
+}
 
 template <typename T>
 class HandlerQueueThread
 {
 public:
-    HandlerQueueThread(const std::string& name_, size_t numThreads, std::function<int(const T&, int)> handler_)
-    : _name(name_), _handler(handler_), _numThreads(numThreads) {}
+    // @param boostSchedulingPriority Set true only for worker threads that issue
+    //        DMA ioctls on the latency-critical path (see SetRealtimePriority
+    //        above). Leave false (default) for handler queues unrelated to DMA
+    //        (e.g. IPC) so the RT priority stays scoped to the threads that need it.
+    HandlerQueueThread(const std::string& name_, size_t numThreads, std::function<int(const T&, int)> handler_,
+        bool boostSchedulingPriority = false)
+    : _name(name_), _handler(handler_), _numThreads(numThreads), _boostSchedulingPriority(boostSchedulingPriority) {}
     void PushWork(const T& x);
 
     void Signal();
@@ -71,6 +125,7 @@ private:
     std::atomic<int> _checkQueueCnt{0};
     std::atomic<int> _accumulatedQueueSize{0};
     size_t _numThreads;
+    bool _boostSchedulingPriority;
 
     void DoThread(int id);
     void ThreadWork(int id);
@@ -144,6 +199,11 @@ void HandlerQueueThread<T>::Start()
     for (size_t i = 0; i < _numThreads; i++)
     {
         _threads.emplace_back(&HandlerQueueThread<T>::DoThread, this, i);
+        NameWorkerThread(_threads.back(), _name, i);
+        if (_boostSchedulingPriority)
+        {
+            SetRealtimePriority(_threads.back());
+        }
     }
     LOG_DXRT_DBG << _name << " created." << "\n";
 }

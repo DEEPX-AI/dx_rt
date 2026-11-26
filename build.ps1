@@ -895,8 +895,8 @@ if ($DoVsProject) {
         exit 1
     }
     Write-Report "Generate VS Project" "OK" @(
-        "Solution : ${ScriptDir}\build_vs\dx_rt.sln"
-        "Open with: start build_vs\dx_rt.sln"
+        "Solution : ${ScriptDir}\build_vs\dxrt.sln"
+        "Open with: start build_vs\dxrt.sln"
     )
     exit 0
 }

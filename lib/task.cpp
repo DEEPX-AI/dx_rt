@@ -59,6 +59,15 @@ void WarmupBufferPool(const std::shared_ptr<FixedSizeBuffer>& pool, int slotCoun
         pool->releaseBuffer(p);
     }
 }
+
+// device_id indexes the local device list; the service layer needs the device's
+// own number (they differ when only some devices are opened, e.g.
+// DXRT_FORCE_DEVICE_ID=1 gives one layer, index 0, whose device is 1).
+int ToServiceDeviceId(int device_id)
+{
+    const auto dtl = DevicePool::GetInstance().GetDeviceTaskLayer(device_id);
+    return (dtl != nullptr) ? dtl->id() : device_id;
+}
 }  // namespace
 
 int Task::nextId = 0;
@@ -468,7 +477,7 @@ void Task::InitializeTaskWithService(int device_id) const
     }
 
     // 1. Signal Task Init (Register Task metadata)
-    DevicePool::GetInstance().GetServiceLayer()->SignalTaskInit(device_id,
+    DevicePool::GetInstance().GetServiceLayer()->SignalTaskInit(ToServiceDeviceId(device_id),
         _taskData._id, static_cast<npu_bound_op>(_boundOp), model_mem_size, config);
 
     LOG_DXRT_DBG << "Task " << id() << " service initialization completed for device " << device_id << endl;
@@ -479,8 +488,7 @@ void Task::CleanupTaskFromService(int device_id) const
 {
     LOG_DXRT_DBG << "Task " << id() << " cleanup from service on device " << device_id << endl;
 
-
-    DevicePool::GetInstance().GetServiceLayer()->SignalTaskDeInit(device_id,
+    DevicePool::GetInstance().GetServiceLayer()->SignalTaskDeInit(ToServiceDeviceId(device_id),
         _taskData._id, static_cast<npu_bound_op>(_boundOp));
 
 
@@ -531,6 +539,7 @@ void Task::SetEncodedInputBuffer(int size)
 #ifndef USE_VNPU
         _taskEncodedInputBuffer = std::make_shared<FixedSizeBuffer>(_taskData.encoded_input_size(), size);
         WarmupBufferPool(_taskEncodedInputBuffer, size, _taskData.encoded_input_size());
+        _taskEncodedInputBuffer->RegisterForDma(_device_ids, true);
 #else
         _taskEncodedInputBuffer = std::make_shared<FixedSizeBuffer>(
 
@@ -609,7 +618,9 @@ void Task::SetOutputBuffer(int size)
         // stays unused in the free list -- no aliasing with user memory occurs either way.
         WarmupBufferPool(_taskOutputBuffer, size, _taskData.output_size());
         _taskEncodedOutputBuffer = std::make_shared<FixedSizeBuffer>(_taskData.encoded_output_size(), size);
+        /* Only the encoded buffer is the DMA destination. */
         WarmupBufferPool(_taskEncodedOutputBuffer, size, _taskData.encoded_output_size());
+        _taskEncodedOutputBuffer->RegisterForDma(_device_ids, false);
 #else
         _taskOutputBuffer = std::make_shared<FixedSizeBuffer>(
             _taskData.output_size(), size, BufferAllocType::CMA_DMA, BufferDirection::OUTPUT);

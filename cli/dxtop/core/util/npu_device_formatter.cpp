@@ -25,7 +25,7 @@ std::string NpuDeviceFormatter::FormatDeviceType(const uint32_t type)
     }
 }
 
-std::string NpuDeviceFormatter::FormatDeviceVariant(const uint32_t variant, const uint16_t ddr_type)
+std::string NpuDeviceFormatter::FormatDeviceVariant(const uint32_t variant, const bool m1m_chip)
 {
     std::string base;
     switch (variant)
@@ -57,7 +57,7 @@ std::string NpuDeviceFormatter::FormatDeviceVariant(const uint32_t variant, cons
         return "Invalid Variant";
     }
 
-    if (ddr_type == 1)
+    if (m1m_chip)
     {
         return base + "M";
     }

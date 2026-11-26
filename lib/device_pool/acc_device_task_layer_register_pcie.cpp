@@ -133,8 +133,12 @@ int AccDeviceTaskLayer::RegisterTask(TaskData* task)
     model.weight.offset = static_cast<uint32_t>(memInfos.weightMemInfo.phys_addr_offset);
     model.rmap.offset = static_cast<uint32_t>(memInfos.rmapMemInfo.phys_addr_offset);
 
-    // Store model with offsets set
-    npuModelMap()[tId] = model;
+    // Store model with offsets set. Under npuInferenceLock like every other
+    // npuModelMap access: the event thread walks the map for RMAP recovery.
+    {
+        std::unique_lock<std::mutex> lk(npuInferenceLock());
+        npuModelMap()[tId] = model;
+    }
 
     // Store memory info for later management
 
@@ -174,6 +178,65 @@ int AccDeviceTaskLayer::RegisterTask(TaskData* task)
         }
     };
 
+    // Reads back device memory and compares it against the source data.
+    // Returns 0 on match (or size 0), 1 on read failure or mismatch.
+    auto verify = [this](const dxrt_meminfo_t& info, const SharedMemoryInfo &deviceInfo, const std::string& name) {
+        if (info.size == 0)
+        {
+            return 0;
+        }
+
+        // Service mode: DMARead writes into the SHM block (deviceInfo.ptr, identified by block_id).
+        //   Do NOT modify ptr — the service uses block_id as the write target.
+        // NoService mode: ptr is null after AllocateInfo; use a local read-back buffer.
+        std::vector<uint8_t> noServiceReadBuf;
+        SharedMemoryInfo readInfo = deviceInfo;
+        if (!serviceLayer()->isRunOnService())
+        {
+            noServiceReadBuf.resize(info.size);
+            readInfo.ptr = noServiceReadBuf.data();
+        }
+        const int readRc = serviceLayer()->DMARead(SharedMemoryView::ofWhole(readInfo));
+        if (readRc == 0)
+        {
+            const auto *src = static_cast<const uint8_t*>(SafeCast::IntegerToPointer<void*>(info.data));
+            const auto *dst = static_cast<const uint8_t*>(readInfo.ptr);
+            int cmpRet = std::memcmp(src, dst, info.size);
+            if (cmpRet != 0)
+            {
+                // Print first mismatch location and surrounding bytes
+                for (uint32_t i = 0; i < info.size; ++i)
+                {
+                    if (src[i] != dst[i])
+                    {
+                        LOG_DXRT_ERR(name + " first mismatch at byte "
+                            + std::to_string(i)
+                            + ": src=0x" + ToHexString(src[i])
+                            + " dst=0x" + ToHexString(dst[i]));
+                        // Print first 8 bytes of each
+                        std::ostringstream srcOss;
+                        std::ostringstream dstOss;
+                        srcOss << std::hex << std::setfill('0');
+                        dstOss << std::hex << std::setfill('0');
+                        for (int j = 0; j < 8 && j < static_cast<int>(info.size); ++j)
+                        {
+                            srcOss << std::setw(2) << static_cast<unsigned int>(src[j]);
+                            dstOss << std::setw(2) << static_cast<unsigned int>(dst[j]);
+                        }
+                        LOG_DXRT_ERR(name + " src[0..7]=" + srcOss.str() + " dst[0..7]=" + dstOss.str());
+                        break;
+                    }
+                }
+            }
+            return cmpRet == 0 ? 0 : 1;
+        }
+        else
+        {
+            LOG_DXRT_ERR("Failed to read back " + name + " for verification");
+        }
+        return 1;
+    };
+
     try
     {
         // Offsets/memInfos above are already reserved exclusively for this task, so the
@@ -182,25 +245,62 @@ int AccDeviceTaskLayer::RegisterTask(TaskData* task)
         {
             ScopedUnlock unlockGuard(lock);
 
+            // rmap: Write + Read-back verify. One initial attempt plus up to RMAP_WRITE_MAX_RETRIES
+            // retries (1 + RMAP_WRITE_MAX_RETRIES attempts in total).
+            // An attempt fails if DMAWrite fails, DMARead fails, or the read-back data mismatches.
+            //
             // Service mode: copy source data into the SHM block (ptr), then ask the service to DMA it
             //   to device memory. The service identifies the SHM block via block_id/fd.
+            //   The memcpy is repeated on every attempt because the read-back verify overwrites the
+            //   same SHM block.
             // NoService mode: AllocateInfo returns ptr=nullptr (no host mapping). Use MakeDMAMemoryView
             //   to pass (ptr=source data, phys_addr=NPU destination) directly to core->Write().
-            if (serviceLayer()->isRunOnService())
+            static constexpr int RMAP_WRITE_MAX_RETRIES = 3;
+            static constexpr int RMAP_WRITE_MAX_ATTEMPTS = 1 + RMAP_WRITE_MAX_RETRIES;
+            bool rmapWritten = false;
+            for (int attempt = 1; attempt <= RMAP_WRITE_MAX_ATTEMPTS; ++attempt)
             {
-                std::memcpy(memInfos.rmapMemInfo.ptr,
-                    SafeCast::IntegerToPointer<const void *>(model.rmap.data),
-                    model.rmap.size);
-                ret = serviceLayer()->DMAWrite(SharedMemoryView::ofWhole(memInfos.rmapMemInfo));
-            }
-            else
-            {
-                ret = serviceLayer()->DMAWrite(SharedMemoryView::ofWhole(
-                    MakeDMAMemoryView(memInfos.rmapMemInfo,
+                if (attempt == 2)
+                {
+                    // Shown only once, on the first retry.
+                    std::cout << "Transfer In Progress....." << std::endl;
+                }
+
+                if (serviceLayer()->isRunOnService())
+                {
+                    std::memcpy(memInfos.rmapMemInfo.ptr,
                         SafeCast::IntegerToPointer<const void *>(model.rmap.data),
-                        model.rmap.size)));
+                        model.rmap.size);
+                    ret = serviceLayer()->DMAWrite(SharedMemoryView::ofWhole(memInfos.rmapMemInfo));
+                }
+                else
+                {
+                    ret = serviceLayer()->DMAWrite(SharedMemoryView::ofWhole(
+                        MakeDMAMemoryView(memInfos.rmapMemInfo,
+                            SafeCast::IntegerToPointer<const void *>(model.rmap.data),
+                            model.rmap.size)));
+                }
+                if (ret != 0)
+                {
+                    LOG_DXRT_DBG << "Device " << id() << " rmap write failed (attempt " << attempt
+                                 << "/" << RMAP_WRITE_MAX_ATTEMPTS << ", ret=" << ret << ")" << std::endl;
+                    continue;
+                }
+
+                if (verify(model.rmap, memInfos.rmapMemInfo, "rmap") != 0)
+                {
+                    ret = -1;
+                    LOG_DXRT_DBG << "Device " << id() << " rmap verify failed (attempt " << attempt
+                                 << "/" << RMAP_WRITE_MAX_ATTEMPTS << ")" << std::endl;
+                    continue;
+                }
+
+                rmapWritten = true;
+                break;
             }
-            DXRT_ASSERT(ret == 0, "failed to write model rmap parameters" + std::to_string(ret));
+            DXRT_ASSERT(rmapWritten, "failed to write model rmap parameters after "
+                + std::to_string(RMAP_WRITE_MAX_ATTEMPTS) + " attempts (1 + "
+                + std::to_string(RMAP_WRITE_MAX_RETRIES) + " retries), last ret: " + std::to_string(ret));
 
             if (serviceLayer()->isRunOnService())
             {
@@ -272,80 +372,19 @@ int AccDeviceTaskLayer::RegisterTask(TaskData* task)
             }
         }
 
-        // Verify (skip if size is 0)
-        if (model.rmap.size > 0 && model.weight.size > 0)
+        // Verify weight (skip if size is 0). rmap is already verified in its write-retry loop above.
+        if (model.weight.size > 0)
         {
             ScopedUnlock unlockGuard(lock);
-            auto verify = [this](const dxrt_meminfo_t& info, const SharedMemoryInfo &deviceInfo, const std::string& name) {
-                if (info.size == 0)
-                {
-                    return 0;
-                }
-
-                // Service mode: DMARead writes into the SHM block (deviceInfo.ptr, identified by block_id).
-                //   Do NOT modify ptr — the service uses block_id as the write target.
-                // NoService mode: ptr is null after AllocateInfo; use a local read-back buffer.
-                std::vector<uint8_t> noServiceReadBuf;
-                SharedMemoryInfo readInfo = deviceInfo;
-                if (!serviceLayer()->isRunOnService())
-                {
-                    noServiceReadBuf.resize(info.size);
-                    readInfo.ptr = noServiceReadBuf.data();
-                }
-                const int readRc = serviceLayer()->DMARead(SharedMemoryView::ofWhole(readInfo));
-                if (readRc == 0)
-                {
-                    const auto *src = static_cast<const uint8_t*>(SafeCast::IntegerToPointer<void*>(info.data));
-                    const auto *dst = static_cast<const uint8_t*>(readInfo.ptr);
-                    int cmpRet = std::memcmp(src, dst, info.size);
-                    if (cmpRet != 0)
-                    {
-                        // Print first mismatch location and surrounding bytes
-                        for (uint32_t i = 0; i < info.size; ++i)
-                        {
-                            if (src[i] != dst[i])
-                            {
-                                LOG_DXRT_ERR(name + " first mismatch at byte "
-                                    + std::to_string(i)
-                                    + ": src=0x" + ToHexString(src[i])
-                                    + " dst=0x" + ToHexString(dst[i]));
-                                // Print first 8 bytes of each
-                                std::string srcStr;
-                                std::string dstStr;
-                                std::ostringstream srcOss;
-                                std::ostringstream dstOss;
-                                srcOss << std::hex << std::setfill('0');
-                                dstOss << std::hex << std::setfill('0');
-                                for (int j = 0; j < 8 && j < static_cast<int>(info.size); ++j)
-                                {
-                                    srcOss << std::setw(2) << static_cast<unsigned int>(src[j]);
-                                    dstOss << std::setw(2) << static_cast<unsigned int>(dst[j]);
-                                }
-                                srcStr = srcOss.str();
-                                dstStr = dstOss.str();
-                                LOG_DXRT_ERR(name + " src[0..7]=" + srcStr + " dst[0..7]=" + dstStr);
-                                break;
-                            }
-                        }
-                    }
-                    return cmpRet == 0 ? 0 : 1;
-                }
-                else
-                {
-                    LOG_DXRT_ERR("Failed to read back " + name + " for verification");
-                }
-                return 1;
-            };
 
             int fail_count = 0;
-            fail_count += verify(model.rmap, memInfos.rmapMemInfo, "rmap");
             fail_count += verify(model.weight, memInfos.weightMemInfo, "weight");
 
             DXRT_ASSERT(fail_count == 0, "failed to verify model parameters, fail count: " + std::to_string(fail_count));
         }
         else
         {
-            LOG_DXRT_DBG << "Device " << id() << " skipping verify (rmap.size=" << model.rmap.size
+            LOG_DXRT_DBG << "Device " << id() << " skipping weight verify (rmap.size=" << model.rmap.size
                             << ", weight.size=" << model.weight.size << ")" << std::endl;
         }
 

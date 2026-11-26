@@ -10,9 +10,16 @@
 #include "dxrt/common.h"
 #include "dxrt/exception/exception.h"
 #include "dxrt/fixed_size_buffer.h"
+#include "dxrt/driver.h"
+#include "dxrt/device_pool.h"
+#include "dxrt/device_task_layer.h"
+#include "dxrt/device_core.h"
+#include <atomic>
 #include <chrono>
 #include <cstdlib>
+#include <sstream>
 #include <stdexcept>
+#include <tuple>
 #include <cstring>  // for strerror
 #ifdef USE_VNPU
 #include "rk_mpi_sys.h"  // For RK_MPI_SYS_MmzFlushCache
@@ -118,6 +125,7 @@ FixedSizeBuffer::FixedSizeBuffer(int64_t size, int buffer_count)
 
 FixedSizeBuffer::~FixedSizeBuffer()
 {
+    UnregisterFromDma();
     std::unique_lock<std::mutex> lock(_lock);
     _pointers.clear();  // Clear to signal destruction to waiting threads
     _cv.notify_all();  // Wake all waiting threads before cleanup
@@ -495,5 +503,99 @@ void FixedSizeBuffer::flushCache(void* ptr, uint32_t size, bool invalidate)
     }
 }
 #endif // USE_VNPU
+
+void FixedSizeBuffer::RegisterForDma(const std::vector<int>& deviceIds, bool input)
+{
+#if !defined(__linux__) || defined(USE_VNPU)
+    std::ignore = deviceIds;
+    std::ignore = input;
+#else
+    if (deviceIds.empty() || _data.empty()) return;
+
+    _dmaInput = input;
+    for (int deviceId : deviceIds)
+    {
+        std::shared_ptr<DeviceTaskLayer> devicePtr;
+        try
+        {
+            devicePtr = DevicePool::GetInstance().GetDeviceTaskLayer(deviceId);
+        }
+        catch (const std::exception& e)
+        {
+            LOG_DXRT_WARN("[FixedSizeBuffer] DMA registration skipped for device " << deviceId << ": " << e.what());
+            continue;
+        }
+        if (devicePtr == nullptr) continue;
+
+        // In service mode dxrtd issues the DMA ioctls on its own fd (see ServiceDevice),
+        // so a registration on this process's fd would only pin memory for nothing.
+        if (devicePtr->isRunOnService()) continue;
+
+        size_t registered = 0;
+        int failure = 0;
+        for (void* ptr : _data)
+        {
+            failure = devicePtr->RegisterDmaBuffer(ptr, static_cast<uint64_t>(_size), input);
+            if (failure != 0) break;
+            ++registered;
+        }
+        if (failure == 0)
+        {
+            _dmaDeviceIds.push_back(deviceId);
+            continue;
+        }
+
+        // All-or-nothing per device: a partial set would leave some transfers unpinned
+        // and make unregistration ambiguous.
+        for (size_t i = 0; i < registered; ++i)
+        {
+            devicePtr->UnregisterDmaBuffer(_data[i], static_cast<uint64_t>(_size), input);
+        }
+
+        // Older drivers reject the command; fall back to per-transfer pinning. Warn once
+        // per process: the fallback is silent at runtime and only shows up as a
+        // per-transfer pin/map cost, which is easy to misread as a hardware problem.
+        static std::atomic<bool> warned{false};
+        const bool first = !warned.exchange(true);
+        std::ostringstream oss;
+        oss << "[FixedSizeBuffer] " << (input ? "H2C" : "C2H")
+            << " DMA registration unavailable on device " << deviceId
+            << " (ret=" << failure << "), using legacy per-transfer pinning";
+        if (first) { LOG_DXRT_WARN(oss.str()); }
+        else { LOG_DXRT_DBG << oss.str() << std::endl; }
+    }
+#endif // USE_VNPU
+}
+
+void FixedSizeBuffer::UnregisterFromDma() noexcept
+{
+#if defined(__linux__) && !defined(USE_VNPU)
+    // Runs from the destructor: it must not throw, and must tolerate the DevicePool
+    // having been torn down or the device being gone already.
+    for (int deviceId : _dmaDeviceIds)
+    {
+        try
+        {
+            auto devicePtr = DevicePool::GetInstance().GetDeviceTaskLayer(deviceId);
+            if (devicePtr == nullptr) continue;
+
+            for (void* ptr : _data)
+            {
+                int ret = devicePtr->UnregisterDmaBuffer(ptr, static_cast<uint64_t>(_size), _dmaInput);
+                if (ret != 0)
+                {
+                    LOG_DXRT_DBG << "[FixedSizeBuffer] DMA unregister failed on device " << deviceId
+                                 << " (ret=" << ret << ")" << std::endl;
+                }
+            }
+        }
+        catch (...)
+        {
+            LOG_DXRT_DBG << "[FixedSizeBuffer] DMA unregister skipped for device " << deviceId << std::endl;
+        }
+    }
+    _dmaDeviceIds.clear();
+#endif // USE_VNPU
+}
 
 }  // namespace dxrt

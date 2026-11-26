@@ -1,17 +1,42 @@
 # RELEASE_NOTES
 
-## DX-RT v3.5.1 / 2026-11-20
+## DX-RT v3.5.1 / 2026-11-26
 
 ### 1. Changed
-- **ONNX Runtime Download Error Message**: When the download fails, `install.sh` now lists the sources it tried and shows how to install offline.
+- **Driver Version Error Message**: Shows the current and required versions, the `dxrt-driver-dkms` package to update and its download location.
+- **Sanity Check**: `SanityCheck.sh` runs without `sudo`; the `lspci`-based driver checks and the `dmesg` capture are removed.
+- **`dxrun` Latency Report**: Split into NPU Latency and Host Latency; NPU Processing Time and E2E Response Time are removed.
+- **`dxrun` Single Mode**: `-s` honors `--loops`/`--time` and reports per-request averages once.
+- **Firmware Update Wait**: `dxcli -u` waits for the updated firmware to answer instead of a fixed 4 s, and fails on a version mismatch or no answer.
+- **rmap Upload**: Verified by read-back during model loading and retried up to 3 times on error.
+- **Device Fault Notification**: `dxrtd` notifies only the clients that use the faulted NPU.
+- **Windows `dxrtd` Scheduling**: Opts out of power throttling (EcoQoS), removing 10-30 ms latency spikes on hybrid CPUs.
+- **ONNX Runtime Download Error Message**: `install.sh` lists the sources it tried and how to install offline.
+- **ONNX Runtime Download Source**: `install.sh` records the actual source (`microsoft` or `deepx-mirror`) in the build log and `util/.onnx_source_<arch>`, and pins the DEEPX mirror URL to a commit SHA.
 
 ### 2. Fixed
-- Fixed `install.sh` failing to install ONNX Runtime when the official download link cannot be reached; it now retries from the DEEPX mirror.
-- Fixed `install.sh` extracting a partially downloaded ONNX Runtime archive after a failed download.
-- `build.sh` now runs `ldconfig` after a native build so the newly installed `libdxrt.so` is found without a manual cache refresh.
+- Fixed `dxrtd` releasing task memory while a DMA of the same process was still in flight, which could let another client overwrite it.
+- Fixed `dxrtd` not reclaiming the NPU memory of a process terminated during model loading.
+- Fixed a memfd and memory leak on each `InferenceEngine` release in service mode.
+- Fixed tasks being registered on the wrong device in multi-NPU setups.
+- Windows `dxrtd --install` now quotes the service path and configures restart on failure.
+- Fixed Windows `dxrtd` taking several seconds or longer to exit after an unrecoverable device fault.
+- Fixed a DX-M1 M.2 module with LPDDR4X being shown as M1M instead of M1.
+- Fixed the FW RMAP recovery request not being answered in service mode and `dxrtd` terminating on FW CPU/DONE recovery events; library mode now restores the RMAP of all loaded models.
+- Fixed `dxrt_cxx_api.h` failing to compile on Windows when `<windows.h>` is included first (`ERROR`, `max`, `DEBUG` macro collisions and `UNICODE` builds).
+- Fixed `MemAlloc`, `MemFree` and `GetFileList` in `dxrt_cxx_api.h` depending on the `<windows.h>` include order on Windows, which could corrupt the heap.
+- `install.sh` now retries the ONNX Runtime download from the DEEPX mirror and no longer extracts a partial archive.
+- Added the missing XNNPACK notice to `NOTICE.md`; the `libdxrt-bin` Debian package and the `dx_engine` wheel now include the third-party notices.
+- The `libdxrt-bin` Debian package now installs `NOTICE.md` and the bundled ONNX Runtime `LICENSE`/`ThirdPartyNotices.txt` under `/usr/share/doc/libdxrt-bin/`; source builds install `LICENSE` and `NOTICE.md` under `share/doc/dxrt`.
+- Corrected the Python wheel install steps in `README.md` and the Linux installation guide.
 
 ### 3. Added
-- **ONNX Runtime Download Mirror**: Added a DEEPX mirror (`DEEPX-AI/onnxruntime`) as a fallback source for the upstream ONNX Runtime archive. The DeepX pre-built ONNX Runtime (CPU acceleration) has no mirror.
+- **ONNX Runtime Download Mirror**: DEEPX mirror (`DEEPX-AI/onnxruntime`) as a fallback for the upstream archive; the DeepX pre-built ONNX Runtime has no mirror.
+- **DDR Status Reporting**: LPDDR4 and LPDDR5 status from JEDEC MR4, including low/high temperature limit exceeded states.
+- **`README.md` Quick Start**: Expected `dxcli -s` output and troubleshooting tips.
+- **ONNX Runtime Checksum**: `install.sh` verifies the downloaded archive against a pinned sha256 before extraction and aborts on mismatch.
+- **NFH Acceleration on Windows x64**: SSE2 NFH transpose acceleration via `Configuration::ITEM::NFH_ACCELERATION` and `dxrun --accel-nfh`; off by default.
+- **RMAP Recovery Check Script**: `scripts/check_rmap_recovery.sh` checks FW RMAP recovery results from the `dxrtd` journal and FW UART log.
 
 ---
 

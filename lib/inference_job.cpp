@@ -208,6 +208,26 @@ void InferenceJob::onAllRequestComplete()
         std::unique_lock<std::mutex> lk(_lock);
         failed = (_error != nullptr);
     }
+
+#ifdef USE_SYSTEM_LEVEL_TESTING
+    // Record the core for success AND failure, before any user callback: job IDs are
+    // recycled slots, so skipping this on failure would leave the previous job's core
+    // in the map for this ID.
+    if (_inferenceEnginePtr != nullptr)
+    {
+        int npuCoreId = -1;
+        for (const auto& it : _requests)
+        {
+            RequestPtr req = it.lock();
+            if (req && req->task() && req->task()->processor() == Processor::NPU)
+            {
+                npuCoreId = req->getData()->_processedId;
+                break;
+            }
+        }
+        _inferenceEnginePtr->SetJobDevice(_jobId, npuCoreId);
+    }
+#endif  // USE_SYSTEM_LEVEL_TESTING
     if (failed)
     {
         // Callers count callbacks per job, so failed jobs still call back, with no outputs.

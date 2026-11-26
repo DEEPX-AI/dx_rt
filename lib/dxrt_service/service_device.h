@@ -41,6 +41,8 @@
 #include <array>
 #include <condition_variable>
 #include <utility>
+#include <set>
+#include <tuple>
 
 #include "dxrt/request.h"
 #include "dxrt/driver.h"
@@ -120,7 +122,16 @@ class DXRT_API ServiceDevice  // NOSONAR:S1820
 
     void DMAReadAsync(const dxrt_meminfo_t& memInfo, pid_t pid, int seqId);
     void DMAWriteAsync(const dxrt_meminfo_t& memInfo, pid_t pid, int seqId);
+    // Synchronous host-to-device write on the caller's thread (no completion callback).
+    int WriteSync(const dxrt_meminfo_t& memInfo);
     void SetDMACompletionCallback(const std::function<void(bool, pid_t, int, int, int)> &callback);
+
+    // Drops the cached DMA registrations that fall inside [base, base + size).
+    // Must succeed before that host memory is unmapped: a registration the driver
+    // refused to drop stays pinned to the old pages, and once the address is mapped
+    // again every transfer matching it fails. Returns false if the driver still holds
+    // any of them; those stay cached so a later call can retry.
+    bool UnregisterDmaRange(const void* base, uint64_t size);
 
 
     void CallBack();
@@ -132,6 +143,7 @@ class DXRT_API ServiceDevice  // NOSONAR:S1820
     void SetRecoveryCallback(const std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)>& f);
     void SetThrottleCallback(const std::function<void(dx_pcie_dev_ntfy_throt_t, int)>& f);
     void SetRecoveryAdapter(const std::shared_ptr<RecoveryAdapter>& adapter);
+    void SetRmapRestoreCallback(const DeviceDispatcher::RmapRestoreCallback& f);
 
     static std::vector<shared_ptr<ServiceDevice>> CheckServiceDevices(uint32_t subCmd = 0);
     bool isBlocked () const {return _isBlocked;}
@@ -190,6 +202,7 @@ class DXRT_API ServiceDevice  // NOSONAR:S1820
     std::function<void(dxrt::dxrt_server_err_t, uint32_t, int, const dx_pcie_dev_err_t *)> _errCallBack;
     std::function<void(dxrt::dxrt_server_err_t, uint32_t, int)> _recoveryCallBack;
     std::function<void(dx_pcie_dev_ntfy_throt_t, int)> _throttleCallBack;
+    DeviceDispatcher::RmapRestoreCallback _rmapRestoreCallBack;
 #ifdef _WIN32
     DeviceRemovalHandler _removalHandler;
     std::atomic<bool> _removing{false};
@@ -209,6 +222,16 @@ class DXRT_API ServiceDevice  // NOSONAR:S1820
     std::function<void(bool, pid_t, int, int, int)> _dmaCompletionCallback;
     void HandleDMARead(const DMAItem& item, int ch);
     void HandleDMAWrite(const DMAItem& item, int ch);
+
+    // Lazily pins each (host address, size, direction) the first time it is DMA'd so
+    // repeated transfers on the same shared-memory slice skip per-transfer pin/map/unmap.
+    // Best effort: a rejection disables registration for this device, except -EEXIST
+    // for a stale registration at the address, which is dropped and registered anew.
+    void EnsureDmaRegistered(const dxrt_meminfo_t& memInfo, bool input);
+    using DmaRegKey = std::tuple<uint64_t, uint64_t, bool>;  // addr, size, input
+    std::mutex _dmaRegLock;
+    std::set<DmaRegKey> _dmaRegistered;
+    bool _dmaRegDisabled = false;  // guarded by _dmaRegLock
 
 
 

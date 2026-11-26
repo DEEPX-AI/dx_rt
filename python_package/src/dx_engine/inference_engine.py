@@ -1166,6 +1166,24 @@ class InferenceEngine:
         mask_bytes = np.array(mask_bytes_list, dtype=np.uint8)
         return np.unpackbits(mask_bytes, bitorder='little').astype(bool)
 
+    @staticmethod
+    def is_system_level_testing_supported() -> bool:
+        """Returns True if libdxrt was built with USE_SYSTEM_LEVEL_TESTING=ON."""
+        return bool(getattr(C, "is_system_level_testing_supported", lambda: False)())
+
+    def get_job_device(self, job_id: int) -> int:
+        """Retrieves and removes the recorded NPU core ID, or returns -1 if absent.
+
+        Raises:
+            RuntimeError: If built without USE_SYSTEM_LEVEL_TESTING=ON.
+        """
+        if not hasattr(self.engine, "get_job_device"):
+            raise RuntimeError(
+                "get_job_device() requires a DX-RT build with USE_SYSTEM_LEVEL_TESTING=ON "
+                "(./build.sh --use_system_level_testing_on)."
+            )
+        return self.engine.get_job_device(job_id)
+
     def get_num_tail_tasks(self) -> int:
         """Returns the number of 'tail' tasks in the model graph."""
         return self.engine.get_num_tail_tasks()

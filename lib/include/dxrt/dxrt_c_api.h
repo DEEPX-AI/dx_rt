@@ -316,6 +316,22 @@ DXRT_CAPI dxrt_status_t dxrt_engine_wait(
     int            job_id,
     void*          output);
 
+/**
+ * Retrieve and remove the recorded NPU core ID for a completed job.
+ *
+ * @param engine     Engine handle (must not be NULL).
+ * @param job_id     Job identifier from dxrt_engine_run_async().
+ * @param[out] device Receives the NPU core ID, or -1 if no entry is recorded.
+ *                    Must not be NULL.
+ * @return DXRT_OK even when no entry is recorded; DXRT_ERR_INVALID_ARG
+ *         for a NULL engine or device pointer; DXRT_ERR_NOT_SUPPORTED
+ *         (with *device = -1) when built without USE_SYSTEM_LEVEL_TESTING.
+ */
+DXRT_CAPI dxrt_status_t dxrt_engine_get_job_device(
+    dxrt_engine_t  engine,
+    int            job_id,
+    int*           device);
+
 /* ══════════════════════════════════════════════════════════════
  *  Metadata Queries
  * ══════════════════════════════════════════════════════════════ */

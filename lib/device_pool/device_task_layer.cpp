@@ -32,6 +32,18 @@
 
 namespace dxrt {
 
+int DeviceTaskLayer::RegisterDmaBuffer(void* ptr, uint64_t size, bool input)
+{
+    auto c = core();
+    return c ? c->RegisterDmaBuffer(ptr, size, input) : -1;
+}
+
+int DeviceTaskLayer::UnregisterDmaBuffer(void* ptr, uint64_t size, bool input)
+{
+    auto c = core();
+    return c ? c->UnregisterDmaBuffer(ptr, size, input) : -1;
+}
+
 DeviceTaskLayer::DeviceTaskLayer(std::shared_ptr<DeviceCore> core, std::shared_ptr<ServiceLayerInterface> service_interface)
 : _core(core), _serviceLayer(service_interface), _npuMemoryCacheManager(this)
 {
@@ -229,6 +241,14 @@ void DeviceTaskLayer::Deallocate_npuBuf(const NpuMemoryCacheSlice &slice, int ta
     std::cout << "[DXRT] Fatal error from service on device " << id() << std::endl;
     std::cout << " ** Reason : " <<  err <<
         " (err_code=" << value << ")" << std::endl;
+    if (err == dxrt_server_err_t::S_ERR_SERVICE_TERMINATION)
+    {
+        std::cout << " ** The connection to the DX-RT service (dxrtd) was lost; in-flight requests cannot complete."
+                  << std::endl;
+        std::cout << " ** This application must exit. Start it again once the service is running." << std::endl;
+        std::cout << "============================================================" << std::endl;
+        std::_Exit(EXIT_FAILURE);
+    }
     if (errorInfo != nullptr)
     {
         std::cout << " ** Detailed error payload from service:" << std::endl;
@@ -283,6 +303,11 @@ void DeviceTaskLayer::waitForInflightDmaCompletion(uint32_t timeoutMs)   // NOSO
 
 int DeviceTaskLayer::triggerRecovery()
 {
+#ifdef USE_SYSTEM_LEVEL_TESTING
+    // SLT: never self-recover. quick_exit is [[noreturn]], so the recovery below is not reached.
+    std::quick_exit(EXIT_FAILURE);
+#endif
+
     LOG_DXRT_DBG << "DeviceTaskLayer::triggerRecovery start for device " << id() << std::endl;
 
     // Prevent duplicate recovery via epoch check

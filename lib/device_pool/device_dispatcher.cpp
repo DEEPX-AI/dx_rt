@@ -95,6 +95,61 @@ int DeviceDispatcher::Process(dxrt_cmd_t cmd, void* data, uint32_t size, uint32_
     return _core->Process(cmd, data, size, sub_cmd);
 }
 
+void DeviceDispatcher::HandleFwRecoveryEvent(uint32_t action)
+{
+    switch (action)
+    {
+        case DXRT_RECOV_RMAP:
+        {
+            // The FW found the RMAP in device memory corrupted (IRQ_CMD_CKSUM with
+            // a DDR checksum mismatch). It waits up to 3 s for DXRT_CMD_START with
+            // data[0] == 1, then resets the NPU and re-issues the request.
+            constexpr uint32_t kRmapRecoveryDone = 1;  // FW handle_start: RMAP_RECOVERY_DONE
+            int restored = -1;
+            if (_onRmapRestore)
+            {
+                restored = _onRmapRestore(_deviceId);
+            }
+            if (restored < 0)
+            {
+                LOG_DXRT_S_ERR("[EventLoop] Device " << _deviceId
+                    << ": FW requested RMAP recovery but restoring RMAP failed (ret=" << restored << ")");
+            }
+            else
+            {
+                LOG_DXRT_S_ERR("[EventLoop] Device " << _deviceId << ": FW found a damaged RMAP; restored "
+                    << restored << " RMAP block(s)");
+            }
+            // Answer even if the restore failed: the FW then re-issues the request,
+            // which either succeeds or escalates to a reported NPU error, instead
+            // of dropping the request silently when its wait times out.
+            uint32_t start = kRmapRecoveryDone;
+            const int ret = Process(dxrt_cmd_t::DXRT_CMD_START, &start, sizeof(start));
+            if (ret != 0)
+            {
+                LOG_DXRT_S_ERR("[EventLoop] Device " << _deviceId
+                    << ": DXRT_CMD_START for RMAP recovery failed (ret=" << ret << ")");
+            }
+            break;
+        }
+        case DXRT_RECOV_WEIGHT:
+            LOG_DXRT_S << "[EventLoop] Device " << _deviceId
+                << ": FW reported damaged weight; weight restore is not handled by the service" << endl;
+            break;
+        case DXRT_RECOV_CPU:
+            LOG_DXRT_S_ERR("[EventLoop] Device " << _deviceId
+                << ": FW CPU exception; FW resets its CPU and resumes the queued requests");
+            break;
+        case DXRT_RECOV_DONE:
+            LOG_DXRT_S << "[EventLoop] Device " << _deviceId << ": FW recovery done" << endl;
+            break;
+        default:
+            LOG_DXRT_S_ERR("[EventLoop] Device " << _deviceId
+                << ": unknown FW recovery action " << action);
+            break;
+    }
+}
+
 void DeviceDispatcher::StartThreads()
 {
     for (int ch = 0; ch < kResponseChannels; ++ch)
@@ -357,6 +412,18 @@ int DeviceDispatcher::EventLoop()  // NOSONAR
         if (eventType == dxrt::dxrt_event_t::DXRT_EVENT_RECOVERY)
         {
             const auto& recovery = eventInfo.dx_rt_recv;
+
+            // The FW (dxrt_set_rt_recovery) and the driver (emit_recovery_event)
+            // share DXRT_EVENT_RECOVERY with different meanings for `action`.
+            // The driver always sets a reason; the FW payload carries only
+            // `action` (dxrt_recov_t), so its reason stays NONE.
+            if (recovery.reason == DX_RECOVERY_REASON_NONE)
+            {
+                HandleFwRecoveryEvent(recovery.action);
+                loopCnt++;
+                continue;
+            }
+
             LOG_DXRT_S << "Recovery event: subcode=" << RecoverySubcodeToString(recovery.action)
                 << "(" << recovery.action << ") reason=" << RecoveryReasonToString(recovery.reason)
                 << "(" << recovery.reason << ") count=" << recovery.recovery_count
@@ -501,9 +568,13 @@ int DeviceDispatcher::EventLoop()  // NOSONAR
                 if (_onError)
                     _onError(dxrt_server_err_t::S_ERR_DEVICE_EVENT_FAULT, err_code, _deviceId,
                              &eventInfo.dx_rt_err);
-
+#ifdef USE_SYSTEM_LEVEL_TESTING
+                // SLT: never self-recover; exit immediately so the fault is visible to the test
+                std::quick_exit(EXIT_FAILURE);
+#else
                 Process(dxrt::dxrt_cmd_t::DXRT_CMD_RECOVERY, nullptr);
-                std::abort();
+                TerminateForServiceRestart();
+#endif
             }
         }
         else if (static_cast<dxrt::dxrt_event_t>(eventInfo.event_type)
@@ -656,7 +727,7 @@ void DeviceDispatcher::TriggerRecovery(uint32_t errCode)
         if (!pauseOk)
         {
             LOG_DXRT_S_ERR("PauseForRecovery timeout/failure for device " + std::to_string(_deviceId));
-            std::abort();
+            TerminateForServiceRestart();
         }
     }
     else if (_onRecovery)
@@ -677,7 +748,7 @@ void DeviceDispatcher::TriggerRecovery(uint32_t errCode)
         {
             _recoveryAdapter->OnRecoveryFailed(_deviceId);
         }
-        std::abort();
+        TerminateForServiceRestart();
     }
     LOG_DXRT_S_DBG << "Step 3: DXRT_CMD_RECOVERY completed with ret=" << recovery_ret << endl;
 
@@ -693,7 +764,7 @@ void DeviceDispatcher::TriggerRecovery(uint32_t errCode)
         {
             _recoveryAdapter->OnRecoveryFailed(_deviceId);
         }
-        std::abort();
+        TerminateForServiceRestart();
     }
     LOG_DXRT_S_DBG << "DXRT_CMD_IDENTIFY_DEVICE succeeded - device is READY" << endl;
 

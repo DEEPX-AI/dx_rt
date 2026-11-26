@@ -34,6 +34,7 @@ struct ServiceLayerDynamicIpcClient
     ErrorNotificationCallback onErrorNotification;
     InferenceResponseCallback onInferenceResponse;
     RecoveryStartNotificationCallback onRecoveryStartNotification;
+    ServiceLostCallback onServiceLost;
 
     ~ServiceLayerDynamicIpcClient()
     {
@@ -126,6 +127,14 @@ IpcClientOwner CreateServiceLayerDynamicIpcClient(const std::string &endpoint)
                 runtimeRaw->onRecoveryStartNotification(deviceId, recoveryId);
             }
             return true;
+        });
+
+    runtimeRaw->client.setServiceLostHandler(
+        [runtimeRaw]() {
+            if (runtimeRaw->onServiceLost != nullptr)
+            {
+                runtimeRaw->onServiceLost();
+            }
         });
 
     LOG_DXRT_DBG << "CreateServiceLayerDynamicIpcClient SUCCESS: all handlers registered" << std::endl;
@@ -384,6 +393,16 @@ void ServiceLayerDynamicIpcSetRecoveryStartNotificationHandler(
     if (client != nullptr)
     {
         client->onRecoveryStartNotification = std::move(callback);
+    }
+}
+
+void ServiceLayerDynamicIpcSetServiceLostHandler(
+    ServiceLayerDynamicIpcClient *client,
+    ServiceLostCallback callback)
+{
+    if (client != nullptr)
+    {
+        client->onServiceLost = std::move(callback);
     }
 }
 

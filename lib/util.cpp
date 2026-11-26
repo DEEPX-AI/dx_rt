@@ -359,7 +359,7 @@ void MemFree(void **p)
 #ifdef __linux__
         free(*p);
 #elif _WIN32
-        _aligned_free(p);
+        _aligned_free(*p);
 #endif
         * p = nullptr;
     }

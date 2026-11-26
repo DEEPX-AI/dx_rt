@@ -52,6 +52,12 @@ ServiceLayer::ServiceLayer()
 {
 }
 
+ServiceLayer::~ServiceLayer()
+{
+    // IPC callbacks use members declared after _dynamicIpcClient; join the receive thread before they are destroyed.
+    _dynamicIpcClient.reset();
+}
+
 void ServiceLayer::EnsureDynamicIPCConnected()
 {
     if (_dynamicIpcConnected)
@@ -130,6 +136,13 @@ void ServiceLayer::EnsureDynamicIPCConnected()
                 "ServiceLayer recovery notification: deviceId=" + std::to_string(deviceId) +
                 ", recoveryId=" + std::to_string(recoveryId));
             SignalStoppedDmaToWaitRecovery(deviceId, recoveryId);
+        });
+
+    ServiceLayerDynamicIpcSetServiceLostHandler(
+        _dynamicIpcClient.get(),
+        [this]() {
+            LOG_DXRT_ERR("ServiceLayer lost the connection to dxrtd; in-flight requests can no longer complete");
+            DispatchServiceLost();
         });
 
     _dynamicIpcConnected = true;
@@ -311,6 +324,31 @@ void ServiceLayer::DispatchErrorNotification(
     if (handler)
     {
         handler(err, value, errorInfo);
+    }
+}
+
+void ServiceLayer::DispatchServiceLost()
+{
+    // Error handlers end the process, so one call is enough; the lowest device id keeps the message stable.
+    int deviceId = -1;
+    std::function<void(dxrt_server_err_t, int, const dx_pcie_dev_err_t &)> handler;
+    {
+        std::lock_guard<std::mutex> lock(_errorHandlerMutex);
+        for (const auto &entry : _errorHandlers)
+        {
+            if (entry.second && (deviceId < 0 || entry.first < deviceId))
+            {
+                deviceId = entry.first;
+                handler = entry.second;
+            }
+        }
+    }
+
+    if (handler)
+    {
+        LOG_DXRT_ERR("ServiceLayer reports service termination through device " + std::to_string(deviceId));
+        const dx_pcie_dev_err_t errorInfo{};
+        handler(dxrt_server_err_t::S_ERR_SERVICE_TERMINATION, /*value=*/0, errorInfo);
     }
 }
 

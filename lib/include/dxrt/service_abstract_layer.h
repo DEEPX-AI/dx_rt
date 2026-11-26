@@ -216,7 +216,10 @@ public:
     int DMAWrite(SharedMemoryView view) override;
     int DMAReadWithFaultInjection(SharedMemoryView view) override;
 
-    ~ServiceLayer() override = default;
+    ~ServiceLayer() override;
+protected:
+    // Reports S_ERR_SERVICE_TERMINATION when the connection to dxrtd is lost.
+    void DispatchServiceLost();
 private:
     void EnsureDynamicIPCConnected();  // must be called with _ipcMutex held
 

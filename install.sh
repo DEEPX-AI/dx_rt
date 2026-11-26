@@ -156,6 +156,84 @@ function install_dep()
     install_python
 }
 
+# ---------------------------------------------------------------------------
+# ONNX Runtime (upstream archive) download with pinned checksum verification
+# ---------------------------------------------------------------------------
+# Commit of the DEEPX mirror repo (DEEPX-AI/onnxruntime) the mirror URL is pinned to.
+# Update this SHA when a file is added to the mirror.
+ORT_MIRROR_REF=967bf2fbe332abd7447071723163d511a50d3cd4
+
+# Expected sha256 of each upstream ONNX Runtime archive. These values committed in this repo
+# are the only source of trust: nothing fetched at install time is used as a checksum.
+# To support another archive, add one line here.
+function ort_pinned_sha256()
+{
+    case "$1" in
+        onnxruntime-linux-x64-1.22.0.tgz)     echo 8344d55f93d5bc5021ce342db50f62079daf39aaafb5d311a451846228be49b3 ;;
+        onnxruntime-linux-aarch64-1.20.1.tgz) echo ae4fedbdc8c18d688c01306b4b50c63de3445cdf2dbd720e01a2fa3810b8106a ;;
+        *) return 1 ;;
+    esac
+}
+
+# ort_download <version> <x86_64|aarch64> <dest_dir> <marker_file>
+# Downloads the upstream archive (official link first, then the DEEPX mirror), verifies it
+# against the pinned sha256 and only then places it in <dest_dir> and writes the marker.
+# Returns: 0 verified, 1 download failed from every source, 2 no pinned checksum, 3 checksum mismatch
+function ort_download()
+{
+    local version=$1 arch=$2 dest=$3 marker=$4
+    local upstream_arch file expected src url tmp actual
+
+    case "$arch" in
+        x86_64)  upstream_arch=x64 ;;
+        aarch64) upstream_arch=aarch64 ;;
+        *) echo -e "${TAG_ERROR} [onnxruntime] unsupported architecture: $arch"; return 2 ;;
+    esac
+    file="onnxruntime-linux-${upstream_arch}-${version}.tgz"
+
+    if ! expected=$(ort_pinned_sha256 "$file"); then
+        echo -e "${TAG_ERROR} [onnxruntime] $file: 고정된 체크섬이 없어 다운로드할 수 없습니다"
+        return 2
+    fi
+
+    mkdir -p "$dest"
+    tmp=$(mktemp "$dest/.${file}.XXXXXX") || return 1
+
+    for src in microsoft deepx-mirror; do
+        case "$src" in
+            microsoft)    url="https://github.com/microsoft/onnxruntime/releases/download/v${version}/${file}" ;;
+            # Layout: linux/<x86_64|aarch64>/onnxruntime-linux-<x64|aarch64>-<version>.tgz
+            deepx-mirror) url="https://raw.githubusercontent.com/DEEPX-AI/onnxruntime/${ORT_MIRROR_REF}/linux/${arch}/${file}" ;;
+        esac
+
+        echo "[onnxruntime] trying source=$src url=$url"
+        if ! wget "$url" --no-check-certificate --output-document="$tmp"; then
+            echo -e "${TAG_WARN} [onnxruntime] source=$src unavailable: $url"
+            continue
+        fi
+
+        actual=$(sha256sum "$tmp" | cut -d' ' -f1)
+        if [ "$actual" != "$expected" ]; then
+            # Do not fall through to the next source: a wrong archive is an error, not an outage.
+            rm -f "$tmp"
+            echo -e "${TAG_ERROR} [onnxruntime] CHECKSUM MISMATCH for $file from source=$src"
+            echo -e "${TAG_ERROR} [onnxruntime]   expected $expected"
+            echo -e "${TAG_ERROR} [onnxruntime]   actual   $actual"
+            return 3
+        fi
+
+        chmod 644 "$tmp"
+        mv -f "$tmp" "$dest/$file"
+        echo "[onnxruntime] downloaded $file source=$src url=$url sha256=$actual (verified)"
+        echo "$src" > "$marker"
+        return 0
+    done
+
+    rm -f "$tmp"
+    echo -e "${TAG_ERROR} [onnxruntime] could not download $file from any source"
+    return 1
+}
+
 function install_onnx()
 {
     if [ "$target_arch" == "riscv64" ] && [ "$install_onnx" == true ]; then
@@ -207,23 +285,27 @@ function install_onnx()
         # Determine download source and parameters based on cpu acceleration
         local onnx_source=""
         local onnx_download_url=""
-        local onnx_mirror_url=""
+        local onnx_expected_sha256=""
         local strip_components=1
         if [ "$enable_cpu_accel" == true ]; then
             echo " Install DeepX Pre-built ONNX-Runtime API "
             onnx_source="deepx"
             onnx_download_url="https://github.com/DEEPX-AI/dx_rt/releases/download/v3.2.0-sr1/$ONNX_PACKAGE_NAME"
-            # No mirror on purpose: the DEEPX mirror only holds the upstream (microsoft) archives,
-            # not the DeepX pre-built ORT. onnx_mirror_url stays empty and is skipped below.
+            # No mirror and no pinned checksum: the DeepX pre-built ORT is a different archive
+            # that shares the upstream file name, so ort_pinned_sha256 does not apply to it.
             strip_components=2
         else
             echo " Install ONNX-Runtime API "
+            # Upstream archive: official link first, then the DEEPX mirror (see ort_download).
+            # The marker records the source actually used: 'microsoft' or 'deepx-mirror'.
             onnx_source="microsoft"
-            onnx_download_url="https://github.com/microsoft/onnxruntime/releases/download/v$ONNX_VERSION/$ONNX_PACKAGE_NAME"
-            # DEEPX mirror of the same upstream archive, used when the official link fails.
-            # Layout: linux/<x86_64|aarch64>/onnxruntime-linux-<x64|aarch64>-<version>.tgz
-            onnx_mirror_url="https://github.com/DEEPX-AI/onnxruntime/raw/main/linux/$target_arch/$ONNX_PACKAGE_NAME"
             strip_components=1
+            # Without a pinned checksum the archive is neither downloaded nor reused.
+            if ! onnx_expected_sha256=$(ort_pinned_sha256 "$ONNX_PACKAGE_NAME"); then
+                echo -e "${TAG_ERROR} [onnxruntime] $ONNX_PACKAGE_NAME: 고정된 체크섬이 없어 다운로드할 수 없습니다"
+                echo -e "${TAG_ERROR} ONNX Runtime was not installed."
+                exit 1
+            fi
         fi
 
         mkdir -p $DX_SRC_DIR/util
@@ -235,8 +317,22 @@ function install_onnx()
         if [ -f "$DX_SRC_DIR/util/$ONNX_PACKAGE_NAME" ]; then
             if [ -f "$ONNX_SOURCE_MARKER" ]; then
                 local recorded_source=$(cat "$ONNX_SOURCE_MARKER")
-                if [ "$recorded_source" == "$onnx_source" ]; then
-                    echo "Already downloaded util/$ONNX_PACKAGE_NAME (source: $onnx_source)"
+                if [ "$onnx_source" == "deepx" ] && [ "$recorded_source" == "deepx" ]; then
+                    echo "Already downloaded util/$ONNX_PACKAGE_NAME (source: $recorded_source)"
+                    need_download=false
+                elif [ "$onnx_source" == "microsoft" ] && { [ "$recorded_source" == "microsoft" ] || [ "$recorded_source" == "deepx-mirror" ]; }; then
+                    # A reused archive goes through the same verification as a fresh download.
+                    local onnx_actual_sha256=$(sha256sum "$DX_SRC_DIR/util/$ONNX_PACKAGE_NAME" | cut -d' ' -f1)
+                    if [ "$onnx_actual_sha256" != "$onnx_expected_sha256" ]; then
+                        rm -f "$DX_SRC_DIR/util/$ONNX_PACKAGE_NAME" "$ONNX_SOURCE_MARKER"
+                        echo -e "${TAG_ERROR} [onnxruntime] CHECKSUM MISMATCH for existing util/$ONNX_PACKAGE_NAME (source: $recorded_source)"
+                        echo -e "${TAG_ERROR} [onnxruntime]   expected $onnx_expected_sha256"
+                        echo -e "${TAG_ERROR} [onnxruntime]   actual   $onnx_actual_sha256"
+                        echo -e "${TAG_ERROR} The file was removed. Run this script again to download it."
+                        echo -e "${TAG_ERROR} ONNX Runtime was not installed."
+                        exit 1
+                    fi
+                    echo "[onnxruntime] reusing util/$ONNX_PACKAGE_NAME source=$recorded_source sha256=$onnx_actual_sha256 (verified)"
                     need_download=false
                 else
                     echo -e "${TAG_INFO} Previously downloaded from '${recorded_source}', but now need '${onnx_source}'. Re-downloading..."
@@ -249,40 +345,39 @@ function install_onnx()
         fi
 
         if [ "$need_download" == true ]; then
-            # Try each source in order: official link first, then the DEEPX mirror (if any).
-            local onnx_downloaded=false
-            local onnx_url=""
-            for onnx_url in "$onnx_download_url" "$onnx_mirror_url"; do
-                if [ -z "$onnx_url" ]; then
-                    # Empty mirror URL: the mirror is only available for the microsoft/upstream source.
-                    continue
+            if [ "$onnx_source" == "deepx" ]; then
+                if ! wget "$onnx_download_url" --no-check-certificate --backups=0; then
+                    # Remove any partial file so that it is never extracted or reused.
+                    rm -f "$DX_SRC_DIR/util/$ONNX_PACKAGE_NAME"
+                    echo ""
+                    echo -e "${TAG_ERROR} ONNX Runtime download failed: $ONNX_PACKAGE_NAME"
+                    echo -e "${TAG_ERROR}   - $onnx_download_url"
+                    echo -e "${TAG_ERROR} Check the network connection, proxy and firewall settings, then run this script again."
+                    echo -e "${TAG_ERROR} To install offline, download the file on another machine and run:"
+                    echo -e "${TAG_ERROR}   cp $ONNX_PACKAGE_NAME $DX_SRC_DIR/util/"
+                    echo -e "${TAG_ERROR}   echo $onnx_source > $ONNX_SOURCE_MARKER"
+                    echo -e "${TAG_ERROR} ONNX Runtime was not installed."
+                    exit 1
                 fi
-                if wget "$onnx_url" --no-check-certificate --backups=0; then
-                    onnx_downloaded=true
-                    break
+                echo "$onnx_source" > "$ONNX_SOURCE_MARKER"
+            else
+                # Verifies the pinned sha256 before the archive is placed and the marker is written.
+                ort_download "$ONNX_VERSION" "$target_arch" "$DX_SRC_DIR/util" "$ONNX_SOURCE_MARKER"
+                local onnx_download_result=$?
+                if [ "$onnx_download_result" -eq 1 ]; then
+                    echo ""
+                    echo -e "${TAG_ERROR} ONNX Runtime download failed: $ONNX_PACKAGE_NAME"
+                    echo -e "${TAG_ERROR} Check the network connection, proxy and firewall settings, then run this script again."
+                    echo -e "${TAG_ERROR} To install offline, download the file on another machine and run:"
+                    echo -e "${TAG_ERROR}   cp $ONNX_PACKAGE_NAME $DX_SRC_DIR/util/"
+                    echo -e "${TAG_ERROR}   echo microsoft > $ONNX_SOURCE_MARKER"
+                    echo -e "${TAG_ERROR} (the copied file must match the pinned sha256: $onnx_expected_sha256)"
                 fi
-                echo -e "${TAG_WARN} Failed to download: $onnx_url"
-                # Remove any partial file after every failed attempt. If it is left behind,
-                # wget saves the next attempt as "<name>.1" and the partial file gets extracted.
-                rm -f "$DX_SRC_DIR/util/$ONNX_PACKAGE_NAME"
-            done
-
-            if [ "$onnx_downloaded" != true ]; then
-                echo ""
-                echo -e "${TAG_ERROR} ONNX Runtime download failed: $ONNX_PACKAGE_NAME"
-                echo -e "${TAG_ERROR} No download source could be reached:"
-                echo -e "${TAG_ERROR}   - $onnx_download_url"
-                if [ -n "$onnx_mirror_url" ]; then
-                    echo -e "${TAG_ERROR}   - $onnx_mirror_url (DEEPX mirror)"
+                if [ "$onnx_download_result" -ne 0 ]; then
+                    echo -e "${TAG_ERROR} ONNX Runtime was not installed."
+                    exit 1
                 fi
-                echo -e "${TAG_ERROR} Check the network connection, proxy and firewall settings, then run this script again."
-                echo -e "${TAG_ERROR} To install offline, download the file on another machine and run:"
-                echo -e "${TAG_ERROR}   cp $ONNX_PACKAGE_NAME $DX_SRC_DIR/util/"
-                echo -e "${TAG_ERROR}   echo $onnx_source > $ONNX_SOURCE_MARKER"
-                echo -e "${TAG_ERROR} ONNX Runtime was not installed."
-                exit 1
             fi
-            echo "$onnx_source" > "$ONNX_SOURCE_MARKER"
         fi
 
         mkdir -p $ONNX_ARCH_FOLDER

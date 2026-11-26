@@ -20,7 +20,7 @@
 #include "dxrt/common.h"
 
 // Acceleration feature availability (derived from cmake/build configuration)
-#if defined(USE_IPP) || defined(USE_NEON)
+#if defined(USE_IPP) || defined(USE_NEON) || defined(USE_SSE2)
 #define DXRT_NFH_ACCELERATION_AVAILABLE
 #endif
 

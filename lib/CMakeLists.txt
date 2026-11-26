@@ -315,7 +315,16 @@ endif()
 # NPU Format Conversion Acceleration: detect libraries, validate environment, link
 # ============================================================================
 if (USE_NPU_FORMAT_CONVERSION_ACCELERATION)
-    if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64")
+    if (MSVC AND CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64")
+        # Windows x64: SSE2 is part of the x64 baseline, so the transpose kernels need
+        # no compiler flag and no external library (Intel IPP is not used on Windows).
+        target_compile_definitions(${target} PUBLIC USE_SSE2)
+        if(TARGET dxrt_obj)
+            target_compile_definitions(dxrt_obj PUBLIC USE_SSE2)
+        endif()
+        message(STATUS "SSE2 transpose kernels enabled for NFH acceleration (MSVC x64)")
+
+    elseif (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64")
         # x86_64: Enable SSE4.1 for quantize kernel (independent of IPP)
         target_compile_options(${target} PRIVATE -msse4.1)
         if(TARGET dxrt_obj)
@@ -498,6 +507,7 @@ endif()
 get_target_property(_dxrt_compile_defs ${target} COMPILE_DEFINITIONS)
 set(USE_IPP_DEFINE "")
 set(USE_NEON_DEFINE "")
+set(USE_SSE2_DEFINE "")
 set(USE_OPENVINO_DEFINE "")
 set(USE_XNNPACK_DEFINE "")
 set(DXRT_NFH_ACCELERATION_AVAILABLE_DEFINE "")
@@ -509,6 +519,9 @@ if(_dxrt_compile_defs)
     if("USE_NEON" IN_LIST _dxrt_compile_defs)
         set(USE_NEON_DEFINE "#ifndef USE_NEON\n#define USE_NEON\n#endif")
     endif()
+    if("USE_SSE2" IN_LIST _dxrt_compile_defs)
+        set(USE_SSE2_DEFINE "#ifndef USE_SSE2\n#define USE_SSE2\n#endif")
+    endif()
     if("USE_OPENVINO" IN_LIST _dxrt_compile_defs)
         set(USE_OPENVINO_DEFINE "#ifndef USE_OPENVINO\n#define USE_OPENVINO\n#endif")
     endif()
@@ -516,7 +529,8 @@ if(_dxrt_compile_defs)
         set(USE_XNNPACK_DEFINE "#ifndef USE_XNNPACK\n#define USE_XNNPACK\n#endif")
     endif()
     # Derived availability macros for public API consumers (e.g. run_model CLI)
-    if("USE_IPP" IN_LIST _dxrt_compile_defs OR "USE_NEON" IN_LIST _dxrt_compile_defs)
+    if("USE_IPP" IN_LIST _dxrt_compile_defs OR "USE_NEON" IN_LIST _dxrt_compile_defs
+       OR "USE_SSE2" IN_LIST _dxrt_compile_defs)
         set(DXRT_NFH_ACCELERATION_AVAILABLE_DEFINE "#ifndef DXRT_NFH_ACCELERATION_AVAILABLE\n#define DXRT_NFH_ACCELERATION_AVAILABLE\n#endif")
     endif()
     if("USE_OPENVINO" IN_LIST _dxrt_compile_defs OR "USE_XNNPACK" IN_LIST _dxrt_compile_defs)
@@ -654,6 +668,29 @@ install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/dxrtConfigVersion.cmake
     DESTINATION lib/cmake/dxrt
 )
+
+# License and third-party notices (source-build installs).
+# The libdxrt-bin Debian package stages these through scripts/create_prebuilt.sh.
+set(DXRT_DOC_DIR share/doc/dxrt)
+install(FILES
+    ${CMAKE_SOURCE_DIR}/LICENSE
+    ${CMAKE_SOURCE_DIR}/NOTICE.md
+    DESTINATION ${DXRT_DOC_DIR}
+)
+if(USE_ORT)
+    # Ship ONNX Runtime's own notices when they sit next to its lib directory
+    # (extracted ONNX Runtime archive: Windows, aarch64 cross builds).
+    # ThirdPartyNotices.txt must be present so that an unrelated LICENSE file
+    # in the parent directory is never picked up.
+    set(DXRT_ORT_ROOT "${onnxruntime_LIB_DIRS}/..")
+    if(EXISTS "${DXRT_ORT_ROOT}/ThirdPartyNotices.txt" AND EXISTS "${DXRT_ORT_ROOT}/LICENSE")
+        install(FILES
+            "${DXRT_ORT_ROOT}/LICENSE"
+            "${DXRT_ORT_ROOT}/ThirdPartyNotices.txt"
+            DESTINATION ${DXRT_DOC_DIR}/onnxruntime
+        )
+    endif()
+endif()
 
 # Install onnxruntime DLL to bin directory
 if(MSVC AND USE_ORT)

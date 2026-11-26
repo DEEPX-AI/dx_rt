@@ -26,7 +26,7 @@ depended on the C++ ABI instead of the stable C API.
   `out\install\x64-Release\bin\`, which contains `dxrt.dll`,
   `onnxruntime.dll`, and `onnxruntime_providers_shared.dll`.
 - The Windows build uses the `dxrtd` service. See
-  [Installation on Windows](../../docs/source/docs/03_Installation_on_Windows.md).
+  [Installation on Windows](https://developer.deepx.ai/tech-docs/DXNN-SDK/DX-RT/Installation_on_Windows/).
 
 ## Binding rules
 

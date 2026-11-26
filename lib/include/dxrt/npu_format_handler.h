@@ -47,8 +47,9 @@ namespace npu_format_handler {
         static void ipp_bidirectional_transpose(void* src, void* dst, int row, int col, size_t element_size);
 #endif
 
-#ifdef USE_NEON
-        static void neon_bidirectional_transpose(void* src, void* dst, int row, int col, size_t element_size);
+#if defined(USE_NEON) || defined(USE_SSE2)
+        // xnnpack_transpose<T>: NEON kernels on aarch64, SSE2 kernels on Windows x64
+        static void simd_bidirectional_transpose(void* src, void* dst, int row, int col, size_t element_size);
 #endif
 
         // --- High-level NFH Processing Functions ---

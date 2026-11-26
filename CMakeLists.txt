@@ -284,6 +284,13 @@ else()
     set(USE_SERVICE_DEFINE "")
 endif()
 
+# Exposed via gen.h (not add_definitions) because it changes InferenceEngine's public layout.
+if(USE_SYSTEM_LEVEL_TESTING)
+    set(USE_SYSTEM_LEVEL_TESTING_DEFINE "#define USE_SYSTEM_LEVEL_TESTING")
+else()
+    set(USE_SYSTEM_LEVEL_TESTING_DEFINE "")
+endif()
+
 if(ENABLE_SHOW_MODEL_INFO)
     add_definitions(-DSHOW_MODEL_INFO_DEFINE)
 endif()

@@ -31,6 +31,8 @@ help() {
     echo -e "  ${COLOR_GREEN}--use_service_off${COLOR_RESET} Disable the use of the service in the build."
     echo -e "  ${COLOR_GREEN}--use_ort_on${COLOR_RESET}      Enable the use of the ORT component in the build."
     echo -e "  ${COLOR_GREEN}--use_ort_off${COLOR_RESET}     Disable the use of the ORT component in the build."
+    echo -e "  ${COLOR_GREEN}--use_system_level_testing_on${COLOR_RESET}  Enable system-level testing APIs (e.g. GetJobDevice)."
+    echo -e "  ${COLOR_GREEN}--use_system_level_testing_off${COLOR_RESET} Disable system-level testing APIs (default)."
     echo -e "  ${COLOR_GREEN}--python-break-system-packages${COLOR_RESET} Allow installing python packages in environments managed by the system package manager."
     echo -e ""
     echo -e "${COLOR_BOLD}Examples:${COLOR_RESET}"
@@ -105,6 +107,7 @@ setup_env() {
     CMAKE_USE_CPU_OP_ACCELERATION=true
     CMAKE_FORCE_NPU_FORMAT_CONVERSION_ACCELERATION=false
     CMAKE_FORCE_CPU_OP_ACCELERATION=false
+    CMAKE_USE_SYSTEM_LEVEL_TESTING=false
 
     parse_cmake_options() {
         local file="$1"
@@ -172,6 +175,12 @@ setup_env() {
                     CMAKE_FORCE_CPU_OP_ACCELERATION=true
                 else
                     CMAKE_FORCE_CPU_OP_ACCELERATION=false
+                fi
+            elif [ "$var_name" == 'USE_SYSTEM_LEVEL_TESTING' ]; then
+                if [ "$default_val" == 'ON' ]; then
+                    CMAKE_USE_SYSTEM_LEVEL_TESTING=true
+                else
+                    CMAKE_USE_SYSTEM_LEVEL_TESTING=false
                 fi
             fi
         done < "$file"
@@ -322,10 +331,18 @@ build_dxrt() {
         cmd+=(-DFORCE_CPU_OP_ACCELERATION=OFF)
     fi
 
+    # set cmake options for system-level testing APIs
+    if [ $CMAKE_USE_SYSTEM_LEVEL_TESTING == "true" ]; then
+        cmd+=(-DUSE_SYSTEM_LEVEL_TESTING=ON)
+    else
+        cmd+=(-DUSE_SYSTEM_LEVEL_TESTING=OFF)
+    fi
+
     print_colored_v2 "INFO" "========== CMAKE OPTIONS  ============================="
     print_colored_v2 "INFO" "CMAKE_USE_ORT=$CMAKE_USE_ORT"
     print_colored_v2 "INFO" "CMAKE_USE_SERVICE=$CMAKE_USE_SERVICE"
     print_colored_v2 "INFO" "CMAKE_USE_PYTHON=$CMAKE_USE_PYTHON"
+    print_colored_v2 "INFO" "CMAKE_USE_SYSTEM_LEVEL_TESTING=$CMAKE_USE_SYSTEM_LEVEL_TESTING"
     print_colored_v2 "INFO" "==============================================================="
 
     print_colored_v2 "INFO" "========== CMAKE ARGS ========================================"
@@ -843,6 +860,8 @@ while (( $# )); do
         --use_service_off) CMAKE_USE_SERVICE=false; shift;;
         --use_ort_on) CMAKE_USE_ORT=true; shift;;
         --use_ort_off) CMAKE_USE_ORT=false; shift;;
+        --use_system_level_testing_on) CMAKE_USE_SYSTEM_LEVEL_TESTING=true; shift;;
+        --use_system_level_testing_off) CMAKE_USE_SYSTEM_LEVEL_TESTING=false; shift;;
         --use_vnpu)
             # Hidden option: configure for VNPU mode
             CMAKE_USE_DXRT_TEST=false

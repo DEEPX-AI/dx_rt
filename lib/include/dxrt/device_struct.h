@@ -181,3 +181,24 @@ enum class DeviceType : uint32_t
     STD_TYPE = 1,
 };
 
+/* CMD : DXRT_CMD_CUSTOM, SUBCMD : DX_GET_ALL_SENSORS
+ * Mirror of dxrt_all_sensors_t in firmware (firmware/.../dx_message.h).
+ * Keep field layout in sync with the firmware definition.
+ */
+#define DXRT_TEMP_PROBE_MAX     15
+#define DXRT_VOLT_PROBE_MAX     12
+#define DXRT_DDR_CH_MAX         4
+#define DXRT_NPU_MAX            4
+
+typedef struct DXRT_API all_sensors
+{
+    uint32_t temperature[DXRT_TEMP_PROBE_MAX];   /* PVT temperature probes (calibrated) */
+    uint32_t voltage[DXRT_VOLT_PROBE_MAX];       /* PVT voltage probes (raw code; mV ~= raw * 0.315) */
+    uint32_t ddr_temperature[DXRT_DDR_CH_MAX];
+    uint32_t ddr_sbe_cnt[DXRT_DDR_CH_MAX];
+    uint32_t ddr_dbe_cnt[DXRT_DDR_CH_MAX];
+    uint32_t npu_clock[DXRT_NPU_MAX];
+    uint32_t npu_voltage[DXRT_NPU_MAX];
+    uint32_t reserved[8];
+} dxrt_all_sensors_t;
+

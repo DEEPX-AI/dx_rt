@@ -22,6 +22,7 @@
 #include "dxrt/safe_cast.h"
 #include "dxrt/util.h"
 #include "dxrt/exception/exception.h"
+#include "dxrt/device_struct_operators.h"
 #include "../resource/log_messages.h"
 #include "../data/ppcpu.h"
 #include "dxrt/fixed_size_buffer.h"
@@ -85,6 +86,34 @@ int DeviceCore::Process(dxrt_cmd_t cmd, void *data, uint32_t size, uint32_t sub_
 #else
     return _adapter->IOControl(cmd, data, size, sub_cmd);
 #endif
+}
+
+namespace {
+int DmaBufferCommand(DeviceCore* core, dxrt_cmd_t cmd, void* ptr, uint64_t size, bool input)
+{
+#if defined(__linux__) && !defined(USE_VNPU)
+    if (ptr == nullptr || size == 0) return -1;
+
+    dxrt_buffer_reg_t reg{};
+    reg.addr = reinterpret_cast<uint64_t>(ptr);
+    reg.size = size;
+    reg.dir = input ? DXRT_BUF_DIR_H2C : DXRT_BUF_DIR_C2H;
+    return core->Process(cmd, &reg, sizeof(reg));
+#else
+    (void)core; (void)cmd; (void)ptr; (void)size; (void)input;
+    return -1;
+#endif
+}
+}  // namespace
+
+int DeviceCore::RegisterDmaBuffer(void *ptr, uint64_t size, bool input)
+{
+    return DmaBufferCommand(this, dxrt_cmd_t::DXRT_CMD_REGISTER_BUFFER, ptr, size, input);
+}
+
+int DeviceCore::UnregisterDmaBuffer(void *ptr, uint64_t size, bool input)
+{
+    return DmaBufferCommand(this, dxrt_cmd_t::DXRT_CMD_UNREGISTER_BUFFER, ptr, size, input);
 }
 
 dxrt_device_status_t DeviceCore::Status()
@@ -433,6 +462,21 @@ void DeviceCore::DoCustomCommand(void *data, uint32_t subCmd, uint32_t size)
                     sCmd);
             break;
         }
+        case DX_INTERNAL_FCT_OTP:
+        {
+            if (size != DX_FCT_OTP_PAYLOAD_SIZE)
+            {
+                throw InvalidArgumentException(EXCEPTION_MESSAGE("Invalid custom command buffer size"));
+            }
+            int ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_CUSTOM, data, size, sCmd);
+            if (ret != 0)
+            {
+                // No valid reply after a failed transfer.
+                std::memset(data, 0, sizeof(uint32_t));
+                LOG_DXRT_ERR("Device " << _id << ": custom command " << subCmd << " failed (ret=" << ret << ")");
+            }
+            break;
+        }
         case DX_INIT_PPCPU:
         {
             Process(dxrt::dxrt_cmd_t::DXRT_CMD_CUSTOM,
@@ -455,6 +499,22 @@ void DeviceCore::DoCustomCommand(void *data, uint32_t subCmd, uint32_t size)
                     data,
                     sizeof(dxrt_custom_weight_info_t),
                     sCmd);
+            break;
+        }
+        case DX_GET_ALL_SENSORS:
+        {
+            auto *snap = static_cast<dxrt_all_sensors_t *>(data);
+            int ret = Process(dxrt::dxrt_cmd_t::DXRT_CMD_CUSTOM,
+                              snap,
+                              sizeof(dxrt_all_sensors_t),
+                              sCmd);
+            if (ret != 0)
+            {
+                // Do not let callers print a zero-filled snapshot as a valid reading.
+                throw DeviceIOException(EXCEPTION_MESSAGE(
+                    "Device " + std::to_string(_id) + ": failed to read sensors (DX_GET_ALL_SENSORS, ret="
+                    + std::to_string(ret) + ")"));
+            }
             break;
         }
         default:
@@ -538,7 +598,7 @@ void DeviceCore::ShowPCIEDetails(std::ostream& os)
     dxrt_pcie_info_t pcieInfo;
     memset(&pcieInfo, 0, sizeof(dxrt_pcie_info_t));
     DoPcieCommand(&pcieInfo, DX_GET_PCIE_INFO, sizeof(dxrt_pcie_info_t));
-    os << "Device "<< id() << " pcie status:" << endl;
+    os << "Device "<< id() << " pcie status:" << endl << pcieInfo << endl;
 
     dxrt_device_status_t status_data = Status();
 

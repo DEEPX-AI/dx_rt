@@ -235,6 +235,12 @@ void DxrtServiceV2::setupIpcPacketRegistry(IPCPacketHandlerRegistry *registry, I
                     || memoryType == dxrt::MemoryType::Model_ppu_binary);
                 const SharedMemoryInfo allocInfo = HandleAllocate(pid, deviceId, taskId, bufferSize, isBackward);
                 const int result = (allocInfo.phys_addr() == static_cast<uint64_t>(-1)) ? -1 : 0;
+                if (result == 0 && memoryType == dxrt::MemoryType::Model_rmap)
+                {
+                    // Marked before the client gets the block, so HandleDMAWrite knows it is an
+                    // RMAP; it becomes a restore source only once the client sends it whole.
+                    MarkRmapBlock(deviceId, pid, allocInfo.phys_addr_offset);
+                }
                 // bufferAddress carries physAddrOffset (offset in NPU memory).
                 // blockId carries the 1-based sequential SHM block identifier.
                 const uint64_t bufferAddress = (result == 0) ? allocInfo.phys_addr_offset : 0;
@@ -882,8 +888,12 @@ DxrtServiceV2::DxrtServiceV2(
         // Only recover here if a device somehow reached this point still blocked.
         if (device->isBlocked())
         {
+#ifdef USE_SYSTEM_LEVEL_TESTING
+            LOG_DXRT_S << id << ": device blocked at startup; no recovery for SLT." << std::endl;
+#else
             LOG_DXRT_S << id << ": device blocked at startup; issuing recovery." << std::endl;
             _devices[id]->Process(dxrt::dxrt_cmd_t::DXRT_CMD_RECOVERY, nullptr);
+#endif
         }
 
         device->SetCallback([id, this](const dxrt::dxrt_response_t &response) {
@@ -894,6 +904,9 @@ DxrtServiceV2::DxrtServiceV2(
                 ErrorBroadCastToClient(err, errCode, deviceId, errorInfo);
         });
         device->SetRecoveryAdapter(std::make_shared<ServiceRecoveryAdapter>(this));
+        device->SetRmapRestoreCallback([this](int deviceId) {
+            return RestoreRmapBlocks(deviceId);
+        });
         device->SetThrottleCallback([this](dxrt::dx_pcie_dev_ntfy_throt_t throtInfo, int deviceId) {
             BroadcastThrottlingEventToClient(throtInfo, deviceId);
         });
@@ -903,8 +916,8 @@ DxrtServiceV2::DxrtServiceV2(
         });
 #endif
         device->SetDMACompletionCallback([this](bool isRead, pid_t pid, int deviceId, int seqId, int result) {
-            // Decrement pending DMA counter when completion is delivered
-            DecrementPendingDMA();
+            // Decrement pending DMA counters (and release memory waiting on them) when completion is delivered
+            OnDMACompleted(pid, deviceId);
 
             IPCPacketHeader requestHeader{};
             requestHeader.pid = pid;
@@ -1305,7 +1318,7 @@ int DxrtServiceV2::HandleDeallocate(pid_t pid, int deviceId, uint64_t address)
     SharedMemoryInfo info{};
     if (TryResolveSharedMemoryHandle(deviceId, pid, address, &info))
     {
-        ReleaseSharedMemoryHandle(info);
+        ReleaseSharedMemoryHandle(deviceId, pid, info);
         return mem->DeallocateAddress(info.phys_addr_offset, pid) ? 0 : -1;
     }
 
@@ -1385,6 +1398,11 @@ int DxrtServiceV2::HandleDMAWrite(
         return -EAGAIN;
     }
 
+    // Counted before the block is resolved: process teardown drops the process's
+    // blocks and only then checks for in-flight DMA, so either it sees this DMA and
+    // keeps the mapping, or this lookup fails. A queued DMA never targets an unmapped block.
+    IncrementPendingDMA(pid, deviceId);
+
     // Resolve source data via shared memory block_id.
     SharedMemHandle sharedHandle{};
     if (!TryGetSharedMemoryHandle(deviceId, pid, static_cast<uint64_t>(blockId), &sharedHandle)
@@ -1399,7 +1417,18 @@ int DxrtServiceV2::HandleDMAWrite(
             ", blockOffset=" + std::to_string(blockOffset) +
             ", size=" + std::to_string(size) +
             ", handleSize=" + std::to_string(sharedHandle.size));
+        // Nothing was queued, so take back the count taken above. If process teardown
+        // ran in between, it saw this count and deferred the memory; dropping the count
+        // to zero here is what releases it.
+        OnDMACompleted(pid, deviceId);
         return -EINVAL;
+    }
+
+    if (sharedHandle.isRmap && blockOffset == 0 && size == sharedHandle.size)
+    {
+        // The client fills the whole SHM block before sending it, so from now on the
+        // block is a complete source for a FW RMAP restore (RestoreRmapBlocks).
+        MarkRmapBlockLoaded(deviceId, pid, sharedHandle.physAddrOffset);
     }
 
     void *dataPtr = static_cast<uint8_t *>(sharedHandle.ptr) + blockOffset;
@@ -1413,7 +1442,6 @@ int DxrtServiceV2::HandleDMAWrite(
 
     dxrt::shm::SharedMemorySyscallAdapter::InvalidateMemory(dataPtr, static_cast<size_t>(size));
 
-    IncrementPendingDMA();
     _devices[deviceId]->DMAWriteAsync(meminfo, pid, seqId);
 
     return 0;
@@ -1442,6 +1470,9 @@ int DxrtServiceV2::HandleDMARead(
         return -EAGAIN;
     }
 
+    // Counted before the block is resolved; see HandleDMAWrite.
+    IncrementPendingDMA(pid, deviceId);
+
     // Resolve destination buffer via shared memory block_id.
     SharedMemHandle sharedHandle{};
     if (!TryGetSharedMemoryHandle(deviceId, pid, static_cast<uint64_t>(blockId), &sharedHandle)
@@ -1456,6 +1487,10 @@ int DxrtServiceV2::HandleDMARead(
             ", blockOffset=" + std::to_string(blockOffset) +
             ", size=" + std::to_string(size) +
             ", handleSize=" + std::to_string(sharedHandle.size));
+        // Nothing was queued, so take back the count taken above. If process teardown
+        // ran in between, it saw this count and deferred the memory; dropping the count
+        // to zero here is what releases it.
+        OnDMACompleted(pid, deviceId);
         return -EINVAL;
     }
 
@@ -1468,7 +1503,6 @@ int DxrtServiceV2::HandleDMARead(
     meminfo.offset = static_cast<uint32_t>(deviceOffset);
     meminfo.size = static_cast<uint32_t>(size);
 
-    IncrementPendingDMA();
     _devices[deviceId]->DMAReadAsync(meminfo, pid, seqId);
     return 0;
 }
@@ -1586,30 +1620,67 @@ int DxrtServiceV2::HandleProcessDeInit(pid_t pid, int deviceId)
 
     _scheduler->StopAllInferenceForProcess(pid, deviceId);
 
-    const std::vector<std::pair<int, dxrt::npu_bound_op>> taskEntries =
-        _taskInfoStore.extractTaskIdsWithBound(pid, deviceId);
+    struct TaskCleanup
+    {
+        int taskId;
+        dxrt::npu_bound_op bound;
+        bool registered;  // TaskInit added a bound on this device
+    };
+    std::vector<TaskCleanup> taskEntries;
+    std::unordered_set<int> registeredTaskIds;
+    for (const auto &entry : _taskInfoStore.extractTaskIdsWithBound(pid, deviceId))
+    {
+        taskEntries.push_back({entry.first, entry.second, true});
+        registeredTaskIds.insert(entry.first);
+    }
+
+    // Task memory this process holds on the device without a task registered on
+    // it (the client sent TaskInit under another device id) is reclaimed too;
+    // otherwise it stays allocated until dxrtd restarts.
+    auto *memService = GetMemoryService(deviceId);
+    if (memService != nullptr)
+    {
+        for (const int taskId : memService->GetTaskIds(pid))
+        {
+            if (registeredTaskIds.count(taskId) == 0)
+            {
+                LOG_DXRT_S << "HandleProcessDeInit: reclaiming memory of unregistered task: pid=" << pid
+                           << ", deviceId=" << deviceId << ", taskId=" << taskId << std::endl;
+                taskEntries.push_back({taskId, dxrt::npu_bound_op::N_BOUND_NORMAL, false});
+            }
+        }
+    }
+
     for (const auto &entry : taskEntries)
     {
-        const int taskId = entry.first;
-        _scheduler->StopTaskInference(pid, deviceId, taskId);
+        _scheduler->StopTaskInference(pid, deviceId, entry.taskId);
     }
     _scheduler->ClearRunningRequests(pid, deviceId);
 
+    // Drop the SHM handles before any device range is freed below: a FW RMAP
+    // restore (RestoreRmapBlocks) must never write a dead process's RMAP into a
+    // range that has already been handed to another allocation.
+    ReleaseAllSharedMemoryHandlesForProcess(deviceId, pid);
+
     // Only past the stops above is it known which tasks the NPU still owes a completion for.
-    auto *memService = GetMemoryService(deviceId);
     for (const auto &entry : taskEntries)
     {
-        const int taskId = entry.first;
-        const dxrt::npu_bound_op bound = entry.second;
+        const int taskId = entry.taskId;
+        const dxrt::npu_bound_op bound = entry.bound;
 
-        // Registered before re-checking so a completion landing in between is claimed by onTaskDrained.
+        // Registered before re-checking so a completion landing in between is claimed by
+        // onTaskDrained (inference) or OnDMACompleted (DMA).
         {
             std::lock_guard<std::mutex> lock(_pendingTaskFreeMutex);
             _pendingTaskFree[{pid, taskId}][deviceId] = std::chrono::steady_clock::now();
         }
 
+        // A DMA the process requested (e.g. model rmap/weight load cut short by the
+        // client exiting) may still write into this memory; keep it until that DMA is done.
         const bool freeNow =
-            !_scheduler->HasAnyRequestForTask(pid, taskId) && ClaimPendingTaskFree(pid, taskId, deviceId);
+            !_scheduler->HasAnyRequestForTask(pid, taskId)
+            && !HasPendingDMA(pid, deviceId)
+            && ClaimPendingTaskFree(pid, taskId, deviceId);
 
         LOG_DXRT_S << "HandleProcessDeInit mem clear: pid=" << pid
                    << ", deviceId=" << deviceId
@@ -1621,13 +1692,18 @@ int DxrtServiceV2::HandleProcessDeInit(pid_t pid, int deviceId)
             (void)memService->DeallocateTask(pid, taskId);
         }
 
+        // The memory is handled above; only the bound is left, and TaskInit
+        // added none on this device for an unregistered task.
+        if (!entry.registered)
+        {
+            continue;
+        }
         std::lock_guard<std::mutex> lock(_deviceMutex);
         if (deviceId >= 0 && deviceId < static_cast<int>(_devices.size()))
         {
             (void)_devices[deviceId]->DeleteBound(bound);
         }
     }
-    ReleaseAllSharedMemoryHandlesForProcess(deviceId, pid);
 
     {
         std::lock_guard<std::mutex> lock(_pidSetMutex);
@@ -1684,6 +1760,119 @@ bool DxrtServiceV2::TryGetSharedMemoryHandle(int deviceId, pid_t pid, uint64_t a
     return true;
 }
 
+std::map<uint64_t, DxrtServiceV2::SharedMemHandle> *DxrtServiceV2::FindProcessHandlesLocked(int deviceId, pid_t pid)
+{
+    auto deviceIt = _sharedMemoryHandles.find(deviceId);
+    if (deviceIt == _sharedMemoryHandles.end())
+    {
+        return nullptr;
+    }
+    auto pidIt = deviceIt->second.find(pid);
+    return (pidIt == deviceIt->second.end()) ? nullptr : &pidIt->second;
+}
+
+void DxrtServiceV2::MarkRmapBlock(int deviceId, pid_t pid, uint64_t physAddrOffset)
+{
+    std::lock_guard<std::mutex> lock(_sharedMemoryLock);
+    auto *handles = FindProcessHandlesLocked(deviceId, pid);
+    if (handles == nullptr)
+    {
+        return;
+    }
+    // The block is stored under several alias keys; mark all of them.
+    for (auto &pair : *handles)
+    {
+        if (pair.second.physAddrOffset == physAddrOffset)
+        {
+            pair.second.isRmap = true;
+        }
+    }
+}
+
+void DxrtServiceV2::MarkRmapBlockLoaded(int deviceId, pid_t pid, uint64_t physAddrOffset)
+{
+    std::lock_guard<std::mutex> lock(_sharedMemoryLock);
+    auto *handles = FindProcessHandlesLocked(deviceId, pid);
+    if (handles == nullptr)
+    {
+        return;
+    }
+    for (auto &pair : *handles)
+    {
+        if (pair.second.isRmap && pair.second.physAddrOffset == physAddrOffset)
+        {
+            pair.second.rmapLoaded = true;
+        }
+    }
+}
+
+int DxrtServiceV2::RestoreRmapBlocks(int deviceId)
+{
+    if (deviceId < 0 || static_cast<size_t>(deviceId) >= _devices.size() || !_devices[deviceId])
+    {
+        return -EINVAL;
+    }
+    if (_recoveryInProgress.load(std::memory_order_acquire))
+    {
+        return -EAGAIN;
+    }
+
+    const uint64_t base = _devices[deviceId]->info().mem_addr;
+    int written = 0;
+    int failed = 0;
+
+    // Held across the writes, unlike the usual rule of not holding locks while
+    // calling another layer: a concurrent HandleDeallocate must not release a
+    // block, and let its device range be reallocated, while it is written back.
+    // ServiceDevice::WriteSync takes no service lock, so this cannot deadlock.
+    std::lock_guard<std::mutex> lock(_sharedMemoryLock);
+    auto deviceIt = _sharedMemoryHandles.find(deviceId);
+    if (deviceIt != _sharedMemoryHandles.end())
+    {
+        for (const auto &pidEntry : deviceIt->second)
+        {
+            std::unordered_set<uint64_t> written_offsets;  // one block, several alias keys
+            for (const auto &addrEntry : pidEntry.second)
+            {
+                const SharedMemHandle &handle = addrEntry.second;
+                // A block that is allocated but not yet sent whole may still be partly
+                // filled; its own pending DMAWrite will put the RMAP on the device.
+                if (!handle.rmapLoaded || handle.ptr == nullptr || handle.size == 0
+                    || !written_offsets.insert(handle.physAddrOffset).second)
+                {
+                    continue;
+                }
+
+                // Same source, destination and size as the client's original
+                // DMAWrite of the whole block (HandleDMAWrite).
+                dxrt_meminfo_t meminfo{};
+                meminfo.data = reinterpret_cast<uint64_t>(handle.ptr);
+                meminfo.base = base;
+                meminfo.offset = static_cast<uint32_t>(handle.physAddrOffset);
+                meminfo.size = static_cast<uint32_t>(handle.size);
+                dxrt::shm::SharedMemorySyscallAdapter::InvalidateMemory(handle.ptr, static_cast<size_t>(handle.size));
+
+                const int ret = _devices[deviceId]->WriteSync(meminfo);
+                if (ret == 0)
+                {
+                    ++written;
+                }
+                else
+                {
+                    ++failed;
+                    LOG_DXRT_S_ERR("RestoreRmapBlocks: write failed: deviceId=" + std::to_string(deviceId) +
+                        ", pid=" + std::to_string(pidEntry.first) +
+                        ", offset=" + std::to_string(handle.physAddrOffset) +
+                        ", size=" + std::to_string(handle.size) +
+                        ", ret=" + std::to_string(ret));
+                }
+            }
+        }
+    }
+
+    return (failed > 0) ? -EIO : written;
+}
+
 bool DxrtServiceV2::TryResolveSharedMemoryHandle(int deviceId, pid_t pid, uint64_t address, SharedMemoryInfo *info)
 {
     if (info == nullptr)
@@ -1738,11 +1927,74 @@ bool DxrtServiceV2::TryResolveSharedMemoryHandle(int deviceId, pid_t pid, uint64
     return true;
 }
 
-void DxrtServiceV2::ReleaseSharedMemoryHandle(const SharedMemoryInfo &info)
+void DxrtServiceV2::ReleaseSharedMemoryHandle(int deviceId, pid_t pid, const SharedMemoryInfo &info)
 {
+    if (TryReleaseSharedMemoryHandle(deviceId, pid, info))
+    {
+        return;
+    }
+
+    LOG_DXRT_S << "Deferring release of shared memory (DMA in flight or DMA unregister refused): pid="
+               << pid << ", deviceId=" << deviceId << ", fd=" << info.fd
+               << ", size=" << info.size << std::endl;
+    std::lock_guard<std::mutex> lock(_deferredShmMutex);
+    _deferredShmReleases.push_back(DeferredShmRelease{deviceId, pid, info});
+}
+
+bool DxrtServiceV2::TryReleaseSharedMemoryHandle(int deviceId, pid_t pid, const SharedMemoryInfo &info)
+{
+    // A DMA of the process that is queued or running may still point into this mapping.
+    if (HasPendingDMA(pid, deviceId))
+    {
+        return false;
+    }
+
+    // Registered DMA ranges must be dropped before the mapping goes away. A registration
+    // the driver refuses to drop stays pinned to these pages; once the address is mapped
+    // again, every transfer matching it fails (EFAULT, reported as -ECOMM).
+    if (info.ptr != nullptr && deviceId >= 0 && static_cast<size_t>(deviceId) < _devices.size()
+        && !_devices[deviceId]->UnregisterDmaRange(info.ptr, info.size))
+    {
+        return false;
+    }
+
     if (info.fd >= 0)
     {
         (void)_memfdService.ReleaseSharedMemory(info.fd);
+    }
+    return true;
+}
+
+void DxrtServiceV2::RetryDeferredSharedMemoryReleases()
+{
+    std::vector<DeferredShmRelease> deferred;
+    {
+        std::lock_guard<std::mutex> lock(_deferredShmMutex);
+        deferred.swap(_deferredShmReleases);
+    }
+    if (deferred.empty())
+    {
+        return;
+    }
+
+    std::vector<DeferredShmRelease> stillDeferred;
+    for (const auto &entry : deferred)
+    {
+        if (TryReleaseSharedMemoryHandle(entry.deviceId, entry.pid, entry.info))
+        {
+            LOG_DXRT_S << "Released deferred shared memory: pid=" << entry.pid
+                       << ", deviceId=" << entry.deviceId << ", fd=" << entry.info.fd << std::endl;
+            continue;
+        }
+        stillDeferred.push_back(entry);
+    }
+
+    // Entries are independent (one per mapping), so their order does not matter;
+    // entries another thread deferred meanwhile may end up ahead of these.
+    if (!stillDeferred.empty())
+    {
+        std::lock_guard<std::mutex> lock(_deferredShmMutex);
+        _deferredShmReleases.insert(_deferredShmReleases.end(), stillDeferred.begin(), stillDeferred.end());
     }
 }
 
@@ -1762,9 +2014,14 @@ void DxrtServiceV2::ReleaseAllSharedMemoryHandlesForProcess(int deviceId, pid_t 
             return;
         }
 
-        pending.reserve(pidIt->second.size());
+        // Each block is keyed under several aliases (phys_addr, offset, block_id).
+        std::unordered_set<int> seenFds;
         for (const auto &pair : pidIt->second)
         {
+            if (!seenFds.insert(pair.second.fd).second)
+            {
+                continue;
+            }
             SharedMemoryInfo info{};
             info.fd = pair.second.fd;
             info.ptr = pair.second.ptr;
@@ -1783,7 +2040,7 @@ void DxrtServiceV2::ReleaseAllSharedMemoryHandlesForProcess(int deviceId, pid_t 
 
     for (const auto &info : pending)
     {
-        ReleaseSharedMemoryHandle(info);
+        ReleaseSharedMemoryHandle(deviceId, pid, info);
     }
 }
 
@@ -1901,17 +2158,70 @@ bool DxrtServiceV2::validateTask(pid_t pid, int deviceId, int taskId)
 
 void DxrtServiceV2::onTaskDrained(pid_t pid, int taskId)
 {
-    std::map<int, std::chrono::steady_clock::time_point> deferredDevices;
+    std::vector<int> deferredDevices;
     {
         std::lock_guard<std::mutex> lock(_pendingTaskFreeMutex);
         auto it = _pendingTaskFree.find({pid, taskId});
         if (it == _pendingTaskFree.end()) { return; }  // normal idle — nothing to free
-        deferredDevices = std::move(it->second);
-        _pendingTaskFree.erase(it);
+        for (const auto &device : it->second)
+        {
+            deferredDevices.push_back(device.first);
+        }
     }
-    for (const auto &device : deferredDevices)
+    // The entry is left in place: ClaimPendingTaskFree removes each device it claims,
+    // and the whole entry once no device is left.
+    for (const int deviceId : deferredDevices)
     {
-        auto *memService = GetMemoryService(device.first);
+        // OnDMACompleted releases it once the process's last DMA on this device completes.
+        if (HasPendingDMA(pid, deviceId)) { continue; }
+        if (!ClaimPendingTaskFree(pid, taskId, deviceId)) { continue; }
+
+        auto *memService = GetMemoryService(deviceId);
+        if (memService != nullptr)
+        {
+            (void)memService->DeallocateTask(pid, taskId);
+        }
+    }
+}
+
+void DxrtServiceV2::OnDMACompleted(pid_t pid, int deviceId)
+{
+    const bool processDmaDrained = DecrementPendingDMA(pid, deviceId);
+    if (processDmaDrained)
+    {
+        ReclaimDeferredTaskFreesAfterDMA(pid, deviceId);
+        RetryDeferredSharedMemoryReleases();
+    }
+}
+
+void DxrtServiceV2::ReclaimDeferredTaskFreesAfterDMA(pid_t pid, int deviceId)
+{
+    std::vector<int> taskIds;
+    {
+        std::lock_guard<std::mutex> lock(_pendingTaskFreeMutex);
+        for (auto it = _pendingTaskFree.lower_bound({pid, (std::numeric_limits<int>::min)()});
+             it != _pendingTaskFree.end() && it->first.first == pid; ++it)
+        {
+            if (it->second.count(deviceId) != 0)
+            {
+                taskIds.push_back(it->first.second);
+            }
+        }
+    }
+
+    // Lock order forbids taking scheduler/memory locks under _pendingTaskFreeMutex.
+    // An entry another path claims after the scan above makes ClaimPendingTaskFree
+    // return false, so each task is freed once.
+    for (const int taskId : taskIds)
+    {
+        // A tracked request means a completion is still owed; onTaskDrained frees it then.
+        if (_scheduler->HasAnyRequestForTask(pid, taskId)) { continue; }
+        if (!ClaimPendingTaskFree(pid, taskId, deviceId)) { continue; }
+
+        LOG_DXRT_S << "Releasing task memory after in-flight DMA completed: pid=" << pid
+                   << ", deviceId=" << deviceId << ", taskId=" << taskId << std::endl;
+
+        auto *memService = GetMemoryService(deviceId);
         if (memService != nullptr)
         {
             (void)memService->DeallocateTask(pid, taskId);
@@ -1946,6 +2256,7 @@ void DxrtServiceV2::StartPendingTaskFreeReaper()
             }
             if (!_pendingFreeReaperRunning.load()) { break; }
             ReclaimStrandedTaskMemory();
+            RetryDeferredSharedMemoryReleases();
         }
     });
 }
@@ -1993,6 +2304,10 @@ void DxrtServiceV2::ReclaimStrandedTaskMemory()
     for (const auto &candidate : candidates)
     {
         if (IsProcessRunning(candidate.pid)) { continue; }
+
+        // An in-flight DMA can still write into the memory no matter how long it has been
+        // pending, so the grace period does not apply; OnDMACompleted releases it.
+        if (HasPendingDMA(candidate.pid, candidate.deviceId)) { continue; }
 
         // A tracked request means a completion may still arrive; wait out the grace period.
         if (_scheduler->HasAnyRequestForTask(candidate.pid, candidate.taskId) && !candidate.expired)
@@ -2123,10 +2438,14 @@ void DxrtServiceV2::ErrorBroadCastToClient(
     int deviceId,
     const dx_pcie_dev_err_t *errorInfo)
 {
-    std::vector<pid_t> pids;
+    // A device fault terminates the receiving client, so notify only the
+    // processes that use the faulted device; clients on other NPUs keep running.
+    const std::vector<pid_t> pids = CollectClientPidsForDevice(deviceId);
+    if (pids.empty())
     {
-        std::lock_guard<std::mutex> lock(_pidSetMutex);
-        pids.assign(_pidSet.begin(), _pidSet.end());
+        LOG_DXRT_S << "ErrorBroadCastToClient: no client uses device " << deviceId
+                   << " (err=" << static_cast<int>(err) << ", errCode=" << errCode << ")" << std::endl;
+        return;
     }
 
     IPCPacketErrorNotification packet{};
@@ -2162,6 +2481,44 @@ void DxrtServiceV2::ErrorBroadCastToClient(
                 ", sendRc=" + std::to_string(sendRc));
         }
     }
+}
+
+std::vector<pid_t> DxrtServiceV2::CollectClientPidsForDevice(int deviceId)
+{
+    std::set<pid_t> pids;
+    // Fail-safe: an error that cannot be tied to a known device goes to every
+    // connected client, as before device-scoped notification, so no client
+    // keeps running on a device in an unknown state.
+    if (deviceId < 0 || static_cast<size_t>(deviceId) >= _devices.size())
+    {
+        std::lock_guard<std::mutex> lock(_pidSetMutex);
+        pids.insert(_pidSet.begin(), _pidSet.end());
+        return std::vector<pid_t>(pids.begin(), pids.end());
+    }
+
+    for (pid_t pid : _taskInfoStore.pidsForDevice(deviceId))
+    {
+        pids.insert(pid);
+    }
+
+    // A client allocates device memory before it registers the task (model
+    // load in progress), so memory ownership also counts as using the device.
+    {
+        std::lock_guard<std::mutex> lock(_sharedMemoryLock);
+        const auto it = _sharedMemoryHandles.find(deviceId);
+        if (it != _sharedMemoryHandles.end())
+        {
+            for (const auto &pidEntry : it->second)
+            {
+                if (!pidEntry.second.empty())
+                {
+                    pids.insert(pidEntry.first);
+                }
+            }
+        }
+    }
+
+    return std::vector<pid_t>(pids.begin(), pids.end());
 }
 
 void DxrtServiceV2::WaitForAllClientsDead(int timeoutMs)
@@ -2259,6 +2616,8 @@ void DxrtServiceV2::ServiceRecoveryAdapter::ResumeAfterRecovery(int deviceId)
     // clients re-initialize their tasks.
     _service->_scheduler->ClearAllLoad();
     _service->_recoveryInProgress.store(false, std::memory_order_release);
+    // The driver refuses DMA unregisters while the device is not READY; retry them now.
+    _service->RetryDeferredSharedMemoryReleases();
     LOG_DXRT_S << "Recovery complete for device " << deviceId
                << ": device ready, service continues." << std::endl;
 }
@@ -2266,7 +2625,7 @@ void DxrtServiceV2::ServiceRecoveryAdapter::ResumeAfterRecovery(int deviceId)
 [[noreturn]] void DxrtServiceV2::ServiceRecoveryAdapter::OnRecoveryFailed(int deviceId)
 {
     LOG_DXRT_S_ERR("Recovery failed for device " + std::to_string(deviceId) + ". Aborting service.");
-    std::abort();
+    TerminateForServiceRestart();
 }
 
 void DxrtServiceV2::RecoveryBroadcastAndWait(dxrt::dxrt_server_err_t err, uint32_t errCode, int deviceId)
@@ -2278,6 +2637,10 @@ void DxrtServiceV2::RecoveryBroadcastAndWait(dxrt::dxrt_server_err_t err, uint32
     LOG_DXRT_S_DBG << "Step 1: Broadcasting error to all clients..." << std::endl;
     ErrorBroadCastToClient(err, errCode, deviceId, nullptr);
 
+#ifdef USE_SYSTEM_LEVEL_TESTING
+    // SLT: never self-recover; exit immediately after notifying clients
+    std::quick_exit(EXIT_FAILURE);
+#else
     // Wait for in-flight DMA operations to complete instead of killing clients
     // According to DMA_ABORT_RECOVERY_USER_SPACE_REQUIREMENTS.md:
     // Driver will complete aborted channel's in-flight transfers with -EIO
@@ -2295,6 +2658,7 @@ void DxrtServiceV2::RecoveryBroadcastAndWait(dxrt::dxrt_server_err_t err, uint32
     }
 
     LOG_DXRT_S_DBG << "Step 3: Ready for device recovery (clients remain connected)." << std::endl;
+#endif
 }
 
 bool DxrtServiceV2::TaskInit(pid_t pid, int deviceId, int taskId, int bound, uint64_t modelMemorySize, const TaskStaticConfig &config)
@@ -2405,7 +2769,7 @@ bool DxrtServiceV2::IsTaskValid(pid_t pid, int deviceId, int taskId)
 
 void DxrtServiceV2::Dispose()
 {
-    std::vector<SharedMemoryInfo> pending;
+    std::vector<std::pair<int, SharedMemoryInfo>> pending;
     {
         std::lock_guard<std::mutex> lock(_sharedMemoryLock);
         for (const auto &devicePair : _sharedMemoryHandles)
@@ -2414,34 +2778,83 @@ void DxrtServiceV2::Dispose()
             const uint64_t base = _devices[deviceId]->info().mem_addr;
             for (const auto &pidPair : devicePair.second)
             {
+                // Each block is keyed under several aliases (phys_addr, offset, block_id).
+                std::unordered_set<int> seenFds;
                 for (const auto &addrPair : pidPair.second)
                 {
+                    if (!seenFds.insert(addrPair.second.fd).second)
+                    {
+                        continue;
+                    }
                     SharedMemoryInfo info{};
                     info.fd = addrPair.second.fd;
                     info.ptr = addrPair.second.ptr;
                     info.size = addrPair.second.size;
                     info.phys_addr_base = base;
                     info.phys_addr_offset = addrPair.second.physAddrOffset;
-                    pending.push_back(info);
+                    pending.emplace_back(deviceId, info);
                 }
             }
         }
         _sharedMemoryHandles.clear();
     }
-
-    for (const auto &info : pending)
     {
-        ReleaseSharedMemoryHandle(info);
+        std::lock_guard<std::mutex> lock(_deferredShmMutex);
+        for (const auto &entry : _deferredShmReleases)
+        {
+            pending.emplace_back(entry.deviceId, entry.info);
+        }
+        _deferredShmReleases.clear();
+    }
+
+    // Shutting down: unmap regardless. Registrations the driver still holds are
+    // dropped when dxrtd closes the device.
+    for (const auto &entry : pending)
+    {
+        const int deviceId = entry.first;
+        const SharedMemoryInfo &info = entry.second;
+        if (info.ptr != nullptr && deviceId >= 0 && static_cast<size_t>(deviceId) < _devices.size())
+        {
+            (void)_devices[deviceId]->UnregisterDmaRange(info.ptr, info.size);
+        }
+        if (info.fd >= 0)
+        {
+            (void)_memfdService.ReleaseSharedMemory(info.fd);
+        }
     }
 }
 
-void DxrtServiceV2::IncrementPendingDMA()
+void DxrtServiceV2::IncrementPendingDMA(pid_t pid, int deviceId)
 {
+    {
+        std::lock_guard<std::mutex> lock(_processDmaMutex);
+        ++_pendingDmaByProcess[{pid, deviceId}];
+    }
     _pendingDmaOperations.fetch_add(1, std::memory_order_acq_rel);
 }
 
-void DxrtServiceV2::DecrementPendingDMA()
+bool DxrtServiceV2::DecrementPendingDMA(pid_t pid, int deviceId)
 {
+    bool processDmaDrained = false;
+    {
+        std::lock_guard<std::mutex> lock(_processDmaMutex);
+        auto it = _pendingDmaByProcess.find({pid, deviceId});
+        if (it == _pendingDmaByProcess.end())
+        {
+            // Every accepted DMA increments both counters, so this is a bookkeeping bug.
+            // Nothing is released for the process (false), but the global counter below is
+            // still decremented: the DMA did complete, and leaving it high would stall
+            // WaitForDMACompletion() until its timeout during recovery.
+            LOG_DXRT_S_ERR("DecrementPendingDMA: no DMA tracked for pid=" + std::to_string(pid)
+                + ", deviceId=" + std::to_string(deviceId) + ", underflow prevented");
+        }
+        else if (--it->second == 0)
+        {
+            _pendingDmaByProcess.erase(it);
+            processDmaDrained = true;
+        }
+    }
+
     int current = _pendingDmaOperations.load(std::memory_order_acquire);
     while (current > 0)
     {
@@ -2455,10 +2868,17 @@ void DxrtServiceV2::DecrementPendingDMA()
                 std::lock_guard<std::mutex> lock(_dmaMutex);
                 _dmaCompletionCv.notify_all();
             }
-            return;
+            return processDmaDrained;
         }
     }
     LOG_DXRT_S_ERR("DecrementPendingDMA: counter already 0, underflow prevented");
+    return processDmaDrained;
+}
+
+bool DxrtServiceV2::HasPendingDMA(pid_t pid, int deviceId)
+{
+    std::lock_guard<std::mutex> lock(_processDmaMutex);
+    return _pendingDmaByProcess.count({pid, deviceId}) != 0;
 }
 
 bool DxrtServiceV2::WaitForDMACompletion(int timeoutMs)

@@ -49,6 +49,12 @@ class DXRT_API FixedSizeBuffer
     void releaseBuffer(void* ptr);
     bool hasBuffer();
     int64_t size() const { return _size;}
+
+    /* Pin these buffers in the driver so each inference skips pin/map/unmap.
+     * Best effort: silently does nothing on drivers without the command.
+     * Skipped in service mode, where dxrtd registers the shared-memory slices itself. */
+    void RegisterForDma(const std::vector<int>& deviceIds, bool input);
+
     ~FixedSizeBuffer();
     FixedSizeBuffer(const FixedSizeBuffer&) = delete;
     FixedSizeBuffer& operator=(const FixedSizeBuffer&) = delete;
@@ -72,6 +78,10 @@ class DXRT_API FixedSizeBuffer
 #endif // USE_VNPU
     std::vector<void*> _data;
     std::vector<void*> _pointers;
+
+    void UnregisterFromDma() noexcept;
+    std::vector<int> _dmaDeviceIds;
+    bool _dmaInput = false;
 
     int _count;
     int64_t _size;

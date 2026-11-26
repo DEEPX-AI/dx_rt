@@ -28,6 +28,17 @@ namespace dxrt {
 
 DXRT_INTERNAL_API bool IsRecoverableDispatcherErrorForTest(uint32_t errCode);
 
+// dxrtd ends itself after a device fault and relies on the service manager to restart it.
+// On Windows abort() first runs Windows Error Reporting, which delayed the exit by 7 s or more.
+[[noreturn]] inline void TerminateForServiceRestart()
+{
+#ifdef _WIN32
+    std::quick_exit(EXIT_FAILURE);
+#else
+    std::abort();
+#endif
+}
+
 // DeviceDispatcher
 //   Owns the NPU response polling threads (one per DMA channel, fixed at 3)
 //   and the event polling thread (one per device).  Both groups talk to the
@@ -69,6 +80,9 @@ class DeviceDispatcher
     using RecoveryCallback = std::function<void(dxrt_server_err_t, uint32_t, int)>;
     using ThrottleCallback = std::function<void(dx_pcie_dev_ntfy_throt_t, int)>;
     using MemoryStatsProvider = std::function<bool(uint64_t* total, uint64_t* used, uint64_t* free)>;
+    // Writes every model RMAP held for the device back to device memory
+    // (FW DXRT_RECOV_RMAP). Returns the number of blocks written, or < 0.
+    using RmapRestoreCallback = std::function<int(int deviceId)>;
 
     DeviceDispatcher(std::shared_ptr<DeviceCore> core,
                      std::array<UsageTimer, kResponseChannels>& timer,
@@ -86,6 +100,7 @@ class DeviceDispatcher
     void SetErrorCallback(ErrorCallback cb)       { _onError    = std::move(cb); }
     void SetRecoveryCallback(RecoveryCallback cb) { _onRecovery = std::move(cb); }
     void SetThrottleCallback(ThrottleCallback cb) { _onThrottle = std::move(cb); }
+    void SetRmapRestoreCallback(RmapRestoreCallback cb) { _onRmapRestore = std::move(cb); }
 
     // Optional recovery adapter.  Must be set before StartThreads().
     // When set, TriggerRecovery delegates step 1/2 and step 4 signals to
@@ -119,6 +134,7 @@ private:
     int  EventLoop();
     void LogDmaChannelStatus(const dx_pcie_dev_err_t* err, uint32_t err_code) const;
     void TriggerRecovery(uint32_t errCode);
+    void HandleFwRecoveryEvent(uint32_t action);
 
     std::shared_ptr<DeviceCore>                   _core;
     int                                           _deviceId;
@@ -135,6 +151,7 @@ private:
     ErrorCallback    _onError;
     RecoveryCallback _onRecovery;
     ThrottleCallback _onThrottle;
+    RmapRestoreCallback _onRmapRestore;
 
     std::shared_ptr<IRecoveryAdapter>             _recoveryAdapter;
 
