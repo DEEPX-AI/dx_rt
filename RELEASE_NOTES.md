@@ -26,6 +26,7 @@
 - Fixed Windows `dxrtd` taking several seconds or longer to exit after an unrecoverable device fault.
 - Fixed a DX-M1 M.2 module with LPDDR4X being shown as M1M instead of M1.
 - Fixed the FW RMAP recovery request not being answered in service mode and `dxrtd` terminating on FW CPU/DONE recovery events; library mode now restores the RMAP of all loaded models.
+- Fixed the output decode of `CHANNEL_LAST_TO_FIRST` tensors with batch > 1 and channel > 1, which mixed up the batch and channel axes.
 - Fixed `dxrt_cxx_api.h` failing to compile on Windows when `<windows.h>` is included first (`ERROR`, `max`, `DEBUG` macro collisions and `UNICODE` builds).
 - Fixed `MemAlloc`, `MemFree` and `GetFileList` in `dxrt_cxx_api.h` depending on the `<windows.h>` include order on Windows, which could corrupt the heap.
 - `install.sh` now retries the ONNX Runtime download from the DEEPX mirror and no longer extracts a partial archive.
@@ -35,7 +36,7 @@
 
 ### 3. Added
 - **ONNX Runtime Download Mirror**: DEEPX mirror (`DEEPX-AI/onnxruntime`) as a fallback for the upstream archive; the DeepX pre-built ONNX Runtime has no mirror.
-- **DDR Status Reporting**: LPDDR4 and LPDDR5 status from JEDEC MR4, including low/high temperature limit exceeded states.
+- **DDR Status Reporting**: LPDDR4 and LPDDR5 status from JEDEC MR4, including low/high temperature limit exceeded states. A status of 0x0 is shown as `status not reported` unless the NPU temperature is below 0'C.
 - **`README.md` Quick Start**: Expected `dxcli -s` output and troubleshooting tips.
 - **ONNX Runtime Checksum**: `install.sh` verifies the downloaded archive against a pinned sha256 before extraction and aborts on mismatch.
 - **NFH Acceleration on Windows x64**: SSE2 NFH transpose acceleration via `Configuration::ITEM::NFH_ACCELERATION` and `dxrun --accel-nfh`; off by default.
