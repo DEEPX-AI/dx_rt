@@ -1,9 +1,12 @@
 # RELEASE_NOTES
 
-## DX-RT v3.5.1 / 2026-11-26
+## DX-RT v3.5.1 / 2026-11-27
 
 ### 1. Changed
 - **Driver Version Error Message**: Shows the current and required versions, the `dxrt-driver-dkms` package to update and its download location.
+- **Exception Message Format**: The exception type, the message and the source location `(file:line:function)` are printed on separate lines instead of as `{"message":file:line:function}`.
+- **`DXRT_FORCE_DEVICE_ID` Removed**: The environment variable is no longer read; select devices with `InferenceOption::devices` or `dxrun -d`.
+- **DMA Buffer Register**: User buffers are registered with the driver once per buffer instead of being pinned and DMA-mapped/unmapped on every inference, reducing host system (kernel) CPU usage. The CPU saving applies only to source builds with `USE_SERVICE=OFF` (library mode); the Debian package (service mode) sees no effect. Requires `dxrt-driver-dkms` 2.7.0 or higher (`DXRT_CMD_REGISTER_BUFFER`); older drivers fall back to the previous per-transfer path.
 - **Sanity Check**: `SanityCheck.sh` runs without `sudo`; the `lspci`-based driver checks and the `dmesg` capture are removed.
 - **`dxrun` Latency Report**: Split into NPU Latency and Host Latency; NPU Processing Time and E2E Response Time are removed.
 - **`dxrun` Single Mode**: `-s` honors `--loops`/`--time` and reports per-request averages once.

@@ -27,7 +27,7 @@ Exception::Exception(const std::string& msg, ERROR_CODE code)
 
 void Exception::setMessage(const std::string& msg)
 {
-    _message = "[dxrt-exception] " + msg;
+    _message = "[dxrt-exception]\n" + msg;
 }
 
 void Exception::setCode(ERROR_CODE code)
@@ -82,67 +82,67 @@ std::string Exception::codeStr() const noexcept {
 
 FileNotFoundException::FileNotFoundException(const std::string& msg)
 {
-    setMessage("File not found exception {" + msg + "}");
+    setMessage("File not found exception: " + msg);
     setCode(ERROR_CODE::FILE_NOT_FOUND);
 }
 
 NullPointerException::NullPointerException(const std::string& msg)
 {
-    setMessage("Null pointer exception {" + msg + "}");
+    setMessage("Null pointer exception: " + msg);
     setCode(ERROR_CODE::NULL_POINTER);
 }
 
 FileIOException::FileIOException(const std::string& msg)
 {
-    setMessage("File input or output exception {" + msg + "}");
+    setMessage("File input or output exception: " + msg);
     setCode(ERROR_CODE::FILE_IO);
 }
 
 InvalidArgumentException::InvalidArgumentException(const std::string& msg)
 {
-    setMessage("Invalid argument exception {" + msg + "}");
+    setMessage("Invalid argument exception: " + msg);
     setCode(ERROR_CODE::INVALID_ARGUMENT);
 }
 
 InvalidOperationException::InvalidOperationException(const std::string& msg)
 {
-    setMessage("Invalid operation exception {" + msg + "}");
+    setMessage("Invalid operation exception: " + msg);
     setCode(ERROR_CODE::INVALID_OPERATION);
 }
 
 InvalidModelException::InvalidModelException(const std::string& msg)
 {
-    setMessage("Invalid model exception {" + msg + "}");
+    setMessage("Invalid model exception: " + msg);
     setCode(ERROR_CODE::INVALID_MODEL);
 }
 
 ModelParsingException::ModelParsingException(const std::string& msg)
 {
-    setMessage("Model parsing exception {" + msg + "}");
+    setMessage("Model parsing exception: " + msg);
     setCode(ERROR_CODE::MODEL_PARSING);
 }
 
 ServiceIOException::ServiceIOException(const std::string& msg)
 {
-    setMessage("Service input & output exception {" + msg + "}");
+    setMessage("Service input & output exception: " + msg);
     setCode(ERROR_CODE::SERVICE_IO);
 }
 
 DeviceIOException::DeviceIOException(const std::string& msg)
 {
-    setMessage("Device input & output exception {" + msg + "}");
+    setMessage("Device input & output exception: " + msg);
     setCode(ERROR_CODE::DEVICE_IO);
 }
 
 InsufficientMemoryException::InsufficientMemoryException(const std::string& msg)
 {
-    setMessage("Insufficient memory exception {" + msg + "}");
+    setMessage("Insufficient memory exception: " + msg);
     setCode(ERROR_CODE::INSUFFICIENT_MEMORY);
 }
 
 DeviceRemovedException::DeviceRemovedException(const std::string& msg)
 {
-    setMessage("Device removed exception {" + msg + "}");
+    setMessage("Device removed exception: " + msg);
     setCode(ERROR_CODE::DEVICE_REMOVED);
 }
 

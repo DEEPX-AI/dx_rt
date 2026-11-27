@@ -37,14 +37,9 @@ void DevicePool::InitCores_once()
 {
     LOG_DXRT_DBG << std::endl;
     const char* forceNumDevStr = getenv("DXRT_FORCE_NUM_DEV");
-    const char* forceDevIdStr = getenv("DXRT_FORCE_DEVICE_ID");
     int forceNumDev = 0;
     if (forceNumDevStr)
         forceNumDev = std::stoi(forceNumDevStr);
-
-    int forceDevId = -1;
-    if (forceDevIdStr)
-        forceDevId = std::stoi(forceDevIdStr);
 
     _deviceCores.clear();
     int cnt = 0;
@@ -67,11 +62,6 @@ void DevicePool::InitCores_once()
             if (forceNumDev > 0 && cnt >= forceNumDev)
             {
                 shouldExit = true;
-                continue;
-            }
-            if (forceDevId != -1 && cnt != forceDevId)
-            {
-                cnt++;
                 continue;
             }
 

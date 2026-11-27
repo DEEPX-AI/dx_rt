@@ -72,12 +72,24 @@ namespace dxrt {
     std::string LogMessages::NotSupported_DeviceDriverVersion(int currentDriverVersion, int requiredDriverVersion)
     {
 
-        return
-            "The current device driver version is "
+        const std::string required = ConvertIntToVersion(requiredDriverVersion);
+
+        std::string message =
+            "NPU kernel driver version mismatch.\nCurrent driver version is "
             + ConvertIntToVersion(currentDriverVersion)
-            + ".\nPlease update your device driver to version "
-            + ConvertIntToVersion(requiredDriverVersion)
+            + ", but DX-RT requires version "
+            + required
             + " or higher.";
+#ifdef __linux__
+        // The package name and its download location are Linux-only.
+        message +=
+            "\n\nPlease update 'dxrt-driver-dkms' to "
+            + required
+            + "+.\nDownload location: https://github.com/DEEPX-AI/dx_rt_npu_linux_driver/tree/main/release";
+#else
+        message += "\nPlease update the NPU driver to " + required + "+.";
+#endif
+        return message;
 
     }
 
