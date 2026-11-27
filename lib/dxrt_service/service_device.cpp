@@ -425,9 +425,7 @@ vector<shared_ptr<ServiceDevice>> ServiceDevice::CheckServiceDevices(uint32_t su
 {
     LOG_DXRT_DBG << endl;
     const char* forceNumDevStr = getenv("DXRT_FORCE_NUM_DEV");
-    const char* forceDevIdStr = getenv("DXRT_FORCE_DEVICE_ID");
     int forceNumDev = forceNumDevStr?std::stoi(forceNumDevStr):0;
-    int forceDevId = forceDevIdStr?std::stoi(forceDevIdStr):-1;
 
     if (serviceDevices.empty())
     {
@@ -446,11 +444,6 @@ vector<shared_ptr<ServiceDevice>> ServiceDevice::CheckServiceDevices(uint32_t su
                 if (forceNumDev > 0 && cnt >= forceNumDev)
                 {
                     shouldBreak = true;
-                    continue;
-                }
-                if (forceDevId != -1 && cnt != forceDevId)
-                {
-                    cnt++;
                     continue;
                 }
 

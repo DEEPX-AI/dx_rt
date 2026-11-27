@@ -31,7 +31,7 @@ enum ERROR_CODE {  // NOSONAR:S3642
     DEVICE_REMOVED
 };
 
-#define EXCEPTION_MESSAGE(msg) ("\"" + std::string(msg) + "\":" + std::string(__FILE__) + ":" + std::to_string(__LINE__) + ":" + __func__)
+#define EXCEPTION_MESSAGE(msg) (std::string(msg) + "\n(" + std::string(__FILE__) + ":" + std::to_string(__LINE__) + ":" + __func__ + ")")
 
 class DXRT_API Exception  //: public std::exception
 {

@@ -61,8 +61,7 @@ void WarmupBufferPool(const std::shared_ptr<FixedSizeBuffer>& pool, int slotCoun
 }
 
 // device_id indexes the local device list; the service layer needs the device's
-// own number (they differ when only some devices are opened, e.g.
-// DXRT_FORCE_DEVICE_ID=1 gives one layer, index 0, whose device is 1).
+// own number.
 int ToServiceDeviceId(int device_id)
 {
     const auto dtl = DevicePool::GetInstance().GetDeviceTaskLayer(device_id);
